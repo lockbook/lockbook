@@ -50,6 +50,8 @@ import app.lockbook.util.getIconResource
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import kotlin.math.abs
 
@@ -115,12 +117,7 @@ class WorkspaceFragment : Fragment() {
             updateForwardButtonState(workspaceWrapper)
         }
 
-        model.refreshFilesRequested.observe(viewLifecycleOwner) {
-            filesListModel.reloadFiles()
-        }
-
         model.bottomInset.observe(viewLifecycleOwner) {
-            println("ad-tra: set bottom inset ")
             workspaceWrapper.workspaceView.setBottomInset(it)
         }
 
@@ -674,7 +671,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                 val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
                 val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                     abs(event.y - touchStartY).toInt() < slopTouchThreshold
-                println("ad-tra: openning keyboard $bottomSheetExpanded $keyboardShown $duration $nonSloppyTouch")
                 if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -760,8 +756,10 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             }
 
             if (bytes != null) {
-                Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
-                workspaceView.drawImmediately()
+                withContext(Dispatchers.Main){
+                    Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
+                    workspaceView.drawImmediately()
+                }
             } else {
                 Toast
                     .makeText(appContext, "Clipboard image too large or unreadable", Toast.LENGTH_SHORT)

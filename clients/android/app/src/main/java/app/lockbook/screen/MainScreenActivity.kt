@@ -206,14 +206,6 @@ class MainScreenActivity : AppCompatActivity() {
             updateMainScreenUI(update)
         }
 
-        workspaceModel.tabTitleClicked.observe(this) {
-            workspaceModel.currentTab.value?.let { tab ->
-                fileTreeViewModel.fileModel.idsAndFiles[tab.id]?.let { file ->
-                    model.launchTransientScreen(TransientScreen.Rename(file))
-                }
-            }
-        }
-
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {

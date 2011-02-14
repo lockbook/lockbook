@@ -26,11 +26,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingTag: Any? = null
 
     val selectionStart: Int get() {
-        return getSelection(WGPU_OBJ).start
+        val ret = getSelection(WGPU_OBJ).start
+        return ret
     }
 
     val selectionEnd: Int get() {
-        return getSelection(WGPU_OBJ).end
+        val ret = getSelection(WGPU_OBJ).end
+        return ret
     }
 
     override fun toString(): String {
@@ -149,11 +151,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
+            Workspace.setSelection(WGPU_OBJ, start, end)
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
+            Workspace.setSelection(WGPU_OBJ, start, end)
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
@@ -187,7 +189,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
-        Workspace.append(WorkspaceView.WGPU_OBJ, text?.substring(start, end) ?: "null")
+        val appendText = text?.substring(start, end) ?: return this
+        Workspace.append(WorkspaceView.WGPU_OBJ, appendText)
         view.drawImmediately()
 
         return this
@@ -222,7 +225,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
-        println("ad-tra: replacing $st $en where selection is $selectionStart $selectionEnd")
         text?.let { realText ->
             if (st == selectionStart && en == selectionEnd) {
                 if (realText == "\n") {

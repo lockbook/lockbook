@@ -38,13 +38,6 @@ class WorkspaceViewModel : ViewModel() {
     val hideToolbar: LiveData<Float>
         get() = _hideToolbar
 
-    val _tabTitleClicked = SingleMutableLiveData<Unit>()
-    val tabTitleClicked: LiveData<Unit>
-        get() = _tabTitleClicked
-
-    val _refreshFilesRequested = SingleMutableLiveData<Unit>()
-    val refreshFilesRequested: LiveData<Unit>
-        get() = _refreshFilesRequested
 
     var tabs = emptyDataSourceTyped<File>()
 

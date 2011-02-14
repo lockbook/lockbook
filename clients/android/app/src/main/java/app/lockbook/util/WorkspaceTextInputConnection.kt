@@ -32,7 +32,6 @@ const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
 
 @SuppressLint("SoonBlockedPrivateApi")
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
-    private val logger = AppLogger.getLogger("InputBridging")
 
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
 
@@ -43,18 +42,15 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    fun notifySelectionUpdated(isImmediate: Boolean = false) {
-        if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
-            val selection = wsEditable.getSelection()
-
-            getInputMethodManager().updateSelection(
-                textInputWrapper,
-                selection.start,
-                selection.end,
-                wsEditable.composingStart,
-                wsEditable.composingEnd
-            )
-        }
+    fun notifySelectionUpdated() {
+        val selection = wsEditable.getSelection()
+        getInputMethodManager().updateSelection(
+            textInputWrapper,
+            selection.start,
+            selection.end,
+            wsEditable.composingStart,
+            wsEditable.composingEnd
+        )
     }
 
 
@@ -108,8 +104,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
                         if (bytes != null) {
                             Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
-
-                            workspaceView.drawImmediately()
+                            withContext(Dispatchers.Main) {
+                                workspaceView.drawImmediately()
+                            }
                         }
                     }
 
@@ -221,7 +218,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
         if (isImmediate) {
-            notifySelectionUpdated(true)
+            notifySelectionUpdated()
         }
 
         if (isMonitor) {

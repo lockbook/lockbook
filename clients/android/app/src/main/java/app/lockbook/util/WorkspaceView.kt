@@ -74,8 +74,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         invalidate()
     }
 
-    var ignoreSelectionUpdate = false
-
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val frameOutputJsonParser = Json {
@@ -279,8 +277,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        handler?.removeCallbacks(redrawTask)
         surface = null
     }
+
+    override fun onDetachedFromWindow() {
+        handler?.removeCallbacks(redrawTask)
+        ioScope.cancel()
+        super.onDetachedFromWindow()
+    }
+
 
     fun setBottomInset(inset: Int) {
         if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
@@ -391,9 +397,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
 
     fun drawImmediately() {
-        ignoreSelectionUpdate = true
         drawWorkspace()
-        ignoreSelectionUpdate = false
     }
 
     override fun draw(canvas: Canvas) {
