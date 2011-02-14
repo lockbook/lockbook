@@ -247,6 +247,7 @@ class CopyKeyFragment : Fragment() {
 
         copyKeyBinding.nextButton.setOnClickListener {
             startActivity(Intent(context, MainScreenActivity::class.java))
+            requireActivity().finishAffinity()
         }
 
         val words = phrase.split(" ")
@@ -254,11 +255,17 @@ class CopyKeyFragment : Fragment() {
         copyKeyBinding.keyFirstHalf.text = createColoredNumberedList(words.take(12), 1)
         copyKeyBinding.keySecondHalf.text = createColoredNumberedList(words.drop(12), 13)
 
-        // prevent back button, you don't want to go back to the create
-        // screen after creating an account
-        requireActivity().onBackPressedDispatcher.addCallback {}
-
         return copyKeyBinding.root
+    }
+
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Prevent returning to account creation after the account already exists.
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {}
     }
 
     private fun createColoredNumberedList(
