@@ -1,19 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:layout_marginHorizontal="20dp"
     android:layout_marginVertical="20dp"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/filesListUsage"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingTop="12dp"
-        android:freezesText="true"
-        android:textAppearance="?attr/textAppearanceLabelLarge" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/filesListLastSynced"
@@ -22,7 +15,7 @@
         android:paddingTop="8dp"
         android:text="@string/default_value"
         android:freezesText="true"
-        android:textAppearance="?attr/textAppearanceLabelMedium" />
+        android:textAppearance="?attr/textAppearanceLabelLarge" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/filesListLocalDirty"
@@ -42,55 +35,32 @@
         android:freezesText="true"
         android:textAppearance="?attr/textAppearanceLabelMedium" />
 
-    <LinearLayout
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/set_theme"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:clickable="true"
-        android:background="?android:attr/selectableItemBackground"
-        android:focusable="true"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:gravity="center_vertical|start"
         android:layout_marginTop="28dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:text="@string/set_theme"
+        app:icon="@drawable/outline_brightness_2_24"
+        app:iconGravity="textStart"
+        app:iconPadding="13dp"
+        app:iconSize="30dp"
+        />
 
-        <ImageView
-            android:id="@+id/set_theme_icon"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@drawable/outline_brightness_2_24"
-            android:contentDescription="@string/pending_shares" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/set_theme"
-            android:paddingHorizontal="13dp" />
-
-    </LinearLayout>
-
-    <LinearLayout
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/launch_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:clickable="true"
-        android:background="?android:attr/selectableItemBackground"
-        android:focusable="true"
+        style="@style/Widget.Material3.Button"
+        android:gravity="center_vertical|start"
         android:layout_marginTop="8dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <ImageView
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@drawable/ic_outline_settings_24"
-            android:contentDescription="@string/settings_title" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_title"
-            android:paddingHorizontal="13dp" />
-
-    </LinearLayout>
+        android:text="@string/settings_title"
+        app:icon="@drawable/ic_outline_settings_24"
+        app:iconGravity="textStart"
+        app:iconPadding="13dp"
+        app:iconSize="30dp"
+         />
 
 </LinearLayout>

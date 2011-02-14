@@ -126,7 +126,6 @@
 
     <string name="import_account_starting_import">Starting import…</string>
 
-    <string name="free_space">%1$s used out of %2$s</string>
     <string name="last_sync">Last Synced: %s</string>
 
     <plurals name="files_to_push">
@@ -232,7 +231,6 @@
     <string name="more_info">More info</string>
     <string name="upgrade_now">Upgrade now</string>
 
-    <string name="pending_shares">Pending Shares</string>
     <string name="set_theme">Set theme</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>

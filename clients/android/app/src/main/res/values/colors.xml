@@ -18,7 +18,6 @@
   <color name="md_theme_onErrorContainer">@color/md_theme_light_onErrorContainer</color>
   <color name="md_theme_background">@color/md_theme_light_background</color>
   <color name="md_theme_onBackground">@color/md_theme_light_onBackground</color>
-  <color name="md_theme_surfaceDim">@color/md_theme_light_surfaceDim</color>
   <color name="md_theme_surface">@color/md_theme_light_surface</color>
   <color name="md_theme_onSurface">@color/md_theme_light_onSurface</color>
   <color name="md_theme_surfaceVariant">@color/md_theme_light_surfaceVariant</color>

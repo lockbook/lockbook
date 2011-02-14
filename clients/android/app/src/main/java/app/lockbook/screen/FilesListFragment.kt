@@ -10,7 +10,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.*
-import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -27,6 +26,7 @@ import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
@@ -270,13 +270,6 @@ class FilesListFragment :
 
         val header = binding.navigationView.getHeaderView(0)
 
-        model.usage.observe(viewLifecycleOwner) { usageMetrics ->
-            usageMetrics?.let {
-                header.findViewById<MaterialTextView>(R.id.filesListUsage).text =
-                    getString(R.string.free_space, usageMetrics.serverUsage?.readable, usageMetrics.dataCap?.readable)
-            }
-        }
-
         model.syncStatus.observe(viewLifecycleOwner) {
             header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text =
                 getString(R.string.last_sync, it)
@@ -347,7 +340,7 @@ class FilesListFragment :
 
         binding.navigationView.getHeaderView(0).let { header ->
 
-            header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
+            header.findViewById<MaterialButton>(R.id.set_theme).setOnClickListener {
                 var selected = ThemeMode.getSavedThemeIndex(requireContext())
 
                 MaterialAlertDialogBuilder(requireContext())
@@ -361,7 +354,7 @@ class FilesListFragment :
                     }.show()
             }
 
-            header.findViewById<LinearLayout>(R.id.launch_settings).setOnClickListener {
+            header.findViewById<MaterialButton>(R.id.launch_settings).setOnClickListener {
                 activityModel.launchActivityScreen(ActivityScreen.Settings())
                 binding.drawerLayout.close()
             }

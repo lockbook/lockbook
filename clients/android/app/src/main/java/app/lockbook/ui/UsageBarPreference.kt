@@ -4,18 +4,17 @@ package app.lockbook.ui
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import net.lockbook.Usage
 
@@ -105,29 +104,23 @@ class UsageBarPreference(
     }
 
     private fun getUsageBarColor(usageRatio: Float): Int {
-        val barColorId =
+        val colorAttr =
             when {
-                usageRatio < 0.8 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                    android.R.color.system_accent1_200
-                }
-
                 usageRatio < 0.8 -> {
-                    R.color.md_theme_primary
-                }
-
-                usageRatio < 0.9 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM -> {
-                    android.R.color.system_error_200
-                }
-
-                usageRatio >= 0.9 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM -> {
-                    android.R.color.system_error_500
+                    com.google.android.material.R.attr.colorPrimary
                 }
 
                 else -> {
-                    R.color.md_theme_error
+                    com.google.android.material.R.attr.colorError
                 }
             }
+        val fallbackColor =
+            if (usageRatio < 0.8) {
+                context.getColor(R.color.md_theme_primary)
+            } else {
+                context.getColor(R.color.md_theme_error)
+            }
 
-        return ContextCompat.getColor(context, barColorId)
+        return MaterialColors.getColor(context, colorAttr, fallbackColor)
     }
 }
