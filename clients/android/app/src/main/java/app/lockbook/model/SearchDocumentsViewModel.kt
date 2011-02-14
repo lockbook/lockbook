@@ -8,31 +8,33 @@ import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.R
-import app.lockbook.util.SearchFocus
 import app.lockbook.util.SearchedDocumentViewHolderInfo
 import app.lockbook.util.SingleMutableLiveData
-import app.lockbook.util.getContext
 import app.lockbook.util.makeSpannableString
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.lockbook.ContentSearcher
+import net.lockbook.ContentSearcherMatch
 import net.lockbook.ContentSearcherResult
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.PathSearcher
 import net.lockbook.PathSearcherResult
 import net.lockbook.SearcherSnippet
+import java.util.concurrent.Executors
 
 class SearchDocumentsViewModel(
     application: Application,
@@ -44,44 +46,59 @@ class SearchDocumentsViewModel(
 
     val fileResults = emptyDataSourceTyped<SearchedDocumentViewHolderInfo>()
 
-    var isProgressSpinnerShown = false
-    var isNoSearchResultsShown = false
+    private val _isProgressSpinnerShown = MutableLiveData(false)
+    val isProgressSpinnerShown: LiveData<Boolean>
+        get() = _isProgressSpinnerShown
+
+    private val _isNoSearchResultsShown = MutableLiveData(false)
+    val isNoSearchResultsShown: LiveData<Boolean>
+        get() = _isNoSearchResultsShown
 
     private var pathSearcher: PathSearcher? = null
     private var contentSearcher: ContentSearcher? = null
-    private var initJob: Job? = null
+    private val searchDispatcher: ExecutorCoroutineDispatcher =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private var searchJob: Job? = null
+    private var progressSpinnerJob: Job? = null
+
     private var input: String = ""
-    private var focus: SearchFocus? = null
-    private var focusedContentResultId: String? = null
-    private var pathResults: Array<PathSearcherResult> = emptyArray()
-    private var contentResults: Array<ContentSearcherResult> = emptyArray()
-    private var suggestedResults: List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> = emptyList()
-    private val searchMutex = Mutex()
 
-    private val overviewPreviewCount = 3
-    private val contentSnippetContextChars = 40
+    private var isFilenameSearchFocused = false
+    private var focusedContentSearchResultId: String? = null
 
-    private val highlightBackgroundColor = ContextCompat.getColor(getContext(), R.color.md_theme_primaryContainer)
-    private val highlightForegroundColor = ContextCompat.getColor(getContext(), R.color.md_theme_onPrimaryContainer)
+    private var highlightBackgroundColor: Int? = null
+    private var highlightForegroundColor: Int? = null
+
+    companion object {
+        private const val OVERVIEW_PREVIEW_COUNT = 3
+        private const val CONTENT_PREVIEW_SNIPPET_COUNT = 1
+        private const val CONTENT_SNIPPET_CONTEXT_CHARS = 40
+        private const val PROGRESS_SPINNER_DELAY_MS = 150L
+    }
 
     init {
-        initJob = viewModelScope.launch(Dispatchers.IO) {
+        // creates the searchers in the background and loads the suggested docs
+        viewModelScope.launch(searchDispatcher) {
             try {
-                searchMutex.withLock {
-                    pathSearcher = pathSearcher ?: Lb.pathSearcher()
-                    contentSearcher = contentSearcher ?: Lb.contentSearcher()
-                }
-                suggestedResults = loadSuggestedResults()
+                pathSearcher = pathSearcher ?: Lb.pathSearcher()
+                contentSearcher = contentSearcher ?: Lb.contentSearcher()
+                val suggestedResults = loadSuggestedResults()
                 withContext(Dispatchers.Main) {
                     if (input.isBlank()) {
-                        renderInitialState()
+                        renderInitialState(suggestedResults)
                     }
                 }
+            } catch (_: CancellationException) {
+                // ViewModel is going away; no user-visible error.
             } catch (err: LbError) {
                 _updateSearchUI.postValue(UpdateSearchUI.Error(err))
             }
         }
+    }
+
+    fun setHighlightColors(backgroundColor: Int, foregroundColor: Int) {
+        highlightBackgroundColor = backgroundColor
+        highlightForegroundColor = foregroundColor
     }
 
     fun newSearch(input: String) {
@@ -89,125 +106,153 @@ class SearchDocumentsViewModel(
         searchJob?.cancel()
 
         if (input.isBlank()) {
-            hideProgressSpinnerIfVisible()
-            hideNoSearchResultsIfVisible()
-            renderInitialState()
+            hideProgressSpinner()
+            hideNoSearchResults()
+            renderCurrentState()
             return
         }
 
-        hideNoSearchResultsIfVisible()
-        showProgressSpinnerIfGone()
+        hideNoSearchResults()
+        scheduleProgressSpinner()
 
-        searchJob = viewModelScope.launch(Dispatchers.IO) {
+        searchJob = viewModelScope.launch(searchDispatcher) {
             try {
-                val pathSearcher = pathSearcher ?: Lb.pathSearcher().also { pathSearcher = it }
-                val contentSearcher = contentSearcher ?: Lb.contentSearcher().also { contentSearcher = it }
-
-                val (newPathResults, newContentResults) = searchMutex.withLock {
-                    Pair(pathSearcher.query(input), contentSearcher.query(input))
-                }
+                val (pathResults, contentResults) = querySearch(input)
 
                 if (!isActive) {
                     return@launch
                 }
 
-                pathResults = newPathResults
-                contentResults = newContentResults
-
-                val rows = buildSearchRows()
+                val rows = buildSearchRows(pathResults, contentResults)
                 withContext(Dispatchers.Main) {
-                    hideProgressSpinnerIfVisible()
+                    hideProgressSpinner()
                     if (rows.isEmpty()) {
-                        showNoSearchResultsIfGone()
+                        showNoSearchResults()
                         fileResults.clear()
                     } else {
-                        hideNoSearchResultsIfVisible()
+                        hideNoSearchResults()
                         fileResults.set(rows) { left, right -> left == right }
                     }
                 }
+            } catch (_: CancellationException) {
+                // Expected when the user types another character or leaves search.
             } catch (err: LbError) {
-                _updateSearchUI.postValue(UpdateSearchUI.Error(err))
+                if (isActive) {
+                    _updateSearchUI.postValue(UpdateSearchUI.Error(err))
+                }
             } catch (err: IllegalStateException) {
-                _updateSearchUI.postValue(UpdateSearchUI.Error(LbError().apply { msg = err.message ?: "Search is closed" }))
+                if (isActive) {
+                    _updateSearchUI.postValue(UpdateSearchUI.Error(LbError().apply { msg = err.message ?: "Search is closed" }))
+                }
             }
         }
     }
 
-    fun focusSearch(focus: SearchFocus?) {
-        this.focus = focus
-        focusedContentResultId = null
+    fun setFilenameSearchFocused(focused: Boolean) {
+        isFilenameSearchFocused = focused
+        focusedContentSearchResultId = null
         renderCurrentState()
     }
 
-    fun focusContentResult(id: String?) {
-        focusedContentResultId = id
-        focus = SearchFocus.Content
+    fun setFocusedContentSearchResult(id: String?) {
+        focusedContentSearchResultId = id
+        isFilenameSearchFocused = false
         renderCurrentState()
+    }
+
+    fun navigateBackWithinSearch(): Boolean {
+        if (focusedContentSearchResultId != null) {
+            focusedContentSearchResultId = null
+            isFilenameSearchFocused = false
+            renderCurrentState()
+            return true
+        }
+
+        if (isFilenameSearchFocused) {
+            isFilenameSearchFocused = false
+            renderCurrentState()
+            return true
+        }
+
+        return false
     }
 
     private fun renderCurrentState() {
-        if (input.isBlank()) {
-            renderInitialState()
-        } else {
-            fileResults.set(buildSearchRows()) { left, right -> left == right }
+        viewModelScope.launch(searchDispatcher) {
+            if (input.isBlank()) {
+                val suggestedResults = loadSuggestedResults()
+                withContext(Dispatchers.Main) {
+                    renderInitialState(suggestedResults)
+                }
+            } else {
+                val (pathResults, contentResults) = querySearch(input)
+                val rows = buildSearchRows(pathResults, contentResults)
+                withContext(Dispatchers.Main) {
+                    fileResults.set(rows) { left, right -> left == right }
+                }
+            }
         }
     }
 
-    private fun buildSearchRows(): List<SearchedDocumentViewHolderInfo> {
+    private fun querySearch(input: String): Pair<Array<PathSearcherResult>, Array<ContentSearcherResult>> {
+        val pathSearcher = pathSearcher ?: Lb.pathSearcher().also { pathSearcher = it }
+        val contentSearcher = contentSearcher ?: Lb.contentSearcher().also { contentSearcher = it }
+
+        return Pair(pathSearcher.query(input), contentSearcher.query(input))
+    }
+
+    private fun buildSearchRows(
+        pathResults: Array<PathSearcherResult>,
+        contentResults: Array<ContentSearcherResult>
+    ): List<SearchedDocumentViewHolderInfo> {
         val rows = mutableListOf<SearchedDocumentViewHolderInfo>()
-        val focusedContentResult = focusedContentResultId?.let { id ->
+        val focusedContentSearchResult = focusedContentSearchResultId?.let { id ->
             contentResults.firstOrNull { it.id == id }
         }
 
-        if (focusedContentResult != null) {
+        if (focusedContentSearchResult != null) {
             rows.add(
                 SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
-                    "${focusedContentResult.filename} · ${focusedContentResult.matches.size} content matches",
-                    "Back",
-                    SearchFocus.Content
+                    "${focusedContentSearchResult.filename} · ${focusedContentSearchResult.matches.size} content matches",
+                    "Back"
                 )
             )
-            rows.addAll(contentResultFocusedRows(focusedContentResult))
+            rows.addAll(focusedContentSearchResultRows(focusedContentSearchResult))
             return rows
         }
 
-        when (focus) {
-            SearchFocus.Filename -> {
-                rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Filename matches", "Back"))
-                rows.addAll(pathResults.map(::pathResultRow))
-                if (pathResults.isEmpty()) {
-                    rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
-                }
+        if (isFilenameSearchFocused) {
+            rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Filename matches", "Back"))
+            rows.addAll(pathResults.map(::pathResultRow))
+            if (pathResults.isEmpty()) {
+                rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
             }
-            SearchFocus.Content -> {
-                rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Content matches", "Back"))
-                rows.addAll(contentResults.mapNotNull(::contentResultRow))
-                if (contentResults.isEmpty()) {
-                    rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No content matches"))
-                }
+        } else {
+            rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
+                "Filename matches",
+                if (pathResults.size > OVERVIEW_PREVIEW_COUNT) "Expand" else null,
+                true)
+            )
+            rows.addAll(pathResults.take(OVERVIEW_PREVIEW_COUNT).map(::pathResultRow))
+            if (pathResults.isEmpty()) {
+                rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
             }
-            null -> {
-                rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Filename matches", expandableAction(pathResults.size), SearchFocus.Filename))
-                rows.addAll(pathResults.take(overviewPreviewCount).map(::pathResultRow))
-                if (pathResults.isEmpty()) {
-                    rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
-                }
 
-                rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Content matches", expandableAction(contentResults.size), SearchFocus.Content))
-                rows.addAll(contentResults.take(overviewPreviewCount).mapNotNull(::contentResultRow))
-                if (contentResults.isEmpty()) {
-                    rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No content matches"))
-                }
-            }
+            addContentRows(rows, contentResults)
         }
 
         return rows
     }
 
-    private fun expandableAction(count: Int): String? =
-        if (count > overviewPreviewCount) "Expand" else null
+    private fun addContentRows(rows: MutableList<SearchedDocumentViewHolderInfo>, contentResults: Array<ContentSearcherResult>) {
+        rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Content matches"))
+        rows.addAll(contentResults.mapNotNull(::contentResultRow))
+        if (contentResults.isEmpty()) {
+            rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No content matches"))
+        }
+    }
 
-    private fun renderInitialState() {
+    private fun renderInitialState(suggestedResults: List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo>) {
         val rows = mutableListOf<SearchedDocumentViewHolderInfo>()
 
         if (suggestedResults.isNotEmpty()) {
@@ -229,17 +274,17 @@ class SearchDocumentsViewModel(
                     file.name.makeSpannableString()
                 )
             }.getOrNull()
-        }
+    }
 
     private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo {
-        val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(result)
+        val (parentPathSpan, fileNameSpan) = result.toHighlightedPathParts()
         return SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(result.id, parentPathSpan, fileNameSpan)
     }
 
     private fun contentResultRow(result: ContentSearcherResult): SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo? {
         val snippets = result.matches
-            .take(3)
-            .mapNotNull { snippetForMatch(result, it) }
+            .take(CONTENT_PREVIEW_SNIPPET_COUNT)
+            .mapNotNull { it.toHighlightedSnippet(result) }
             .takeIf { it.isNotEmpty() }
             ?: return null
 
@@ -249,13 +294,13 @@ class SearchDocumentsViewModel(
             result.filename.makeSpannableString(),
             snippets,
             result.matches.size,
-            result.matches.size > 3
+            result.matches.size > CONTENT_PREVIEW_SNIPPET_COUNT
         )
     }
 
-    private fun contentResultFocusedRows(result: ContentSearcherResult): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
+    private fun focusedContentSearchResultRows(result: ContentSearcherResult): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
         result.matches.mapNotNull { match ->
-            snippetForMatch(result, match)?.let { snippet ->
+            match.toHighlightedSnippet(result)?.let { snippet ->
                 SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
                     result.id,
                     result.parentPath.makeSpannableString(),
@@ -267,38 +312,57 @@ class SearchDocumentsViewModel(
             }
         }
 
-    private fun snippetForMatch(result: ContentSearcherResult, match: net.lockbook.ContentSearcherMatch): SpannableString? {
-        val snippet = contentSearcher?.snippet(result.id, match, contentSnippetContextChars) ?: return null
-        return snippetSpannable(snippet)
-    }
 
-    private fun highlightMatchedPathParts(result: PathSearcherResult): Pair<SpannableString, SpannableString> {
-        val parentPathSpan = result.parentPath.makeSpannableString()
-        val fileNameSpan = result.filename.makeSpannableString()
-        val parentOffset = if (result.parentPath == "/") 0 else 1
-        val filenameOffset = if (result.parentPath.isEmpty() || result.parentPath == "/") 1 else result.parentPath.length + 2
+    private fun PathSearcherResult.toHighlightedPathParts(): Pair<SpannableString, SpannableString> {
+        val parentPathSpan = parentPath.makeSpannableString()
+        val fileNameSpan = filename.makeSpannableString()
+        val parentOffset = if (parentPath == "/") 0 else 1
+        val filenameOffset = if (parentPath.isEmpty() || parentPath == "/") {
+            1
+        } else {
+            parentPath.codePointCount(0, parentPath.length) + 2
+        }
 
-        for (index in result.matchedIndices) {
+        for (index in matchedIndices) {
             val parentIndex = index - parentOffset
             val filenameIndex = index - filenameOffset
 
-            if (parentIndex >= 0 && parentIndex < parentPathSpan.length) {
-                parentPathSpan.highlight(parentIndex, parentIndex + 1)
-            } else if (filenameIndex >= 0 && filenameIndex < fileNameSpan.length) {
-                fileNameSpan.highlight(filenameIndex, filenameIndex + 1)
+            val parentRange = parentPath.spanRangeForCodePoint(parentIndex)
+            val filenameRange = filename.spanRangeForCodePoint(filenameIndex)
+
+            parentRange?.let { (start, end) ->
+                parentPathSpan.highlight(start, end)
+            }
+            filenameRange?.let { (start, end) ->
+                fileNameSpan.highlight(start, end)
             }
         }
 
         return Pair(parentPathSpan, fileNameSpan)
     }
 
-    private fun snippetSpannable(snippet: SearcherSnippet): SpannableString {
+    private fun String.spanRangeForCodePoint(index: Int): Pair<Int, Int>? {
+        if (index < 0 || index >= codePointCount(0, length)) {
+            return null
+        }
+
+        val start = offsetByCodePoints(0, index)
+        val end = offsetByCodePoints(start, 1)
+        return start to end
+    }
+
+    private fun ContentSearcherMatch.toHighlightedSnippet(result: ContentSearcherResult): SpannableString? {
+        val snippet = contentSearcher?.snippet(result.id, this, CONTENT_SNIPPET_CONTEXT_CHARS) ?: return null
+        return snippet.toHighlightedSpannable()
+    }
+
+    private fun SearcherSnippet.toHighlightedSpannable(): SpannableString {
         val builder = SpannableStringBuilder()
-            .append(snippet.prefix)
-            .append(snippet.matched)
-            .append(snippet.suffix)
-        val matchStart = snippet.prefix.length
-        val matchEnd = matchStart + snippet.matched.length
+            .append(prefix)
+            .append(matched)
+            .append(suffix)
+        val matchStart = prefix.length
+        val matchEnd = matchStart + matched.length
 
         if (matchStart < matchEnd) {
             builder.highlight(matchStart, matchEnd)
@@ -308,59 +372,55 @@ class SearchDocumentsViewModel(
     }
 
     private fun Spannable.highlight(start: Int, end: Int) {
+        val backgroundColor = highlightBackgroundColor ?: return
+        val foregroundColor = highlightForegroundColor ?: return
+
         setSpan(
-            BackgroundColorSpan(highlightBackgroundColor),
+            BackgroundColorSpan(backgroundColor),
             start,
             end,
             Spannable.SPAN_INCLUSIVE_EXCLUSIVE
         )
         setSpan(
-            ForegroundColorSpan(highlightForegroundColor),
+            ForegroundColorSpan(foregroundColor),
             start,
             end,
             Spannable.SPAN_INCLUSIVE_EXCLUSIVE
         )
     }
 
-    private fun hideProgressSpinnerIfVisible() {
-        if (isProgressSpinnerShown) {
-            isProgressSpinnerShown = false
-            _updateSearchUI.value = UpdateSearchUI.ToggleProgressSpinner
-        }
+    private fun hideProgressSpinner() {
+        progressSpinnerJob?.cancel()
+        progressSpinnerJob = null
+        _isProgressSpinnerShown.value = false
     }
 
-    private fun hideNoSearchResultsIfVisible() {
-        if (isNoSearchResultsShown) {
-            isNoSearchResultsShown = false
-            _updateSearchUI.value = UpdateSearchUI.ToggleNoSearchResults
-        }
+    private fun showProgressSpinner() {
+        _isProgressSpinnerShown.value = true
     }
 
-    private fun showProgressSpinnerIfGone() {
-        if (!isProgressSpinnerShown) {
-            isProgressSpinnerShown = true
-            _updateSearchUI.value = UpdateSearchUI.ToggleProgressSpinner
-        }
+    private fun hideNoSearchResults() {
+        _isNoSearchResultsShown.value = false
     }
 
-    private fun showNoSearchResultsIfGone() {
-        if (!isNoSearchResultsShown) {
-            isNoSearchResultsShown = true
-            _updateSearchUI.value = UpdateSearchUI.ToggleNoSearchResults
+    private fun showNoSearchResults() {
+        _isNoSearchResultsShown.value = true
+    }
+
+    private fun scheduleProgressSpinner() {
+        progressSpinnerJob?.cancel()
+        progressSpinnerJob = viewModelScope.launch(Dispatchers.Main) {
+            delay(PROGRESS_SPINNER_DELAY_MS)
+            showProgressSpinner()
         }
     }
 
     override fun onCleared() {
-        initJob?.cancel()
-        val job = searchJob
-        if (job?.isActive == true) {
-            job.invokeOnCompletion {
-                closeSearchers()
-            }
-            job.cancel()
-        } else {
+        runBlocking(searchDispatcher) {
             closeSearchers()
         }
+        searchDispatcher.close()
+        super.onCleared()
     }
 
     private fun closeSearchers() {
@@ -372,11 +432,5 @@ class SearchDocumentsViewModel(
 }
 
 sealed class UpdateSearchUI {
-    object ToggleNoSearchResults : UpdateSearchUI()
-
-    object ToggleProgressSpinner : UpdateSearchUI()
-
-    data class Error(
-        val error: LbError,
-    ) : UpdateSearchUI()
+    data class Error(val error: LbError) : UpdateSearchUI()
 }

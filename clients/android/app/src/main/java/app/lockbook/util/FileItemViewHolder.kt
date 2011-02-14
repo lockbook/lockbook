@@ -97,32 +97,10 @@ class VerticalTabItemHolder(
     val closeButton: MaterialButton = itemView.findViewById(R.id.close_tab)
 }
 
-data class SuggestedDocsViewHolderInfo(
-    val fileMetadata: File,
-    val folderName: String,
-)
-
-class SuggestedDocsItemViewHolder(
-    itemView: View,
-) : ViewHolder(itemView) {
-    val name: TextView = itemView.findViewById(R.id.suggested_doc_name)
-    val icon: ImageView = itemView.findViewById(R.id.suggested_doc_icon)
-    val folderName: TextView = itemView.findViewById(R.id.suggested_docs_parent_folder)
-    val lastEdited: TextView = itemView.findViewById(R.id.suggested_doc_last_edited)
-}
-
-fun List<File>.intoSuggestedViewHolderInfo(idsAndFiles: Map<String, File>): List<SuggestedDocsViewHolderInfo> =
-    this.map { fileMetadata ->
-        SuggestedDocsViewHolderInfo(
-            fileMetadata,
-            idsAndFiles[fileMetadata.parent]!!.name,
-        )
-    }
-
 fun List<FileViewHolderInfo>.intoFileMetadata(): List<File> = this.map { viewHolderInfo -> viewHolderInfo.fileMetadata }
 
 sealed class SearchedDocumentViewHolderInfo {
-    data class SectionHeaderViewHolderInfo(val title: String, val action: String? = null, val focus: SearchFocus? = null) : SearchedDocumentViewHolderInfo()
+    data class SectionHeaderViewHolderInfo(val title: String, val action: String? = null, val isFilenameSearchFocused: Boolean = false) : SearchedDocumentViewHolderInfo()
     data class EmptyViewHolderInfo(val message: String) : SearchedDocumentViewHolderInfo()
     data class DocumentNameViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString) : SearchedDocumentViewHolderInfo()
     data class DocumentContentViewHolderInfo(
@@ -133,11 +111,6 @@ sealed class SearchedDocumentViewHolderInfo {
         val totalMatches: Int,
         val showMore: Boolean
     ) : SearchedDocumentViewHolderInfo()
-}
-
-enum class SearchFocus {
-    Filename,
-    Content
 }
 
 class SearchSectionHeaderViewHolder(itemView: View) : ViewHolder(itemView) {

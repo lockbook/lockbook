@@ -8,21 +8,18 @@ class FileModel(
     var parent: File,
     var idsAndFiles: Map<String, File>,
     var children: List<File>,
-    var suggestedDocs: List<File>,
 ) {
     companion object {
         // Returns Ok(null) if there is no root
         fun createAtRoot(): FileModel {
             val root = Lb.getRoot()
 
-            val fileModel =
-                FileModel(
-                    root,
-                    root,
-                    emptyMap(),
-                    listOf(),
-                    listOf(),
-                )
+            val fileModel = FileModel(
+                root,
+                root,
+                emptyMap(),
+                listOf(),
+            )
             fileModel.refreshFiles()
 
             return fileModel
@@ -35,7 +32,6 @@ class FileModel(
 
     fun refreshFiles() {
         idsAndFiles = (Lb.listMetadatas() + Lb.getPendingShareFiles()).associateBy { it.id }
-        suggestedDocs = Lb.suggestedDocs().mapNotNull { idsAndFiles[it] }
         refreshChildren()
     }
 

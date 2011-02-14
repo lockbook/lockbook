@@ -3,40 +3,59 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/search_results_background"
-    android:fitsSystemWindows="false">
+    android:background="?attr/colorSurfaceContainer"
+    android:fitsSystemWindows="true">
 
-    <View
-        android:id="@+id/search_documents_status_bar_background"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:background="@color/search_result_surface"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/search_documents_search_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="6dp"
+        app:cardBackgroundColor="?attr/colorSurface"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="0dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/search_documents_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/search_result_surface"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_status_bar_background"
-        app:navigationIcon="@drawable/ic_baseline_arrow_back_24">
-
-        <androidx.appcompat.widget.SearchView
-            android:id="@+id/search_documents_search"
-            style="@style/Widget.AppCompat.SearchView.ActionBar"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="20dp"
-            android:imeOptions="flagNoExtractUi"
-            app:searchIcon="@null"
-            app:iconifiedByDefault="false" />
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_documents_back"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/back"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:icon="@drawable/ic_baseline_arrow_back_24"
+                app:iconGravity="textStart"
+                app:iconTint="?attr/colorOnSurfaceVariant"
+                app:iconPadding="0dp" />
 
-    </com.google.android.material.appbar.MaterialToolbar>
+            <androidx.appcompat.widget.SearchView
+                android:id="@+id/search_documents_search"
+                style="@style/Widget.AppCompat.SearchView.ActionBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:imeOptions="flagNoExtractUi"
+                app:iconifiedByDefault="false"
+                app:searchIcon="@null" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/search_documents_loader"
@@ -44,14 +63,15 @@
         android:layout_height="wrap_content"
         android:indeterminate="true"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_toolbar"
+        app:layout_constraintTop_toBottomOf="@+id/search_documents_search_container"
         app:layout_constraintBottom_toTopOf="@+id/search_documents_results" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/search_documents_results"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:background="@color/search_results_background"
+        android:layout_marginTop="16dp"
+        android:background="?attr/colorSurfaceContainer"
         android:scrollbars="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -62,13 +82,13 @@
         android:id="@+id/search_documents_none"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@color/search_results_background"
+        android:background="?attr/colorSurfaceContainer"
         android:visibility="gone"
         android:text="@string/no_search_results"
         android:textAppearance="?attr/textAppearanceLabelLarge"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_toolbar"/>
+        app:layout_constraintTop_toBottomOf="@+id/search_documents_search_container"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

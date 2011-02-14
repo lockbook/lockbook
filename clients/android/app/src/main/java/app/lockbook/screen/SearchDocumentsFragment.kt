@@ -2,15 +2,15 @@
 
 package app.lockbook.screen
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.getSystemService
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -21,6 +21,7 @@ import app.lockbook.model.*
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.color.MaterialColors
 import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
@@ -33,27 +34,39 @@ class SearchDocumentsFragment : Fragment() {
         AlertModel(WeakReference(requireActivity()))
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
         binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
-            val statusBarTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-            binding.searchDocumentsStatusBarBackground.layoutParams =
-                binding.searchDocumentsStatusBarBackground.layoutParams.apply {
-                    height = statusBarTop
-                }
-            insets
+        model.setHighlightColors(
+            MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorPrimaryContainer),
+            MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnPrimaryContainer)
+        )
+
+        binding.searchDocumentsBack.setOnClickListener {
+            showFiles()
         }
 
-        binding.searchDocumentsToolbar.setNavigationOnClickListener {
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-        }
+        requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigateBack()
+                }
+            }
+        )
 
         model.updateSearchUI.observe(viewLifecycleOwner) { uiUpdate ->
             updateSearchUI(uiUpdate)
+        }
+        model.isProgressSpinnerShown.observe(viewLifecycleOwner) { isShown ->
+            binding.searchDocumentsLoader.visibility = if (isShown) View.VISIBLE else View.GONE
+        }
+        model.isNoSearchResultsShown.observe(viewLifecycleOwner) { isShown ->
+            binding.searchDocumentsNone.visibility = if (isShown) View.VISIBLE else View.GONE
         }
 
         binding.searchDocumentsResults.setup {
@@ -66,7 +79,7 @@ class SearchDocumentsFragment : Fragment() {
                     action.visibility = if (item.action == null) View.GONE else View.VISIBLE
 
                     action.setOnClickListener {
-                        model.focusSearch(item.focus)
+                        model.setFilenameSearchFocused(item.isFilenameSearchFocused)
                     }
                 }
             }
@@ -105,7 +118,7 @@ class SearchDocumentsFragment : Fragment() {
                     showMore.text = "Show more (${item.totalMatches})"
                     showMore.visibility = if (item.showMore) View.VISIBLE else View.GONE
                     showMore.setOnClickListener {
-                        model.focusContentResult(item.id)
+                        model.setFocusedContentSearchResult(item.id)
                     }
                 }
 
@@ -152,21 +165,7 @@ class SearchDocumentsFragment : Fragment() {
 
     private fun updateSearchUI(uiUpdate: UpdateSearchUI) {
         when (uiUpdate) {
-            UpdateSearchUI.ToggleProgressSpinner -> {
-                binding.searchDocumentsLoader.visibility =
-                    if (model.isProgressSpinnerShown) View.VISIBLE else View.GONE
-            }
-
-            UpdateSearchUI.ToggleNoSearchResults -> {
-                binding.searchDocumentsNone.visibility =
-                    if (model.isNoSearchResultsShown) View.VISIBLE else View.GONE
-            }
-
-            is UpdateSearchUI.Error -> {
-                alertModel.notifyError(uiUpdate.error)
-            }
-
-            else -> {}
+            is UpdateSearchUI.Error -> alertModel.notifyError(uiUpdate.error)
         }
     }
 
@@ -175,6 +174,16 @@ class SearchDocumentsFragment : Fragment() {
         requireContext()
             .getSystemService<InputMethodManager>()
             ?.hideSoftInputFromWindow(binding.searchDocumentsSearch.windowToken, 0)
+    }
+
+    private fun navigateBack() {
+        if (!model.navigateBackWithinSearch()) {
+            showFiles()
+        }
+    }
+
+    private fun showFiles() {
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
     }
 
     override fun onResume() {

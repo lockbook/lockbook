@@ -221,11 +221,8 @@
     <string name="folder_action">Folder action</string>
     <string name="document_action">Document action</string>
 
-    <string name="suggested_docs">Suggested</string>
-    <string name="clear_suggested_docs">Clear all</string>
-    <string name="suggested_docs_icon">Suggested file icon</string>
-    <string name="suggested_docs_parent_folder">%s/</string>
     <string name="search">Search</string>
+    <string name="back">Back</string>
     <string name="open_ws">Open workspace panel</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
