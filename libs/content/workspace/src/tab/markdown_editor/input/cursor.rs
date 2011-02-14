@@ -9,6 +9,10 @@ use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Location, Region};
 
+const SELECTION_HANDLE_RADIUS: f32 = 12.0;
+pub(in crate::tab::markdown_editor) const SELECTION_HANDLE_HEIGHT: f32 =
+    SELECTION_HANDLE_RADIUS * 2.0;
+
 #[derive(Debug, Default)]
 pub struct CursorState {
     /// When navigating using up/down keys, x_target stores the original *absolute* x coordinate of
@@ -105,7 +109,7 @@ impl MdEdit {
         let selection_start_line = self.cursor_line(selection.0);
         let selection_end_line = self.cursor_line(selection.1);
 
-        let radius = 12.0;
+        let radius = SELECTION_HANDLE_RADIUS;
 
         if !self.renderer.buffer.current.selection.is_empty() {
             if let Some(line) = selection_start_line {
