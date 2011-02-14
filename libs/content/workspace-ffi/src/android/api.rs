@@ -172,6 +172,24 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let pos = obj.renderer.pos_from_pixels(x, y);
+    (if let Some(tab) = obj.workspace.current_tab() {
+        match &tab.content {
+            ContentState::Open(TabContent::Svg(svg)) => svg.detect_islands_interaction(pos),
+            ContentState::Open(TabContent::Markdown(md)) => md.will_consume_touch(pos),
+            _ => false,
+        }
+    } else {
+        false
+    }) as jboolean
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
     _env: JNIEnv, _: JClass, ogbj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {

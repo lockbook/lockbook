@@ -50,6 +50,7 @@ object Workspace {
     external fun setBottomInset(rustObj: Long, inset: Int)
 
     external fun unfocusTitle(rustObj: Long)
+    external fun willConsumeTouches(rustObj: Long, x: Float, y: Float): Boolean
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesPredicted(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
