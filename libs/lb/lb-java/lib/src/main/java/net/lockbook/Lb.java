@@ -27,6 +27,7 @@ public class Lb {
     public static native void renameFile(String id, String name) throws LbError;
 
     public static native File createFile(String name, String parentId, boolean isDoc) throws LbError;
+    public static native File[] duplicateFiles(String[] ids, String parentId) throws LbError;
     public static native File createLink(String name, String targetId, String parentId) throws LbError;
     public static native void moveFile(String id, String parentId) throws LbError;
     public static native void deleteFile(String id) throws LbError;

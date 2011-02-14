@@ -53,6 +53,7 @@
     <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move</string>
+    <string name="duplicate">Duplicate</string>
     <string name="menu_list_files_share">Share</string>
     <string name="workspace_share_externally">Share externally</string>
     <string name="default_value">Loading…</string>

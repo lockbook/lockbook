@@ -371,6 +371,26 @@ pub extern "system" fn Java_net_lockbook_Lb_createFile<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_duplicateFiles<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jids: jobjectArray, jparent_id: JString<'local>,
+) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+    let jids = unsafe { JObjectArray::from_raw(jids) };
+    let ids: Vec<Uuid> = (0..env.get_array_length(&jids).unwrap())
+        .map(|index| {
+            let id = env.get_object_array_element(&jids, index).unwrap();
+            Uuid::from_str(&rstring(&mut env, JString::from(id))).unwrap()
+        })
+        .collect();
+    let parent = Uuid::from_str(&rstring(&mut env, jparent_id)).unwrap();
+
+    match lb.duplicate_files(&ids, &parent) {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>,
     jtarget_id: JString<'local>, jparent_id: JString<'local>,
