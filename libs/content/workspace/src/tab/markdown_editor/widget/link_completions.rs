@@ -645,7 +645,7 @@ fn is_subsequence(needle: &str, haystack: &str) -> bool {
 /// Abbreviates path segments in-place: shortens intermediate directory names to
 /// their first character until the full path fits within `max_width`. Separator
 /// segments (`/`) and the final name segment (filename) are never shortened.
-fn abbreviate_segments(
+pub(crate) fn abbreviate_segments(
     segments: &mut [(String, bool)], max_width: f32, measure: &impl Fn(&str) -> f32,
 ) {
     let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();

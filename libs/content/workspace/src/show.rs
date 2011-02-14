@@ -23,6 +23,11 @@ use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
 
+pub const NEW_NOTE_SHORTCUT: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
+pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
+
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
@@ -417,10 +422,9 @@ impl Workspace {
         ];
 
         // Ctrl-N pressed while new file modal is not open.
-        if self
-            .ctx
-            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::N))
-        {
+        if self.ctx.input_mut(|i| {
+            i.consume_key_exact(NEW_NOTE_SHORTCUT.modifiers, NEW_NOTE_SHORTCUT.logical_key)
+        }) {
             self.create_doc(false);
         }
 
@@ -446,10 +450,9 @@ impl Workspace {
             self.upsert_mind_map(self.core.clone());
         }
 
-        if self
-            .ctx
-            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::F))
-        {
+        if self.ctx.input_mut(|i| {
+            i.consume_key_exact(SEARCH_SHORTCUT.modifiers, SEARCH_SHORTCUT.logical_key)
+        }) {
             self.upsert_search(Some(SearchType::Content));
         }
         if self

@@ -66,7 +66,7 @@ pub mod output;
 mod scroll_content;
 pub mod show;
 mod theme;
-mod widget;
+pub(crate) mod widget;
 
 #[cfg(test)]
 mod tests;
