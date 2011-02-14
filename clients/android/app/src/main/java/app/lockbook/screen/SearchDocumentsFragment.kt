@@ -96,6 +96,7 @@ class SearchDocumentsFragment : Fragment() {
                 R.layout.searched_document_name_item,
             ) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
+                    icon.setImageResource(getDocumentIconResource(item.name.toString()))
                     name.text = item.name
                     path.text = item.path
                 }
@@ -110,6 +111,7 @@ class SearchDocumentsFragment : Fragment() {
                 R.layout.searched_document_content_item,
             ) {
                 onBind(::SearchedDocumentContentViewHolder) { _, item ->
+                    icon.setImageResource(getDocumentIconResource(item.name.toString()))
                     name.text = item.name
                     path.text = item.path
                     val snippetViews = listOf(content1, content2, content3)

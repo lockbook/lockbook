@@ -114,15 +114,19 @@ fun File.getIconResource(): Int =
         }
 
         File.FileType.Document -> {
-            val extensionHelper = ExtensionHelper(this.name)
-            when {
-                extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
-                extensionHelper.isImage -> R.drawable.ic_outline_image_24
-                extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
-                else -> R.drawable.ic_outline_insert_drive_file_24
-            }
+            getDocumentIconResource(this.name)
         }
     }
+
+fun getDocumentIconResource(fileName: String): Int {
+    val extensionHelper = ExtensionHelper(fileName)
+    return when {
+        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+        extensionHelper.isImage -> R.drawable.ic_outline_image_24
+        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+        else -> R.drawable.ic_outline_insert_drive_file_24
+    }
+}
 
 val <T> T.exhaustive: T
     get() = this

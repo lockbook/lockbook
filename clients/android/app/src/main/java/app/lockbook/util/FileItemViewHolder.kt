@@ -142,6 +142,7 @@ class SearchEmptyViewHolder(
 class SearchedDocumentNameViewHolder(
     itemView: View,
 ) : ViewHolder(itemView) {
+    val icon: ImageView = itemView.findViewById(R.id.searched_document_name_icon)
     val name: TextView = itemView.findViewById(R.id.searched_document_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_name_path)
 }
@@ -149,6 +150,7 @@ class SearchedDocumentNameViewHolder(
 class SearchedDocumentContentViewHolder(
     itemView: View,
 ) : ViewHolder(itemView) {
+    val icon: ImageView = itemView.findViewById(R.id.searched_document_content_icon)
     val name: TextView = itemView.findViewById(R.id.searched_document_content_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
     val content1: TextView = itemView.findViewById(R.id.searched_document_content_1)
