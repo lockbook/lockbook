@@ -7,7 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.PointF
 import android.graphics.Rect
+import android.os.Build
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -44,6 +46,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -67,12 +71,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private val scroller = OverScroller(context)
 
-    private var scrollDisabled = false
-
+    private var scrollStartPositions: Array<PointF> = emptyArray()
+    private val pendingDx = AtomicReference(0f)
+    private val pendingDy = AtomicReference(0f)
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             scroller.abortAnimation()
-            scrollDisabled = willConsumeTouchEvent(e.x, e.y)
+            pendingDx.set(0f)
+            pendingDy.set(0f)
+
+            scrollStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
             return true
         }
 
@@ -82,9 +90,33 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             distanceX: Float,
             distanceY: Float
         ): Boolean {
-            if (!scrollDisabled && shouldChangeViewport(e2)) {
-                val dampingFactor = 0.4f
-                scroll(-distanceX * dampingFactor, -distanceY * dampingFactor)
+
+            pendingDx.getAndUpdate { it - distanceX }
+            pendingDy.getAndUpdate { it - distanceY }
+            return true
+        }
+
+        private var doubleTapAnchorY = 0f
+
+        override fun onDoubleTapEvent(e: MotionEvent): Boolean {
+            val density = context.resources.displayMetrics.scaledDensity
+            when (e.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    doubleTapAnchorY = e.y
+                    scrollStartPositions = arrayOf(PointF(e.x / density, e.y / density))
+                    pendingZoom.set(1f)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = e.y - doubleTapAnchorY
+                    doubleTapAnchorY = e.y
+                    pendingZoom.getAndUpdate { it * (1f - (dy * 0.005f)) }
+                    pendingFocusX.set(e.x / density)
+                    pendingFocusY.set(e.y / density)
+                }
+                MotionEvent.ACTION_UP -> {
+                    scrollStartPositions = emptyArray()
+                    pendingZoom.set(1f)
+                }
             }
             return true
         }
@@ -95,58 +127,61 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             velocityX: Float,
             velocityY: Float
         ): Boolean {
-            if (!scrollDisabled && shouldChangeViewport(e2)) {
-                val velocityDamping = 0.4f
-                scroller.fling(
-                    0, 0,
-                    (velocityX * velocityDamping).toInt(),
-                    (velocityY * velocityDamping).toInt(),
-                    Int.MIN_VALUE, Int.MAX_VALUE,
-                    Int.MIN_VALUE, Int.MAX_VALUE
-                )
+            val density = context.resources.displayMetrics.scaledDensity
+            scroller.fling(
+                0, 0,
+                (velocityX / density).toInt(),
+                (velocityY / density).toInt(),
+                Int.MIN_VALUE, Int.MAX_VALUE,
+                Int.MIN_VALUE, Int.MAX_VALUE
+            )
 
-                var lastX = 0
-                var lastY = 0
+            var lastX = 0
+            var lastY = 0
 
-                val choreographer = Choreographer.getInstance()
-                fun tick(frameTimeNanos: Long) {
-                    if (scroller.computeScrollOffset() && isAttachedToWindow) {
-                        val dx = (scroller.currX - lastX).toFloat()
-                        val dy = (scroller.currY - lastY).toFloat()
-                        lastX = scroller.currX
-                        lastY = scroller.currY
-                        scroll(dx, dy)
-                        choreographer.postFrameCallback(::tick)
-                    }
+            val choreographer = Choreographer.getInstance()
+            fun tick(frameTimeNanos: Long) {
+                if (scroller.computeScrollOffset() && isAttachedToWindow) {
+                    val dx = (scroller.currX - lastX).toFloat()
+                    val dy = (scroller.currY - lastY).toFloat()
+                    lastX = scroller.currX
+                    lastY = scroller.currY
+                    pendingDx.getAndUpdate { it + dx }
+                    pendingDy.getAndUpdate { it + dy }
+                    drawImmediately()
+                    choreographer.postFrameCallback(::tick)
                 }
-                choreographer.postFrameCallback(::tick)
             }
+            choreographer.postFrameCallback(::tick)
             return true
         }
     }
-
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
-    private fun shouldChangeViewport(e2: MotionEvent): Boolean {
-        val hasNoPen = (0 until e2.pointerCount).none { i ->
-            e2.getToolType(i) == MotionEvent.TOOL_TYPE_STYLUS
-        }
-        return hasNoPen && (!isPenOnlyDraw() && e2.pointerCount >= 2 || isPenOnlyDraw())
-    }
 
-
-    private var scaleDisabled = false
+    private var scaleStartPositions: Array<PointF> = emptyArray()
+    private val pendingZoom = AtomicReference(1f)
+    private val pendingFocusX = AtomicReference(0f)
+    private val pendingFocusY = AtomicReference(0f)
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            scaleDisabled = willConsumeTouchEvent(detector.focusX, detector.focusY)
+            val halfSpanX = detector.currentSpanX / 2f
+            val halfSpanY = detector.currentSpanY / 2f
+            scaleStartPositions = arrayOf(
+                PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
+                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
+            )
+            pendingZoom.set(1f)
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            if (!scaleDisabled) {
-                zoom(detector.scaleFactor)
-            }
+            val density = context.resources.displayMetrics.scaledDensity
+            pendingZoom.getAndUpdate { it * detector.scaleFactor }
+            pendingFocusX.set(detector.focusX / density)
+            pendingFocusY.set(detector.focusY / density)
+            drawImmediately()
             return true
         }
     }
@@ -226,6 +261,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
 
+
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
@@ -268,6 +304,27 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
                 return 0
             }
+
+            val dx = pendingDx.getAndSet(0f)
+            val dy = pendingDy.getAndSet(0f)
+            Workspace.scroll(WGPU_OBJ, adjustTouchPoint(dx),adjustTouchPoint(dy),
+                scrollStartPositions.map { adjustTouchPoint(it.x) }.toFloatArray(),
+                scrollStartPositions.map { adjustTouchPoint(it.y) }.toFloatArray())
+
+            val zoom = pendingZoom.getAndSet(1f)
+            val focusX = pendingFocusX.getAndSet(0f)
+            val focusY = pendingFocusY.getAndSet(0f)
+            if (zoom != 1f) {
+                Workspace.zoom(WGPU_OBJ, zoom, focusX, focusY,
+                    scaleStartPositions.map { it.x }.toFloatArray(),
+                    scaleStartPositions.map { it.y }.toFloatArray())
+            }
+
+            // Guard again right before the native call
+            if (surface?.isValid != true) {
+                return 0
+            }
+
             Workspace.enterFrame(WGPU_OBJ)
         }
 
@@ -360,7 +417,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
-        println("3asba: touch y offset"+ touchOffsetY);
         val action = event.action and MotionEvent.ACTION_MASK
         val actionIndex = event.actionIndex
         val touchType = event.getToolType(actionIndex)
@@ -446,15 +502,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         Workspace.showTabs(WGPU_OBJ, show)
     }
 
-
-    fun scroll(distanceX: Float, distanceY: Float) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.scroll(WGPU_OBJ, distanceX, distanceY)
-    }
-
     fun isPenOnlyDraw(): Boolean {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return false
@@ -463,22 +510,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return Workspace.isPenOnlyDraw(WGPU_OBJ)
     }
 
-    fun willConsumeTouchEvent(x: Float, y: Float): Boolean{
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return false
-        }
-        val res = Workspace.willConsumeTouchEvent(WGPU_OBJ, x, y)
-        println("3asba: "+ res + x + " " + y)
-        return res
-    }
-
-    fun zoom(factor: Float) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.zoom(WGPU_OBJ, factor)
-    }
 
     fun getTabs(): Array<String> {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {

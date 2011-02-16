@@ -7,7 +7,13 @@ use time::Duration;
 use tracing::{debug, warn};
 use web_time::Instant;
 
-use crate::tab::svg_editor::{CanvasSettings, toolbar::ToolContext, tools::DynRogerTool};
+use crate::{
+    Event,
+    tab::{
+        ExtendedInput,
+        svg_editor::{CanvasSettings, toolbar::ToolContext, tools::DynRogerTool},
+    },
+};
 
 #[derive(Debug)]
 pub struct Roger {
@@ -88,6 +94,7 @@ enum ButtonType {
 pub enum RogerEvent {
     ToolStart(ToolPayload),
     ToolRun(ToolPayload),
+    ToolPredictedRun(egui::Pos2, Option<f32>),
     ToolEnd(ToolPayload),
     ToolCancel,
     ToolHover(ToolPayload),
@@ -195,7 +202,74 @@ impl Roger {
     }
 
     pub fn process(&mut self, ui: &mut egui::Ui, layout: &LayoutContext) -> Vec<RogerEvent> {
-        ui.input(|r| self.process_events(r.events.iter(), layout))
+        let mut roger_events = ui.input(|r| self.process_events(r.events.iter(), layout));
+        let extended_roger_events = self.process_extended_events(ui.ctx().read_events(), layout);
+
+        roger_events.extend(extended_roger_events);
+
+        roger_events
+    }
+
+    pub fn process_extended_events(
+        &mut self, events: Vec<Event>, ctx: &LayoutContext,
+    ) -> Vec<RogerEvent> {
+        events
+            .iter()
+            .filter_map(|event| self.extended_to_roger_event(event, ctx))
+            .collect()
+    }
+
+    pub fn extended_to_roger_event(
+        &mut self, event: &Event, ctx: &LayoutContext,
+    ) -> Option<RogerEvent> {
+        debug!(?event, "processing extended event");
+        match event {
+            Event::PredictedTouch { id, force, pos } => {
+                if let Some(start_touch) = self.tool_start_touch {
+                    if start_touch.eq(&id) {
+                        self.response.hide_overlay = pos_collides_with_layout(*pos, ctx);
+
+                        return Some(RogerEvent::ToolPredictedRun(*pos, *force));
+                    }
+                };
+                None
+            }
+            Event::MultiTouchGesture {
+                rotation_delta: _,
+                translation_delta,
+                zoom_factor,
+                start_positions,
+                center_pos,
+            } => {
+                // if !self.config.pencil_only_drawing && start_positions.len() == 1 {
+                //     return None;
+                // }
+
+                // let all_touches_collide = start_positions
+                //     .iter()
+                //     .all(|pos| pos_collides_with_layout(*pos, ctx));
+
+                // if all_touches_collide {
+                //     warn!(
+                //         ?start_positions,
+                //         "ignoring gesture event because all touches collide with layout"
+                //     );
+                //     return None;
+                // }
+
+                self.viewport_changing = Some(Instant::now());
+                Some(RogerEvent::ViewportChange(
+                    Transform::identity()
+                        .post_translate(translation_delta.x, translation_delta.y)
+                        .post_scale(*zoom_factor, *zoom_factor)
+                        .post_translate(
+                            (1.0 - zoom_factor) * center_pos.x,
+                            (1.0 - zoom_factor) * center_pos.y,
+                        ),
+                ))
+            }
+            _ => None,
+        }
     }
 
     pub fn process_events(
@@ -206,7 +280,7 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
-                debug!(?event, ?roger_event, ?self, "roger event generation");
+                // debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
@@ -258,7 +332,7 @@ impl Roger {
 
                 let payload = ToolPayload { pos, force: None, id: None };
                 let button = MouseProps { button: button.into(), modifiers };
-                if pressed && !pos_collides_with_layout(pos, ctx) {
+                if pressed && !pos_collides_with_layout(pos, ctx) && ctx.draw_area.contains(pos) {
                     self.buttons.insert(button, (Instant::now(), pos));
 
                     if button == *run_button {
@@ -313,31 +387,19 @@ impl Roger {
                 None
             }
             egui::Event::PointerGone => None,
-            egui::Event::MouseWheel { unit, delta, modifiers } => {
-                // okay a mousewheel event can be trigged by fingers. fingers are dropped if they didn't originate from the draw rect.
-                // we can not handle this event if there are no touches
-                // but then that would not support trackpad mouseweel on
-
-                // okay i think the move is to use a kinetic pan custom event that specifies the origin
-
-                // mousewheel origin touch
-                // if there is a mousewheel and touches. attach the mouseweehl to all those touches
-                if self.touches.iter().any(|t| t.collides_with_layout) {
-                    return None;
-                }
+            egui::Event::MouseWheel { .. } => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
                     return Some(ViewportChange::new(&self, event, false));
                 }
-                // when did we aquire the tool run lock. if it's less than 100ms ago, then we can assume
-                // this is a pan and not a tool run
+
                 None
             }
             egui::Event::Touch { device_id, id, phase, pos, force } => {
                 self.is_touch_frame = true;
                 return self.touch_to_roger_event(device_id, id, pos, phase, force, ctx);
             }
-            egui::Event::Zoom(factor) => {
+            egui::Event::Zoom(..) => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
                     return Some(ViewportChange::new(&self, event, false));
@@ -393,7 +455,7 @@ impl Roger {
                 let collides = pos_collides_with_layout(pos, ctx);
                 self.touches
                     .push(TouchInfo::new(curr_touch_id, pos, force, collides));
-                if collides {
+                if collides || !ctx.draw_area.contains(pos) {
                     return None;
                 }
 
@@ -587,11 +649,9 @@ impl Roger {
 }
 
 fn pos_collides_with_layout(pos: egui::Pos2, ctx: &LayoutContext) -> bool {
-    if !ctx.draw_area.contains(pos) {
-        return true;
-    }
     ctx.overlay_areas.iter().any(|area| area.contains(pos))
 }
+
 // get an instant that's far in the past
 fn past_instant() -> Instant {
     Instant::now() - Duration::days(1) // 1 day ago

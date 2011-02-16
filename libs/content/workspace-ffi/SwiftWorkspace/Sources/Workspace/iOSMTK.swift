@@ -1607,7 +1607,6 @@
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
-                // 2. Cleanup: Remove from map so the ID isn't linked to this memory address anymore
                 touchMap.removeValue(forKey: ObjectIdentifier(touch))
             }
 

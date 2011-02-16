@@ -1,7 +1,7 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
+use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
+use jni::sys::{jboolean, jfloat, jfloatArray, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
@@ -195,27 +195,56 @@ fn get_force(pressure: f32) -> Option<f32> {
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_scroll(
-    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat, start_x: JPrimitiveArray<jfloat>,
+    start_y: JPrimitiveArray<jfloat>,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.renderer.raw_input.events.push(egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Point,
-        delta: egui::vec2(x, y),
-        modifiers: egui::Modifiers::NONE,
-    });
+    let start_positions = parse_start_positions(&_env, start_x, start_y);
+
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::MultiTouchGesture {
+            rotation_delta: 0.0,
+            translation_delta: egui::vec2(x, y),
+            zoom_factor: 1.0,
+            center_pos: egui::Pos2::ZERO,
+            start_positions,
+        });
+}
+
+fn parse_start_positions(
+    env: &JNIEnv, start_x: JPrimitiveArray<jfloat>, start_y: JPrimitiveArray<jfloat>,
+) -> Vec<egui::Pos2> {
+    let len = env.get_array_length(&start_x).unwrap_or(0) as usize;
+    let mut xs = vec![0f32; len];
+    let mut ys = vec![0f32; len];
+    env.get_float_array_region(&start_x, 0, &mut xs).ok();
+    env.get_float_array_region(&start_y, 0, &mut ys).ok();
+    xs.iter()
+        .zip(ys.iter())
+        .map(|(&x, &y)| egui::pos2(x, y))
+        .collect()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_zoom(
-    _env: JNIEnv, _: JClass, obj: jlong, factor: jfloat,
+    _env: JNIEnv, _: JClass, obj: jlong, factor: jfloat, focus_x: jfloat, focus_y: jfloat,
+    start_x: JPrimitiveArray<jfloat>, start_y: JPrimitiveArray<jfloat>,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    let start_positions = parse_start_positions(&_env, start_x, start_y);
+
     obj.renderer
-        .raw_input
-        .events
-        .push(egui::Event::Zoom(factor));
+        .context
+        .push_event(workspace_rs::Event::MultiTouchGesture {
+            rotation_delta: 0.0,
+            translation_delta: egui::Vec2::ZERO,
+            zoom_factor: factor,
+            center_pos: egui::pos2(focus_x, focus_y),
+            start_positions,
+        });
 }
 
 #[derive(Debug, Serialize)]

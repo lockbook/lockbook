@@ -98,6 +98,9 @@ impl RogerTool for Pen {
             RogerEvent::ToolHover(_) => None,
             RogerEvent::ViewportChange(_) => None,
             RogerEvent::Gesture(_) => None,
+            RogerEvent::ToolPredictedRun(pos2, force) => {
+                Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
+            }
         }
     }
 

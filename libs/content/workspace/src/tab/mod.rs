@@ -282,10 +282,26 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
-    Drop { content: Vec<ClipContent>, position: egui::Pos2 },
-    Paste { content: Vec<ClipContent>, position: egui::Pos2 },
-    PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
-    KineticPan { x: f32, y: f32 },
+    Drop {
+        content: Vec<ClipContent>,
+        position: egui::Pos2,
+    },
+    Paste {
+        content: Vec<ClipContent>,
+        position: egui::Pos2,
+    },
+    PredictedTouch {
+        id: egui::TouchId,
+        force: Option<f32>,
+        pos: egui::Pos2,
+    },
+    MultiTouchGesture {
+        rotation_delta: f32,
+        translation_delta: egui::Vec2,
+        zoom_factor: f32,
+        center_pos: egui::Pos2,
+        start_positions: Vec<egui::Pos2>,
+    },
     Undo,
     Redo,
 }

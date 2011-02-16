@@ -147,12 +147,6 @@ pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec
         return None;
     }
 
-    for event in ui.ctx().read_events() {
-        if let Event::KineticPan { x, y } = event {
-            return Some(egui::vec2(x, y));
-        }
-    }
-
     // if cfg!(target_os = "ios") {
     //     return None;
     // }
