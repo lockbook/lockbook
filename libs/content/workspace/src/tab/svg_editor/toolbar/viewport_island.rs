@@ -362,6 +362,8 @@ impl Toolbar {
                 if res.clicked() || res.drag_started() {
                     mode.set_active(tlbr_ctx);
 
+                    tlbr_ctx.viewport_settings.bounded_rect = Some(tlbr_ctx.painter.clip_rect());
+
                     tlbr_ctx
                         .settings
                         .update_viewport_settings(tlbr_ctx.viewport_settings);
