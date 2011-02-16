@@ -41,7 +41,7 @@ pub unsafe extern "C" fn init_ws(
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
+    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
 
     let context = Context::default();
     visuals::init(&context, dark_mode);

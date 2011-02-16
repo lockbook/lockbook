@@ -1,4 +1,5 @@
-use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::{self, TextureDescriptor, TextureUsages};
+use egui_wgpu_backend::RenderPass;
 use std::iter;
 use std::time::Instant;
 use workspace_rs::workspace::Workspace;
@@ -49,9 +50,23 @@ impl<'window> WgpuWorkspace<'window> {
                 return Default::default();
             }
         };
+
         let output_view = output_frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let msaa_texture = self.device.create_texture(&TextureDescriptor {
+            label: Some("msaa_texture"),
+            size: output_frame.texture.size(),
+            mip_level_count: output_frame.texture.mip_level_count(),
+            sample_count: 4,
+            dimension: output_frame.texture.dimension(),
+            format: output_frame.texture.format(),
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // can probably use run
         self.set_egui_screen();
@@ -64,6 +79,9 @@ impl<'window> WgpuWorkspace<'window> {
             .inner;
 
         let full_output = self.context.end_frame();
+        self.context.tessellation_options_mut(|w| {
+            w.feathering = false;
+        });
 
         let paint_jobs = self
             .context
@@ -80,15 +98,42 @@ impl<'window> WgpuWorkspace<'window> {
         self.rpass
             .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
         // Record all render passes.
-        self.rpass
-            .execute(
-                &mut encoder,
-                &output_view,
-                &paint_jobs,
-                &self.screen,
-                Some(wgpu::Color::BLACK),
-            )
-            .unwrap();
+
+        {
+            let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &msaa_view,
+                    resolve_target: Some(&output_view),
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.rpass
+                .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
+                .unwrap();
+        }
+
         // Submit the commands.
         self.queue.submit(iter::once(encoder.finish()));
 
