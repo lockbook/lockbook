@@ -365,21 +365,34 @@ pub fn get_highlighter_colors() -> Vec<DynamicColor> {
 }
 
 pub fn get_pen_colors() -> Vec<DynamicColor> {
-    let blue =
-        DynamicColor { light: Color::new_rgb(62, 130, 230), dark: Color::new_rgb(54, 116, 207) };
-    let green =
-        DynamicColor { light: Color::new_rgb(42, 136, 49), dark: Color::new_rgb(56, 176, 65) };
     let red =
         DynamicColor { light: Color::new_rgb(218, 21, 21), dark: Color::new_rgb(174, 33, 33) };
-    let magenta =
-        DynamicColor { light: Color::new_rgb(175, 82, 222), dark: Color::new_rgb(191, 90, 242) };
-    let cyan =
-        DynamicColor { light: Color::new_rgb(85, 190, 240), dark: Color::new_rgb(90, 200, 245) };
+    let orange =
+        DynamicColor { light: Color::new_rgb(255, 149, 0), dark: Color::new_rgb(255, 159, 10) };
     let yellow =
         DynamicColor { light: Color::new_rgb(255, 204, 0), dark: Color::new_rgb(255, 214, 10) };
+    let green =
+        DynamicColor { light: Color::new_rgb(42, 136, 49), dark: Color::new_rgb(56, 176, 65) };
+    let teal =
+        DynamicColor { light: Color::new_rgb(0, 128, 128), dark: Color::new_rgb(0, 147, 147) };
+    let cyan =
+        DynamicColor { light: Color::new_rgb(85, 190, 240), dark: Color::new_rgb(90, 200, 245) };
+    let blue =
+        DynamicColor { light: Color::new_rgb(62, 130, 230), dark: Color::new_rgb(54, 116, 207) };
+    let indigo =
+        DynamicColor { light: Color::new_rgb(75, 0, 130), dark: Color::new_rgb(64, 0, 110) };
+    let purple =
+        DynamicColor { light: Color::new_rgb(128, 0, 128), dark: Color::new_rgb(147, 0, 147) };
+    let magenta =
+        DynamicColor { light: Color::new_rgb(175, 82, 222), dark: Color::new_rgb(191, 90, 242) };
+    let pink =
+        DynamicColor { light: Color::new_rgb(255, 105, 180), dark: Color::new_rgb(255, 120, 190) };
+    let brown =
+        DynamicColor { light: Color::new_rgb(139, 69, 19), dark: Color::new_rgb(101, 53, 17) };
 
     let fg = DynamicColor { light: Color::black(), dark: Color::white() };
-    vec![fg, blue, green, red, magenta, cyan, yellow]
+
+    vec![fg, red, orange, yellow, green, teal, cyan, blue, indigo, purple, brown, magenta, pink]
 }
 
 fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {

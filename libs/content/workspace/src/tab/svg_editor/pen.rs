@@ -180,9 +180,6 @@ impl Pen {
                     self.cancel_path(pen_ctx);
                 }
 
-                // let path_stroke =
-                //     Stroke { color: self.active_color., width: self.active_stroke_width };
-
                 let path_stroke = Stroke {
                     color: self.active_color,
                     opacity: self.active_opacity,
@@ -216,7 +213,7 @@ impl Pen {
                         .buffer
                         .elements
                         .insert_before(0, self.current_id, el);
-                    // }
+
                     if let Some(Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {

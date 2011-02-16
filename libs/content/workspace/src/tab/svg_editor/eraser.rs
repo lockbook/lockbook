@@ -9,7 +9,7 @@ use super::{util::pointer_intersects_element, DeleteElement};
 
 pub struct Eraser {
     pub radius: f32,
-    delete_candidates: HashMap<Uuid, bool>,
+    delete_candidates: HashMap<Uuid, f32>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -61,30 +61,27 @@ impl Eraser {
                                 self.last_pos,
                                 self.radius as f64,
                             ) {
-                                self.delete_candidates.insert(*id, false);
+                                self.delete_candidates.insert(*id, el.opacity());
                             }
                         });
 
-                    self.delete_candidates
-                        .iter_mut()
-                        .for_each(|(id, has_decreased_opacity)| {
-                            if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
-                                if !*has_decreased_opacity {
-                                    match el {
-                                        Element::Path(p) => {
-                                            p.opacity *= 0.3;
-                                            p.diff_state.opacity_changed = true
-                                        }
-                                        Element::Image(img) => {
-                                            img.opacity = 0.3;
-                                            img.diff_state.opacity_changed = true
-                                        }
-                                        Element::Text(_) => todo!(),
+                    self.delete_candidates.iter().for_each(|(id, &opacity)| {
+                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
+                            if opacity == el.opacity() {
+                                match el {
+                                    Element::Path(p) => {
+                                        p.opacity *= 0.3;
+                                        p.diff_state.opacity_changed = true
                                     }
+                                    Element::Image(img) => {
+                                        img.opacity = 0.3;
+                                        img.diff_state.opacity_changed = true
+                                    }
+                                    Element::Text(_) => todo!(),
                                 }
-                            };
-                            *has_decreased_opacity = true;
-                        });
+                            }
+                        };
+                    });
 
                     self.last_pos = Some(pos);
                 }
@@ -93,8 +90,22 @@ impl Eraser {
                         return;
                     }
 
-                    self.delete_candidates.iter().for_each(|(id, _)| {
-                        eraser_ctx.buffer.remove(*id);
+                    self.delete_candidates.iter().for_each(|(id, &opacity)| {
+                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
+                            match el {
+                                Element::Path(p) => {
+                                    p.opacity = opacity;
+                                    p.deleted = true;
+                                    p.diff_state.delete_changed = true;
+                                }
+                                Element::Image(img) => {
+                                    img.opacity = opacity;
+                                    img.deleted = true;
+                                    img.diff_state.delete_changed = true
+                                }
+                                Element::Text(_) => todo!(),
+                            }
+                        };
                     });
                     let event = super::Event::Delete(
                         self.delete_candidates

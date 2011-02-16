@@ -623,10 +623,9 @@ impl Lb {
                                             None,
                                             None,
                                         );
-                                        
+
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
-                                                // path.transform = path.transform.post_concat(buffer.master_transform);
                                                 path.data.apply_transform(u_transform_to_bezier(
                                                     &local_buffer.master_transform,
                                                 ));

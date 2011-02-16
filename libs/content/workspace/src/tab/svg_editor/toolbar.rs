@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use egui::{emath::RectTransform, InnerResponse, Response};
+use egui::{emath::RectTransform, InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use lb_rs::svg::{
     buffer::{get_highlighter_colors, get_pen_colors},
@@ -277,12 +277,13 @@ impl Toolbar {
                             self.pen.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(0.2)
+                        .gamma_multiply(self.pen.active_opacity)
                     } else if self.active_tool == Tool::Highlighter {
                         ThemePalette::resolve_dynamic_color(
                             self.highlighter.active_color,
                             ui.visuals().dark_mode,
                         )
+                        .gamma_multiply(self.highlighter.active_opacity)
                     } else {
                         ui.visuals().text_color().gamma_multiply(0.2)
                     };
@@ -690,13 +691,39 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, 3.0..=30.0);
 
-    ui.add_space(10.0);
+    ui.add_space(40.0);
 
     ui.horizontal_wrapped(|ui| {
         show_color_swatches(ui, get_pen_colors(), pen);
     });
 
     ui.add_space(10.0);
+
+    show_opacity_slider(ui, pen);
+
+    ui.add_space(10.0);
+}
+
+fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Opacity").size(13.0));
+        ui.add_space(20.0);
+        let slider_color =
+            ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
+                .gamma_multiply(pen.active_opacity);
+        ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
+        ui.visuals_mut().widgets.inactive.fg_stroke =
+            egui::Stroke { width: 1.0, color: slider_color };
+        ui.visuals_mut().widgets.hovered.bg_fill = slider_color;
+        ui.visuals_mut().widgets.hovered.fg_stroke =
+            egui::Stroke { width: 2.0, color: slider_color };
+        ui.visuals_mut().widgets.active.bg_fill = slider_color;
+        ui.visuals_mut().widgets.active.fg_stroke =
+            egui::Stroke { width: 2.5, color: slider_color };
+        ui.spacing_mut().slider_width = ui.available_width();
+        ui.spacing_mut().slider_rail_height = 2.0;
+        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.05..=1.0).show_value(false));
+    });
 }
 
 fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {

@@ -128,9 +128,14 @@ impl Element {
             Element::Image(img) => {
                 img.diff_state.transformed = Some(transform);
                 img.transform = img.transform.post_concat(transform);
-                // todo
-                // img.apply_transform(transform);
             }
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn opacity(&self) -> f32 {
+        match self {
+            Element::Path(path) => path.opacity,
+            Element::Image(image) => image.opacity,
             Element::Text(_) => todo!(),
         }
     }

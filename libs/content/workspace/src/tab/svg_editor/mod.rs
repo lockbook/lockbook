@@ -77,7 +77,6 @@ impl SVGEditor {
         let mut buffer = Buffer::new(content, Some(&core), hmac);
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
-                // path.transform = path.transform.post_concat(buffer.master_transform);
                 path.data
                     .apply_transform(u_transform_to_bezier(&buffer.master_transform));
             }

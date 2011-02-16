@@ -65,9 +65,6 @@ impl Renderer {
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
-        // todo: i need to allocate the textures on another struct instead of using the image
-        // load_image_textures(buffer, ui);
-
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
             .par_iter_mut()
@@ -140,33 +137,6 @@ impl Renderer {
         diff_state
     }
 }
-
-// fn load_image_textures(buffer: &mut Buffer, ui: &mut egui::Ui) {
-//     for (id, el) in buffer.elements.iter_mut() {
-//         if let Element::Image(img) = el {
-//             match &img.data {
-//                 ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-//                     let image = image::load_from_memory(bytes).unwrap();
-
-//                     let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-//                         [image.width() as usize, image.height() as usize],
-//                         &image.to_rgba8(),
-//                     );
-
-//                     if img.texture.is_none() {
-//                         img.texture = Some(ui.ctx().load_texture(
-//                             format!("canvas_img_{}", id),
-//                             egui_image,
-//                             egui::TextureOptions::LINEAR,
-//                         ));
-//                     }
-//                 }
-//                 ImageKind::GIF(_) => todo!(),
-//                 ImageKind::SVG(_) => todo!(),
-//             }
-//         }
-//     }
-// }
 
 // todo: maybe impl this on element struct
 fn tesselate_element(
@@ -250,28 +220,3 @@ fn tesselate_element(
 fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
-
-// fn render_image(img: &mut Image, id: &Uuid) -> Option<(Uuid, RenderOp)> {
-//     match &img.data {
-//         ImageKind::JPEG(_) | ImageKind::PNG(_) => {
-//             if let Some(texture) = &img.texture {
-//                 let rect = egui::Rect {
-//                     min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
-//                     max: egui::pos2(img.view_box.rect.right(), img.view_box.rect.bottom()),
-//                 };
-//                 let uv = egui::Rect {
-//                     min: egui::Pos2 { x: 0.0, y: 0.0 },
-//                     max: egui::Pos2 { x: 1.0, y: 1.0 },
-//                 };
-
-//                 let mut mesh = egui::Mesh::with_texture(texture.id());
-//                 mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
-//                 Some((*id, RenderOp::Paint(egui::Shape::mesh(mesh))))
-//             } else {
-//                 None
-//             }
-//         }
-//         ImageKind::GIF(_) => todo!(),
-//         ImageKind::SVG(_) => todo!(),
-//     }
-// }
