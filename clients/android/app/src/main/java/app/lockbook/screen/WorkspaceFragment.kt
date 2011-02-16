@@ -30,11 +30,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
-import app.lockbook.model.AlertModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
@@ -51,12 +49,7 @@ import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lockbook.File
-import net.lockbook.LbError
-import java.lang.ref.WeakReference
 import kotlin.math.abs
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
@@ -209,6 +202,8 @@ class WorkspaceFragment : Fragment() {
         binding.closeAllTabs.setOnClickListener {
             workspaceWrapper.workspaceView.closeAllTabs()
             workspaceWrapper.workspaceView.drawImmediately()
+            model._bottomSheetExpanded.postValue(false)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
 
         model.hideMaterialToolbar.observe(viewLifecycleOwner) { distanceY ->
@@ -368,10 +363,13 @@ class WorkspaceFragment : Fragment() {
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        println("ad-tra: getting tab title: $tabTitle")
 
         if (tabTitle == null && newTab.type != WorkspaceTabType.Welcome) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+            println("ad-tra: refresh files and getting tab title: $tabTitle")
+
         }
 
         if (tabTitle == null){
@@ -389,10 +387,10 @@ class WorkspaceFragment : Fragment() {
         binding.tabsList.adapter?.notifyDataSetChanged()
 
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
+        showBottomSheet()
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
-        model.keyboardVisible
         when (newTab) {
             WorkspaceTabType.Welcome,
             WorkspaceTabType.Loading,
@@ -508,22 +506,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
     var currentWrapper: View? = null
 
-    private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            return true
-        }
-        override fun onScroll(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            distanceX: Float,
-            distanceY: Float
-        ): Boolean {
-            model._hideMaterialToolbar.postValue(distanceY)
-
-            return super.onScroll(e1, e2, distanceX, distanceY)
-        }
-    }
-    private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
     companion object {
         const val TAB_BAR_HEIGHT = 50
@@ -536,12 +518,21 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
         ViewGroup.LayoutParams.MATCH_PARENT
     )
 
-    val WS_TEXT_LAYOUT_PARAMS = MarginLayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT
-    ).apply {
-        topMargin = (TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
-        bottomMargin = (TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
+    private fun topInsetPxForTextWrapper(): Int {
+        val scaledDensity = context.resources.displayMetrics.scaledDensity
+        val topInsetDp = if (model.showTabs.value == true) TAB_BAR_HEIGHT else TEXT_TOOL_BAR_HEIGHT
+        return (topInsetDp * scaledDensity).toInt()
+    }
+
+    private fun textWrapperLayoutParams(topInsetPx: Int): MarginLayoutParams {
+        val scaledDensity = context.resources.displayMetrics.scaledDensity
+        return MarginLayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ).apply {
+            topMargin = topInsetPx
+            bottomMargin = (TEXT_TOOL_BAR_HEIGHT * scaledDensity).toInt()
+        }
     }
 
     init {
@@ -550,69 +541,56 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     }
 
     fun updateWrapperBasedOnTab(newTab: WorkspaceTabType) {
-        if (newTab.viewWrapperId() == currentTab.viewWrapperId()) {
-            return
-        }
-
-        when (currentTab) {
-            WorkspaceTabType.Welcome,
-            WorkspaceTabType.Svg,
-            WorkspaceTabType.Image,
-            WorkspaceTabType.Pdf,
-            WorkspaceTabType.Loading,
-            WorkspaceTabType.Graph -> { }
-            WorkspaceTabType.Markdown,
-            WorkspaceTabType.PlainText -> {
-                val connection = (currentWrapper as? WorkspaceTextInputWrapper)?.wsInputConnection
-                    ?: return
-
-                connection.closeConnection()
-                currentWrapper?.clearFocus()
-                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .hideSoftInputFromWindow(this.windowToken, 0)
-
-                val instanceWrapper = currentWrapper
-                Handler(Looper.getMainLooper()).postDelayed(
-                    {
-                        removeView(instanceWrapper)
-                    },
-                    200
-                )
-            }
-        }
-
-        when (newTab) {
-            WorkspaceTabType.Welcome,
-            WorkspaceTabType.Svg,
-            WorkspaceTabType.Image,
-            WorkspaceTabType.Pdf,
-            WorkspaceTabType.Loading,
-            WorkspaceTabType.Graph -> {}
-            WorkspaceTabType.Markdown,
-            WorkspaceTabType.PlainText -> {
-                val touchYOffset: Float
-                if (model.showTabs.value == true) {
-                    touchYOffset = TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
-                } else {
-                    touchYOffset = TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
-                }
-
-                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, touchYOffset)
-                workspaceView.wrapperView = currentWrapper
-
-                addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
-            }
-        }
+        detachWrapperIfPresent()
+        attachWrapperIfNeeded(newTab)
 
         currentTab = newTab
     }
 
+    private fun detachWrapperIfPresent() {
+        val wrapper = currentWrapper ?: return
+        println("ad-tra: removing wrapper a")
+
+        // Clear the link from the native view immediately to avoid stale references.
+        workspaceView.wrapperView = null
+        currentWrapper = null
+
+        if (wrapper is WorkspaceTextInputWrapper) {
+            println("ad-tra: removing wrapper b")
+            wrapper.wsInputConnection.closeConnection()
+            wrapper.clearFocus()
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(this.windowToken, 0)
+            Handler(Looper.getMainLooper()).postDelayed(
+                {
+                    if (wrapper.parent === this) {
+                        removeView(wrapper)
+                        println("ad-tra: removing wrapper c ")
+                    }
+                },
+                200
+            )
+        }
+
+
+    }
+
+    private fun attachWrapperIfNeeded(newTab: WorkspaceTabType) {
+        if (!newTab.isTextEdit()) {
+            println("ad-tra: attach wrapper x")
+            return
+        }
+
+        val topInsetPx = topInsetPxForTextWrapper()
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, topInsetPx.toFloat())
+        currentWrapper = wrapper
+        workspaceView.wrapperView = wrapper
+        addView(wrapper, textWrapperLayoutParams(topInsetPx))
+        println("ad-tra: attach wrapper a")
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
-
-        if (event != null && currentTab != WorkspaceTabType.Svg && currentTab != WorkspaceTabType.Image) {
-            scrollDetector.onTouchEvent(event)
-        }
 
         if (model.bottomSheetExpanded.value ?: true) {
             model._bottomSheetExpanded.postValue(false)
@@ -633,10 +611,25 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
         isFocusableInTouchMode = true
     }
 
+    private val tabSheetScrollListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            return true
+        }
+        override fun onScroll(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            distanceX: Float,
+            distanceY: Float
+        ): Boolean {
+            workspaceView.model._hideMaterialToolbar.postValue(distanceY)
+            return super.onScroll(e1, e2, distanceX, distanceY)
+        }
+    }
+    private val tabSheetScrollDetector: GestureDetector = GestureDetector(context, tabSheetScrollListener)
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         requestFocus()
-
         when (event?.action) {
             MotionEvent.ACTION_DOWN -> {
                 touchStartX = event.x
@@ -650,12 +643,11 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
                 val bottomSheetExpanded = workspaceView.model.bottomSheetExpanded.value ?: false
 
-                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
-                        context
-                    ).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(
-                            context
-                        ).scaledTouchSlop
-                ) {
+                val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
+                val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold
+                        && abs(event.y - touchStartY).toInt() < slopTouchThreshold
+
+                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
                 }
@@ -664,6 +656,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
         if (event != null) {
             workspaceView.forwardedTouchEvent(event, touchYOffset)
+            tabSheetScrollDetector.onTouchEvent(event)
         }
 
         workspaceView.drawImmediately()

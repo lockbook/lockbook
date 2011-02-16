@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import app.lockbook.App
+import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -571,7 +572,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             if (!response.selectedFile.isNullUUID()) {
-                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
+                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
+                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile, type = tab ?: WorkspaceTabType.Welcome)
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
