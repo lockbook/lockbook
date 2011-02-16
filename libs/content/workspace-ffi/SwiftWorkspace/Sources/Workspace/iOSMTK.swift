@@ -1339,6 +1339,10 @@
         var pointerInteraction: UIPointerInteraction?
         var pointerDelegate: UIPointerInteractionDelegate?
 
+        // touch ids
+        private var touchMap = [ObjectIdentifier: UInt64]()
+        private var nextTouchID: UInt64 = 0
+
         // gestures
         var panRecognizer: UIPanGestureRecognizer?
 
@@ -1542,10 +1546,24 @@
             setNeedsDisplay(self.frame)
         }
 
+        private func getTouchID(for touch: UITouch, createIfMissing: Bool = false) -> UInt64 {
+            let key = ObjectIdentifier(touch)
+            if let existingID = touchMap[key] {
+                return existingID
+            }
+            if createIfMissing {
+                let newID = nextTouchID
+                touchMap[key] = newID
+                nextTouchID += 1
+                return newID
+            }
+            return 0 
+        }
+
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
                 let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch, createIfMissing: true)
 
                 for touch in event!.coalescedTouches(for: touch)! {
                     let location = touch.preciseLocation(in: self)
@@ -1561,7 +1579,7 @@
         public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
                 let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
@@ -1583,11 +1601,14 @@
         public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
                 let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+
+                // 2. Cleanup: Remove from map so the ID isn't linked to this memory address anymore
+                touchMap.removeValue(forKey: ObjectIdentifier(touch))
             }
 
             self.setNeedsDisplay(self.frame)
@@ -1596,7 +1617,7 @@
         public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
                 let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
