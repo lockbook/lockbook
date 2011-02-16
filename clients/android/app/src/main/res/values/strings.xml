@@ -246,7 +246,7 @@
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
-    <string name="no_shared_files">No shared files.</string>
+    <string name="no_shared_files">No pending shares.</string>
     <string name="export">Export</string>
     <string name="write_access">Write access:</string>
     <string name="read_access">Read access:</string>
