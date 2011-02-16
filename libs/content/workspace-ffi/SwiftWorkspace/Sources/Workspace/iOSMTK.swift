@@ -921,7 +921,7 @@
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-            if UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
+            if !UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
                 pan.minimumNumberOfTouches = 1
             } else {
                 pan.minimumNumberOfTouches = 2
@@ -1021,7 +1021,7 @@
         }
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
+            // set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
 
             // let's cancel the kinetic pan. don't nullify it so that the tap handler
             // will know not to show the edit menu

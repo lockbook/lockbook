@@ -92,11 +92,12 @@ impl RogerTool for Pen {
             RogerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
             RogerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
             RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
-            RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
+            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
+                Some(PathEvent::CancelStroke)
+            }
             RogerEvent::ToolHover(_) => None,
             RogerEvent::ViewportChange(_) => None,
             RogerEvent::Gesture(_) => None,
-            RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
         }
     }
 

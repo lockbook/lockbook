@@ -19,6 +19,7 @@ use std::sync::Arc;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::DynamicColor;
+use tracing::debug;
 use viewport_island::ViewportPopover;
 
 use super::gesture_handler::GestureHandler;
@@ -80,11 +81,8 @@ pub struct ToolContext<'a> {
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
-    pub allow_viewport_changes: &'a mut bool,
-    pub is_touch_frame: bool,
     pub settings: &'a mut CanvasSettings,
     pub viewport_settings: &'a mut ViewportSettings,
-    pub toolbar_has_interaction: bool,
 }
 
 pub struct ToolbarContext<'a> {
@@ -545,6 +543,7 @@ impl SVGEditor {
             self.toolbar.layout.viewport_popover,
             self.toolbar.layout.mini_map,
         ];
+        debug!(?islands, "3asba");
         for island in islands.iter() {
             if island.unwrap_or(egui::Rect::ZERO).contains(pointer) {
                 return true;

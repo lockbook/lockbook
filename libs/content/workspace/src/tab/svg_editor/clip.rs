@@ -11,7 +11,7 @@ use crate::tab::{ClipContent, ExtendedInput as _};
 
 use super::element::PromoteBufferWeakImages;
 use super::gesture_handler::get_rect_identity_transform;
-use super::tools::selection::SelectedElement;
+// use super::tools::selection::SelectedElement;
 use super::util::transform_rect;
 use super::{InsertElement, SVGEditor, Tool};
 
@@ -83,10 +83,10 @@ impl SVGEditor {
                                     })),
                                 );
 
-                                self.toolbar.active_tool = Tool::Selection;
+                                // self.toolbar.active_tool = Tool::Selection;
 
-                                self.toolbar.selection.selected_elements =
-                                    vec![SelectedElement { id, transform: Transform::identity() }];
+                                // self.toolbar.selection.selected_elements =
+                                //     vec![SelectedElement { id, transform: Transform::identity() }];
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }
@@ -143,10 +143,10 @@ impl SVGEditor {
 
                         self.toolbar.active_tool = Tool::Selection;
 
-                        self.toolbar.selection.selected_elements = new_ids
-                            .iter()
-                            .map(|&id| SelectedElement { id, transform: Default::default() })
-                            .collect();
+                        // self.toolbar.selection.selected_elements = new_ids
+                        //     .iter()
+                        //     .map(|&id| SelectedElement { id, transform: Default::default() })
+                        //     .collect();
                     }
                 }
             }

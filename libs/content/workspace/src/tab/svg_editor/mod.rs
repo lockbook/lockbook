@@ -16,9 +16,6 @@ use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
-use crate::tab::svg_editor::tools::eraser::from_roger_to_eraser_event;
-use crate::tab::svg_editor::tools::shapes::from_roger_to_shape_event;
-use crate::tab::svg_editor::tools::{DynRogerTool, RogerTool};
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
@@ -236,6 +233,8 @@ impl SVGEditor {
                 }
             }
         }
+        self.roger.sync_canvas_settings(&self.settings);
+
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
@@ -338,18 +337,8 @@ impl SVGEditor {
             painter: &mut self.painter,
             buffer: &mut self.buffer,
             history: &mut self.history,
-            allow_viewport_changes: &mut self.allow_viewport_changes,
-            is_touch_frame: ui.input(|r| {
-                r.events.iter().any(|e| {
-                    matches!(
-                        e,
-                        egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
-                    )
-                })
-            }) || cfg!(target_os = "ios"),
             settings: &mut self.settings,
             viewport_settings: &mut self.viewport_settings,
-            toolbar_has_interaction: self.has_islands_interaction,
         };
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
@@ -368,26 +357,16 @@ impl SVGEditor {
         active_tool.show_tool_ui(ui, &mut tool_context);
 
         for event in self.roger.process(ui, &layout_ctx) {
-            // handle non tool events
-            match event {
-                roger::RogerEvent::ViewportChange(transform) => {
-                    transform_canvas(
-                        tool_context.buffer,
-                        tool_context.viewport_settings,
-                        transform,
-                    );
+            if let roger::RogerEvent::ViewportChange(transform) = event {
+                transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
+            } else if let roger::RogerEvent::Gesture(num_touches) = event {
+                if num_touches == 2 {
+                    tool_context.history.undo(tool_context.buffer)
+                } else if num_touches == 3 {
+                    tool_context.history.redo(tool_context.buffer)
                 }
-                roger::RogerEvent::Gesture(num_touches) => {
-                    // todo: show a popup if the gesture has no effect, ex: undo stack empty
-                    if num_touches == 2 {
-                        tool_context.history.undo(tool_context.buffer)
-                    } else if num_touches == 3 {
-                        tool_context.history.redo(tool_context.buffer)
-                    }
-                }
-                _ => {
-                    active_tool.process_roger_event(ui, event, &mut tool_context);
-                }
+            } else {
+                active_tool.process_roger_event(ui, event, &mut tool_context);
             }
         }
 
@@ -395,34 +374,6 @@ impl SVGEditor {
             .show_hover_indicator(ui, &mut tool_context, active_tool);
 
         self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
-
-        // if !self.read_only {
-        //     match self.toolbar.active_tool {
-        //         Tool::Pen => {
-        //             self.toolbar.pen.handle_input(ui, &mut tool_context);
-        //         }
-        //         Tool::Highlighter => {
-        //             self.toolbar.highlighter.handle_input(ui, &mut tool_context);
-        //         }
-        //         Tool::Eraser => {
-        //             self.toolbar.eraser.handle_input(ui, &mut tool_context);
-        //         }
-        //         Tool::Selection => {
-        //             self.toolbar.selection.handle_input(ui, &mut tool_context);
-        //         }
-        //         Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
-        //     }
-        // } else {
-        //     *tool_context.allow_viewport_changes = true;
-        // }
-
-        // if !self.has_islands_interaction {
-        //     self.toolbar.gesture_handler.handle_input(
-        //         ui,
-        //         &mut tool_context,
-        //         self.toolbar.hide_overlay,
-        //     );
-        // }
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {

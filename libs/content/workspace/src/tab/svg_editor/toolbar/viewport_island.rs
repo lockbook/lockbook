@@ -410,6 +410,20 @@ impl Toolbar {
                 ui.label("Zoom lock");
             });
         });
+
+        ui.add_space(5.0);
+
+        ui.add(egui::Separator::default().shrink(ui.available_width()));
+
+        ui.add_space(5.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Draw only with pen");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                switch(ui, &mut tlbr_ctx.settings.pencil_only_drawing);
+            })
+        });
+
         ui.add_space(10.0);
     }
 

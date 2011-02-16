@@ -131,7 +131,8 @@ object Workspace {
     external fun clipboardPaste(rustObj: Long, content: String)
 
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
-
+    external fun isPenOnlyDraw(rustObj: Long) : Boolean
+    external fun willConsumeTouchEvent(rustObj: Long, x: Float, y: Float): Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }
 

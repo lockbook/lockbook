@@ -134,7 +134,9 @@ impl RogerTool for Selection {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },
-            RogerEvent::ToolCancel => Some(SelectionEvent::CancelLaso),
+            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
+                Some(SelectionEvent::CancelLaso)
+            }
             _ => None,
         }
     }
@@ -440,6 +442,8 @@ impl RogerTool for Selection {
     }
 }
 impl Selection {
+    pub fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {}
+
     fn cancel_lasso(&mut self) {
         // todo: undo/nullify the effects of the laso operation
         self.current_op = SelectionOperation::Idle;

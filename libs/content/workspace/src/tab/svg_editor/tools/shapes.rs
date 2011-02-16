@@ -46,16 +46,6 @@ pub enum ShapeEvent {
     Cancel,
 }
 
-pub fn from_roger_to_shape_event(event: RogerEvent) -> Option<ShapeEvent> {
-    match event {
-        RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
-            Some(ShapeEvent::Build(payload.pos))
-        }
-        RogerEvent::ToolEnd(_) => Some(ShapeEvent::End),
-        RogerEvent::ToolCancel => Some(ShapeEvent::Cancel),
-        _ => None,
-    }
-}
 impl RogerTool for ShapesTool {
     type ToolEvent = ShapeEvent;
 
@@ -65,7 +55,9 @@ impl RogerTool for ShapesTool {
                 Some(ShapeEvent::Build(payload.pos))
             }
             RogerEvent::ToolEnd(_) => Some(ShapeEvent::End),
-            RogerEvent::ToolCancel => Some(ShapeEvent::Cancel),
+            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
+                Some(ShapeEvent::Cancel)
+            }
             _ => None,
         }
     }
@@ -83,6 +75,9 @@ impl RogerTool for ShapesTool {
                 self.reset_build();
             }
             ShapeEvent::Cancel => {
+                if let Some(id) = self.current_id {
+                    shapes_ctx.buffer.remove(id);
+                }
                 self.reset_build();
             }
             ShapeEvent::Build(pos) => {

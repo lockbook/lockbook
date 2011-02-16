@@ -57,8 +57,6 @@ pub fn init(config: &Config) -> LbResult<()> {
                     }))
                     .boxed(),
             );
-
-            // logcat target for android
             #[cfg(target_os = "android")]
             if let Some(writer) =
                 tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok()

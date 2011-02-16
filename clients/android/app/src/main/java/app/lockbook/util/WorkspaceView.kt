@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
+import android.view.Choreographer
 import android.view.GestureDetector
 import android.view.Menu
 import android.view.MenuItem
@@ -64,8 +65,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ignoreUnknownKeys = true
     }
 
+    private val scroller = OverScroller(context)
+
+    private var scrollDisabled = false
+
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
+            scroller.abortAnimation()
+            scrollDisabled = willConsumeTouchEvent(e.x, e.y)
             return true
         }
 
@@ -75,47 +82,71 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             distanceX: Float,
             distanceY: Float
         ): Boolean {
-
-            if (e2.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
-                scroll(-distanceX, -distanceY)
+            if (!scrollDisabled && shouldChangeViewport(e2)) {
+                val dampingFactor = 0.4f
+                scroll(-distanceX * dampingFactor, -distanceY * dampingFactor)
             }
-            return super.onScroll(e1, e2, distanceX, distanceY)
+            return true
         }
 
-//        override fun onFling(
-//            e1: MotionEvent?,
-//            e2: MotionEvent,
-//            velocityX: Float,
-//            velocityY: Float
-//        ): Boolean {
-//            if (e2.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
-//                val scroller = OverScroller(context)
-//                scroller.fling(0, 0, velocityX.toInt(), velocityY.toInt(), Int.MIN_VALUE, Int.MAX_VALUE, Int.MIN_VALUE, Int.MAX_VALUE)
-//
-//                var lastX = 0
-//                var lastY = 0
-//
-//                val choreographer = android.view.Choreographer.getInstance()
-//                fun tick(frameTimeNanos: Long) {
-//                    if (scroller.computeScrollOffset()) {
-//                        val dx = (scroller.currX - lastX).toFloat()
-//                        val dy = (scroller.currY - lastY).toFloat()
-//                        lastX = scroller.currX
-//                        lastY = scroller.currY
-//                        scroll(dx, dy)
-//                        choreographer.postFrameCallback(::tick)
-//                    }
-//                }
-//                choreographer.postFrameCallback(::tick)
-//            }
-//            return super.onFling(e1, e2, velocityX, velocityY)
-//        }
+        override fun onFling(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
+            if (!scrollDisabled && shouldChangeViewport(e2)) {
+                val velocityDamping = 0.4f
+                scroller.fling(
+                    0, 0,
+                    (velocityX * velocityDamping).toInt(),
+                    (velocityY * velocityDamping).toInt(),
+                    Int.MIN_VALUE, Int.MAX_VALUE,
+                    Int.MIN_VALUE, Int.MAX_VALUE
+                )
+
+                var lastX = 0
+                var lastY = 0
+
+                val choreographer = Choreographer.getInstance()
+                fun tick(frameTimeNanos: Long) {
+                    if (scroller.computeScrollOffset() && isAttachedToWindow) {
+                        val dx = (scroller.currX - lastX).toFloat()
+                        val dy = (scroller.currY - lastY).toFloat()
+                        lastX = scroller.currX
+                        lastY = scroller.currY
+                        scroll(dx, dy)
+                        choreographer.postFrameCallback(::tick)
+                    }
+                }
+                choreographer.postFrameCallback(::tick)
+            }
+            return true
+        }
     }
+
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
+    private fun shouldChangeViewport(e2: MotionEvent): Boolean {
+        val hasNoPen = (0 until e2.pointerCount).none { i ->
+            e2.getToolType(i) == MotionEvent.TOOL_TYPE_STYLUS
+        }
+        return hasNoPen && (!isPenOnlyDraw() && e2.pointerCount >= 2 || isPenOnlyDraw())
+    }
+
+
+    private var scaleDisabled = false
+
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            scaleDisabled = willConsumeTouchEvent(detector.focusX, detector.focusY)
+            return true
+        }
+
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            zoom(detector.scaleFactor)
+            if (!scaleDisabled) {
+                zoom(detector.scaleFactor)
+            }
             return true
         }
     }
@@ -329,7 +360,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
-
+        println("3asba: touch y offset"+ touchOffsetY);
         val action = event.action and MotionEvent.ACTION_MASK
         val actionIndex = event.actionIndex
         val touchType = event.getToolType(actionIndex)
@@ -422,6 +453,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.scroll(WGPU_OBJ, distanceX, distanceY)
+    }
+
+    fun isPenOnlyDraw(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        return Workspace.isPenOnlyDraw(WGPU_OBJ)
+    }
+
+    fun willConsumeTouchEvent(x: Float, y: Float): Boolean{
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+        val res = Workspace.willConsumeTouchEvent(WGPU_OBJ, x, y)
+        println("3asba: "+ res + x + " " + y)
+        return res
     }
 
     fun zoom(factor: Float) {

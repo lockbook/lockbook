@@ -610,6 +610,40 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_isPenOnlyDraw(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.settings.pencil_only_drawing
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouchEvent(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
+            svg.detect_islands_interaction(egui::pos2(x, y))
+        } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.will_consume_touch(egui::pos2(x, y))
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
     _env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
 ) {

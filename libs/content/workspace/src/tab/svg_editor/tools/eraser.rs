@@ -36,17 +36,6 @@ pub enum EraseEvent {
     Cancel,
 }
 
-pub fn from_roger_to_eraser_event(event: RogerEvent) -> Option<EraseEvent> {
-    match event {
-        RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
-            Some(EraseEvent::Build(payload.pos))
-        }
-        RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
-        RogerEvent::ToolCancel => Some(EraseEvent::Cancel),
-        _ => None,
-    }
-}
-
 pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
 
 impl RogerTool for Eraser {
@@ -58,7 +47,9 @@ impl RogerTool for Eraser {
                 Some(EraseEvent::Build(payload.pos))
             }
             RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
-            RogerEvent::ToolCancel => Some(EraseEvent::Cancel),
+            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
+                Some(EraseEvent::Cancel)
+            }
             _ => None,
         }
     }

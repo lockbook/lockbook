@@ -4,10 +4,10 @@ use std::{collections::HashMap, slice::Iter};
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
 use time::Duration;
-use tracing::warn;
-use web_time::{Instant, UNIX_EPOCH};
+use tracing::{debug, warn};
+use web_time::Instant;
 
-use crate::tab::svg_editor::{toolbar::ToolContext, tools::DynRogerTool};
+use crate::tab::svg_editor::{CanvasSettings, toolbar::ToolContext, tools::DynRogerTool};
 
 #[derive(Debug)]
 pub struct Roger {
@@ -27,11 +27,7 @@ pub struct Roger {
 pub struct RogerResponse {
     hide_overlay: bool,
 }
-impl RogerResponse {
-    fn reset(&mut self) {
-        self.hide_overlay = false;
-    }
-}
+
 #[derive(Debug, Default)]
 pub struct RogerConfig {
     pencil_only_drawing: bool,
@@ -49,6 +45,7 @@ struct TouchInfo {
     id: egui::TouchId,
     start: Instant,
     is_active: bool,
+    collides_with_layout: bool,
     has_force: bool,
     lifetime_distance: f32,
     frame_delta: egui::Vec2,
@@ -56,7 +53,7 @@ struct TouchInfo {
 }
 
 impl TouchInfo {
-    fn new(id: TouchId, pos: egui::Pos2, force: Option<f32>) -> Self {
+    fn new(id: TouchId, pos: egui::Pos2, force: Option<f32>, collides_with_layout: bool) -> Self {
         Self {
             id,
             start: Instant::now(),
@@ -65,6 +62,7 @@ impl TouchInfo {
             lifetime_distance: 0.0,
             frame_delta: egui::Vec2::ZERO,
             last_pos: pos,
+            collides_with_layout,
         }
     }
 }
@@ -197,7 +195,6 @@ impl Roger {
     }
 
     pub fn process(&mut self, ui: &mut egui::Ui, layout: &LayoutContext) -> Vec<RogerEvent> {
-        self.response.reset();
         ui.input(|r| self.process_events(r.events.iter(), layout))
     }
 
@@ -209,7 +206,7 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
-                // debug!(?event, ?roger_event, ?self, "roger event generation");
+                debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
@@ -217,6 +214,15 @@ impl Roger {
                     return None;
                 }
 
+                if let Some(event) = roger_event {
+                    if matches!(event, RogerEvent::ViewportChange(_))
+                        || matches!(event, RogerEvent::ViewportChangeWithToolCancel)
+                        || matches!(event, RogerEvent::ToolCancel)
+                        || matches!(event, RogerEvent::ToolEnd(_))
+                    {
+                        self.response.hide_overlay = false;
+                    }
+                }
                 roger_event
             })
             .collect();
@@ -291,9 +297,7 @@ impl Roger {
 
                     self.mouse_hover_pos = None;
 
-                    if pos_collides_with_layout(pos, ctx) {
-                        self.response.hide_overlay = true;
-                    }
+                    self.response.hide_overlay = pos_collides_with_layout(pos, ctx);
                     return Some(RogerEvent::ToolRun(payload));
                 }
 
@@ -310,6 +314,17 @@ impl Roger {
             }
             egui::Event::PointerGone => None,
             egui::Event::MouseWheel { unit, delta, modifiers } => {
+                // okay a mousewheel event can be trigged by fingers. fingers are dropped if they didn't originate from the draw rect.
+                // we can not handle this event if there are no touches
+                // but then that would not support trackpad mouseweel on
+
+                // okay i think the move is to use a kinetic pan custom event that specifies the origin
+
+                // mousewheel origin touch
+                // if there is a mousewheel and touches. attach the mouseweehl to all those touches
+                if self.touches.iter().any(|t| t.collides_with_layout) {
+                    return None;
+                }
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
                     return Some(ViewportChange::new(&self, event, false));
@@ -374,12 +389,13 @@ impl Roger {
 
         match phase {
             egui::TouchPhase::Start => {
-                if pos_collides_with_layout(pos, ctx) {
-                    warn!(?pos, ?ctx.overlay_areas, "touch start collides with layout, dropping touch");
+                let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
+                let collides = pos_collides_with_layout(pos, ctx);
+                self.touches
+                    .push(TouchInfo::new(curr_touch_id, pos, force, collides));
+                if collides {
                     return None;
                 }
-                let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
-                self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
 
                 if let Some(last_touch) = self.touches.iter().rev().nth(1) {
                     if !last_touches_have_pen && is_curr_touch_pen {
@@ -457,9 +473,8 @@ impl Roger {
 
                 if let Some(start_touch) = self.tool_start_touch {
                     if start_touch.eq(&curr_touch_id) {
-                        if pos_collides_with_layout(pos, ctx) {
-                            self.response.hide_overlay = true;
-                        }
+                        self.response.hide_overlay = pos_collides_with_layout(pos, ctx);
+
                         return Some(RogerEvent::ToolRun(payload));
                     }
                 };
@@ -564,6 +579,10 @@ impl Roger {
 
     pub fn should_hide_overlay(&self) -> bool {
         self.response.hide_overlay
+    }
+
+    pub fn sync_canvas_settings(&mut self, settings: &CanvasSettings) {
+        self.config.pencil_only_drawing = settings.pencil_only_drawing;
     }
 }
 
