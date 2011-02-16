@@ -358,6 +358,8 @@ impl Toolbar {
                     self.layout.overlay_toggle,
                     self.layout.tools_island,
                     self.layout.viewport_island,
+                    self.selection.layout.container_tooltip,
+                    self.selection.layout.popover,
                 ];
                 if self.show_tool_popover {
                     islands.push(self.layout.tool_popover);

@@ -150,7 +150,7 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
-                debug!(?event, ?roger_event, ?self, "roger event generation");
+                // debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange))
@@ -432,6 +432,10 @@ impl Roger {
                             self.tool_start_touch = None;
                             return Some(RogerEvent::ToolCancel);
                         }
+                    }
+                    // the touch that got canceld caused a viewport change. let's cancel the viewport change
+                    if self.viewport_changing.is_some() {
+                        self.viewport_changing = None;
                     }
                 } else {
                     warn!(?id, ?force, "cancelling a touch that didn't start")
@@ -879,6 +883,26 @@ mod tests {
             RogerTestFrame::new(start_touch(1, pos, force), vec![RogerEvent::ToolStart(payload)]),
             RogerTestFrame::new(move_touch(1, pos, force), vec![RogerEvent::ToolRun(payload)]),
             RogerTestFrame::new(cancel_touch(1, pos, force), vec![RogerEvent::ToolCancel]),
+        ]);
+
+        test.eval(&mut roger, &LayoutContext::default());
+    }
+
+    #[test]
+    fn touch_cancel_during_viewport_change() {
+        let mut roger = Roger::new(RogerConfig::new(true, false));
+        let pos = egui::Pos2::new(10.0, 10.0);
+        let force = Some(0.5);
+        let pen_payload = ToolPayload { pos, force, id: Some(TouchId(2)) };
+
+        let test = RogerTestRunner::new(vec![
+            RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(move_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(cancel_touch(1, pos, None), vec![]),
+            RogerTestFrame::new(
+                start_touch(2, pen_payload.pos, pen_payload.force),
+                vec![RogerEvent::ToolStart(pen_payload)],
+            ),
         ]);
 
         test.eval(&mut roger, &LayoutContext::default());

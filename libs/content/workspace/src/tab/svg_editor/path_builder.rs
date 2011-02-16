@@ -15,8 +15,6 @@ pub struct PathBuilder {
     pub prev_points_window: VecDeque<egui::Pos2>,
     pub simplified_points: Vec<egui::Pos2>,
     pub original_points: Vec<egui::Pos2>,
-    pub first_point_touch_id: Option<egui::TouchId>,
-    pub first_point_frame: Option<Instant>,
     pub is_canceled_path: bool,
     pub first_predicted_mg: Option<usize>,
 }
@@ -31,12 +29,10 @@ impl PathBuilder {
     pub fn new() -> Self {
         PathBuilder {
             prev_points_window: VecDeque::from(vec![]),
-            first_point_touch_id: None,
             simplified_points: vec![],
             original_points: vec![],
             is_canceled_path: false,
             first_predicted_mg: None,
-            first_point_frame: None,
         }
     }
 
@@ -86,8 +82,6 @@ impl PathBuilder {
 
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
-        self.first_point_touch_id = None;
-        self.first_point_frame = None;
         self.is_canceled_path = false;
     }
 

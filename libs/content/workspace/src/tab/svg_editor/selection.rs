@@ -8,6 +8,7 @@ use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::get_pen_colors;
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
+use tracing::debug;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
@@ -16,6 +17,7 @@ use lb_rs::model::svg::buffer::serialize_inner;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::history;
 use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::roger::RogerEvent;
 use crate::tab::svg_editor::toolbar::{
     show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
@@ -33,8 +35,9 @@ pub struct Selection {
     pub selected_elements: Vec<SelectedElement>,
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
-    layout: Layout,
+    pub layout: Layout,
     show_selection_popover: bool,
+    suggested_op: Option<SelectionOperation>,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub properties: Option<ElementEditableProperties>,
 }
@@ -61,7 +64,7 @@ enum SelectionOperation {
     Idle,
 }
 
-enum SelectionPropogatedEvent {
+pub enum SelectionPropogatedEvent {
     Copy,
 }
 
@@ -72,9 +75,9 @@ pub struct SelectedElement {
 }
 
 #[derive(Default)]
-struct Layout {
-    container_tooltip: Option<egui::Rect>,
-    popover: Option<egui::Rect>,
+pub struct Layout {
+    pub container_tooltip: Option<egui::Rect>,
+    pub popover: Option<egui::Rect>,
 }
 
 impl Layout {
@@ -99,7 +102,7 @@ impl Layout {
     }
 }
 #[derive(Debug)]
-enum SelectionEvent {
+pub enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
@@ -112,23 +115,19 @@ enum SelectionEvent {
     Copy,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct BuildPayload {
-    pos: egui::Pos2,
-    modifiers: egui::Modifiers,
+pub struct BuildPayload {
+    pub pos: egui::Pos2,
+    pub modifiers: egui::Modifiers,
 }
 
 struct SelectionInputState {
-    transform_occured: bool,
-    suggested_op: Option<SelectionOperation>,
     delta: egui::Vec2,
     is_multi_touch: bool,
 }
 
 impl Selection {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let is_multi_touch = is_multi_touch(ui);
-
-        let mut suggested_op = None;
+    pub fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+        self.suggested_op = None;
         let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
         child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
         child_ui.with_layer_id(
@@ -142,52 +141,76 @@ impl Selection {
                     );
                 };
 
-                suggested_op = self.show_selection_rects(ui, selection_ctx);
+                self.suggested_op = self.show_selection_rects(ui, selection_ctx);
             },
         );
-
-        if selection_ctx.toolbar_has_interaction {
-            self.cancel_lasso();
-            return;
-        }
-
-        // an event that can needs handling with ui access.
-        let mut selection_propagted_event = None;
-        ui.input(|r| {
-            let mut input_state = SelectionInputState {
-                transform_occured: false,
-                delta: r.pointer.delta(),
-                is_multi_touch,
-                suggested_op,
-            };
-
-            for e in r.events.iter() {
-                if input_state.is_multi_touch {
-                    break;
-                }
-
-                if self.layout.has_ui_interaction(r.pointer.interact_pos()) {
-                    break;
-                }
-
-                if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
-                    if let Some(event) = self.handle_selection_event(
-                        selection_event,
-                        selection_ctx,
-                        &mut input_state,
-                    ) {
-                        selection_propagted_event = Some(event);
-                    }
-                }
-            }
-        });
-
-        if let Some(event) = selection_propagted_event {
-            match event {
-                SelectionPropogatedEvent::Copy => self.copy_selection(ui, selection_ctx),
-            }
-        };
+        // todo: maitre_d should know about the overlay rects in self.layout for proper hit testing.
+        // currently an overlay click will result in a tool run
     }
+
+    pub fn map_roger_event(&self, event: RogerEvent) -> Option<SelectionEvent> {
+        match event {
+            RogerEvent::ToolStart(payload) => {
+                // we're hovering over an element
+                debug!(?self.suggested_op, " tool start");
+
+                if self.suggested_op.is_some() {
+                    return Some(SelectionEvent::StartTransform);
+                }
+
+                Some(SelectionEvent::StartLaso(BuildPayload {
+                    pos: payload.pos,
+                    modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to roger event
+                }))
+            }
+            RogerEvent::ToolRun(payload) => {
+                debug!(?self.current_op, "tool run");
+                match self.current_op {
+                    SelectionOperation::LasoBuild(_) => {
+                        Some(SelectionEvent::LasoBuild(BuildPayload {
+                            pos: payload.pos,
+                            modifiers: egui::Modifiers::NONE,
+                        }))
+                    }
+                    _ => Some(SelectionEvent::Transform(payload.pos)),
+                }
+            }
+            RogerEvent::ToolEnd(_) => match self.current_op {
+                SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
+                _ => Some(SelectionEvent::EndTransform),
+            },
+            RogerEvent::ToolCancel => Some(SelectionEvent::CancelLaso),
+            _ => None,
+        }
+    }
+
+    // pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+    //     let is_multi_touch = is_multi_touch(ui);
+
+    //     // an event that can needs handling with ui access.
+    //     let mut selection_propagted_event = None;
+    //     ui.input(|r| {
+    //         let input_state = SelectionInputState { delta: r.pointer.delta(), is_multi_touch };
+
+    //         for e in r.events.iter() {
+    //             if let Some(selection_event) = self.map_ui_event(e, selection_ctx) {
+    //                 if let Some(event) = self.handle_selection_event(
+    //                     selection_event,
+    //                     selection_ctx,
+    //                     input_state.delta,
+    //                 ) {
+    //                     selection_propagted_event = Some(event);
+    //                 }
+    //             }
+    //         }
+    //     });
+
+    //     if let Some(event) = selection_propagted_event {
+    //         match event {
+    //             SelectionPropogatedEvent::Copy => self.copy_selection(ui, selection_ctx),
+    //         }
+    //     };
+    // }
 
     fn cancel_lasso(&mut self) {
         // todo: undo/nullify the effects of the laso operation
@@ -197,7 +220,6 @@ impl Selection {
 
     fn map_ui_event(
         &self, event: &egui::Event, selection_ctx: &mut ToolContext,
-        input_state: &SelectionInputState,
     ) -> Option<SelectionEvent> {
         match self.current_op {
             SelectionOperation::Idle => {
@@ -212,7 +234,7 @@ impl Selection {
                         }
                         if pressed {
                             // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if input_state.suggested_op.is_some() && modifiers.is_none() {
+                            if self.suggested_op.is_some() && modifiers.is_none() {
                                 return Some(SelectionEvent::StartTransform);
                             } else {
                                 // if we're in prefer draw with pencil mode, then we shouldn't start build operation
@@ -236,7 +258,7 @@ impl Selection {
                         // ensure that it's pencil touch and not finger touch
                         force?;
 
-                        if input_state.suggested_op.is_some() {
+                        if self.suggested_op.is_some() {
                             return Some(SelectionEvent::StartTransform);
                         } else {
                             // if we're in prefer draw with pencil mode, then we shouldn't start build operation
@@ -307,18 +329,15 @@ impl Selection {
         None
     }
 
-    fn handle_selection_event(
+    pub fn handle_selection_event(
         &mut self, selection_event: SelectionEvent, selection_ctx: &mut ToolContext,
-        r: &mut SelectionInputState,
+        pointer_delta: egui::Vec2,
     ) -> Option<SelectionPropogatedEvent> {
         match selection_event {
             SelectionEvent::StartTransform => {
-                self.current_op = r.suggested_op.unwrap_or(SelectionOperation::Idle);
+                self.current_op = self.suggested_op.unwrap_or(SelectionOperation::Idle);
             }
             SelectionEvent::Transform(pos) => {
-                if r.transform_occured || r.is_multi_touch {
-                    return None;
-                }
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
@@ -327,7 +346,7 @@ impl Selection {
                     // see what edge
                     let transform = match self.current_op {
                         SelectionOperation::Translation => {
-                            Transform::identity().post_translate(r.delta.x, r.delta.y)
+                            Transform::identity().post_translate(pointer_delta.x, pointer_delta.y)
                         }
                         SelectionOperation::Idle => Transform::identity(),
                         SelectionOperation::EastScale => {
@@ -465,8 +484,6 @@ impl Selection {
                         s_el.transform = s_el.transform.post_concat(transform);
                     }
                 }
-
-                r.transform_occured = true;
             }
             SelectionEvent::EndTransform => {
                 self.current_op = SelectionOperation::Idle;

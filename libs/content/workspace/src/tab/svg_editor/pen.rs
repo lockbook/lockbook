@@ -1,23 +1,16 @@
 use bezier_rs::Subpath;
-use egui::{PointerButton, TouchId, TouchPhase};
-use egui_animation::{animate_bool_eased, easing};
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
-use tracing::{Level, event, trace, warn};
-use tracing_test::traced_test;
-use web_time::{Duration, Instant};
+use tracing::{Level, event, trace};
+use web_time::Instant;
 
-use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};
-use crate::tab::svg_editor::util::is_scroll;
-use crate::theme::palette::ThemePalette;
 
 use super::toolbar::ToolContext;
-use super::util::is_multi_touch;
 use super::{InsertElement, PathBuilder};
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
@@ -81,11 +74,6 @@ impl PenSettings {
     }
 }
 
-#[derive(Clone)]
-enum IntegrationEvent<'a> {
-    Custom(&'a crate::Event),
-    Native(&'a egui::Event),
-}
 impl Pen {
     pub fn new(settings: PenSettings) -> Self {
         let active_color = get_dyn_color(Color {
@@ -110,51 +98,51 @@ impl Pen {
         }
     }
 
-    fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
-        let old_layer = pen_ctx.painter.layer_id();
+    // fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
+    //     let old_layer = pen_ctx.painter.layer_id();
 
-        pen_ctx.painter.set_layer_id(egui::LayerId {
-            order: egui::Order::PanelResizeLine,
-            id: "eraser_overlay".into(),
-        });
+    //     pen_ctx.painter.set_layer_id(egui::LayerId {
+    //         order: egui::Order::PanelResizeLine,
+    //         id: "eraser_overlay".into(),
+    //     });
 
-        if let Some((pos, instant)) = self.hover_pos {
-            let is_current_path_empty = if let Some(Element::Path(path)) =
-                pen_ctx.buffer.elements.get_mut(&self.current_id)
-            {
-                path.data.is_empty()
-            } else {
-                true
-            };
-            let opacity = animate_bool_eased(
-                ui.ctx(),
-                "pen_hover_pos",
-                Instant::now() - instant < Duration::from_millis(10)
-                    && !(pen_ctx.settings.pencil_only_drawing),
-                easing::cubic_in_out,
-                0.5,
-            );
+    //     if let Some((pos, instant)) = self.hover_pos {
+    //         let is_current_path_empty = if let Some(Element::Path(path)) =
+    //             pen_ctx.buffer.elements.get_mut(&self.current_id)
+    //         {
+    //             path.data.is_empty()
+    //         } else {
+    //             true
+    //         };
+    //         let opacity = animate_bool_eased(
+    //             ui.ctx(),
+    //             "pen_hover_pos",
+    //             Instant::now() - instant < Duration::from_millis(10)
+    //                 && !(pen_ctx.settings.pencil_only_drawing),
+    //             easing::cubic_in_out,
+    //             0.5,
+    //         );
 
-            if is_current_path_empty {
-                let mut radius = self.active_stroke_width / 2.0;
-                if !self.has_inf_thick {
-                    radius *= pen_ctx.viewport_settings.master_transform.sx;
-                }
+    //         if is_current_path_empty {
+    //             let mut radius = self.active_stroke_width / 2.0;
+    //             if !self.has_inf_thick {
+    //                 radius *= pen_ctx.viewport_settings.master_transform.sx;
+    //             }
 
-                let pressure_adj = self.pressure_alpha * -0.5 + 1.;
-                radius *= pressure_adj;
+    //             let pressure_adj = self.pressure_alpha * -0.5 + 1.;
+    //             radius *= pressure_adj;
 
-                pen_ctx.painter.circle_filled(
-                    pos,
-                    radius,
-                    ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
-                        .linear_multiply(self.active_opacity * opacity),
-                );
-            }
-        }
+    //             pen_ctx.painter.circle_filled(
+    //                 pos,
+    //                 radius,
+    //                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
+    //                     .linear_multiply(self.active_opacity * opacity),
+    //             );
+    //         }
+    //     }
 
-        pen_ctx.painter.set_layer_id(old_layer);
-    }
+    //     pen_ctx.painter.set_layer_id(old_layer);
+    // }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
         if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
@@ -185,35 +173,6 @@ impl Pen {
     ) -> Option<egui::Shape> {
         match event {
             PathEvent::Draw(payload) => {
-                if payload.force.is_none() && pen_ctx.settings.pencil_only_drawing {
-                    warn!("ignoring touch input because pencil only drawing is enabled");
-                    return None;
-                }
-
-                if let Some(touch_id) = payload.id {
-                    if self.path_builder.first_point_touch_id.is_none() {
-                        self.path_builder.first_point_touch_id = Some(touch_id);
-                    }
-                }
-
-                if self.path_builder.first_point_frame.is_none() {
-                    self.path_builder.first_point_frame = Some(Instant::now());
-                }
-
-                let has_same_touch_id_as_curr_path = if let Some(curr_id) = payload.id {
-                    if let Some(first_point_touch_id) = self.path_builder.first_point_touch_id {
-                        first_point_touch_id == curr_id
-                    } else {
-                        true
-                    }
-                } else {
-                    true
-                };
-
-                if !has_same_touch_id_as_curr_path {
-                    self.cancel_path(pen_ctx);
-                }
-
                 let mut path_stroke = Stroke {
                     color: self.active_color,
                     opacity: self.active_opacity,
@@ -343,190 +302,6 @@ impl Pen {
             path.data = Subpath::new(vec![], false);
         }
     }
-
-    /// converts a single ui event into a path event  
-    fn map_ui_event(
-        &mut self, e: IntegrationEvent, pen_ctx: &mut ToolContext<'_>,
-        input_state: &PenPointerInput,
-    ) -> Option<PathEvent> {
-        let is_current_path_empty =
-            if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
-                path.data.is_empty()
-            } else {
-                true
-            };
-        let inner_rect = pen_ctx.painter.clip_rect();
-        let has_same_touch_id_as_curr_path = get_event_touch_id(&e).is_some_and(|curr_id| {
-            if let Some(first_point_touch_id) = self.path_builder.first_point_touch_id {
-                first_point_touch_id == curr_id
-            } else {
-                false
-            }
-        });
-
-        if input_state.is_multi_touch {
-            if let Some(first_point_frame) = self.path_builder.first_point_frame {
-                if Instant::now() - first_point_frame < Duration::from_millis(500) {
-                    trace!("drew stroke for a bit but then shifted to a vw change");
-                    *pen_ctx.allow_viewport_changes = true;
-                    return Some(PathEvent::CancelStroke);
-                }
-            }
-
-            if is_current_path_empty {
-                trace!("path is empty on a multi touch allow zoom");
-                *pen_ctx.allow_viewport_changes = true;
-                return None;
-            }
-
-            if !has_same_touch_id_as_curr_path {
-                *pen_ctx.allow_viewport_changes = false;
-                return None;
-            }
-        }
-
-        if let IntegrationEvent::Native(&egui::Event::Touch {
-            device_id: _,
-            id,
-            phase,
-            pos,
-            force,
-        }) = e
-        {
-            *pen_ctx.allow_viewport_changes = false;
-            match phase {
-                TouchPhase::Start => {
-                    if is_current_path_empty && inner_rect.contains(pos) {
-                        trace!("start path");
-                        return Some(PathEvent::Draw(ToolPayload { pos, force, id: Some(id) }));
-                    }
-                }
-                TouchPhase::Move => {
-                    if inner_rect.contains(pos) && !is_current_path_empty {
-                        trace!("continue draw path");
-                        return Some(PathEvent::Draw(ToolPayload { pos, force, id: Some(id) }));
-                    }
-                }
-                TouchPhase::End => {
-                    if !is_current_path_empty {
-                        trace!("end path");
-                        return Some(PathEvent::End(ToolPayload { pos, force, id: Some(id) }));
-                    }
-                }
-                TouchPhase::Cancel => {
-                    if inner_rect.contains(pos) {
-                        trace!("cancel path");
-                        return Some(PathEvent::CancelStroke);
-                    }
-                }
-            }
-        }
-
-        if let IntegrationEvent::Custom(&crate::Event::PredictedTouch { id, force, pos }) = e {
-            *pen_ctx.allow_viewport_changes = false;
-            if inner_rect.contains(pos) && !is_current_path_empty && has_same_touch_id_as_curr_path
-            {
-                trace!("draw predicted");
-                return Some(PathEvent::PredictedDraw(ToolPayload { pos, force, id: Some(id) }));
-            }
-        }
-
-        if pen_ctx.is_touch_frame {
-            *pen_ctx.allow_viewport_changes = true;
-            // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
-            if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
-                if is_current_path_empty && !input_state.is_scroll {
-                    return Some(PathEvent::Hover(ToolPayload { pos, force: None, id: None }));
-                } else {
-                    *pen_ctx.allow_viewport_changes = false;
-                }
-            }
-            return None;
-        }
-
-        // todo figure out if there's common ground between multi touch and zoom/scroll events
-        // it would to handle viewport lock for the touch and pointer events in the same spot
-        if matches!(e, IntegrationEvent::Native(&egui::Event::Zoom(_)))
-            || matches!(
-                e,
-                IntegrationEvent::Native(&egui::Event::MouseWheel {
-                    unit: _,
-                    delta: _,
-                    modifiers: _
-                })
-            )
-        {
-            if is_current_path_empty {
-                *pen_ctx.allow_viewport_changes = true;
-                return None;
-            } else {
-                *pen_ctx.allow_viewport_changes = false;
-                return None;
-            }
-        }
-
-        if let IntegrationEvent::Native(&egui::Event::PointerButton {
-            pos,
-            button,
-            pressed,
-            modifiers: _,
-        }) = e
-        {
-            *pen_ctx.allow_viewport_changes = false;
-            if button != PointerButton::Primary {
-                return None;
-            }
-
-            // equivalent to touch started
-            if pressed {
-                if is_current_path_empty && inner_rect.contains(pos) {
-                    return Some(PathEvent::Draw(ToolPayload { pos, force: None, id: None }));
-                }
-                // equivalent to touch end
-            } else if !is_current_path_empty {
-                {
-                    return Some(PathEvent::End(ToolPayload { pos, force: None, id: None }));
-                }
-            }
-        }
-
-        if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
-            *pen_ctx.allow_viewport_changes = false;
-            if inner_rect.contains(pos) && !is_current_path_empty {
-                return Some(PathEvent::Draw(ToolPayload { pos, force: None, id: None }));
-            }
-        }
-
-        *pen_ctx.allow_viewport_changes = true;
-        None
-    }
-}
-
-fn get_event_touch_id(event: &IntegrationEvent) -> Option<egui::TouchId> {
-    match event {
-        IntegrationEvent::Custom(custom_event) => {
-            if let crate::Event::PredictedTouch { id, force: _, pos: _ } = custom_event {
-                Some(*id)
-            } else {
-                None
-            }
-        }
-        IntegrationEvent::Native(native_event) => {
-            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } =
-                native_event
-            {
-                Some(*id)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct PenPointerInput {
-    is_multi_touch: bool,
-    is_scroll: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -549,127 +324,5 @@ pub fn from_roger_to_pen_event(event: RogerEvent) -> Option<PathEvent> {
         RogerEvent::ViewportChange => None,
         RogerEvent::Gesture(_) => None,
         RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
-    }
-}
-
-#[traced_test]
-#[test]
-fn correct_start_of_path() {
-    let mut pen = Pen::new(PenSettings::default_pen());
-    let mut pen_ctx = ToolContext {
-        painter: &mut egui::Painter::new(
-            egui::Context::default(),
-            egui::LayerId::background(),
-            egui::Rect::EVERYTHING,
-        ),
-        buffer: &mut lb_rs::model::svg::buffer::Buffer::default(),
-        history: &mut crate::tab::svg_editor::history::History::default(),
-        allow_viewport_changes: &mut false,
-        is_touch_frame: true,
-        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
-        viewport_settings: &mut Default::default(),
-        toolbar_has_interaction: false,
-    };
-
-    let start_pos = egui::pos2(10.0, 10.0);
-    let path_id = Uuid::new_v4();
-    pen.current_id = path_id;
-    let touch_id = TouchId(1);
-
-    let events =
-        vec![PathEvent::Draw(ToolPayload { pos: start_pos, force: None, id: Some(touch_id) })];
-
-    for event in &events {
-        pen.handle_path_event(*event, &mut pen_ctx);
-    }
-    if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
-        assert_eq!(p.data.len(), 2);
-        // assert_eq!(pen.path_builder.original_points.len(), 1);
-    }
-}
-
-#[traced_test]
-#[test]
-fn cancel_touch_ui_event() {
-    let touch_1 = TouchId(1);
-    let touch_2 = TouchId(2);
-    let mut events = vec![
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_1,
-            phase: TouchPhase::Start,
-            pos: egui::pos2(10.0, 10.0),
-            force: None,
-        },
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_1,
-            phase: TouchPhase::Move,
-            pos: egui::pos2(11.0, 11.0),
-            force: None,
-        },
-    ];
-
-    let mut pen = Pen::new(PenSettings::default_pen());
-    let mut pen_ctx = ToolContext {
-        painter: &mut egui::Painter::new(
-            egui::Context::default(),
-            egui::LayerId::background(),
-            egui::Rect::EVERYTHING,
-        ),
-        buffer: &mut lb_rs::model::svg::buffer::Buffer::default(),
-        history: &mut crate::tab::svg_editor::history::History::default(),
-        allow_viewport_changes: &mut false,
-        is_touch_frame: true,
-        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
-        viewport_settings: &mut Default::default(),
-        toolbar_has_interaction: false,
-    };
-
-    let input_state = PenPointerInput { is_multi_touch: false, is_scroll: false };
-
-    events.iter().for_each(|e| {
-        if let Some(path_event) =
-            pen.map_ui_event(IntegrationEvent::Native(e), &mut pen_ctx, &input_state)
-        {
-            pen.handle_path_event(path_event, &mut pen_ctx);
-        }
-    });
-
-    events = vec![
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_1,
-            phase: TouchPhase::Cancel,
-            pos: egui::pos2(11.0, 11.0),
-            force: None,
-        },
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_2,
-            phase: TouchPhase::Start,
-            pos: egui::pos2(12.0, 12.0),
-            force: None,
-        },
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_2,
-            phase: TouchPhase::Move,
-            pos: egui::pos2(16.0, 16.0),
-            force: None,
-        },
-    ];
-
-    events.iter().for_each(|e| {
-        if let Some(path_event) =
-            pen.map_ui_event(IntegrationEvent::Native(e), &mut pen_ctx, &input_state)
-        {
-            pen.handle_path_event(path_event, &mut pen_ctx);
-        }
-    });
-    assert_eq!(pen_ctx.buffer.elements.len(), 1);
-
-    if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
-        assert_eq!(path.data.len(), 3)
     }
 }
