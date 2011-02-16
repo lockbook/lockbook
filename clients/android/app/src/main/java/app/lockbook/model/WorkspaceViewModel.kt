@@ -57,6 +57,10 @@ class WorkspaceViewModel : ViewModel() {
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
 
+    val _showKeyboard = MutableLiveData<Boolean>()
+    val showKeyboard: LiveData<Boolean>
+        get() = _showKeyboard
+
     val _bottomSheetExpanded = MutableLiveData<Boolean>(false)
     val bottomSheetExpanded: LiveData<Boolean>
         get() = _bottomSheetExpanded

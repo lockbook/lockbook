@@ -313,6 +313,16 @@ class WorkspaceFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        model._showKeyboard.observe(viewLifecycleOwner) {
+            if (it) {
+                (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+            } else {
+                (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .hideSoftInputFromWindow(view.windowToken, 0)
+            }
+        }
+
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
