@@ -15,6 +15,20 @@ use super::{
 pub struct Selection {
     pub selected_elements: Vec<SelectedElement>,
     current_op: SelectionOperation,
+    laso_rect: Option<egui::Rect>,
+    layout: Layout,
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+enum SelectionOperation {
+    Translation,
+    EastScale,
+    WestScale,
+    NorthScale,
+    SouthScale,
+    LasoBuild(BuildPayload),
+    #[default]
+    Idle,
 }
 
 #[derive(Clone, Debug)]
@@ -23,12 +37,22 @@ pub struct SelectedElement {
     transform: Transform, // collection of all transforms that happend during a drag
 }
 
-enum SelectionMappedEvent {
-    BuildSelection(BuildPayload),
+#[derive(Default)]
+struct Layout {
+    container_tooltip: Option<egui::Rect>,
+}
+
+enum SelectionEvent {
+    StartLaso(BuildPayload),
+    LasoBuild(BuildPayload),
+    EndLaso,
+    SelectAll,
     StartTransform(egui::Pos2),
     Transform(egui::Pos2),
     EndTransform(egui::Pos2),
+    Delete,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct BuildPayload {
     pos: egui::Pos2,
     modifiers: egui::Modifiers,
@@ -60,6 +84,14 @@ impl Selection {
             }
         });
 
+        if let Some(laso_rect) = self.laso_rect {
+            ui.painter().rect_filled(
+                laso_rect,
+                egui::Rounding::ZERO,
+                ui.visuals().hyperlink_color.gamma_multiply(0.1),
+            );
+        };
+
         if self.current_op != SelectionOperation::Translation {
             self.show_selection_rects(ui, selection_ctx.buffer);
         }
@@ -67,10 +99,30 @@ impl Selection {
 
     fn map_ui_event(
         &self, event: &egui::Event, selection_ctx: &mut ToolContext,
-    ) -> Option<SelectionMappedEvent> {
+    ) -> Option<SelectionEvent> {
         match self.current_op {
             SelectionOperation::Idle => {
                 match *event {
+                    egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                        if button != egui::PointerButton::Primary {
+                            return None;
+                        }
+                        if pressed {
+                            // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
+                            if self.decide_transform_type(pos, selection_ctx)
+                                != SelectionOperation::Idle
+                            {
+                                println!("start drag");
+                                return Some(SelectionEvent::StartTransform(pos));
+                            } else {
+                                println!("build selection");
+                                return Some(SelectionEvent::StartLaso(BuildPayload {
+                                    pos,
+                                    modifiers,
+                                }));
+                            }
+                        }
+                    }
                     egui::Event::PointerMoved(pos) => {
                         // see if we're hovering over any paths, if so set the according cursor.
                         if let Some(maybe_selection) =
@@ -81,37 +133,53 @@ impl Selection {
                             // hovered_selection = Some(maybe_selection);
                         }
                     }
+                    egui::Event::Key { key, physical_key: _, pressed, repeat, modifiers } => {
+                        if key == egui::Key::A && modifiers.command && pressed && !repeat {
+                            return Some(SelectionEvent::SelectAll);
+                        }
+
+                        if key == egui::Key::Delete
+                            || key == egui::Key::Backspace
+                            || key == egui::Key::Backspace
+                        {
+                            return Some(SelectionEvent::Delete);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            SelectionOperation::LasoBuild(origin_payload) => {
+                match *event {
+                    egui::Event::PointerMoved(pos) => {
+                        return Some(SelectionEvent::LasoBuild(BuildPayload {
+                            pos,
+                            modifiers: egui::Modifiers::NONE,
+                        }))
+                    }
                     egui::Event::PointerButton { pos, button, pressed, modifiers } => {
                         if button != egui::PointerButton::Primary {
                             println!("no primary button");
                             return None;
                         }
-                        if pressed {
+                        if !pressed {
                             // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if self.decide_transform_type(pos, selection_ctx)
-                                != SelectionOperation::Idle
-                            {
-                                println!("start drag");
-                                return Some(SelectionMappedEvent::StartTransform(pos));
+                            if self.selected_elements.is_empty() {
+                                return Some(SelectionEvent::EndLaso);
                             } else {
-                                println!("build selection");
-                                return Some(SelectionMappedEvent::BuildSelection(BuildPayload {
-                                    pos,
-                                    modifiers,
-                                }));
+                                return Some(SelectionEvent::EndLaso);
+                                // return Some(SelectionEvent::StartTransform(pos));
                             }
                         }
                     }
                     _ => {}
                 }
             }
-            SelectionOperation::Laso => {}
             _ => {
                 match *event {
                     egui::Event::PointerMoved(pos2) => {
                         // what edge is the pos in, set the cursor icon accordingly
                         // issue transform command based on the position delta
-                        return Some(SelectionMappedEvent::Transform(pos2));
+                        return Some(SelectionEvent::Transform(pos2));
                     }
                     egui::Event::PointerButton { pos, button, pressed, modifiers } => {
                         if button != egui::PointerButton::Primary {
@@ -119,7 +187,7 @@ impl Selection {
                         }
                         if !pressed {
                             // end the transform / save to history
-                            return Some(SelectionMappedEvent::EndTransform(pos));
+                            return Some(SelectionEvent::EndTransform(pos));
                         }
                     }
                     _ => {}
@@ -131,41 +199,15 @@ impl Selection {
     }
 
     fn handle_selection_event(
-        &mut self, selection_event: SelectionMappedEvent, selection_ctx: &mut ToolContext,
+        &mut self, selection_event: SelectionEvent, selection_ctx: &mut ToolContext,
         r: &mut SelectionInputState,
     ) {
         match selection_event {
-            SelectionMappedEvent::BuildSelection(build_payload) => {
-                if let Some(maybe_new_selection) =
-                    detect_translation(selection_ctx.buffer, None, build_payload.pos)
-                {
-                    if build_payload.modifiers.shift {
-                        self.selected_elements.push(maybe_new_selection);
-                    } else if build_payload.modifiers.alt {
-                        if let Some(i) = self
-                            .selected_elements
-                            .iter()
-                            .position(|s_el| s_el.id == maybe_new_selection.id)
-                        {
-                            self.selected_elements.remove(i);
-                        }
-                    } else {
-                        self.selected_elements = vec![maybe_new_selection];
-                    }
-                    if !self.selected_elements.is_empty() {
-                        self.current_op = SelectionOperation::Translation;
-                    }
-                } else {
-                    // self.current_op = SelectionOperation::Laso;
-                    self.selected_elements.clear();
-                }
-                println!("selected count after build: {}", self.selected_elements.len());
-            }
-            SelectionMappedEvent::StartTransform(pos) => {
+            SelectionEvent::StartTransform(pos) => {
                 self.current_op = self.decide_transform_type(pos, selection_ctx);
                 println!("current transform type{:#?}", self.current_op);
             }
-            SelectionMappedEvent::Transform(pos) => {
+            SelectionEvent::Transform(pos) => {
                 if r.transform_occured || r.is_multi_touch {
                     return;
                 }
@@ -189,7 +231,7 @@ impl Selection {
 
                 r.transform_occured = true;
             }
-            SelectionMappedEvent::EndTransform(pos2) => {
+            SelectionEvent::EndTransform(pos2) => {
                 println!("handling end transform");
                 self.current_op = SelectionOperation::Idle;
 
@@ -212,6 +254,134 @@ impl Selection {
                     selection_ctx.history.save(Event::Transform(events));
                 }
             }
+            SelectionEvent::StartLaso(build_payload) => {
+                if let Some(maybe_new_selection) =
+                    detect_translation(selection_ctx.buffer, None, build_payload.pos)
+                {
+                    if build_payload.modifiers.shift {
+                        self.selected_elements.push(maybe_new_selection);
+                    } else if build_payload.modifiers.alt {
+                        if let Some(i) = self
+                            .selected_elements
+                            .iter()
+                            .position(|s_el| s_el.id == maybe_new_selection.id)
+                        {
+                            self.selected_elements.remove(i);
+                        }
+                    } else {
+                        self.selected_elements = vec![maybe_new_selection];
+                    }
+                    if !self.selected_elements.is_empty() {
+                        self.current_op = SelectionOperation::Translation;
+                    }
+                } else {
+                    self.current_op = SelectionOperation::LasoBuild(build_payload);
+                    self.selected_elements.clear();
+                }
+                println!("selected count after build: {}", self.selected_elements.len());
+            }
+            SelectionEvent::LasoBuild(build_payload) => {
+                if let SelectionOperation::LasoBuild(build_origin) = self.current_op {
+                    let rect = get_laso_rect(build_payload.pos, build_origin.pos);
+                    self.laso_rect = Some(rect);
+
+                    self.selected_elements = self.get_laso_selected_els(selection_ctx);
+                }
+            }
+            SelectionEvent::EndLaso => {
+                self.current_op = SelectionOperation::Idle;
+                self.laso_rect = None;
+            }
+            SelectionEvent::SelectAll => {
+                println!("select all");
+                self.selected_elements = selection_ctx
+                    .buffer
+                    .elements
+                    .iter()
+                    .filter_map(|(&id, el)| {
+                        if el.deleted() {
+                            return None;
+                        }
+                        Some(SelectedElement { id, transform: Transform::identity() })
+                    })
+                    .collect();
+            }
+            SelectionEvent::Delete => {
+                let elements = self
+                    .selected_elements
+                    .iter()
+                    .map(|selection| {
+                        selection_ctx
+                            .buffer
+                            .elements
+                            .iter()
+                            .find(|(&id, _el)| id.eq(&selection.id));
+                        DeleteElement { id: selection.id }
+                    })
+                    .collect();
+
+                let delete_event = super::Event::Delete(elements);
+                selection_ctx
+                    .history
+                    .apply_event(&delete_event, selection_ctx.buffer);
+                selection_ctx.history.save(delete_event);
+                self.selected_elements.clear();
+            }
+        }
+    }
+
+    fn get_laso_selected_els(
+        &mut self, selection_ctx: &mut ToolContext<'_>,
+    ) -> Vec<SelectedElement> {
+        let mut laso_selected_elements = Vec::with_capacity(self.selected_elements.capacity());
+        for (id, el) in selection_ctx.buffer.elements.iter() {
+            if el.deleted() {
+                continue;
+            }
+            if self.el_intersects_laso(el) {
+                laso_selected_elements
+                    .push(SelectedElement { id: *id, transform: Transform::identity() });
+            }
+        }
+        laso_selected_elements
+    }
+
+    fn el_intersects_laso(&mut self, el: &super::parser::Element) -> bool {
+        match el {
+            super::parser::Element::Path(path) => {
+                let path_rect = path.bounding_box();
+                if self.laso_rect.unwrap().intersects(path_rect) {
+                    let laso_bb = Subpath::new_rect(
+                        glam::DVec2 {
+                            x: self.laso_rect.unwrap().min.x as f64,
+                            y: self.laso_rect.unwrap().min.y as f64,
+                        },
+                        glam::DVec2 {
+                            x: self.laso_rect.unwrap().max.x as f64,
+                            y: self.laso_rect.unwrap().max.y as f64,
+                        },
+                    );
+
+                    !path
+                        .data
+                        .subpath_intersections(&laso_bb, None, None)
+                        .is_empty()
+                        || self.laso_rect.unwrap().contains_rect(path_rect)
+                } else {
+                    false
+                }
+            }
+            super::parser::Element::Image(img) => {
+                let img_bb = img.bounding_box();
+                self.laso_rect
+                    .unwrap_or(egui::Rect::NOTHING)
+                    .contains_rect(img_bb)
+                    || self
+                        .laso_rect
+                        .unwrap_or(egui::Rect::NOTHING)
+                        .intersects(img_bb)
+            }
+            super::parser::Element::Text(_) => todo!(),
         }
     }
 
@@ -289,7 +459,7 @@ impl Selection {
         self.selected_elements.clear();
     }
 
-    pub fn show_selection_rects(&self, ui: &mut egui::Ui, buffer: &Buffer) {
+    pub fn show_selection_rects(&mut self, ui: &mut egui::Ui, buffer: &Buffer) {
         if self.selected_elements.is_empty() {
             return;
         }
@@ -306,6 +476,32 @@ impl Selection {
         }
 
         self.show_selection_container(ui, container);
+
+        let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+
+        let gap_between_btn_and_rect = 15.0;
+
+        let min = container.min
+            - egui::vec2(
+                0.0,
+                self.layout
+                    .container_tooltip
+                    .unwrap_or(egui::Rect::ZERO)
+                    .height()
+                    + gap_between_btn_and_rect,
+            );
+        let tooltip_rect = egui::Rect { min, max: min };
+
+        let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
+            egui::Frame::window(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.button("sup");
+                    ui.add_space(10.0);
+                    ui.label("fuuuu");
+                })
+            })
+        });
+        self.layout.container_tooltip = Some(res.response.rect);
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -368,38 +564,17 @@ impl Selection {
     }
 }
 
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-enum SelectionOperation {
-    Translation,
-    EastScale,
-    WestScale,
-    NorthScale,
-    SouthScale,
-    Laso,
-    #[default]
-    Idle,
-}
-
-#[derive(Debug)]
-struct SelectionEvent {
-    current_op: SelectionOperation,
-    cursor_icon: egui::CursorIcon,
-}
-
-impl SelectionEvent {
-    fn new(current_op: SelectionOperation) -> Self {
-        let cursor_icon = match current_op {
-            SelectionOperation::Translation => egui::CursorIcon::Grab,
-            SelectionOperation::EastScale => egui::CursorIcon::ResizeEast,
-            SelectionOperation::WestScale => egui::CursorIcon::ResizeWest,
-            SelectionOperation::NorthScale => egui::CursorIcon::ResizeNorth,
-            SelectionOperation::SouthScale => egui::CursorIcon::ResizeSouth,
-            SelectionOperation::Idle => egui::CursorIcon::Default,
-            SelectionOperation::Laso => egui::CursorIcon::Default,
-        };
-
-        Self { current_op, cursor_icon }
+fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
+    let mut corners = [drag_origin, current];
+    corners.sort_by(|a, b| (a.x.total_cmp(&b.x)));
+    let mut laso_rect = egui::Rect { min: corners[0], max: corners[1] };
+    if laso_rect.height() < 0. {
+        std::mem::swap(&mut laso_rect.min.y, &mut laso_rect.max.y)
     }
+    if laso_rect.width() < 0. {
+        std::mem::swap(&mut laso_rect.min.x, &mut laso_rect.max.x)
+    }
+    laso_rect
 }
 
 /// converts a usvg transform into a bezier_rs transform
