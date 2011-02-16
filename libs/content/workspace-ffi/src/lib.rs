@@ -1,5 +1,4 @@
 use egui_wgpu_backend::wgpu::{self, TextureDescriptor, TextureUsages};
-use egui_wgpu_backend::RenderPass;
 use std::iter;
 use std::time::Instant;
 use workspace_rs::workspace::Workspace;
