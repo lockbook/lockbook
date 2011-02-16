@@ -407,7 +407,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
-        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener{
+        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener {
             model.suggestedDocs.clear()
             Lb.clearSuggested()
             lifecycleScope.launch {
@@ -439,7 +439,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     itemView.setOnLongClickListener { view ->
                         val popup = PopupMenu(view.context, view)
 
-                        popup.menu.add(0,1,0,"Remove")
+                        popup.menu.add(0, 1, 0, "Remove")
 
                         popup.setOnMenuItemClickListener { menuItem ->
                             Lb.clearSuggestedId(item.fileMetadata.id)
@@ -455,12 +455,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                 onClick {
                     enterFile(item.fileMetadata)
                 }
-
             }
         }
     }
 
-private fun enterFile(item: File) {
+    private fun enterFile(item: File) {
         when (item.type) {
             FileType.Document -> {
                 // TODO: consider that not all updates to the screen may go through because of postVal
