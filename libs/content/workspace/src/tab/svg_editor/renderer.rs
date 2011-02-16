@@ -198,7 +198,7 @@ fn tesselate_element(
                 let mut i = 0;
 
                 while let Some(seg) = p.data.get_segment(i) {
-                    let thickness = stroke.width * master_transform.sx;
+                    let thickness = stroke.width * p.transform.sx * master_transform.sx;
 
                     let start = devc_to_point(seg.start());
                     let end = devc_to_point(seg.end());

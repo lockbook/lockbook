@@ -46,10 +46,9 @@ pub struct Stroke {
 
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
+        self.data.len() == other.data.len()
             && self.visibility == other.visibility
             && self.transform == other.transform
-            && self.diff_state == other.diff_state
             && self.deleted == other.deleted
     }
 }

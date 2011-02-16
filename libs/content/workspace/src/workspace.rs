@@ -4,6 +4,7 @@ use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
 };
+use lb_rs::svg::buffer::Buffer;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -274,7 +275,7 @@ impl Workspace {
         self.status.populate_message();
 
         if self.is_empty() {
-            self.show_empty_workspace(ui);
+            // self.show_empty_workspace(ui);
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
@@ -831,12 +832,13 @@ impl Workspace {
                             } else {
                                 match tab.content.as_mut() {
                                     Some(TabContent::Svg(svg)) => {
-                                        lb_rs::svg::buffer::Buffer::reload(
+                                        Buffer::reload(
                                             &mut svg.buffer.elements,
                                             svg.buffer.master_transform,
                                             &svg.buffer.opened_content,
-                                            &bytes,
+                                            &String::from_utf8_lossy(&bytes).to_string(),
                                         );
+
                                         svg.buffer.open_file_hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
@@ -924,25 +926,29 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
-                    if !self.cfg.auto_sync.load(Ordering::Relaxed) {
-                        // auto sync disabled
-                        continue;
-                    }
-
-                    let focused = self.ctx.input(|i| i.focused);
-
-                    if self.user_last_seen.elapsed() < Duration::seconds(10)
-                        && focused
-                        && self.last_sync.elapsed() > Duration::seconds(5)
-                    {
-                        // the user is active if the app is in the foreground and they've done
-                        // something in the last 10 seconds.
-                        // during this time sync every 5 seconds
-                        self.perform_sync();
-                    } else if self.last_sync.elapsed() > Duration::hours(1) {
-                        // sync every hour while the user is inactive
+                    if self.last_sync.elapsed() > Duration::seconds(2) {
                         self.perform_sync()
                     }
+
+                    // if !self.cfg.auto_sync.load(Ordering::Relaxed) {
+                    //     // auto sync disabled
+                    //     continue;
+                    // }
+
+                    // let focused = self.ctx.input(|i| i.focused);
+
+                    // if self.user_last_seen.elapsed() < Duration::seconds(10)
+                    //     && focused
+                    //     && self.last_sync.elapsed() > Duration::seconds(5)
+                    // {
+                    //     // the user is active if the app is in the foreground and they've done
+                    //     // something in the last 10 seconds.
+                    //     // during this time sync every 5 seconds
+                    //     self.perform_sync();
+                    // } else if self.last_sync.elapsed() > Duration::hours(1) {
+                    //     // sync every hour while the user is inactive
+                    //     self.perform_sync()
+                    // }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
                     self.refresh_sync_status();

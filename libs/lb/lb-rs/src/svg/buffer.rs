@@ -79,19 +79,22 @@ impl Buffer {
 
     pub fn reload(
         local_elements: &mut IndexMap<Uuid, Element>, local_master_transform: Transform,
-        base_content: &str, remote_content: &[u8],
+        base_content: &str, remote_content: &str,
     ) {
         let base_buffer = Buffer::new(&base_content, None, None);
 
-        let remote_buffer =
-            Buffer::new(&String::from_utf8_lossy(remote_content).to_string(), None, None);
+        let remote_buffer = Buffer::new(remote_content, None, None);
 
         for (id, base_el) in base_buffer.elements.iter() {
             if let Some(remote_el) = remote_buffer.elements.get(id) {
                 if remote_el != base_el {
                     // this element was changed remotly
                     let mut transformed_el = remote_el.clone();
-                    transformed_el.transform(local_master_transform);
+                    if let Element::Path(path) = &mut transformed_el {
+                        path.diff_state.transformed = Some(local_master_transform);
+                        path.data
+                            .apply_transform(u_transform_to_bezier(&local_master_transform));
+                    }
 
                     match transformed_el {
                         Element::Path(ref mut path) => {
@@ -121,7 +124,11 @@ impl Buffer {
                 // this was created remotly
 
                 let mut transformed_el = remote_el.clone();
-                transformed_el.transform(local_master_transform);
+                if let Element::Path(path) = &mut transformed_el {
+                    path.diff_state.transformed = Some(local_master_transform);
+                    path.data
+                        .apply_transform(u_transform_to_bezier(&local_master_transform));
+                }
 
                 match transformed_el {
                     Element::Path(ref mut path) => {
@@ -136,6 +143,7 @@ impl Buffer {
                 }
 
                 local_elements.insert(*id, transformed_el);
+                println!("remote inserted element {:#?}", id);
             }
         }
     }
@@ -188,13 +196,14 @@ impl Buffer {
                     // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
+                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
                             stroke.width,
                             stroke.color.red,
                             stroke.color.green,
                             stroke.color.blue,
                             stroke.opacity,
-                            self.id_map.get(el.0).unwrap_or(&el.0.to_string())
+                            self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
+                            to_svg_transform(p.transform)
                         );
                     }
 
@@ -288,15 +297,20 @@ pub fn parse_child(
             } else {
                 None
             };
+            let mut data = usvg_d_to_subpath(path);
+
+            data.apply_transform(u_transform_to_bezier(
+                &path.abs_transform().invert().unwrap_or_default(),
+            ));
 
             elements.insert(
                 id,
                 Element::Path(Path {
-                    data: usvg_d_to_subpath(path),
+                    data,
                     visibility: path.visibility(),
                     fill: path.fill().cloned(),
                     stroke,
-                    transform: Transform::identity(),
+                    transform: path.abs_transform(),
                     diff_state,
                     deleted: false,
                     opacity: 1.0,
@@ -393,4 +407,11 @@ fn lb_local_resolver(core: &Core) -> ImageHrefStringResolverFn {
             _ => None,
         }
     })
+}
+
+fn to_svg_transform(transform: Transform) -> String {
+    format!(
+        "matrix({} {} {} {} {} {})",
+        transform.sx, transform.ky, transform.kx, transform.sy, transform.tx, transform.ty
+    )
 }

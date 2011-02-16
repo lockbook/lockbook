@@ -1,8 +1,8 @@
 mod clip;
+mod element;
 mod eraser;
 mod gesture_handler;
 mod history;
-mod element;
 mod path_builder;
 mod pen;
 mod renderer;
@@ -16,8 +16,10 @@ pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
+use lb_rs::svg::buffer::u_transform_to_bezier;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::svg::diff::DiffState;
+use lb_rs::svg::element::Element;
 use lb_rs::DocumentHmac;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
@@ -66,7 +68,14 @@ impl SVGEditor {
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let buffer = Buffer::new(content, Some(&core), hmac);
+        let mut buffer = Buffer::new(content, Some(&core), hmac);
+        for (_, el) in buffer.elements.iter_mut() {
+            if let Element::Path(path) = el {
+                // path.transform = path.transform.post_concat(buffer.master_transform);
+                path.data
+                    .apply_transform(u_transform_to_bezier(&buffer.master_transform));
+            }
+        }
 
         let toolbar = Toolbar::new();
 
@@ -142,6 +151,11 @@ impl SVGEditor {
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
         // self.show_debug_info(ui);
+
+        if ui.input(|r| r.key_pressed(egui::Key::D)) {
+            print!("\x1B[2J\x1B[1;1H");
+            println!("{}", self.buffer.to_string());
+        }
 
         if !ui.is_enabled() {
             return;
