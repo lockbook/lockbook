@@ -60,6 +60,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var renderJob: Job? = null
 
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     private val nativeLock = ReentrantLock()
 
     private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
@@ -391,6 +393,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun onDetachedFromWindow() {
         renderScope.cancel()
+        ioScope.cancel()
 
         super.onDetachedFromWindow()
     }
@@ -598,6 +601,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     fun drawImmediately() {
         redrawChannel.trySend(Unit)
+    }
+
+    fun launchIo(block: suspend () -> Unit) {
+        ioScope.launch { block() }
     }
 
     fun createDocAt(payload: Pair<Boolean, String>) {
