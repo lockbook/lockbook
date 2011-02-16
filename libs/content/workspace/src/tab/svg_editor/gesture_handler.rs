@@ -50,74 +50,65 @@ impl GestureHandler {
     }
 
     fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
-        match *event {
-            egui::Event::Touch { device_id: _, id, phase, pos, force: _ } => {
-                if let Some(current_gest) = &mut self.current_gesture {
-                    match phase {
-                        TouchPhase::Start => {
-                            // add this to the list of touches in the gesture
-                            if current_gest
-                                .touch_infos
-                                .insert(
-                                    id.0,
-                                    TouchInfo {
-                                        last_pos: Some(pos),
-                                        is_active: true,
-                                        ..Default::default()
-                                    },
-                                )
-                                .is_some()
-                            {
-                                trace!("duplicate start for a touch id")
-                            }
+        if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *event {
+            if let Some(current_gest) = &mut self.current_gesture {
+                match phase {
+                    TouchPhase::Start => {
+                        // add this to the list of touches in the gesture
+                        if current_gest
+                            .touch_infos
+                            .insert(
+                                id.0,
+                                TouchInfo {
+                                    last_pos: Some(pos),
+                                    is_active: true,
+                                    ..Default::default()
+                                },
+                            )
+                            .is_some()
+                        {
+                            trace!("duplicate start for a touch id")
                         }
-                        TouchPhase::Move => {
-                            if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
-                                if let Some(last_pos) = touch_info.last_pos {
-                                    touch_info.frame_delta = pos - last_pos;
-                                    touch_info.lifetime_distance += last_pos.distance(pos);
-                                }
-                            }
-                        }
-                        TouchPhase::End => {
-                            // mark this touch as inactive in touches hashmap
-                            if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
-                                touch_info.is_active = false;
-                            }
-
-                            // if this is the last active touch then end the gesture
-                            if current_gest
-                                .touch_infos
-                                .values()
-                                .all(|info| !info.is_active)
-                            {
-                                self.apply_shortcut(gesture_ctx);
-                                self.current_gesture = None;
-                            }
-                        }
-                        TouchPhase::Cancel => {
-                            // don't just mark as inactive insdies fof touches but completly remove it
-                            if current_gest.touch_infos.remove(&id.0).is_none() {
-                                trace!(
-                                    ?id,
-                                    "tryed to cancel touch  which is not in current gesture",
-                                );
+                    }
+                    TouchPhase::Move => {
+                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
+                            if let Some(last_pos) = touch_info.last_pos {
+                                touch_info.frame_delta = pos - last_pos;
+                                touch_info.lifetime_distance += last_pos.distance(pos);
                             }
                         }
                     }
-                } else {
-                    if phase == egui::TouchPhase::Start {
-                        let mut touch_infos = HashMap::new();
-                        touch_infos
-                            .insert(id.0, TouchInfo { last_pos: Some(pos), ..Default::default() });
+                    TouchPhase::End => {
+                        // mark this touch as inactive in touches hashmap
+                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
+                            touch_info.is_active = false;
+                        }
 
-                        self.current_gesture = Some(Gesture { touch_infos })
-                    } else if phase == egui::TouchPhase::Cancel {
-                        trace!(?id, "no gesture in progress but tried to cancel touch");
+                        // if this is the last active touch then end the gesture
+                        if current_gest
+                            .touch_infos
+                            .values()
+                            .all(|info| !info.is_active)
+                        {
+                            self.apply_shortcut(gesture_ctx);
+                            self.current_gesture = None;
+                        }
+                    }
+                    TouchPhase::Cancel => {
+                        // don't just mark as inactive insdies fof touches but completly remove it
+                        if current_gest.touch_infos.remove(&id.0).is_none() {
+                            trace!(?id, "tryed to cancel touch  which is not in current gesture",);
+                        }
                     }
                 }
+            } else if phase == egui::TouchPhase::Start {
+                let mut touch_infos = HashMap::new();
+                touch_infos.insert(id.0, TouchInfo { last_pos: Some(pos), ..Default::default() });
+
+                self.current_gesture = Some(Gesture { touch_infos })
+            } else if phase == egui::TouchPhase::Cancel {
+                trace!(?id, "no gesture in progress but tried to cancel touch");
             }
-            _ => {}
         }
     }
 
