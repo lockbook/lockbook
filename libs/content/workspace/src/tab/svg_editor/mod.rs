@@ -12,7 +12,6 @@ mod util;
 
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
-use egui::Stroke;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -97,7 +96,7 @@ impl SVGEditor {
         self.inner_rect = ui.available_rect_before_wrap();
 
         ui.painter()
-            .rect(self.inner_rect, 0., ui.style().visuals.extreme_bg_color, Stroke::NONE);
+            .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);
 
         self.painter = ui.painter_at(self.inner_rect);
 

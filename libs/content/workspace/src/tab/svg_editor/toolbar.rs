@@ -127,12 +127,12 @@ impl Toolbar {
 
         if ui.visuals().dark_mode {
             ui.visuals_mut().window_stroke =
-                egui::Stroke::new(0.5, egui::Color32::from_black_alpha(56));
-            ui.visuals_mut().window_fill = egui::Color32::from_black_alpha(30);
+                egui::Stroke::new(0.5, egui::Color32::from_rgb(56, 56, 56));
+            ui.visuals_mut().window_fill = egui::Color32::from_rgb(30, 30, 30);
             ui.visuals_mut().window_shadow = egui::Shadow::NONE;
         } else {
             ui.visuals_mut().window_stroke =
-                egui::Stroke::new(0.5, egui::Color32::from_black_alpha(235));
+                egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
             ui.visuals_mut().window_shadow = egui::Shadow {
                 offset: egui::vec2(1.0, 8.0),
                 blur: 20.0,
