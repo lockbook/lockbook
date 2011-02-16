@@ -133,12 +133,8 @@ impl Eraser {
             }
 
             self.draw_eraser_cursor(ui, painter, cursor_pos);
-            // if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {}
 
             if ui.input(|i| i.pointer.primary_down()) {
-                // if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                //     self.draw_eraser_cursor(ui, painter, cursor_pos);
-                // }
                 return Some(EraseEvent::Start(cursor_pos));
             }
             if ui.input(|i| i.pointer.primary_released()) {
