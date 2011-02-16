@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use bezier_rs::{Bezier, Subpath};
+use egui::TouchPhase;
 
 use super::parser::{Element, ManipulatorGroupId};
 
@@ -83,11 +84,13 @@ pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
         }
         let mut touch_ids = HashSet::new();
         for e in r.events.iter() {
-            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = e {
-                touch_ids.insert(id.0);
-                if touch_ids.len() > 1 {
-                    custom_multi_touch = true;
-                    break;
+            if let egui::Event::Touch { device_id: _, id, phase, pos: _, force: _ } = *e {
+                if phase != TouchPhase::Cancel {
+                    touch_ids.insert(id.0);
+                    if touch_ids.len() > 1 {
+                        custom_multi_touch = true;
+                        break;
+                    }
                 }
             }
         }
