@@ -880,9 +880,11 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.settings.pencil_only_drawing = val
-    }
+    obj.workspace.tabs.iter_mut().for_each(|t| {
+        if let Some(TabContent::Svg(svg)) = &mut current_tab.content {
+            svg.settings.pencil_only_drawing = val
+        }
+    });
 }
 
 /// # Safety
