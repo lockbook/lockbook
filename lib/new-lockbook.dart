@@ -43,7 +43,7 @@ class NewLockbookHome extends StatelessWidget {
               height: 44.0,
               child: CupertinoTextField(
                 placeholder: 'Unique Username',
-                padding: const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric( 
                   horizontal: 16.0,
                   vertical: 12.0,
                 ),
