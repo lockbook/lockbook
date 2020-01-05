@@ -1,3 +1,4 @@
+import 'package:client/account_helper.dart';
 import 'package:flutter/cupertino.dart';
 
 class NewLockbook extends StatelessWidget {
@@ -10,7 +11,18 @@ class NewLockbook extends StatelessWidget {
   }
 }
 
-class NewLockbookHome extends StatelessWidget {
+class NewLockbookHome extends StatefulWidget {
+  @override
+  State<StatefulWidget> createState() => _NewLockbookState();
+}
+
+enum ButtonStatus { un_clicked, working }
+
+class _NewLockbookState extends State<NewLockbookHome> {
+  ButtonStatus _buttonStatus = ButtonStatus.un_clicked;
+  String _username = "";
+  String _passphrase = "";
+
   @override
   Widget build(BuildContext context) {
     return CupertinoApp(
@@ -42,8 +54,13 @@ class NewLockbookHome extends StatelessWidget {
             Container(
               height: 44.0,
               child: CupertinoTextField(
+                onChanged: (text) {
+                  setState(() {
+                    _username = text;
+                  });
+                },
                 placeholder: 'Unique Username',
-                padding: const EdgeInsets.symmetric( 
+                padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
                   vertical: 12.0,
                 ),
@@ -71,7 +88,13 @@ class NewLockbookHome extends StatelessWidget {
             Container(
               height: 44.0,
               child: CupertinoTextField(
-                placeholder: 'Passphrase',
+                obscureText: true,
+                onChanged: (text) {
+                  setState(() {
+                    _passphrase = text;
+                  });
+                },
+                placeholder: 'Passphrase (unimplemented)',
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
                   vertical: 12.0,
@@ -90,11 +113,27 @@ class NewLockbookHome extends StatelessWidget {
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 50),
                 child: CupertinoButton(
-                  child: Text('Generate Keypair'),
+                  onPressed: (isEnabled())
+                      ? () {
+                          setState(() {
+                            _buttonStatus = ButtonStatus.working;
+                          });
+
+                          AccountHelper.newAccount(_username).then((_) {
+                            print("success");
+                          }).catchError((error) {
+                            print("error");
+                          }).whenComplete(() {
+                            print("complete");
+                            setState(() {
+                              _buttonStatus = ButtonStatus.un_clicked;
+                            });
+                          });
+                        }
+                      : null,
+                  disabledColor: Color(0xFF2D2A2F),
+                  child: getButtonText(),
                   color: Color(0xff007AFF),
-                  onPressed: () {
-                    print("object");
-                  },
                 ),
               ),
             )
@@ -102,5 +141,23 @@ class NewLockbookHome extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool isEnabled() {
+    return _username.isNotEmpty &&
+        _passphrase.isNotEmpty &&
+        _buttonStatus != ButtonStatus.working;
+  }
+
+  Widget getButtonText() {
+    if (_username.isEmpty) {
+      return Text("Enter a username");
+    } else if (_passphrase.isEmpty) {
+      return Text("Enter a passphrase");
+    } else if (_buttonStatus == ButtonStatus.working) {
+      return CupertinoActivityIndicator();
+    } else {
+      return Text("Create Account");
+    }
   }
 }

@@ -1,5 +1,5 @@
-name: client
-description: A new Flutter project.
+name: lockbook-client
+description: A secure notebook
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -17,6 +17,7 @@ environment:
   sdk: ">=2.1.0 <3.0.0"
 
 dependencies:
+  pointycastle: ^1.0.2
   flutter:
     sdk: flutter
 
