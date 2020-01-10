@@ -1,24 +1,38 @@
 import 'package:client/account_helper.dart';
+import 'package:client/lockbook.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 class NewLockbook extends StatelessWidget {
+  final AccountHelper accountHelper;
+
+  const NewLockbook(this.accountHelper);
+
   @override
   Widget build(BuildContext context) {
     return CupertinoApp(
-      home: NewLockbookHome(),
+      home: NewLockbookHome(accountHelper),
       theme: CupertinoThemeData(brightness: Brightness.dark),
     );
   }
 }
 
 class NewLockbookHome extends StatefulWidget {
+  final AccountHelper accountHelper;
+
+  const NewLockbookHome(this.accountHelper);
+
   @override
-  State<StatefulWidget> createState() => _NewLockbookState();
+  State<StatefulWidget> createState() => _NewLockbookState(accountHelper);
 }
 
 enum ButtonStatus { un_clicked, working }
 
 class _NewLockbookState extends State<NewLockbookHome> {
+  final AccountHelper accountHelper;
+
+  _NewLockbookState(this.accountHelper);
+
   ButtonStatus _buttonStatus = ButtonStatus.un_clicked;
   String _username = "";
   String _passphrase = "";
@@ -113,27 +127,34 @@ class _NewLockbookState extends State<NewLockbookHome> {
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 50),
                 child: CupertinoButton(
+                  disabledColor: Color(0xFF2D2A2F),
+                  child: getButtonText(),
+                  color: Color(0xff007AFF),
                   onPressed: (isEnabled())
                       ? () {
                           setState(() {
                             _buttonStatus = ButtonStatus.working;
                           });
 
-                          AccountHelper.newAccount(_username).then((_) {
-                            print("success");
+                          accountHelper.newAccount(_username).then((_) {
+                            Navigator.pushReplacement(
+                                context,
+                                CupertinoPageRoute(
+                                    builder: (context) => Lockbook()));
                           }).catchError((error) {
-                            print("error");
+                            showCupertinoDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return CupertinoAlertDialog( // TODO can't dismiss
+                                    title: Text(error),
+                                  );
+                                });
+                            _buttonStatus = ButtonStatus.un_clicked;
                           }).whenComplete(() {
                             print("complete");
-                            setState(() {
-                              _buttonStatus = ButtonStatus.un_clicked;
-                            });
                           });
                         }
                       : null,
-                  disabledColor: Color(0xFF2D2A2F),
-                  child: getButtonText(),
-                  color: Color(0xff007AFF),
                 ),
               ),
             )
