@@ -42,7 +42,7 @@ class AccountHelper {
         }
       case 406:
         {
-          return Future.error("Username Unavailable");
+          return Future.error("Username not available");
         }
       default:
         {

@@ -145,8 +145,17 @@ class _NewLockbookState extends State<NewLockbookHome> {
                             showCupertinoDialog(
                                 context: context,
                                 builder: (BuildContext context) {
-                                  return CupertinoAlertDialog( // TODO can't dismiss
+                                  return CupertinoAlertDialog(
+                                    // TODO can't dismiss
                                     title: Text(error),
+                                    actions: [
+                                      CupertinoDialogAction(
+                                          isDestructiveAction: true,
+                                          onPressed: () =>
+                                              Navigator.pop(context, 'Allow'),
+                                          isDefaultAction: true,
+                                          child: new Text("Close"))
+                                    ],
                                   );
                                 });
                             _buttonStatus = ButtonStatus.un_clicked;
