@@ -33,10 +33,12 @@ class NetworkHelper {
 
     final body = {
       'hashed_username': hashedUsername,
-      'rsa_exponent': rsaPubN,
+      'rsa_pub_n': rsaPubN,
       'rsa_pub_e': rsaPubE,
       'auth': _generateAuthToken(hashedUsername, info.keyPair.getPrivateKey())
     };
+
+    print(body);
 
     return body;
   }
