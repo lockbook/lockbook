@@ -136,31 +136,31 @@ class _NewLockbookState extends State<NewLockbookHome> {
                             _buttonStatus = ButtonStatus.working;
                           });
 
-                          accountHelper.newAccount(_username).then((_) {
-                            Navigator.pushReplacement(
-                                context,
-                                CupertinoPageRoute(
-                                    builder: (context) => Lockbook()));
-                          }).catchError((error) {
-                            showCupertinoDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return CupertinoAlertDialog(
-                                    // TODO can't dismiss
-                                    title: Text(error),
-                                    actions: [
-                                      CupertinoDialogAction(
-                                          isDestructiveAction: true,
-                                          onPressed: () =>
-                                              Navigator.pop(context, 'Allow'),
-                                          isDefaultAction: true,
-                                          child: new Text("Close"))
-                                    ],
-                                  );
-                                });
-                            _buttonStatus = ButtonStatus.un_clicked;
-                          }).whenComplete(() {
-                            print("complete");
+                          accountHelper.newAccount(_username).then((result) {
+                            result
+                                .ifSuccess((_) => Navigator.pushReplacement(
+                                    context,
+                                    CupertinoPageRoute(
+                                        builder: (context) => Lockbook())))
+                                .ifFailure((error) {
+                              showCupertinoDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return CupertinoAlertDialog(
+                                      title: Text(error.title),
+                                      content: Text(error.description),
+                                      actions: [
+                                        CupertinoDialogAction(
+                                            isDestructiveAction: true,
+                                            onPressed: () =>
+                                                Navigator.pop(context, 'Allow'),
+                                            isDefaultAction: true,
+                                            child: new Text("Close"))
+                                      ],
+                                    );
+                                  });
+                              _buttonStatus = ButtonStatus.un_clicked;
+                            });
                           });
                         }
                       : null,
