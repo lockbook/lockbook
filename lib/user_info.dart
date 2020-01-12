@@ -7,36 +7,47 @@ import 'package:pointycastle/api.dart';
 import 'package:pointycastle/asymmetric/api.dart';
 
 class RSAKeyPair {
-  final BigInt modulus, exponent, p, q;
+  final BigInt modulus, publicExponent, privateExponent, p, q;
 
-  RSAKeyPair(this.modulus, this.exponent, this.p, this.q);
+  RSAKeyPair(
+      this.modulus, this.publicExponent, this.privateExponent, this.p, this.q);
 
   RSAKeyPair.fromAsymmetricKey(
       AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> keyPair)
       : modulus = keyPair.publicKey.modulus,
-        exponent = keyPair.publicKey.exponent,
+        publicExponent = keyPair.publicKey.exponent,
+        privateExponent = keyPair.privateKey.exponent,
         p = keyPair.privateKey.p,
         q = keyPair.privateKey.q;
 
-  RSAPrivateKey getPrivateKey() => RSAPrivateKey(modulus, exponent, p, q);
+  RSAPrivateKey getPrivateKey() =>
+      RSAPrivateKey(modulus, privateExponent, p, q);
 
-  RSAPublicKey getPublicKey() => RSAPublicKey(modulus, exponent);
+  RSAPublicKey getPublicKey() => RSAPublicKey(modulus, publicExponent);
 
+  // Because these are dynamic, you have no compile time gauruntee that this
+  // Operation will succeed...
   Map<String, dynamic> toJson() => {
         'modulus': modulus.toString(),
-        'exponent': exponent.toString(),
+        'publicExponent': publicExponent.toString(),
+        'privateExponent': privateExponent.toString(),
         'p': p.toString(),
         'q': q.toString()
       };
 
   RSAKeyPair.fromJson(Map<String, dynamic> json)
       : modulus = BigInt.parse(json['modulus']),
-        exponent = BigInt.parse(json['exponent']),
+        publicExponent = BigInt.parse(json['publicExponent']),
+        privateExponent = BigInt.parse(json['privateExponent']),
         p = BigInt.parse(json['p']),
         q = BigInt.parse(json['q']);
 
   bool _isValid() {
-    return modulus != null && exponent != null && p != null && q != null;
+    return modulus != null &&
+        publicExponent != null &&
+        privateExponent != null &&
+        p != null &&
+        q != null;
   }
 }
 
