@@ -16,6 +16,10 @@ abstract class Task<Error extends UIError, Value> {
 
   Task<Error, Value> ifFailure(sideEffect(Error input));
 
+  Value getValueUnsafely();
+
+  bool isSuccessful();
+
   /// Given you subscribe to the ideas of Monadic error handling:
   /// This function is the reason this file exists if you were
   /// to use something like Dartz' Either you'd have situations where you'll
@@ -66,6 +70,12 @@ class Success<Error extends UIError, Value> extends Task<Error, Value> {
     sideEffect(_value);
     return Success(_value);
   }
+
+  @override
+  Value getValueUnsafely() => _value;
+
+  @override
+  bool isSuccessful() => true;
 }
 
 class Fail<Error extends UIError, Value> extends Task<Error, Value> {
@@ -95,4 +105,12 @@ class Fail<Error extends UIError, Value> extends Task<Error, Value> {
   @override
   Task<Error, Value> ifSuccess(Function(Value input) sideEffect) =>
       Fail(_error);
+
+  @override
+  Value getValueUnsafely() {
+    throw NullThrownError();
+  }
+
+  @override
+  bool isSuccessful() => false;
 }
