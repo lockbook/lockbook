@@ -6,7 +6,6 @@ import 'package:client/user_info.dart';
 import 'package:path_provider/path_provider.dart';
 
 class PersistenceHelper {
-
   const PersistenceHelper();
 
   static const String metadataLocation = "metadata.json";
