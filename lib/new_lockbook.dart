@@ -159,7 +159,9 @@ class _NewLockbookState extends State<NewLockbookHome> {
                                       ],
                                     );
                                   });
-                              _buttonStatus = ButtonStatus.un_clicked;
+                              setState(() {
+                                _buttonStatus = ButtonStatus.un_clicked;
+                              });
                             });
                           });
                         }

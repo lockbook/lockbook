@@ -22,14 +22,18 @@ class RSAKeyPair {
 
   RSAPublicKey getPublicKey() => RSAPublicKey(modulus, exponent);
 
-  Map<String, dynamic> toJson() =>
-      {'modulus': modulus, 'exponent': exponent, 'p': p, 'q': q};
+  Map<String, dynamic> toJson() => {
+        'modulus': modulus.toString(),
+        'exponent': exponent.toString(),
+        'p': p.toString(),
+        'q': q.toString()
+      };
 
   RSAKeyPair.fromJson(Map<String, dynamic> json)
-      : modulus = json['modulus'],
-        exponent = json['exponent'],
-        p = json['p'],
-        q = json['q'];
+      : modulus = BigInt.parse(json['modulus']),
+        exponent = BigInt.parse(json['exponent']),
+        p = BigInt.parse(json['p']),
+        q = BigInt.parse(json['q']);
 
   bool _isValid() {
     return modulus != null && exponent != null && p != null && q != null;
@@ -58,7 +62,7 @@ class UserInfo {
   }
 
   String encode() {
-    return jsonEncode(this);
+    return jsonEncode(toJson());
   }
 
   static Task<UIError, UserInfo> decode(String raw) {
