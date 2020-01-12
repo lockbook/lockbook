@@ -1,5 +1,7 @@
 import 'package:client/account_helper.dart';
+import 'package:client/errors.dart';
 import 'package:client/lockbook.dart';
+import 'package:client/user_info.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -136,29 +138,10 @@ class _NewLockbookState extends State<NewLockbookHome> {
                             _buttonStatus = ButtonStatus.working;
                           });
 
+                          // You are experiencing lag here because you are not using an isolate
                           accountHelper.newAccount(_username).then((result) {
-                            result
-                                .ifSuccess((_) => Navigator.pushReplacement(
-                                    context,
-                                    CupertinoPageRoute(
-                                        builder: (context) => Lockbook())))
-                                .ifFailure((error) {
-                              showCupertinoDialog(
-                                  context: context,
-                                  builder: (BuildContext context) {
-                                    return CupertinoAlertDialog(
-                                      title: Text(error.title),
-                                      content: Text(error.description),
-                                      actions: [
-                                        CupertinoDialogAction(
-                                            isDestructiveAction: true,
-                                            onPressed: () =>
-                                                Navigator.pop(context, 'Allow'),
-                                            isDefaultAction: true,
-                                            child: new Text("Close"))
-                                      ],
-                                    );
-                                  });
+                            result.ifSuccess(_nextScreen).ifFailure((error) {
+                              _showError(error);
                               setState(() {
                                 _buttonStatus = ButtonStatus.un_clicked;
                               });
@@ -173,6 +156,31 @@ class _NewLockbookState extends State<NewLockbookHome> {
         ),
       ),
     );
+  }
+
+  _nextScreen(UserInfo userInfo) {
+    Navigator.pushAndRemoveUntil(
+        context,
+        CupertinoPageRoute(builder: (context) => Lockbook(userInfo)),
+        (Route<dynamic> route) => false);
+  }
+
+  _showError(UIError error) {
+    showCupertinoDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return CupertinoAlertDialog(
+            title: Text(error.title),
+            content: Text(error.description),
+            actions: [
+              CupertinoDialogAction(
+                  isDestructiveAction: true,
+                  onPressed: () => Navigator.pop(context, 'Allow'),
+                  isDefaultAction: true,
+                  child: new Text("Close"))
+            ],
+          );
+        });
   }
 
   bool isEnabled() {

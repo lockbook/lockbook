@@ -17,7 +17,9 @@ class AccountHelper {
     final keyPair = encryptionHelper.generateKeyPair();
     final userInfo = UserInfo(username, RSAKeyPair.fromAsymmetricKey(keyPair));
 
-    return (await persistenceHelper.saveUserInfo(userInfo))
+    final saveAndUpload = await (await persistenceHelper.saveUserInfo(userInfo))
         .thenDoFuture((nothing) => networkHelper.newAccount());
+
+    return saveAndUpload.convertValue((_) => userInfo);
   }
 }
