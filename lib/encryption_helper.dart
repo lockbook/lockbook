@@ -9,6 +9,7 @@ class EncryptionHelper {
 
   const EncryptionHelper();
 
+  // TODO wrap Task?
   AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> generateKeyPair() {
     var bitLength = 2048;
 
