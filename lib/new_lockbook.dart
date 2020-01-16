@@ -1,6 +1,7 @@
 import 'package:client/account_helper.dart';
 import 'package:client/errors.dart';
 import 'package:client/lockbook.dart';
+import 'package:client/task.dart';
 import 'package:client/user_info.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -139,7 +140,7 @@ class _NewLockbookState extends State<NewLockbookHome> {
                           });
 
                           // You are experiencing lag here because you are not using an isolate
-                          accountHelper.newAccount(_username).then((result) {
+                          accountHelper.newAccount(_username).then((Task<UIError, UserInfo> result) {
                             result.ifSuccess(_nextScreen).ifFailure((error) {
                               _showError(error);
                               setState(() {
