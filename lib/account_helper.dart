@@ -13,7 +13,7 @@ class AccountHelper {
   const AccountHelper(
       this.encryptionHelper, this.persistenceHelper, this.networkHelper);
 
-  Future<Task<UIError, void>> newAccount(String username) async {
+  Future<Task<UIError, UserInfo>> newAccount(String username) async {
     final keyPair = encryptionHelper.generateKeyPair();
     final userInfo = UserInfo(username, RSAKeyPair.fromAsymmetricKey(keyPair));
 

@@ -24,5 +24,5 @@ void main() {
 
   persistenceHelper.getUserInfo().then((result) => result
       .ifSuccess((info) => runApp(Lockbook(info)))
-      .ifFailure((_) => runApp(welcome)));
+      .ifFailure((_) => runApp(newLockbook)));
 }
