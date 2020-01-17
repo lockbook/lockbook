@@ -4,6 +4,7 @@ import 'package:client/network_helper.dart';
 import 'package:client/persistence_helper.dart';
 import 'package:client/welcome.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import 'lockbook.dart';
 import 'new_lockbook.dart';
@@ -24,5 +25,11 @@ void main() {
 
   persistenceHelper.getUserInfo().then((result) => result
       .ifSuccess((info) => runApp(Lockbook(info)))
-      .ifFailure((_) => runApp(newLockbook)));
+      .ifFailure((_) => runApp(welcome)));
 }
+
+theme() => ThemeData(
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: const Color(0xFF2C292D),
+      buttonColor: const Color(0xFFFFD866),
+    );
