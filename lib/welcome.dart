@@ -1,9 +1,7 @@
-import 'package:client/main.dart';
 import 'package:client/persistence_helper.dart';
-import 'package:client/user_info.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
-import 'lockbook.dart';
+import 'main.dart';
 
 class Welcome extends StatelessWidget {
   final PersistenceHelper persistenceHelper;
@@ -12,9 +10,8 @@ class Welcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
+    return MaterialApp(
       home: WelcomeHome(),
-      theme: CupertinoThemeData(brightness: Brightness.dark),
     );
   }
 }
@@ -24,20 +21,47 @@ class WelcomeHome extends StatefulWidget {
   State<StatefulWidget> createState() => _WelcomeState();
 }
 
-class _WelcomeState extends State<WelcomeHome> with WidgetsBindingObserver {
+class _WelcomeState extends State<WelcomeHome> {
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-        theme: CupertinoThemeData(brightness: Brightness.dark),
-        home: CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-            backgroundColor: Color(0xff1C1C1E),
-            middle: const Text(
-              'Lockbook',
-            ),
+    return MaterialApp(
+      theme: theme(),
+      home: Scaffold(
+        body: Padding(
+          padding: EdgeInsets.all(15.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                "Lockbook.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: "courier",
+                  fontFamilyFallback: ["monospace"],
+                  fontSize: 24,
+                ),
+              ),
+              Container(
+                height: 100,
+              ),
+              RaisedButton(
+                child: Text('New Lockbook'),
+                textColor: const Color(0xFF000000),
+                onPressed: () {},
+              ),
+              Container(
+                height: 5,
+              ),
+              RaisedButton(
+                textColor: const Color(0xFF000000),
+                child: Text('Import Lockbook'),
+                onPressed: () {},
+              ),
+            ],
           ),
-          child: Container(),
-        ));
+        ),
+      ),
+    );
   }
-
 }
