@@ -1,5 +1,5 @@
+import 'package:client/main.dart';
 import 'package:client/user_info.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:quill_delta/quill_delta.dart';
 import 'package:zefyr/zefyr.dart';
@@ -11,14 +11,9 @@ class Lockbook extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
+    return MaterialApp(
+      theme: theme(),
       home: LockbookHome(_userInfo),
-      theme: CupertinoThemeData(brightness: Brightness.dark),
-      localizationsDelegates: [
-        DefaultMaterialLocalizations.delegate,
-        DefaultCupertinoLocalizations.delegate,
-        DefaultWidgetsLocalizations.delegate,
-      ],
     );
   }
 }
@@ -39,45 +34,18 @@ class _LockbookState extends State<LockbookHome> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-        theme: CupertinoThemeData(brightness: Brightness.dark),
-        home: CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-            backgroundColor: Color(0xff1C1C1E),
-            middle: Text(_userInfo.username),
-            trailing: GestureDetector(
-              onTap: () => _createPressed(),
-              child: Icon(
-                CupertinoIcons.create,
-              ),
-            ),
-          ),
-          child: Container(),
-        ));
-  }
-
-  _createPressed() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Create...'),
-        actions: <Widget>[
-          CupertinoActionSheetAction(
-            child: const Text('Markdown Document'),
-            onPressed: () {
-              Navigator.pop(context, 'One');
-              Navigator.push(context,
-                  CupertinoPageRoute(builder: (context) => EditorPage()));
-            },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('Folder'),
-            onPressed: () {
-              Navigator.pop(context, 'Two');
-            },
-          )
-        ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_userInfo.username),
+        centerTitle: true,
       ),
+      floatingActionButton: FloatingActionButton(
+          backgroundColor: Monokai.Yellow,
+          child: Icon(Icons.create),
+          foregroundColor: Monokai.Dark,
+          onPressed: () => Navigator.push(
+              context, MaterialPageRoute(builder: (context) => EditorPage()))),
+      body: Container(),
     );
   }
 }
