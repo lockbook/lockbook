@@ -44,7 +44,7 @@ class NetworkHelper {
   }
 
   Future<Task<UIError, void>> _userInfoRequest(Map<String, String> body) async {
-    final response = await http.post(apiBase + "/new-account", body: body);
+    final response = await http.post(apiBase + "/new-lockbook", body: body);
     switch (response.statusCode) {
       case 202:
         {
