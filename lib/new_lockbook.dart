@@ -1,7 +1,6 @@
 import 'package:client/account_helper.dart';
 import 'package:client/lockbook.dart';
 import 'package:client/user_info.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
