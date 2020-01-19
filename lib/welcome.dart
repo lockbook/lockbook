@@ -1,12 +1,10 @@
-import 'package:client/db_provider.dart';
+import 'package:client/new_lockbook.dart';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
 
 class Welcome extends StatelessWidget {
-  final DBProvider persistenceHelper;
-
-  const Welcome(this.persistenceHelper);
+  const Welcome();
 
   @override
   Widget build(BuildContext context) {
@@ -48,8 +46,10 @@ class _WelcomeState extends State<WelcomeHome> {
               RaisedButton(
                 child: Text('New Lockbook'),
                 textColor: const Color(0xFF000000),
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => newLockbook)),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => NewLockbook(accountHelper))),
               ),
               Container(
                 height: 5,
