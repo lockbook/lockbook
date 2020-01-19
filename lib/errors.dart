@@ -16,3 +16,9 @@ UIError unhandledError(Object error) {
   return UIError("Unhandled Error, please file an issue",
       "Error: $error, please screenshot and upload: github.com/lockbook/client");
 }
+
+UIError dbFailedToConnect(Object exc) {
+  final error = UIError('Could not connect to local db', 'Error: $exc');
+  print(error);
+  return error;
+}

@@ -1,10 +1,10 @@
-import 'package:client/persistence_helper.dart';
+import 'package:client/db_provider.dart';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
 
 class Welcome extends StatelessWidget {
-  final PersistenceHelper persistenceHelper;
+  final DBProvider persistenceHelper;
 
   const Welcome(this.persistenceHelper);
 
