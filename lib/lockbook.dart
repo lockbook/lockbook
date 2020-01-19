@@ -44,7 +44,7 @@ class _LockbookState extends State<LockbookHome> {
           child: Icon(Icons.create),
           foregroundColor: Monokai.Dark,
           onPressed: () => Navigator.push(
-              context, MaterialPageRoute(builder: (context) => EditorPage()))),
+              context, MaterialPageRoute(builder: (context) => EditorPage("path", "file")))),
       body: Container(),
     );
   }
