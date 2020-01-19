@@ -28,14 +28,14 @@ class NetworkHelper {
 
   Map<String, String> _userInfoRequestBody(UserInfo info) {
     final hashedUsername = info.hashedUsername().toString();
-    final rsaPubN = info.keyPair.getPublicKey().n.toString();
-    final rsaPubE = info.keyPair.getPublicKey().e.toString();
+    final rsaPubN = info.getPublicKey().n.toString();
+    final rsaPubE = info.getPublicKey().e.toString();
 
     final body = {
       'hashed_username': hashedUsername,
       'rsa_pub_n': rsaPubN,
       'rsa_pub_e': rsaPubE,
-      'auth': _generateAuthToken(hashedUsername, info.keyPair.getPrivateKey())
+      'auth': _generateAuthToken(hashedUsername, info.getPrivateKey())
     };
 
     print(body);

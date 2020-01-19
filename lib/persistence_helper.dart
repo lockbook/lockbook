@@ -4,35 +4,78 @@ import 'package:client/errors.dart';
 import 'package:client/task.dart';
 import 'package:client/user_info.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
 
 class PersistenceHelper {
   const PersistenceHelper();
 
-  static const String metadataLocation = "metadata.json";
+  static Database db;
+
+  // TODO Error handle this
+  connectToDB() async {
+    try {
+      if (db == null) {
+        db = await openDatabase('lockbook.db', version: 1,
+            onCreate: (Database db, int version) async {
+          await db.execute('create table UserInfo ('
+              'id INTEGER PRIMARY KEY,'
+              'username TEXT,'
+              'modulus TEXT,'
+              'public_exponent TEXT,'
+              'private_exponent TEXT,'
+              'p TEXT,'
+              'q TEXT)');
+
+          await db.execute('''
+            create table FileIndex(
+              id BLOB PRIMARY KEY,
+              name TEXT,
+              path TEXT,
+              version INTEGER)
+          ''');
+        });
+      }
+    } catch (error) {
+      print('Failed to open db');
+      print(error);
+    }
+  }
 
   // Perhaps an example where I'd like to programmatically differentiate between
   // "I can't access files" and "You don't have a username yet"
   Future<Task<UIError, UserInfo>> getUserInfo() async {
-    final getDir = await _getAppDir();
+    await connectToDB();
 
-    final getContents = await getDir
-        .convertValue(_dirToMetadataLocation)
-        .thenDoFuture(_readFromFile);
-
-    return getContents.thenDo((raw) => UserInfo.decode(raw));
+    List<Map> results = await db.rawQuery('select * from UserInfo');
+    if (results.length == 1) {
+      return UserInfo.fromMap(results[0]);
+    } else {
+      return Fail(UIError("No User Info saved", "Please create a user"));
+    }
   }
 
-  // Generalize?
   Future<Task<UIError, void>> saveUserInfo(UserInfo userInfo) async {
-    final getDir = await _getAppDir();
+    await connectToDB();
 
-    return await getDir
-        .convertValue(_dirToMetadataLocation)
-        .thenDoFuture((location) => _writeToFile(location, userInfo.encode()));
-  }
+    int insert = await db.rawInsert('''REPLACE INTO 
+        UserInfo(id, username, modulus, public_exponent, private_exponent, p, q) 
+        VALUES(1, 
+        "${userInfo.username.toString()}", 
+        "${userInfo.modulus.toString()}", 
+        "${userInfo.publicExponent.toString()}", 
+        "${userInfo.privateExponent.toString()}", 
+        "${userInfo.p.toString()}", 
+        "${userInfo.q.toString()}")
+        ''');
 
-  String _dirToMetadataLocation(Directory dir) {
-    return "${dir.path}/$metadataLocation";
+    print("here");
+
+    if (insert == 1) {
+      return Success(1);
+    } else {
+      return Fail(UIError(
+          "Failed to save user info", "Failed to save private key to db"));
+    }
   }
 
   Future<Task<UIError, Directory>> _getAppDir() async {
