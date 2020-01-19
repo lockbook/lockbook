@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:quill_delta/quill_delta.dart';
@@ -37,7 +39,11 @@ class EditorPageState extends State<EditorPage> {
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.save),
-            onPressed: () {},
+            onPressed: () {
+              print("done");
+              String json = jsonEncode(_controller.document);
+              fileService.createFile("name", json);
+            },
           )
         ],
       ),
@@ -47,7 +53,8 @@ class EditorPageState extends State<EditorPage> {
             padding: EdgeInsets.all(16),
             controller: _controller,
             focusNode: _focusNode,
-          ), data: zefyrTheme(),
+          ),
+          data: zefyrTheme(),
         ),
       ),
     );

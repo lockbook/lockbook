@@ -24,6 +24,7 @@ dependencies:
   zefyr: ^0.9.0           # For Markdown
   quill_delta: ^1.0.0     # MD deltas
   sqflite: ^1.2.0         # For persisting
+  uuid: 2.0.4             # For UUID generation
   flutter:
     sdk: flutter
 

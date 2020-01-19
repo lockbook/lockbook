@@ -23,7 +23,7 @@ class DBProvider {
 
           await db.execute('''
             create table FileIndex(
-              id BLOB PRIMARY KEY,
+              id TEXT PRIMARY KEY,
               name TEXT,
               path TEXT,
               version INTEGER)
