@@ -6,6 +6,7 @@ import 'package:client/welcome.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:zefyr/zefyr.dart';
 
 import 'lockbook.dart';
 import 'new_lockbook.dart';
@@ -49,6 +50,13 @@ theme() => ThemeData(
         focusedBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: Monokai.Yellow),
         ),
+      ),
+    );
+
+zefyrTheme() => ZefyrThemeData(
+      cursorColor: Monokai.Yellow,
+      paragraphTheme: StyleTheme(
+        textStyle: TextStyle(color: Monokai.White),
       ),
     );
 
