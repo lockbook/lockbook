@@ -23,6 +23,7 @@ dependencies:
   path_provider: ^1.5.1   # For platform aware app directories
   zefyr: ^0.9.0           # For Markdown
   quill_delta: ^1.0.0     # MD deltas
+  sqflite: ^1.2.0         # For persisting
   flutter:
     sdk: flutter
 
