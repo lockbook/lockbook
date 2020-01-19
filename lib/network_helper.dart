@@ -1,23 +1,23 @@
 import 'dart:convert';
 
 import 'package:client/errors.dart';
-import 'package:client/persistence_helper.dart';
 import 'package:client/task.dart';
 import 'package:client/user_info.dart';
+import 'package:client/user_repository.dart';
+import 'package:http/http.dart' as http;
 import 'package:pointycastle/api.dart';
 import 'package:pointycastle/asymmetric/api.dart';
 import 'package:pointycastle/digests/sha256.dart';
 import 'package:pointycastle/signers/rsa_signer.dart';
-import 'package:http/http.dart' as http;
 
 class NetworkHelper {
   final String apiBase;
-  final PersistenceHelper persistenceHelper;
+  final UserRepository userRepo;
 
-  const NetworkHelper(this.apiBase, this.persistenceHelper);
+  const NetworkHelper(this.apiBase, this.userRepo);
 
   Future<Task<UIError, void>> newAccount() async {
-    final getInfo = await persistenceHelper.getUserInfo();
+    final getInfo = await userRepo.getUserInfo();
 
     final prepBody = await getInfo
         .convertValue(_userInfoRequestBody)
