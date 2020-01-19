@@ -1,7 +1,8 @@
 import 'package:client/account_helper.dart';
+import 'package:client/db_provider.dart';
 import 'package:client/encryption_helper.dart';
 import 'package:client/network_helper.dart';
-import 'package:client/persistence_helper.dart';
+import 'package:client/user_repository.dart';
 import 'package:client/welcome.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -14,12 +15,13 @@ import 'new_lockbook.dart';
 // Compile Time Constants for Dependency Injection
 const String apiBase = "http://lockbook.app:8000";
 const EncryptionHelper encryptionHelper = EncryptionHelper();
-const PersistenceHelper persistenceHelper = PersistenceHelper();
-const NetworkHelper networkHelper = NetworkHelper(apiBase, persistenceHelper);
+const DBProvider dbProvider = DBProvider();
+const UserRepository userRepository = UserRepository(dbProvider);
+const NetworkHelper networkHelper = NetworkHelper(apiBase, userRepository);
 const AccountHelper accountHelper =
-    AccountHelper(encryptionHelper, persistenceHelper, networkHelper);
+    AccountHelper(encryptionHelper, userRepository, networkHelper);
 
-const welcome = Welcome(persistenceHelper);
+const welcome = Welcome(dbProvider);
 const NewLockbook newLockbook = NewLockbook(accountHelper);
 
 void main() {
@@ -28,7 +30,7 @@ void main() {
     systemNavigationBarColor: Monokai.Dark, // navigation bar color
     statusBarColor: Monokai.Dark, // status bar color
   ));
-  persistenceHelper.getUserInfo().then((result) => result
+  userRepository.getUserInfo().then((result) => result
       .ifSuccess((info) => runApp(Lockbook(info)))
       .ifFailure((_) => runApp(welcome)));
 }
@@ -61,11 +63,11 @@ zefyrTheme() => ZefyrThemeData(
     );
 
 class Monokai {
-  static Color White = const Color(0xFFFFFFFF);
-  static Color Dark = const Color(0xFF2C292D);
-  static Color Yellow = const Color(0xFFFFD866);
-  static Color Green = const Color(0xFFA9DC76);
-  static Color Red = const Color(0xFFFF6188);
-  static Color Blue = const Color(0xFF78DCE8);
-  static Color Purple = const Color(0xFFAB9DF2);
+  static const Color White = const Color(0xFFFFFFFF);
+  static const Color Dark = const Color(0xFF2C292D);
+  static const Color Yellow = const Color(0xFFFFD866);
+  static const Color Green = const Color(0xFFA9DC76);
+  static const Color Red = const Color(0xFFFF6188);
+  static const Color Blue = const Color(0xFF78DCE8);
+  static const Color Purple = const Color(0xFFAB9DF2);
 }
