@@ -8,15 +8,21 @@ import 'package:zefyr/zefyr.dart';
 import 'main.dart';
 
 class EditorPage extends StatefulWidget {
+  String _path, _file;
+
+  EditorPage(this._path, this._file);
+
   @override
-  EditorPageState createState() => EditorPageState();
+  EditorPageState createState() => EditorPageState(_path, _file);
 }
 
 class EditorPageState extends State<EditorPage> {
-  /// Allows to control the editor and the document.
   ZefyrController _controller;
-
   FocusNode _focusNode;
+
+  String _path, _name;
+
+  EditorPageState(this._path, this._name);
 
   @override
   void initState() {
@@ -34,15 +40,16 @@ class EditorPageState extends State<EditorPage> {
     return Scaffold(
       appBar: AppBar(
         title: TextField(
-          decoration: InputDecoration(hintText: 'Name File'),
+          decoration: InputDecoration(hintText: 'Name Document'),
         ),
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.save),
             onPressed: () {
-              print("done");
-              String json = jsonEncode(_controller.document);
-              fileService.createFile("name", json);
+              String content = jsonEncode(_controller.document);
+              fileService.saveFile(_path, _name, content).then((task) =>
+                  task.ifFailure((error) =>
+                      print('${error.title}, ${error.description}')));
             },
           )
         ],

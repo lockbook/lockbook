@@ -3,6 +3,8 @@ import 'package:client/errors.dart';
 enum Empty {
   Nothing,
 }
+
+const Done = Empty.Nothing;
 // One day
 // typedef AsyncTask = Future<Task>;
 

@@ -29,7 +29,7 @@ class FileHelper {
     return Success(filesFolder);
   }
 
-  Future<Task<UIError, void>> writeToFile(
+  Future<Task<UIError, Empty>> writeToFile(
       String location, String content) async {
     return (await _getFileStoreDir()).thenDo((dir) {
       final file = File(dir.path + location);
@@ -41,7 +41,7 @@ class FileHelper {
         return Fail(UIError("Could not write to file",
             "Error: $error while writing to $location"));
       }
-      return Success(null);
+      return Success(Done);
     });
   }
 
