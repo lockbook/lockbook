@@ -1,6 +1,9 @@
 import 'package:client/account_helper.dart';
 import 'package:client/db_provider.dart';
 import 'package:client/encryption_helper.dart';
+import 'package:client/file_helper.dart';
+import 'package:client/file_index_repo.dart';
+import 'package:client/file_service.dart';
 import 'package:client/network_helper.dart';
 import 'package:client/user_repository.dart';
 import 'package:client/welcome.dart';
@@ -10,19 +13,21 @@ import 'package:flutter/services.dart';
 import 'package:zefyr/zefyr.dart';
 
 import 'lockbook.dart';
-import 'new_lockbook.dart';
 
 // Compile Time Constants for Dependency Injection
-const String apiBase = "http://lockbook.app:8000";
-const EncryptionHelper encryptionHelper = EncryptionHelper();
+
+// Database Stuff
 const DBProvider dbProvider = DBProvider();
 const UserRepository userRepository = UserRepository(dbProvider);
+const FileIndexRepository fileIndexRepository = FileIndexRepository(dbProvider);
+
+const String apiBase = "http://lockbook.app:8000";
+const EncryptionHelper encryptionHelper = EncryptionHelper();
 const NetworkHelper networkHelper = NetworkHelper(apiBase, userRepository);
+const FileHelper fileHelper = FileHelper();
+const FileService fileService = FileService(fileIndexRepository, fileHelper);
 const AccountHelper accountHelper =
     AccountHelper(encryptionHelper, userRepository, networkHelper);
-
-const welcome = Welcome(dbProvider);
-const NewLockbook newLockbook = NewLockbook(accountHelper);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +37,7 @@ void main() {
   ));
   userRepository.getUserInfo().then((result) => result
       .ifSuccess((info) => runApp(Lockbook(info)))
-      .ifFailure((_) => runApp(welcome)));
+      .ifFailure((_) => runApp(Welcome())));
 }
 
 theme() => ThemeData(
