@@ -15,7 +15,7 @@ class AccountHelper {
 
   Future<Task<UIError, UserInfo>> newAccount(String username) async {
     final keyPair = encryptionHelper.generateKeyPair();
-    final userInfo = UserInfo(username, RSAKeyPair.fromAsymmetricKey(keyPair));
+    final userInfo = UserInfo.fromAsymmetricKey(username, keyPair);
 
     final saveAndUpload = await (await persistenceHelper.saveUserInfo(userInfo))
         .thenDoFuture((nothing) => networkHelper.newAccount());

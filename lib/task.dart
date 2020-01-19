@@ -1,5 +1,8 @@
 import 'package:client/errors.dart';
 
+enum Empty {
+  Nothing,
+}
 // One day
 // typedef AsyncTask = Future<Task>;
 
