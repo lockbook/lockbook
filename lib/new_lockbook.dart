@@ -109,7 +109,7 @@ class _NewLockbookState extends State<NewLockbookHome> {
                             });
                             // You are experiencing lag here because you are not using an isolate
                             accountHelper.newAccount(_username).then((result) {
-                              result.ifSuccess(_nextScreen).ifFailure((error) {
+                              result.ifSuccessDo(_nextScreen).ifFailedDo((error) {
                                 setState(() {
                                   _errorText = error.title;
                                   _buttonStatus = ButtonStatus.un_clicked;

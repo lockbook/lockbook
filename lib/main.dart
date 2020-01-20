@@ -35,8 +35,8 @@ void main() {
     statusBarColor: Monokai.Dark, // status bar color
   ));
   userRepository.getUserInfo().then((result) => result
-      .ifSuccess((info) => runApp(Lockbook(info)))
-      .ifFailure((_) => runApp(Welcome())));
+      .ifSuccessDo((info) => runApp(Lockbook(info)))
+      .ifFailedDo((_) => runApp(Welcome())));
 }
 
 theme() => ThemeData(

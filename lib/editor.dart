@@ -79,7 +79,7 @@ class EditorPageState extends State<EditorPage> {
                       _fileDescription == null ? 'home' : _fileDescription.path,
                       _name == null ? 'untitled' : _name,
                       content)
-                  .then((task) => task.ifFailure((error) =>
+                  .then((task) => task.ifFailedDo((error) =>
                       print('${error.title}, ${error.description}')));
             },
           )
@@ -93,9 +93,9 @@ class EditorPageState extends State<EditorPage> {
     final getContent = await fileHelper.readFromFile(_fileDescription.id);
 
     final createDocument = getContent
-        .convertValue((content) => NotusDocument.fromJson(jsonDecode(content)));
+        .map((content) => NotusDocument.fromJson(jsonDecode(content)));
 
-    createDocument.ifFailure((error) {
+    createDocument.ifFailedDo((error) {
       print('${error.title}${error.description}');
     });
 
