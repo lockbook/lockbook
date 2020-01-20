@@ -17,7 +17,8 @@ class UserRepository {
   }
 
   Future<Either<UIError, UserInfo>> _getUserInfo(Database db) async {
-    List<Map> results = await db.rawQuery('select * from UserInfo');
+    final results = (await db.rawQuery('select * from UserInfo'));
+
     if (results.length == 1) {
       return UserInfo.fromMap(results[0]);
     } else {

@@ -10,13 +10,17 @@ class FileDescription {
 
   FileDescription(this.id, this.name, this.path, this.version);
 
-  _isValid() {
+  bool _isValid() {
     return id != null && name != null && path != null && version != null;
   }
 
-  static Either<UIError, FileDescription> fromMap(Map input) {
+  static Either<UIError, FileDescription> fromMap(Map<String, dynamic> input) {
     final user = FileDescription(
-        input['id'], input['name'], input['path'], input['version']);
+      input['id'] as String,
+      input['name'] as String,
+      input['path'] as String,
+      input['version'] as int,
+    );
 
     if (user._isValid()) {
       return Success(user);
