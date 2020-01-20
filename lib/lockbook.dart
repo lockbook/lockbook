@@ -49,11 +49,6 @@ class _LockbookState extends State<LockbookHome> {
     _updateFiles();
   }
 
-  void test() {
-    String a = null;
-
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,7 +64,7 @@ class _LockbookState extends State<LockbookHome> {
                   context,
                   MaterialPageRoute<dynamic>(
                       builder: (context) => EditorPage(null))) // TODO
-              .then((_) => _updateFiles())),
+              .then((dynamic _) => _updateFiles())),
       body: ListView.builder(
         itemCount: _files.length,
         itemBuilder: (BuildContext context, int index) {
