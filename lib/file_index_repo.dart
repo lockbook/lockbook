@@ -43,11 +43,7 @@ class FileIndexRepository {
         .map((task) => task.getValueUnsafely())
         .toList();
 
-    List<FileDescription> files = parsedResults == null
-        ? <FileDescription>[]
-        : parsedResults as List<FileDescription>;
-
-    return Success(files);
+    return Success(parsedResults);
   }
 
   Future<Either<UIError, FileDescription>> _createFileDescriptor(

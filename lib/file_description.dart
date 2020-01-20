@@ -1,3 +1,4 @@
+import 'package:client/editor.dart';
 import 'package:client/either.dart';
 
 import 'errors.dart';
@@ -21,6 +22,8 @@ class FileDescription {
       input['path'] as String,
       input['version'] as int,
     );
+
+    EditorPage(null);
 
     if (user._isValid()) {
       return Success(user);
