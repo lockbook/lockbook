@@ -1,9 +1,14 @@
-abstract class Option<Value> {
-  Option<New> map<New>(New Function(Value));
+import 'either.dart';
+import 'errors.dart';
 
-  Option<New> flatMap<New>(Option<New> Function(Value));
+abstract class Option<Value> {
+  Option<New> map<New>(New Function(Value old));
+
+  Option<New> flatMap<New>(Option<New> Function(Value old));
 
   Value getOrElse(Value value);
+
+  Either<New, Value> toEither<New extends UIError>(New left);
 }
 
 class Some<Value> extends Option<Value> {
@@ -19,6 +24,9 @@ class Some<Value> extends Option<Value> {
 
   @override
   Option<New> map<New>(New Function(Value) next) => Some(next(_value));
+
+  @override
+  Either<New, Value> toEither<New extends UIError>(New left) => Success(_value);
 }
 
 class None<Value> extends Option<Value> {
@@ -32,4 +40,7 @@ class None<Value> extends Option<Value> {
 
   @override
   Option<New> map<New>(New Function(Value) Function) => None();
+
+  @override
+  Either<New, Value> toEither<New extends UIError>(New left) => Fail(left);
 }

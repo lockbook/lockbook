@@ -46,9 +46,9 @@ class _WelcomeState extends State<WelcomeHome> {
               RaisedButton(
                 child: Text('New Lockbook'),
                 textColor: const Color(0xFF000000),
-                onPressed: () => Navigator.push(
+                onPressed: () => Navigator.push<dynamic>(
                     context,
-                    MaterialPageRoute(
+                    MaterialPageRoute<dynamic>(
                         builder: (context) => NewLockbook(accountHelper))),
               ),
               Container(
