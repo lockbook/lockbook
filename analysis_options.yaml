@@ -1,9 +1,6 @@
-# https://dart-lang.github.io/linter/lints/options/options.html
-
+## https://dart-lang.github.io/linter/lints/options/options.html
+#
 analyzer:
   strong-mode:
     implicit-casts: false
     implicit-dynamic: false
-  enable-experiment:
-    - non-nullable
-
