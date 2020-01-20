@@ -46,13 +46,17 @@ class FileHelper {
   }
 
   Future<Task<UIError, String>> readFromFile(String location) async {
-    final file = File(location);
+    final getLocation = await _getFileStoreDir();
 
-    try {
-      return Success(file.readAsStringSync());
-    } catch (error) {
-      return Fail(UIError(
-          "Could not read file", "Error: $error while writing to $location"));
-    }
+    return getLocation.thenDo((dir) {
+      final file = File(dir.path + location);
+
+      try {
+        return Success(file.readAsStringSync());
+      } catch (error) {
+        return Fail(UIError(
+            "Could not read file", "Error: $error while writing to $location"));
+      }
+    });
   }
 }
