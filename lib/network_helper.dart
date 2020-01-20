@@ -17,13 +17,13 @@ class NetworkHelper {
 
   const NetworkHelper(this.apiBase, this.userRepo);
 
-  Future<Either<UIError, void>> newAccount() async {
+  Future<Either<UIError, Empty>> newAccount() async {
     final getInfo = await userRepo.getUserInfo();
 
     final prepBody =
         await getInfo.map(_userInfoRequestBody).flatMapFut(_userInfoRequest);
 
-    return prepBody;
+    return prepBody.map((dynamic _) => Done);
   }
 
   Map<String, String> _userInfoRequestBody(UserInfo info) {
@@ -43,13 +43,13 @@ class NetworkHelper {
     return body;
   }
 
-  Future<Either<UIError, void>> _userInfoRequest(
+  Future<Either<UIError, Empty>> _userInfoRequest(
       Map<String, String> body) async {
     final response = await http.post(apiBase + "/new-account", body: body);
     switch (response.statusCode) {
       case 202:
         {
-          return Success(null);
+          return Success(Done);
         }
       case 409:
         {

@@ -129,10 +129,10 @@ class _NewLockbookState extends State<NewLockbookHome> {
     );
   }
 
-  _nextScreen(UserInfo userInfo) {
-    Navigator.pushAndRemoveUntil(
+  void _nextScreen(UserInfo userInfo) {
+    Navigator.pushAndRemoveUntil<dynamic>(
         context,
-        MaterialPageRoute(builder: (context) => Lockbook(userInfo)),
+        MaterialPageRoute<dynamic>(builder: (context) => Lockbook(userInfo)),
         (Route<dynamic> route) => false);
   }
 

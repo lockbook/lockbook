@@ -11,9 +11,9 @@ abstract class Either<Error extends UIError, Value> {
 
   Either<Error, New> map<New>(New conversion(Value input));
 
-  Either<Error, Value> ifSuccessDo(sideEffect(Value input));
+  Either<Error, Value> ifSuccessDo(dynamic sideEffect(Value input));
 
-  Either<Error, Value> ifFailedDo(sideEffect(Error input));
+  Either<Error, Value> ifFailedDo(dynamic sideEffect(Error input));
 
   Value getValueUnsafely();
 
@@ -29,13 +29,15 @@ class Success<Error extends UIError, Value> extends Either<Error, Value> {
   Success(this._value);
 
   @override
-  Either<Error, New> flatMap<New>(Either<Error, New> Function(Value input) next) =>
+  Either<Error, New> flatMap<New>(
+          Either<Error, New> Function(Value input) next) =>
       next(_value);
 
   @override
   Future<Either<Error, New>> flatMapFut<New>(
           Future<Either<Error, New>> Function(Value input) next) =>
-      next(_value).catchError((error) => Fail(unhandledError(error)));
+      next(_value).catchError(
+          (dynamic error) => Fail<UIError, New>(unhandledError(error)));
 
   @override
   Either<Error, New> map<New>(New Function(Value) conversion) =>
@@ -64,7 +66,8 @@ class Fail<Error extends UIError, Value> extends Either<Error, Value> {
   Fail(this._error);
 
   @override
-  Either<Error, New> flatMap<New>(Either<Error, New> Function(Value input) next) =>
+  Either<Error, New> flatMap<New>(
+          Either<Error, New> Function(Value input) next) =>
       Fail(_error);
 
   @override

@@ -9,7 +9,7 @@ class FileHelper {
 
   Future<Either<UIError, Directory>> _getFileStoreDir() async {
     final Directory directory =
-        await getApplicationDocumentsDirectory().catchError((e) {
+        await getApplicationDocumentsDirectory().catchError((dynamic e) {
       print("Error getting application directory, prob plugin not supported");
       print(e);
       // the implementation indicates it may return null, so I'll do that too :(

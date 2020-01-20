@@ -26,12 +26,12 @@ class UserRepository {
     }
   }
 
-  Future<Either<UIError, void>> saveUserInfo(UserInfo userInfo) async {
+  Future<Either<UIError, Empty>> saveUserInfo(UserInfo userInfo) async {
     return (await _dbProvider.connectToDB())
         .flatMapFut((db) => _saveUserInfo(db, userInfo));
   }
 
-  Future<Either<UIError, void>> _saveUserInfo(
+  Future<Either<UIError, Empty>> _saveUserInfo(
       Database db, UserInfo userInfo) async {
     int insert = await db.rawInsert('''REPLACE INTO 
         UserInfo(id, username, modulus, public_exponent, private_exponent, p, q) 
@@ -47,7 +47,7 @@ class UserRepository {
     print("here");
 
     if (insert == 1) {
-      return Success(1);
+      return Success(Done);
     } else {
       return Fail(UIError(
           "Failed to save user info", "Failed to save private key to db"));

@@ -34,7 +34,7 @@ class _LockbookState extends State<LockbookHome> {
 
   _LockbookState(this._userInfo);
 
-  _updateFiles() => fileIndexRepository
+  void _updateFiles() => fileIndexRepository
       .getFilesAtPath('home')
       .then((lookup) => lookup.ifSuccessDo((list) {
             setState(() {
@@ -49,6 +49,11 @@ class _LockbookState extends State<LockbookHome> {
     _updateFiles();
   }
 
+  void test() {
+    String a = null;
+
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,9 +65,9 @@ class _LockbookState extends State<LockbookHome> {
           backgroundColor: Monokai.Yellow,
           child: Icon(Icons.create),
           foregroundColor: Monokai.Dark,
-          onPressed: () => Navigator.push(
+          onPressed: () => Navigator.push<dynamic>(
                   context,
-                  MaterialPageRoute(
+                  MaterialPageRoute<dynamic>(
                       builder: (context) => EditorPage(null))) // TODO
               .then((_) => _updateFiles())),
       body: ListView.builder(
@@ -71,12 +76,12 @@ class _LockbookState extends State<LockbookHome> {
           final item = _files[index];
           return ListTile(
             title: Text(item.name),
-            onTap: () => Navigator.push(
+            onTap: () => Navigator.push<dynamic>(
                     context,
-                    MaterialPageRoute(
+                    MaterialPageRoute<dynamic>(
                         builder: (context) =>
                             EditorPage(item)))
-                .then((_) => _updateFiles()),
+                .then((dynamic _) => _updateFiles()),
           );
         },
       ),
