@@ -5,7 +5,7 @@ import 'package:crypto/crypto.dart' as hash;
 import 'package:pointycastle/api.dart';
 import 'package:pointycastle/asymmetric/api.dart';
 
-import 'task.dart';
+import 'either.dart';
 
 class UserInfo {
   final String username;

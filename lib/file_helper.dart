@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:client/errors.dart';
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FileHelper {
