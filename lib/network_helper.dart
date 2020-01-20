@@ -33,8 +33,8 @@ class NetworkHelper {
 
     final body = {
       'hashed_username': hashedUsername,
-      'rsa_pub_n': rsaPubN,
-      'rsa_pub_e': rsaPubE,
+      'pub_key_n': rsaPubN,
+      'pub_key_e': rsaPubE,
       'auth': _generateAuthToken(hashedUsername, info.getPrivateKey())
     };
 
@@ -44,13 +44,13 @@ class NetworkHelper {
   }
 
   Future<Task<UIError, void>> _userInfoRequest(Map<String, String> body) async {
-    final response = await http.post(apiBase + "/new-lockbook", body: body);
+    final response = await http.post(apiBase + "/new-account", body: body);
     switch (response.statusCode) {
       case 202:
         {
           return Success(null);
         }
-      case 406:
+      case 409:
         {
           return Fail(UIError(
               "Username Unavailable", "Please select a different username"));
