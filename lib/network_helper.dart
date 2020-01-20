@@ -16,12 +16,12 @@ class NetworkHelper {
 
   const NetworkHelper(this.apiBase, this.userRepo);
 
-  Future<Task<UIError, void>> newAccount() async {
+  Future<Either<UIError, void>> newAccount() async {
     final getInfo = await userRepo.getUserInfo();
 
     final prepBody = await getInfo
-        .convertValue(_userInfoRequestBody)
-        .thenDoFuture(_userInfoRequest);
+        .map(_userInfoRequestBody)
+        .flatMapFut(_userInfoRequest);
 
     return prepBody;
   }
@@ -43,7 +43,7 @@ class NetworkHelper {
     return body;
   }
 
-  Future<Task<UIError, void>> _userInfoRequest(Map<String, String> body) async {
+  Future<Either<UIError, void>> _userInfoRequest(Map<String, String> body) async {
     final response = await http.post(apiBase + "/new-account", body: body);
     switch (response.statusCode) {
       case 202:

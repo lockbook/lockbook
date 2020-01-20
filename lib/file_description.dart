@@ -14,7 +14,7 @@ class FileDescription {
     return id != null && name != null && path != null && version != null;
   }
 
-  static Task<UIError, FileDescription> fromMap(Map input) {
+  static Either<UIError, FileDescription> fromMap(Map input) {
     final user = FileDescription(
         input['id'], input['name'], input['path'], input['version']);
 

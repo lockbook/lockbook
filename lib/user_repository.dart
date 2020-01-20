@@ -12,11 +12,11 @@ class UserRepository {
 
   // Perhaps an example where I'd like to programmatically differentiate between
   // "I can't access files" and "You don't have a username yet"
-  Future<Task<UIError, UserInfo>> getUserInfo() async {
-    return (await _dbProvider.connectToDB()).thenDoFuture(_getUserInfo);
+  Future<Either<UIError, UserInfo>> getUserInfo() async {
+    return (await _dbProvider.connectToDB()).flatMapFut(_getUserInfo);
   }
 
-  Future<Task<UIError, UserInfo>> _getUserInfo(Database db) async {
+  Future<Either<UIError, UserInfo>> _getUserInfo(Database db) async {
     List<Map> results = await db.rawQuery('select * from UserInfo');
     if (results.length == 1) {
       return UserInfo.fromMap(results[0]);
@@ -25,12 +25,12 @@ class UserRepository {
     }
   }
 
-  Future<Task<UIError, void>> saveUserInfo(UserInfo userInfo) async {
+  Future<Either<UIError, void>> saveUserInfo(UserInfo userInfo) async {
     return (await _dbProvider.connectToDB())
-        .thenDoFuture((db) => _saveUserInfo(db, userInfo));
+        .flatMapFut((db) => _saveUserInfo(db, userInfo));
   }
 
-  Future<Task<UIError, void>> _saveUserInfo(
+  Future<Either<UIError, void>> _saveUserInfo(
       Database db, UserInfo userInfo) async {
     int insert = await db.rawInsert('''REPLACE INTO 
         UserInfo(id, username, modulus, public_exponent, private_exponent, p, q) 

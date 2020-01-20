@@ -13,13 +13,13 @@ class AccountHelper {
   const AccountHelper(
       this.encryptionHelper, this.userRepo, this.networkHelper);
 
-  Future<Task<UIError, UserInfo>> newAccount(String username) async {
+  Future<Either<UIError, UserInfo>> newAccount(String username) async {
     final keyPair = encryptionHelper.generateKeyPair();
     final userInfo = UserInfo.fromAsymmetricKey(username, keyPair);
 
     final saveAndUpload = await (await userRepo.saveUserInfo(userInfo))
-        .thenDoFuture((nothing) => networkHelper.newAccount());
+        .flatMapFut((nothing) => networkHelper.newAccount());
 
-    return saveAndUpload.convertValue((_) => userInfo);
+    return saveAndUpload.map((_) => userInfo);
   }
 }

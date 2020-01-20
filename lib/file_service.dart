@@ -1,5 +1,4 @@
 import 'package:client/errors.dart';
-import 'package:client/file_description.dart';
 import 'package:client/file_index_repo.dart';
 import 'package:client/task.dart';
 
@@ -11,16 +10,16 @@ class FileService {
 
   const FileService(this.fileRepo, this.fileHelper);
 
-  Future<Task<UIError, Empty>> saveFile(
+  Future<Either<UIError, Empty>> saveFile(
       String path, String name, String content) async {
     final getFile = await fileRepo.getOrCreateFileDescriptor(path, name);
 
-    final getId = getFile.convertValue((description) => description.id);
+    final Either<UIError, String> getId =
+        getFile.map((description) => description.id);
 
-    final saveFileContents =
-        await getId.thenDoFuture((id) => fileHelper.writeToFile(id, content));
+    final Either<UIError, Empty> saveFileContents = await getId
+        .flatMapFut((String id) => fileHelper.writeToFile(id, content));
 
     return saveFileContents;
   }
-
 }

@@ -7,7 +7,7 @@ class DBProvider {
 
   static Database _db;
 
-  Future<Task<UIError, Database>> connectToDB() async {
+  Future<Either<UIError, Database>> connectToDB() async {
     try {
       if (_db == null) {
         _db = await openDatabase('lockbook.db', version: 1,
