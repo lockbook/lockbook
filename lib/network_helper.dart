@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:client/errors.dart';
 import 'package:client/either.dart';
+import 'package:client/errors.dart';
 import 'package:client/user_info.dart';
 import 'package:client/user_repository.dart';
 import 'package:http/http.dart' as http;
@@ -19,9 +20,8 @@ class NetworkHelper {
   Future<Either<UIError, void>> newAccount() async {
     final getInfo = await userRepo.getUserInfo();
 
-    final prepBody = await getInfo
-        .map(_userInfoRequestBody)
-        .flatMapFut(_userInfoRequest);
+    final prepBody =
+        await getInfo.map(_userInfoRequestBody).flatMapFut(_userInfoRequest);
 
     return prepBody;
   }
@@ -43,7 +43,8 @@ class NetworkHelper {
     return body;
   }
 
-  Future<Either<UIError, void>> _userInfoRequest(Map<String, String> body) async {
+  Future<Either<UIError, void>> _userInfoRequest(
+      Map<String, String> body) async {
     final response = await http.post(apiBase + "/new-account", body: body);
     switch (response.statusCode) {
       case 202:
@@ -67,8 +68,8 @@ class NetworkHelper {
   String _generateAuthToken(String hashedUsername, RSAPrivateKey privateKey) {
     final signer = RSASigner(SHA256Digest(), '0609608648016503040201');
     signer.init(true, PrivateKeyParameter<RSAPrivateKey>(privateKey));
-    final sig = signer
-        .generateSignature(utf8.encode(hashedUsername + "," + _timestamp()));
+    final sig = signer.generateSignature(
+        Uint8List.fromList(utf8.encode(hashedUsername + "," + _timestamp())));
     final bytes = sig.bytes;
     return Base64Encoder().convert(bytes);
   }

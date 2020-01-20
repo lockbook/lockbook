@@ -38,18 +38,18 @@ class UserInfo {
         'q': q.toString()
       };
 
-  static Either<UIError, UserInfo> fromMap(Map<String, dynamic> json) {
+  static Either<UIError, UserInfo> fromMap(Map map) {
     final Either<UIError, UserInfo> error = Fail(
         UIError('Unable to decode User', 'Local data seems to be corrupt'));
 
     try {
       final user = UserInfo(
-        json['username'],
-        BigInt.parse(json['modulus']),
-        BigInt.parse(json['public_exponent']),
-        BigInt.parse(json['private_exponent']),
-        BigInt.parse(json['p']),
-        BigInt.parse(json['q']),
+        map['username'] as String,
+        BigInt.parse(map['modulus'] as String),
+        BigInt.parse(map['public_exponent'] as String),
+        BigInt.parse(map['private_exponent'] as String),
+        BigInt.parse(map['p'] as String),
+        BigInt.parse(map['q'] as String),
       );
 
       if (user._isValid()) {
@@ -57,7 +57,7 @@ class UserInfo {
       } else {
         return error;
       }
-    } catch (error) {
+    } catch (e) {
       return error;
     }
   }

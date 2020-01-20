@@ -93,7 +93,7 @@ class EditorPageState extends State<EditorPage> {
     final getContent = await fileHelper.readFromFile(_fileDescription.id);
 
     final createDocument = getContent
-        .map((content) => NotusDocument.fromJson(jsonDecode(content)));
+        .map((content) => NotusDocument.fromJson(jsonDecode(content) as List));
 
     createDocument.ifFailedDo((error) {
       print('${error.title}${error.description}');

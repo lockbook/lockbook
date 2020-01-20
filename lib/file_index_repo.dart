@@ -68,7 +68,7 @@ class FileIndexRepository {
     return convertResult;
   }
 
-  Future<Either<UIError, Map>> _getFileDescriptorQuery(
+  Future<Either<UIError, Map<String, dynamic>>> _getFileDescriptorQuery(
       Database database, String path, String name) async {
     final list = await database.rawQuery(
         "select * from FileIndex where path = '$path' and name = '$name'");
