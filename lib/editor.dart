@@ -66,7 +66,8 @@ class EditorPageState extends State<EditorPage> {
     return Scaffold(
       appBar: AppBar(
         title: TextField(
-          decoration: InputDecoration(hintText: 'Name Document'),
+          decoration: InputDecoration(hintText: 'Name Document', labelText: _name),
+
           onChanged: (text) {
             setState(() {
               _name = text;

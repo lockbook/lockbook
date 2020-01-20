@@ -25,8 +25,7 @@ const EncryptionHelper encryptionHelper = EncryptionHelper();
 const NetworkHelper networkHelper = NetworkHelper(apiBase, userRepository);
 const FileHelper fileHelper = FileHelper();
 const FileService fileService = FileService(fileIndexRepository, fileHelper);
-const AccountHelper accountHelper =
-    AccountHelper(encryptionHelper, userRepository, networkHelper);
+const AccountHelper accountHelper = AccountHelper(encryptionHelper, userRepository, networkHelper);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +33,7 @@ void main() {
     systemNavigationBarColor: Monokai.Dark, // navigation bar color
     statusBarColor: Monokai.Dark, // status bar color
   ));
-  userRepository.getUserInfo().then((result) => result
-      .ifSuccessDo((info) => runApp(Lockbook(info)))
-      .ifFailedDo((_) => runApp(Welcome())));
+  userRepository.getUserInfo().then((result) => result.ifSuccessDo((info) => runApp(Lockbook(info))).ifFailedDo((_) => runApp(Welcome())));
 }
 
 ThemeData theme() => ThemeData(
@@ -66,7 +63,60 @@ ThemeData theme() => ThemeData(
       ),
     );
 
+final padding = const EdgeInsets.only(bottom: 8.0);
+
 ZefyrThemeData zefyrTheme() => ZefyrThemeData(
+      linkStyle: TextStyle(
+        color: Monokai.Blue,
+        decoration: TextDecoration.underline,
+      ),
+      blockTheme: BlockTheme(
+        bulletList: StyleTheme(padding: padding),
+        numberList: StyleTheme(padding: padding),
+        code: StyleTheme(
+          textStyle: TextStyle(
+            color: Monokai.Dark,
+            fontFamily: "courier",
+            fontFamilyFallback: ["monospace"],
+            fontSize: 14.0,
+            height: 1.25,
+          ),
+          padding: padding,
+        ),
+        quote: StyleTheme(
+          textStyle: TextStyle(color: Monokai.White),
+          padding: padding,
+        ),
+      ),
+      headingTheme: HeadingTheme(
+        level1: StyleTheme(
+          textStyle: TextStyle(
+            color: Monokai.White,
+            fontSize: 30.0,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+          ),
+          padding: EdgeInsets.only(top: 16.0, bottom: 16.0),
+        ),
+        level2: StyleTheme(
+          textStyle: TextStyle(
+            color: Monokai.White,
+            fontSize: 24.0,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+          ),
+          padding: EdgeInsets.only(bottom: 8.0, top: 8.0),
+        ),
+        level3: StyleTheme(
+          textStyle: TextStyle(
+            fontSize: 20.0,
+            color: Monokai.White,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+          ),
+          padding: EdgeInsets.only(bottom: 8.0, top: 8.0),
+        ),
+      ),
       cursorColor: Monokai.Yellow,
       paragraphTheme: StyleTheme(
         textStyle: TextStyle(color: Monokai.White),
