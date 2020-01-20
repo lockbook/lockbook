@@ -39,7 +39,7 @@ void main() {
       .ifFailedDo((_) => runApp(Welcome())));
 }
 
-theme() => ThemeData(
+ThemeData theme() => ThemeData(
       brightness: Brightness.dark,
       appBarTheme: AppBarTheme(color: Monokai.Dark, elevation: 0),
       scaffoldBackgroundColor: Monokai.Dark,
@@ -66,7 +66,7 @@ theme() => ThemeData(
       ),
     );
 
-zefyrTheme() => ZefyrThemeData(
+ZefyrThemeData zefyrTheme() => ZefyrThemeData(
       cursorColor: Monokai.Yellow,
       paragraphTheme: StyleTheme(
         textStyle: TextStyle(color: Monokai.White),

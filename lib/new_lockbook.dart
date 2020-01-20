@@ -136,7 +136,7 @@ class _NewLockbookState extends State<NewLockbookHome> {
         (Route<dynamic> route) => false);
   }
 
-  _isEnabled() {
+  bool _isEnabled() {
     return _buttonStatus != ButtonStatus.working && _username != "" && _errorText == null;
   }
 }
