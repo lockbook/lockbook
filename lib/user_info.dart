@@ -38,8 +38,8 @@ class UserInfo {
         'q': q.toString()
       };
 
-  static Task<UIError, UserInfo> fromMap(Map<String, dynamic> json) {
-    final Task<UIError, UserInfo> error = Fail(
+  static Either<UIError, UserInfo> fromMap(Map<String, dynamic> json) {
+    final Either<UIError, UserInfo> error = Fail(
         UIError('Unable to decode User', 'Local data seems to be corrupt'));
 
     try {

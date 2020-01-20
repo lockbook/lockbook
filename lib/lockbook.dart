@@ -36,7 +36,7 @@ class _LockbookState extends State<LockbookHome> {
 
   _updateFiles() => fileIndexRepository
       .getFilesAtPath('home')
-      .then((lookup) => lookup.ifSuccess((list) {
+      .then((lookup) => lookup.ifSuccessDo((list) {
             setState(() {
               _files = list;
             });

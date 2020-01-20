@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 class FileHelper {
   const FileHelper();
 
-  Future<Task<UIError, Directory>> _getFileStoreDir() async {
+  Future<Either<UIError, Directory>> _getFileStoreDir() async {
     final Directory directory =
         await getApplicationDocumentsDirectory().catchError((e) {
       print("Error getting application directory, prob plugin not supported");
@@ -29,9 +29,9 @@ class FileHelper {
     return Success(filesFolder);
   }
 
-  Future<Task<UIError, Empty>> writeToFile(
+  Future<Either<UIError, Empty>> writeToFile(
       String location, String content) async {
-    return (await _getFileStoreDir()).thenDo((dir) {
+    return (await _getFileStoreDir()).flatMap((dir) {
       final file = File(dir.path + location);
       print(file);
       try {
@@ -45,10 +45,10 @@ class FileHelper {
     });
   }
 
-  Future<Task<UIError, String>> readFromFile(String location) async {
+  Future<Either<UIError, String>> readFromFile(String location) async {
     final getLocation = await _getFileStoreDir();
 
-    return getLocation.thenDo((dir) {
+    return getLocation.flatMap((dir) {
       final file = File(dir.path + location);
 
       try {
