@@ -4,6 +4,9 @@ enum Empty {
   Nothing,
 }
 
+//    final files = connection.thenDoFuture((db) => db.rawQuery("select * from FileIndex where path='$path'")); not possible
+
+
 const Done = Empty.Nothing;
 // One day
 // typedef AsyncTask = Future<Task>;
