@@ -1,5 +1,5 @@
 import 'package:client/errors.dart';
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DBProvider {

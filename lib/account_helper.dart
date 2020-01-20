@@ -1,7 +1,7 @@
 import 'package:client/encryption_helper.dart';
 import 'package:client/errors.dart';
 import 'package:client/network_helper.dart';
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 import 'package:client/user_info.dart';
 import 'package:client/user_repository.dart';
 

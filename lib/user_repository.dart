@@ -1,4 +1,4 @@
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 import 'package:client/user_info.dart';
 import 'package:sqflite/sqlite_api.dart';
 

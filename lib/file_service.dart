@@ -1,6 +1,6 @@
 import 'package:client/errors.dart';
 import 'package:client/file_index_repo.dart';
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 
 import 'file_helper.dart';
 

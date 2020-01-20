@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:client/errors.dart';
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 import 'package:client/user_info.dart';
 import 'package:client/user_repository.dart';
 import 'package:http/http.dart' as http;

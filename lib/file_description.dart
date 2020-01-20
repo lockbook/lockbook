@@ -1,4 +1,4 @@
-import 'package:client/task.dart';
+import 'package:client/either.dart';
 
 import 'errors.dart';
 
