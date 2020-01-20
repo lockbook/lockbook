@@ -7,7 +7,6 @@ import 'package:client/file_service.dart';
 import 'package:client/network_helper.dart';
 import 'package:client/user_repository.dart';
 import 'package:client/welcome.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zefyr/zefyr.dart';
@@ -46,6 +45,7 @@ theme() => ThemeData(
       scaffoldBackgroundColor: Monokai.Dark,
       buttonColor: Monokai.Yellow,
       hintColor: Monokai.Yellow,
+      errorColor: Monokai.Red,
       inputDecorationTheme: InputDecorationTheme(
         labelStyle: TextStyle(color: Monokai.Yellow),
         focusColor: Monokai.Yellow,
@@ -53,6 +53,12 @@ theme() => ThemeData(
         fillColor: Monokai.Yellow,
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: Monokai.Yellow),
+        ),
+        errorBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: Monokai.Red),
+        ),
+        focusedErrorBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: Monokai.Red),
         ),
         focusedBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: Monokai.Yellow),
