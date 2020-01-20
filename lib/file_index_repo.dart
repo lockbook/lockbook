@@ -22,6 +22,30 @@ class FileIndexRepository {
     }
   }
 
+  Future<Task<UIError, List<FileDescription>>> getFilesAtPath(
+      String path) async {
+    final connection = await _dbProvider.connectToDB();
+
+    final files =
+        connection.thenDoFuture((db) => _getFilesAtPathQuery(db, path));
+
+    return files;
+  }
+
+  Future<Task<UIError, List<FileDescription>>> _getFilesAtPathQuery(
+      Database db, String path) async {
+    final results =
+        await db.rawQuery("select * from FileIndex where path='$path'");
+
+    final parsedResults = results
+        .map(FileDescription.fromMap)
+        .where((task) => task.isSuccessful())
+        .map((task) => task.getValueUnsafely())
+        .toList();
+
+    return Success(parsedResults);
+  }
+
   Future<Task<UIError, FileDescription>> _createFileDescriptor(
       String path, String name) async {
     final connected = await _dbProvider.connectToDB();
@@ -67,7 +91,9 @@ class FileIndexRepository {
         VALUES('$uuid', '$name', '$path', 0)
     ''');
 
-    if (insert == 1) {
+    print(insert);
+
+    if (insert > 0) {
       return Success(FileDescription(uuid, name, path, 0));
     } else {
       return Fail(UIError('Failed to insert',

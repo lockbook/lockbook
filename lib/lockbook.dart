@@ -1,3 +1,4 @@
+import 'package:client/file_description.dart';
 import 'package:client/main.dart';
 import 'package:client/user_info.dart';
 import 'package:flutter/material.dart';
@@ -29,8 +30,24 @@ class LockbookHome extends StatefulWidget {
 
 class _LockbookState extends State<LockbookHome> {
   final UserInfo _userInfo;
+  List<FileDescription> _files = [];
 
   _LockbookState(this._userInfo);
+
+  _updateFiles() => fileIndexRepository
+      .getFilesAtPath('home')
+      .then((lookup) => lookup.ifSuccess((list) {
+            setState(() {
+              _files = list;
+            });
+          }));
+
+  @override
+  void initState() {
+    super.initState();
+
+    _updateFiles();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +61,25 @@ class _LockbookState extends State<LockbookHome> {
           child: Icon(Icons.create),
           foregroundColor: Monokai.Dark,
           onPressed: () => Navigator.push(
-              context, MaterialPageRoute(builder: (context) => EditorPage("path", "file")))),
-      body: Container(),
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => EditorPage(null))) // TODO
+              .then((_) => _updateFiles())),
+      body: ListView.builder(
+        itemCount: _files.length,
+        itemBuilder: (BuildContext context, int index) {
+          final item = _files[index];
+          return ListTile(
+            title: Text(item.name),
+            onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            EditorPage(item)))
+                .then((_) => _updateFiles()),
+          );
+        },
+      ),
     );
   }
 }
