@@ -7,7 +7,7 @@ import 'package:zefyr/zefyr.dart';
 import 'main.dart';
 
 class EditorPage extends StatefulWidget {
-  FileDescription _fileDescription;
+  final FileDescription _fileDescription;
 
   EditorPage(this._fileDescription);
 

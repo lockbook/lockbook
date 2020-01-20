@@ -94,7 +94,7 @@ class FileIndexRepository {
     print(insert);
 
     if (insert > 0) {
-      return Success(FileDescription(uuid, name, path, 0));
+      return Success(file);
     } else {
       return Fail(UIError('Failed to insert',
           'Failed to insert $uuid, $name, $path, 0 into FileIndex'));
