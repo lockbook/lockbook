@@ -10,6 +10,9 @@ class EditorPage extends StatefulWidget {
   final FileDescription _fileDescription;
 
   EditorPage(this._fileDescription);
+  static EditorPage fd(FileDescription f) {
+    return EditorPage(f);
+  }
 
   @override
   EditorPageState createState() => EditorPageState(_fileDescription);

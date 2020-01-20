@@ -29,7 +29,7 @@ class UserInfo {
 
   // Because these are dynamic, you have no compile time gauruntee that this
   // Operation will succeed...
-  Map<String, dynamic> toMap() => {
+  Map<String, String> toMap() => {
         'username': username.toString(),
         'modulus': modulus.toString(),
         'public_exponent': publicExponent.toString(),

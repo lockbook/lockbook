@@ -11,13 +11,13 @@ class UIError {
 const UIError networkError = UIError(
     "Network Unavailable", "Failed to make a network request, are you online?");
 
-UIError unhandledError(Object error) {
+UIError unhandledError(dynamic error) {
   print("Unhandled Error! $error");
   return UIError("Unhandled Error, please file an issue",
       "Error: $error, please screenshot and upload: github.com/lockbook/client");
 }
 
-UIError dbFailedToConnect(Object exc) {
+UIError dbFailedToConnect(dynamic exc) {
   final error = UIError('Could not connect to local db', 'Error: $exc');
   print(error);
   return error;

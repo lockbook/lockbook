@@ -1,5 +1,5 @@
-import 'package:client/file_description.dart';
 import 'package:client/either.dart';
+import 'package:client/file_description.dart';
 import 'package:sqflite/sqlite_api.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,8 +26,8 @@ class FileIndexRepository {
       String path) async {
     final connection = await _dbProvider.connectToDB();
 
-    final files =
-        connection.flatMapFut((db) => _getFilesAtPathQuery(db, path));
+    final files = connection.flatMapFut<List<FileDescription>>(
+        (db) => _getFilesAtPathQuery(db, path));
 
     return files;
   }
@@ -43,15 +43,19 @@ class FileIndexRepository {
         .map((task) => task.getValueUnsafely())
         .toList();
 
-    return Success(parsedResults);
+    List<FileDescription> files = parsedResults == null
+        ? <FileDescription>[]
+        : parsedResults as List<FileDescription>;
+
+    return Success(files);
   }
 
   Future<Either<UIError, FileDescription>> _createFileDescriptor(
       String path, String name) async {
     final connected = await _dbProvider.connectToDB();
 
-    final insertResult = await connected
-        .flatMapFut((db) => _createFileDescriptorQuery(db, path, name));
+    final insertResult = await connected.flatMapFut<FileDescription>(
+        (db) => _createFileDescriptorQuery(db, path, name));
 
     return insertResult;
   }
@@ -60,8 +64,8 @@ class FileIndexRepository {
       String path, String name) async {
     final connected = await _dbProvider.connectToDB();
 
-    final queryResult = await connected
-        .flatMapFut((db) => _getFileDescriptorQuery(db, path, name));
+    final queryResult = await connected.flatMapFut<Map<String, dynamic>>(
+        (db) => _getFileDescriptorQuery(db, path, name));
 
     final convertResult = queryResult.flatMap(FileDescription.fromMap);
 
