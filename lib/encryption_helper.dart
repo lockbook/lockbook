@@ -1,10 +1,14 @@
 // https://github.com/bcgit/pc-dart/blob/master/tutorials/rsa.md
 
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:client/errors.dart';
 import 'package:client/user_info.dart';
 import "package:pointycastle/export.dart";
+
+import 'either.dart';
 
 class EncryptionHelper {
   const EncryptionHelper();
@@ -44,10 +48,18 @@ class EncryptionHelper {
 
   String encrypt(UserInfo userInfo, String content) {
     final publicKey = userInfo.getPublicKey();
-    final plainTextBytes = Uint8List.fromList(content.codeUnits);
+    final plainTextBytes = Uint8List.fromList(content.codeUnits); // UTF -> bytes
 
-    final encryptedBytes = _rsaEncrypt(publicKey, plainTextBytes);
-    return String.fromCharCodes(encryptedBytes);
+    final encryptedBytes = _rsaEncrypt(publicKey, plainTextBytes); // bytes -> encrypted bytes
+    return base64.encode(encryptedBytes); // encrypted bytes -> base64
+  }
+
+  Either<UIError, String> decrypt(UserInfo userInfo, String encrypted) {
+    final privateKey = userInfo.getPrivateKey();
+
+    final encryptedBytes = Base64Decoder().convert(encrypted); // base64 -> encrypted bytes
+    final decryptedBytes = _rsaDecrypt(privateKey, encryptedBytes); // encrypted bytes -> decrypted bytes
+    return Success(String.fromCharCodes(decryptedBytes)); // decrypted bytes -> UTF
   }
 
   Uint8List _rsaEncrypt(RSAPublicKey myPublic, Uint8List dataToEncrypt) {

@@ -7,7 +7,7 @@ class FileDescription {
   final String id;
   final String name;
   final String path;
-  final int version;
+  final BigInt version;
 
   FileDescription(this.id, this.name, this.path, this.version);
 
@@ -20,10 +20,8 @@ class FileDescription {
       input['id'] as String,
       input['name'] as String,
       input['path'] as String,
-      input['version'] as int,
+      BigInt.parse(input['version'] as String),
     );
-
-    EditorPage(null);
 
     if (user._isValid()) {
       return Success(user);

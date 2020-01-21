@@ -27,8 +27,10 @@ class DBProvider {
               id TEXT PRIMARY KEY,
               name TEXT,
               path TEXT,
-              version INTEGER)
+              version TEXT)
           ''');
+
+        await db.execute('create table LastUpdated(timestamp TEXT)');
       })));
     } catch (error) {
       _db = None();

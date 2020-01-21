@@ -4,6 +4,7 @@ import 'package:client/encryption_helper.dart';
 import 'package:client/file_helper.dart';
 import 'package:client/file_index_repo.dart';
 import 'package:client/file_service.dart';
+import 'package:client/last_update_repo.dart';
 import 'package:client/network_helper.dart';
 import 'package:client/user_repository.dart';
 import 'package:client/welcome.dart';
@@ -19,13 +20,15 @@ import 'lockbook.dart';
 const DBProvider dbProvider = DBProvider();
 const UserRepository userRepository = UserRepository(dbProvider);
 const FileIndexRepository fileIndexRepository = FileIndexRepository(dbProvider);
+const LastUpdateRepository lastUpdateRepository =
+    LastUpdateRepository(dbProvider);
 
 const String apiBase = "http://lockbook.app:8000";
 const EncryptionHelper encryptionHelper = EncryptionHelper();
 const NetworkHelper networkHelper = NetworkHelper(apiBase, userRepository);
 const FileHelper fileHelper = FileHelper();
 const FileService fileService = FileService(fileIndexRepository, fileHelper,
-    networkHelper, encryptionHelper, userRepository);
+    networkHelper, encryptionHelper, userRepository, lastUpdateRepository);
 const AccountHelper accountHelper =
     AccountHelper(encryptionHelper, userRepository, networkHelper);
 
