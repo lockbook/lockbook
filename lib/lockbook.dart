@@ -31,6 +31,7 @@ class LockbookHome extends StatefulWidget {
 class _LockbookState extends State<LockbookHome> {
   final UserInfo _userInfo;
   List<FileDescription> _files = [];
+  double _progress = 1;
 
   _LockbookState(this._userInfo);
 
@@ -42,10 +43,13 @@ class _LockbookState extends State<LockbookHome> {
             });
           }));
 
+  void _syncFiles() {}
+
   @override
   void initState() {
     super.initState();
 
+    _syncFiles();
     _updateFiles();
   }
 
@@ -65,21 +69,22 @@ class _LockbookState extends State<LockbookHome> {
                   MaterialPageRoute<dynamic>(
                       builder: (context) => EditorPage(null))) // TODO
               .then((dynamic _) => _updateFiles())),
-      body: ListView.builder(
-        itemCount: _files.length,
-        itemBuilder: (BuildContext context, int index) {
-          final item = _files[index];
-          return ListTile(
-            title: Text(item.name),
-            onTap: () => Navigator.push<dynamic>(
-                    context,
-                    MaterialPageRoute<dynamic>(
-                        builder: (context) =>
-                            EditorPage(item)))
-                .then((dynamic _) => _updateFiles()),
-          );
-        },
-      ),
+      body: _progress == 1
+          ? ListView.builder(
+              itemCount: _files.length,
+              itemBuilder: (BuildContext context, int index) {
+                final item = _files[index];
+                return ListTile(
+                  title: Text(item.name),
+                  onTap: () => Navigator.push<dynamic>(
+                          context,
+                          MaterialPageRoute<dynamic>(
+                              builder: (context) => EditorPage(item)))
+                      .then((dynamic _) => _updateFiles()),
+                );
+              },
+            )
+          : Container(),
     );
   }
 }
