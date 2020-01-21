@@ -35,22 +35,26 @@ class _LockbookState extends State<LockbookHome> {
 
   _LockbookState(this._userInfo);
 
-  void _updateFiles() => fileIndexRepository
-      .getFilesAtPath('home')
-      .then((lookup) => lookup.ifSuccessDo((list) {
-            setState(() {
-              _files = list;
-            });
-          }));
-
-  void _syncFiles() {}
+  void _syncAndUpdateFiles() async {
+    fileIndexRepository
+        .getFilesAtPath('home')
+        .then((lookup) => lookup.ifSuccessDo((list) {
+              setState(() {
+                _files = list;
+              });
+            }))
+        .then((_) => fileService.sync((progress) => setState(() {
+              _progress = progress;
+            })))
+        .then((status) => status.ifFailedDo(
+            (error) => print("${error.title}${error.description}")));
+  }
 
   @override
   void initState() {
     super.initState();
 
-    _syncFiles();
-    _updateFiles();
+    _syncAndUpdateFiles();
   }
 
   @override
@@ -68,7 +72,7 @@ class _LockbookState extends State<LockbookHome> {
                   context,
                   MaterialPageRoute<dynamic>(
                       builder: (context) => EditorPage(null))) // TODO
-              .then((dynamic _) => _updateFiles())),
+              .then((dynamic _) => _syncAndUpdateFiles())),
       body: _progress == 1
           ? ListView.builder(
               itemCount: _files.length,
@@ -80,11 +84,13 @@ class _LockbookState extends State<LockbookHome> {
                           context,
                           MaterialPageRoute<dynamic>(
                               builder: (context) => EditorPage(item)))
-                      .then((dynamic _) => _updateFiles()),
+                      .then((dynamic _) => _syncAndUpdateFiles()),
                 );
               },
             )
-          : Container(),
+          : CircularProgressIndicator(
+              value: _progress,
+            ),
     );
   }
 }
