@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:client/either.dart';
 import 'package:client/errors.dart';
+import 'package:client/file_description.dart';
+import 'package:client/main.dart';
 import 'package:client/user_info.dart';
 import 'package:client/user_repository.dart';
 import 'package:http/http.dart' as http;
@@ -23,7 +25,40 @@ class NetworkHelper {
     final prepBody =
         await getInfo.map(_userInfoRequestBody).flatMapFut(_userInfoRequest);
 
-    return prepBody.map((dynamic _) => Done);
+    return prepBody.map((_) => Done);
+  }
+
+  Future<Either<UIError, Empty>> uploadFile(UserInfo userInfo,
+      FileDescription fileDescription, String content) async {
+    final hashed_username = userInfo.hashedUsername().toString();
+
+    final body = {
+      'id': fileDescription.id,
+      'hashed_username': hashed_username,
+      'auth': _generateAuthToken(hashed_username, userInfo.getPrivateKey()),
+      'name': encryptionHelper.encrypt(userInfo, fileDescription.name),
+      'path': fileDescription.path,
+      'content': content,
+    };
+
+    final response = await http.post(apiBase + "/create-file", body: body);
+
+    switch (response.statusCode) {
+      case 202:
+        {
+          return Success(Done);
+        }
+      case 409:
+        {
+          return Fail(UIError(
+              "Username Unavailable", "Please select a different username"));
+        }
+      default:
+        {
+          return Fail(UIError("Server Unavailable",
+              "Please check status.lockbook.app or try again"));
+        }
+    }
   }
 
   Map<String, String> _userInfoRequestBody(UserInfo info) {
@@ -37,8 +72,6 @@ class NetworkHelper {
       'pub_key_e': rsaPubE,
       'auth': _generateAuthToken(hashedUsername, info.getPrivateKey())
     };
-
-    print(body);
 
     return body;
   }

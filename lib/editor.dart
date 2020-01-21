@@ -11,10 +11,6 @@ class EditorPage extends StatefulWidget {
 
   EditorPage(this._fileDescription);
 
-  static EditorPage fd(FileDescription f) {
-    return EditorPage(f);
-  }
-
   @override
   EditorPageState createState() => EditorPageState(_fileDescription);
 }
@@ -66,8 +62,9 @@ class EditorPageState extends State<EditorPage> {
     return Scaffold(
       appBar: AppBar(
         title: TextField(
-          decoration: InputDecoration(hintText: 'Name Document', labelText: _name),
-
+          decoration:
+              InputDecoration(hintText: 'Name Document', labelText: _name),
+          // TODO need texteditingcontroller
           onChanged: (text) {
             setState(() {
               _name = text;
@@ -80,8 +77,12 @@ class EditorPageState extends State<EditorPage> {
             onPressed: () {
               String content = jsonEncode(_controller.document);
               fileService
-                  .saveFile(_fileDescription == null ? 'home' : _fileDescription.path, _name == null ? 'untitled' : _name, content)
-                  .then((task) => task.ifFailedDo((error) => print('${error.title}, ${error.description}')));
+                  .saveFile(
+                      _fileDescription == null ? 'home' : _fileDescription.path,
+                      _name == null ? 'untitled' : _name,
+                      content)
+                  .then((task) => task.ifFailedDo((error) =>
+                      print('${error.title}, ${error.description}')));
             },
           )
         ],
@@ -93,7 +94,8 @@ class EditorPageState extends State<EditorPage> {
   Future<NotusDocument> _loadDocument(FileDescription _fileDescription) async {
     final getContent = await fileHelper.readFromFile(_fileDescription.id);
 
-    final createDocument = getContent.map((content) => NotusDocument.fromJson(jsonDecode(content) as List));
+    final createDocument = getContent
+        .map((content) => NotusDocument.fromJson(jsonDecode(content) as List));
 
     createDocument.ifFailedDo((error) {
       print('${error.title}${error.description}');

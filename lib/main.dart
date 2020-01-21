@@ -24,8 +24,10 @@ const String apiBase = "http://lockbook.app:8000";
 const EncryptionHelper encryptionHelper = EncryptionHelper();
 const NetworkHelper networkHelper = NetworkHelper(apiBase, userRepository);
 const FileHelper fileHelper = FileHelper();
-const FileService fileService = FileService(fileIndexRepository, fileHelper);
-const AccountHelper accountHelper = AccountHelper(encryptionHelper, userRepository, networkHelper);
+const FileService fileService = FileService(fileIndexRepository, fileHelper,
+    networkHelper, encryptionHelper, userRepository);
+const AccountHelper accountHelper =
+    AccountHelper(encryptionHelper, userRepository, networkHelper);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +35,9 @@ void main() {
     systemNavigationBarColor: Monokai.Dark, // navigation bar color
     statusBarColor: Monokai.Dark, // status bar color
   ));
-  userRepository.getUserInfo().then((result) => result.ifSuccessDo((info) => runApp(Lockbook(info))).ifFailedDo((_) => runApp(Welcome())));
+  userRepository.getUserInfo().then((result) => result
+      .ifSuccessDo((info) => runApp(Lockbook(info)))
+      .ifFailedDo((_) => runApp(Welcome())));
 }
 
 ThemeData theme() => ThemeData(
