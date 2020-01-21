@@ -29,7 +29,7 @@ class NetworkHelper {
   }
 
   Future<Either<UIError, Empty>> uploadFile(UserInfo userInfo,
-      FileDescription fileDescription, String content) async {
+      FileDescription fileDescription, String encryptedContent) async {
     final hashed_username = userInfo.hashedUsername().toString();
 
     final body = {
@@ -37,14 +37,15 @@ class NetworkHelper {
       'hashed_username': hashed_username,
       'auth': _generateAuthToken(hashed_username, userInfo.getPrivateKey()),
       'name': encryptionHelper.encrypt(userInfo, fileDescription.name),
-      'path': fileDescription.path,
-      'content': content,
+      'path': encryptionHelper.encrypt(userInfo, fileDescription.path),
+      'content': encryptedContent,
     };
 
     final response = await http.post(apiBase + "/create-file", body: body);
+    print("create-file: ${response.statusCode}");
 
     switch (response.statusCode) {
-      case 202:
+      case 200:
         {
           return Success(Done);
         }
@@ -59,6 +60,17 @@ class NetworkHelper {
               "Please check status.lockbook.app or try again"));
         }
     }
+  }
+
+  Future<Either<UIError, List<String>>> getFilesChangedSince(
+      BigInt timestamp) async {
+    List<String> ids = ['fa09ac70-3c11-11ea-ce65-05c55fdd80e5', 'f0571190-3c11-11ea-cce5-291859cb37f6'];
+    return Success(ids);
+  }
+
+  Future<Either<UIError, String>> getFile(String id) async {
+    final response = await http.get(apiBase + '/get-file/$id');
+    return Success(response.body);
   }
 
   Map<String, String> _userInfoRequestBody(UserInfo info) {
@@ -79,8 +91,9 @@ class NetworkHelper {
   Future<Either<UIError, Empty>> _userInfoRequest(
       Map<String, String> body) async {
     final response = await http.post(apiBase + "/new-account", body: body);
+    print(response.statusCode);
     switch (response.statusCode) {
-      case 202:
+      case 200:
         {
           return Success(Done);
         }

@@ -83,12 +83,12 @@ class FileIndexRepository {
   Future<Either<UIError, FileDescription>> _createFileDescriptorQuery(
       Database database, String path, String name) async {
     final uuid = Uuid().v1();
-    final file = FileDescription(uuid, name, path, 0);
+    final file = FileDescription(uuid, name, path, BigInt.from(0));
 
     int insert = await database.rawInsert('''
       insert into 
         FileIndex(id, name, path, version)
-        VALUES('$uuid', '$name', '$path', 0)
+        VALUES('$uuid', '$name', '$path', '0')
     ''');
 
     print(insert);
