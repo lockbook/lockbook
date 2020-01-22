@@ -25,7 +25,7 @@ class NetworkHelper {
     final prepBody =
         await getInfo.map(_userInfoRequestBody).flatMapFut(_userInfoRequest);
 
-    return prepBody.map((_) => Done);
+    return prepBody.disregardValue();
   }
 
   Future<Either<UIError, Empty>> uploadFile(UserInfo userInfo,
@@ -42,34 +42,32 @@ class NetworkHelper {
     };
 
     final response = await http.post(apiBase + "/create-file", body: body);
-    print("create-file: ${response.statusCode}");
+    logNetworkActivity(body, response);
 
     switch (response.statusCode) {
       case 200:
         {
           return Success(Done);
-        }
-      case 409:
-        {
-          return Fail(UIError(
-              "Username Unavailable", "Please select a different username"));
-        }
+        } // TODO
       default:
         {
-          return Fail(UIError("Server Unavailable",
-              "Please check status.lockbook.app or try again"));
+          return Fail(serverUnavailable());
         }
     }
   }
 
   Future<Either<UIError, List<String>>> getFilesChangedSince(
       BigInt timestamp) async {
-    List<String> ids = ['fa09ac70-3c11-11ea-ce65-05c55fdd80e5', 'f0571190-3c11-11ea-cce5-291859cb37f6'];
+    List<String> ids = [
+      'fa09ac70-3c11-11ea-ce65-05c55fdd80e5',
+      'f0571190-3c11-11ea-cce5-291859cb37f6'
+    ];
     return Success(ids);
   }
 
   Future<Either<UIError, String>> getFile(String id) async {
     final response = await http.get(apiBase + '/get-file/$id');
+    logNetworkActivity(null, response);
     return Success(response.body);
   }
 
@@ -91,7 +89,7 @@ class NetworkHelper {
   Future<Either<UIError, Empty>> _userInfoRequest(
       Map<String, String> body) async {
     final response = await http.post(apiBase + "/new-account", body: body);
-    print(response.statusCode);
+    logNetworkActivity(body, response);
     switch (response.statusCode) {
       case 200:
         {
@@ -99,13 +97,11 @@ class NetworkHelper {
         }
       case 409:
         {
-          return Fail(UIError(
-              "Username Unavailable", "Please select a different username"));
+          return Fail(usernameUnavailable());
         }
       default:
         {
-          return Fail(UIError("Server Unavailable",
-              "Please check status.lockbook.app or try again"));
+          return Fail(serverUnavailable());
         }
     }
   }
@@ -122,5 +118,14 @@ class NetworkHelper {
 
   String _timestamp() {
     return new DateTime.now().millisecondsSinceEpoch.toString();
+  }
+
+  logNetworkActivity(Map body, http.Response response) {
+    logger.d("endpoint: ${response.request.url},"
+        " verb: ${response.request.method},"
+        " input: $body,"
+        " status: ${response.statusCode},"
+        " headers: ${response.request.headers}"
+        " output: ${response.body}");
   }
 }

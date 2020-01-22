@@ -10,6 +10,7 @@ import 'package:client/user_repository.dart';
 import 'package:client/welcome.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:logger/logger.dart';
 import 'package:zefyr/zefyr.dart';
 
 import 'lockbook.dart';
@@ -17,6 +18,8 @@ import 'lockbook.dart';
 // Compile Time Constants for Dependency Injection
 
 // Database Stuff
+var logger = Logger();
+
 const DBProvider dbProvider = DBProvider();
 const UserRepository userRepository = UserRepository(dbProvider);
 const FileIndexRepository fileIndexRepository = FileIndexRepository(dbProvider);

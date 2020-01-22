@@ -31,9 +31,9 @@ class FileService {
     final fileDescriptor = getFile.getValueUnsafely();
 
     final maybeUserInfo = await userRepository.getUserInfo();
-    if (!maybeUserInfo.isSuccessful()) return maybeUserInfo.map((_) => Done);
-
+    if (!maybeUserInfo.isSuccessful()) return maybeUserInfo.disregardValue();
     final userInfo = maybeUserInfo.getValueUnsafely();
+
     final encryptedContent = encryptionHelper.encrypt(userInfo, content);
 
     return networkHelper.uploadFile(userInfo, fileDescriptor, encryptedContent);
@@ -44,7 +44,6 @@ class FileService {
     final getUserInfo = await userRepository.getUserInfo();
     if (!getUserInfo.isSuccessful()) return getUserInfo.map((_) => Done);
     final userInfo = getUserInfo.getValueUnsafely();
-    print("userInfo: $userInfo");
 
     final getLastUpdated = await lastUpdateRepository.getLastUpdated();
     updateStatus(0.05);
@@ -57,6 +56,7 @@ class FileService {
 
     final getDecryptAndSaveEachFile =
         await getListOfChangedFiles.flatMapFut((ids) async {
+      Map<String, bool> statuses = {};
       for (int i = 0; i < ids.length; i++) {
         final progress = ((i / ids.length) * 0.85) + 0.1;
         print("progress $progress");
@@ -71,16 +71,17 @@ class FileService {
 
         print("decypted: ${decrypt.getValueUnsafely()}");
 
-        final saveLocally = decrypt
+        final saveLocally = await decrypt
             .flatMapFut((decrypted) => fileHelper.writeToFile(id, decrypted));
 
         updateStatus(progress);
+        statuses[id] = saveLocally.isSuccessful();
       }
 
-      return Success(Done);
+      return Success(statuses);
     });
 
     updateStatus(1);
-    return getDecryptAndSaveEachFile;
+    return getDecryptAndSaveEachFile.disregardValue();
   }
 }
