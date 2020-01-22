@@ -11,7 +11,7 @@ class UserRepository {
   const UserRepository(this._dbProvider);
 
   // Perhaps an example where I'd like to programmatically differentiate between
-  // "I can't access files" and "You don't have a username yet"
+  // "I can't access files" and "You don't have a username yet" -- TODO Should be an either of option
   Future<Either<UIError, UserInfo>> getUserInfo() async {
     return (await _dbProvider.connectToDB()).flatMapFut(_getUserInfo);
   }
@@ -22,7 +22,7 @@ class UserRepository {
     if (results.length == 1) {
       return UserInfo.fromMap(results[0]);
     } else {
-      return Fail(UIError("No User Info saved", "Please create a user"));
+      return Fail(noUserError());
     }
   }
 
@@ -49,8 +49,7 @@ class UserRepository {
     if (insert == 1) {
       return Success(Done);
     } else {
-      return Fail(UIError(
-          "Failed to save user info", "Failed to save private key to db"));
+      return Fail(noUserError());
     }
   }
 }

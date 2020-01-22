@@ -27,8 +27,6 @@ class UserInfo {
 
   RSAPublicKey getPublicKey() => RSAPublicKey(modulus, publicExponent);
 
-  // Because these are dynamic, you have no compile time gauruntee that this
-  // Operation will succeed...
   Map<String, String> toMap() => {
         'username': username.toString(),
         'modulus': modulus.toString(),
@@ -39,9 +37,6 @@ class UserInfo {
       };
 
   static Either<UIError, UserInfo> fromMap(Map map) {
-    final Either<UIError, UserInfo> error = Fail(
-        UIError('Unable to decode User', 'Local data seems to be corrupt'));
-
     try {
       final user = UserInfo(
         map['username'] as String,
@@ -55,10 +50,10 @@ class UserInfo {
       if (user._isValid()) {
         return Success(user);
       } else {
-        return error;
+        return Fail(userDecodingError('map missing values: $map'));
       }
     } catch (e) {
-      return error;
+      return Fail(userDecodingError(e));
     }
   }
 

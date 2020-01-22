@@ -1,4 +1,3 @@
-import 'package:client/editor.dart';
 import 'package:client/either.dart';
 
 import 'errors.dart';
@@ -16,18 +15,24 @@ class FileDescription {
   }
 
   static Either<UIError, FileDescription> fromMap(Map<String, dynamic> input) {
+    BigInt version;
+    try {
+      version = BigInt.parse(input['version'] as String);
+    } catch (error) {
+      return Fail(versionParseError(input['version'] as String, error));
+    }
+
     final user = FileDescription(
       input['id'] as String,
       input['name'] as String,
       input['path'] as String,
-      BigInt.parse(input['version'] as String),
+      version,
     );
 
     if (user._isValid()) {
       return Success(user);
     } else {
-      return Fail(
-          UIError('Could not deserialize user', 'Could not serialize user'));
+      return Fail(fileDescriptionParseError(input));
     }
   }
 }

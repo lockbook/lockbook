@@ -11,6 +11,7 @@ class FileIndexRepository {
 
   const FileIndexRepository(this._dbProvider);
 
+  // TODO some of these could be Option's instead of eithers
   Future<Either<UIError, FileDescription>> getOrCreateFileDescriptor(
       String path, String name) async {
     final maybeExists = await _getFileDescriptor(path, name);
@@ -76,7 +77,7 @@ class FileIndexRepository {
     if (list.length == 1) {
       return Success(list[0]);
     } else {
-      return Fail(UIError("File not found", "No file matches $path, $name"));
+      return Fail(fileNotFound(path, name));
     }
   }
 
@@ -96,8 +97,7 @@ class FileIndexRepository {
     if (insert > 0) {
       return Success(file);
     } else {
-      return Fail(UIError('Failed to insert',
-          'Failed to insert $uuid, $name, $path, 0 into FileIndex'));
+      return Fail(failedToInsertFile(uuid, name, path));
     }
   }
 }
