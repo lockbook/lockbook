@@ -8,7 +8,7 @@ abstract class Option<Value> {
 
   Value getOrElse(Value value);
 
-  Either<New, Value> toEither<New extends UIError>(New left);
+  Either<Error, Value> toEither<Error extends UIError>(Error callIfNone());
 }
 
 class Some<Value> extends Option<Value> {
@@ -26,7 +26,7 @@ class Some<Value> extends Option<Value> {
   Option<New> map<New>(New Function(Value) next) => Some(next(_value));
 
   @override
-  Either<New, Value> toEither<New extends UIError>(New left) => Success(_value);
+  Either<New, Value> toEither<New extends UIError>(New callIfNone()) => Success(_value);
 }
 
 class None<Value> extends Option<Value> {
@@ -42,5 +42,5 @@ class None<Value> extends Option<Value> {
   Option<New> map<New>(New Function(Value) Function) => None();
 
   @override
-  Either<New, Value> toEither<New extends UIError>(New left) => Fail(left);
+  Either<New, Value> toEither<New extends UIError>(New callIfNone()) => Fail(callIfNone());
 }

@@ -1,8 +1,10 @@
 import 'dart:io';
 
-import 'package:client/errors.dart';
 import 'package:client/either.dart';
+import 'package:client/errors.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'main.dart';
 
 class FileHelper {
   const FileHelper();
@@ -10,22 +12,20 @@ class FileHelper {
   Future<Either<UIError, Directory>> _getFileStoreDir() async {
     final Directory directory =
         await getApplicationDocumentsDirectory().catchError((dynamic e) {
-      print("Error getting application directory, prob plugin not supported");
-      print(e);
-      // the implementation indicates it may return null, so I'll do that too :(
+      logger.e("Error getApplicationDocumentsDirectory(): $e");
       return null;
     });
 
     if (directory == null) {
-      return Fail(UIError(
-          "Unable to access file system",
-          "It seems path_provider is not supported on this platform, "
-              "please tell us what platform you're using, and we'll investigate: "
-              "github.com/lockbook -> issues"));
+      return Fail(pathProviderError());
     }
 
-    Directory filesFolder =
-        await Directory(directory.path + "/files/").create();
+    Directory filesFolder = Directory(directory.path + "/files/");
+    try {
+      if (!await filesFolder.exists()) await filesFolder.create();
+    } catch (error) {
+      return Fail(couldNotCreateFileFolder(error));
+    }
     return Success(filesFolder);
   }
 
@@ -38,8 +38,7 @@ class FileHelper {
         file.writeAsStringSync(content);
       } catch (error) {
         print(error);
-        return Fail(UIError("Could not write to file",
-            "Error: $error while writing to $location"));
+        return Fail(fileWriteError(location, error));
       }
       return Success(Done);
     });
@@ -54,8 +53,7 @@ class FileHelper {
       try {
         return Success(file.readAsStringSync());
       } catch (error) {
-        return Fail(UIError(
-            "Could not read file", "Error: $error while writing to $location"));
+        return Fail(fileReadError(location, error));
       }
     });
   }
