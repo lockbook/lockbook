@@ -1,11 +1,11 @@
 [package]
-name = "lockbook-core"
+name = "lockbook_core"
 version = "0.1.0"
 authors = ["Parth <parth@mehrotra.me>"]
 edition = "2018"
 
 [lib]
-name = "lockbook-core"
+name = "lockbook_core"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
