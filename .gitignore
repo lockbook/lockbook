@@ -90,3 +90,6 @@ fastlane/test_output
 
 iOSInjectionProject/
 .DS_Store
+
+ios_client/include/
+ios_client/libs/

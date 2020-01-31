@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/lockbook-core.iml" filepath="$PROJECT_DIR$/lockbook-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/lockbook_core.iml" filepath="$PROJECT_DIR$/lockbook_core.iml" />
     </modules>
   </component>
 </project>
