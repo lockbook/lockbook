@@ -9,3 +9,4 @@ name = "lockbook_core"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
+reqwest = "0.9.24"
