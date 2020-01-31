@@ -299,6 +299,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = AFMJ24DW4B;
+				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
@@ -310,7 +311,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/libs",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.ios-client";
+				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
@@ -325,6 +326,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = AFMJ24DW4B;
+				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
@@ -336,7 +338,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/libs",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.ios-client";
+				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
