@@ -13,6 +13,7 @@
 		87BD616723E3B9CB00945B25 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616623E3B9CB00945B25 /* Assets.xcassets */; };
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
+		87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		87BD616E23E3B9CB00945B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,6 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -42,6 +45,7 @@
 			children = (
 				87BD615F23E3B9CB00945B25 /* ios_client */,
 				87BD615E23E3B9CB00945B25 /* Products */,
+				87BD617423E3C34600945B25 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -73,6 +77,14 @@
 				87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		87BD617423E3C34600945B25 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				87BD617523E3C34600945B25 /* liblockbook_core.a */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -288,13 +300,19 @@
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = AFMJ24DW4B;
 				ENABLE_PREVIEWS = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/libs",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.ios-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -308,13 +326,19 @@
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = AFMJ24DW4B;
 				ENABLE_PREVIEWS = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/libs",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.ios-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
