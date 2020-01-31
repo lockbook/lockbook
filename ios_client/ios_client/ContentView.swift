@@ -4,7 +4,6 @@
 //
 //  Created by Parth Mehrotra on 1/30/20.
 //  Copyright © 2020 Lockbook. All rights reserved.
-//
 
 import SwiftUI
 
@@ -20,7 +19,7 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
-
+ 
 func getName() -> String {
     let result = hello("Parth")
     let sr =  String(cString: result!)
