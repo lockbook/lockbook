@@ -10,3 +10,4 @@ crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 reqwest = "0.9.24"
+rusqlite = "0.21.0"
