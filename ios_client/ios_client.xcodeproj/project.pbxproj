@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23C23F0D418000681E0 /* MonokaiButton.swift */; };
+		8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23E23F0DC7B000681E0 /* Monokai.swift */; };
 		87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616023E3B9CB00945B25 /* AppDelegate.swift */; };
 		87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616223E3B9CB00945B25 /* SceneDelegate.swift */; };
 		87BD616523E3B9CB00945B25 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616423E3B9CB00945B25 /* ContentView.swift */; };
@@ -17,6 +19,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8733C23C23F0D418000681E0 /* MonokaiButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiButton.swift; sourceTree = "<group>"; };
+		8733C23E23F0DC7B000681E0 /* Monokai.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monokai.swift; sourceTree = "<group>"; };
 		87BD615D23E3B9CB00945B25 /* ios_client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios_client.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		87BD616023E3B9CB00945B25 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		87BD616223E3B9CB00945B25 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -40,6 +44,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8733C23B23F0D300000681E0 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8733C23C23F0D418000681E0 /* MonokaiButton.swift */,
+				8733C23E23F0DC7B000681E0 /* Monokai.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		87BD615423E3B9CB00945B25 = {
 			isa = PBXGroup;
 			children = (
@@ -60,6 +73,7 @@
 		87BD615F23E3B9CB00945B25 /* ios_client */ = {
 			isa = PBXGroup;
 			children = (
+				8733C23B23F0D300000681E0 /* Views */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
 				87BD616423E3B9CB00945B25 /* ContentView.swift */,
@@ -158,6 +172,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
+				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* ContentView.swift in Sources */,
