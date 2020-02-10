@@ -8,19 +8,31 @@
 import SwiftUI
 
 struct ContentView: View {
-    var s: String
-    
     var body: some View {
-        Text(s)
+        NavigationView {
+            VStack {
+                HStack {
+                    Spacer()
+                }
+                Text("Lockbook")
+                    .fontWeight(.light)
+                    .font(.system(size: 45, design: .monospaced))
+                    .padding(.bottom, 15)
+                
+                Text("Secure. Private. Reliable.")
+                    .padding(.bottom, 100)
+                
+                NavigationLink(destination: Text("test1")) {
+                    MonokaiButton(text: "Create new Lockbook")
+                }
+                NavigationLink(destination: Text("test1")) {
+                    MonokaiButton(text: "Import Lockbook")
+                }
+            }
+            .navigationBarTitle("")
+            .navigationBarHidden(true)
+        }
     }
-}
- 
-func getName() -> String {
-//    let result = hello(documentsDirectory)
-//    let sr =  String(cString: result!)
-//    // IMPORTANT: once we get the result we have to release the pointer.
-//    hello_release(UnsafeMutablePointer(mutating: result))
-    return "sr"
 }
 
 var documentsDirectory: String {
@@ -30,7 +42,7 @@ var documentsDirectory: String {
 #if DEBUG
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView(s: "live preview")
+        ContentView()
     }
 }
 #endif
