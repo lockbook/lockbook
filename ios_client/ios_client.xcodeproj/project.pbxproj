@@ -9,9 +9,10 @@
 /* Begin PBXBuildFile section */
 		8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23C23F0D418000681E0 /* MonokaiButton.swift */; };
 		8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23E23F0DC7B000681E0 /* Monokai.swift */; };
+		8733C24223F0EAE9000681E0 /* NewLockbookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C24123F0EAE9000681E0 /* NewLockbookView.swift */; };
 		87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616023E3B9CB00945B25 /* AppDelegate.swift */; };
 		87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616223E3B9CB00945B25 /* SceneDelegate.swift */; };
-		87BD616523E3B9CB00945B25 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616423E3B9CB00945B25 /* ContentView.swift */; };
+		87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616423E3B9CB00945B25 /* WelcomeView.swift */; };
 		87BD616723E3B9CB00945B25 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616623E3B9CB00945B25 /* Assets.xcassets */; };
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
@@ -21,10 +22,11 @@
 /* Begin PBXFileReference section */
 		8733C23C23F0D418000681E0 /* MonokaiButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiButton.swift; sourceTree = "<group>"; };
 		8733C23E23F0DC7B000681E0 /* Monokai.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monokai.swift; sourceTree = "<group>"; };
+		8733C24123F0EAE9000681E0 /* NewLockbookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewLockbookView.swift; sourceTree = "<group>"; };
 		87BD615D23E3B9CB00945B25 /* ios_client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios_client.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		87BD616023E3B9CB00945B25 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		87BD616223E3B9CB00945B25 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		87BD616423E3B9CB00945B25 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		87BD616423E3B9CB00945B25 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		87BD616623E3B9CB00945B25 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -53,6 +55,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		8733C24023F0EA78000681E0 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				87BD616423E3B9CB00945B25 /* WelcomeView.swift */,
+				8733C24123F0EAE9000681E0 /* NewLockbookView.swift */,
+			);
+			path = Screens;
+			sourceTree = "<group>";
+		};
 		87BD615423E3B9CB00945B25 = {
 			isa = PBXGroup;
 			children = (
@@ -73,10 +84,10 @@
 		87BD615F23E3B9CB00945B25 /* ios_client */ = {
 			isa = PBXGroup;
 			children = (
+				8733C24023F0EA78000681E0 /* Screens */,
 				8733C23B23F0D300000681E0 /* Views */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
-				87BD616423E3B9CB00945B25 /* ContentView.swift */,
 				87BD616623E3B9CB00945B25 /* Assets.xcassets */,
 				87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */,
 				87BD616E23E3B9CB00945B25 /* Info.plist */,
@@ -173,10 +184,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
+				8733C24223F0EAE9000681E0 /* NewLockbookView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
-				87BD616523E3B9CB00945B25 /* ContentView.swift in Sources */,
+				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

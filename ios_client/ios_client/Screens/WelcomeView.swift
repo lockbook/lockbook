@@ -7,7 +7,9 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct WelcomeView: View {
+    @State public var navigationBarHidden = true
+    
     var body: some View {
         NavigationView {
             VStack {
@@ -22,15 +24,21 @@ struct ContentView: View {
                 Text("Secure. Private. Reliable.")
                     .padding(.bottom, 100)
                 
-                NavigationLink(destination: Text("test1")) {
-                    MonokaiButton(text: "Create new Lockbook")
+                NavigationLink(destination: NewLockbookView()) {
+                    MonokaiButton(text: "New Lockbook")
                 }
-                NavigationLink(destination: Text("test1")) {
-                    MonokaiButton(text: "Import Lockbook")
+                
+                NavigationLink(destination:
+                    Text("Unimplemented")
+                        .navigationBarTitle("Import Lockbook")) {
+                            MonokaiButton(text: "Import Lockbook")
                 }
-            }
-            .navigationBarTitle("")
-            .navigationBarHidden(true)
+            }.onAppear(perform: {
+                self.navigationBarHidden = true
+            })
+                .onDisappear(perform: {
+                    self.navigationBarHidden = false
+                })
         }
     }
 }
@@ -42,7 +50,7 @@ var documentsDirectory: String {
 #if DEBUG
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        WelcomeView()
     }
 }
 #endif
