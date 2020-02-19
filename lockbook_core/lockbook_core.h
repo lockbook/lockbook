@@ -3,6 +3,4 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-char *hello(const char *to);
-
-void hello_release(char *s);
+int create_account(const char *c_username);
