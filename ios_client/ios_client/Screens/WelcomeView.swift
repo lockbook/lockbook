@@ -36,9 +36,9 @@ struct WelcomeView: View {
             }.onAppear(perform: {
                 self.navigationBarHidden = true
             })
-                .onDisappear(perform: {
-                    self.navigationBarHidden = false
-                })
+            .onDisappear(perform: {
+                self.navigationBarHidden = false
+            })
         }
     }
 }

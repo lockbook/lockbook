@@ -16,6 +16,7 @@ struct MonokaiButton: View {
             .padding(10)
             .background(Monokai.yellow)
             .accentColor(Monokai.black)
+            .foregroundColor(Monokai.black)
             .padding(.bottom, 25)
             .frame(minWidth: 250)
     }
