@@ -1,7 +1,31 @@
 extern crate reqwest;
 
-use std::ffi::{CStr};
+mod encryption;
+mod account_service;
+
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
+use std::path::Path;
+
+static DB_NAME: &str = "lockbook.db3";
+
+
+
+#[no_mangle]
+pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
+    let path =
+        CStr::from_ptr(path_c).to_str()
+            .expect("Could not C String -> Rust String")
+            .to_string();
+
+    let db_path = path + "/" + DB_NAME;
+
+    if Path::new(db_path.as_str()).exists() {
+        1
+    } else {
+        0
+    }
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
