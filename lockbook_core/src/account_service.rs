@@ -1,18 +1,19 @@
-use crate::encryption;
 use std::marker::PhantomData;
-use crate::encryption::Error;
-use openssl::pkey::Private;
+
+use crate::account_repo::AccountRepo;
+use crate::crypto::CryptoService;
 
 pub trait AccountService {
     fn create_account(username: String);
 }
 
-pub struct AccountServiceImpl<Encryption: encryption::Encryption> {
-    encyption: PhantomData<Encryption>,
+pub struct AccountServiceImpl<Crypto: CryptoService, Accounts: AccountRepo> {
+    encyption: PhantomData<Crypto>,
+    acounts: PhantomData<Accounts>,
 }
 
-impl <Encryption: encryption::Encryption> AccountService for AccountServiceImpl<Encryption> {
+impl<Crypto: CryptoService, Accounts: AccountRepo> AccountService for AccountServiceImpl<Crypto, Accounts> {
     fn create_account(username: String) {
-        Encryption::generate_key();
+        Crypto::generate_key();
     }
 }
