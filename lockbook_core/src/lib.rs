@@ -1,15 +1,23 @@
 extern crate reqwest;
 
-mod encryption;
+mod state;
+mod db_provider;
+mod crypto;
+mod account_repo;
 mod account_service;
 
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
+use crate::account_service::AccountServiceImpl;
+use crate::crypto::RsaCryptoService;
+use crate::db_provider::DbProviderImpl;
+use crate::account_repo::AccountRepoImpl;
 
 static DB_NAME: &str = "lockbook.db3";
 
-
+type DefaultCrypto = RsaCryptoService;
+type DefaultDbProvider = DbProviderImpl;
 
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
