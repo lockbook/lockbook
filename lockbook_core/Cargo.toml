@@ -11,4 +11,6 @@ crate-type = ["staticlib", "cdylib"]
 [dependencies]
 reqwest = "0.9.24"
 rusqlite = "0.21.0"
+native-tls = "*"
 openssl = "0.10.28"
+base64 = "0.11.0"
