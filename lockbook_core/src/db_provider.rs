@@ -1,7 +1,7 @@
 use rusqlite::{Connection, params};
 
 use crate::DB_NAME;
-use crate::db_provider::Error::{ConnectionFailure, TableCreationFailure};
+use crate::error_enum;
 use crate::state::Config;
 
 pub trait DbProvider {
@@ -10,9 +10,11 @@ pub trait DbProvider {
 
 pub struct DbProviderImpl;
 
-pub enum Error {
-    ConnectionFailure(rusqlite::Error),
-    TableCreationFailure,
+error_enum! {
+    enum Error {
+        ConnectionFailure(rusqlite::Error),
+        TableCreationFailure(()),
+    }
 }
 
 impl DbProvider for DbProviderImpl {
@@ -20,26 +22,23 @@ impl DbProvider for DbProviderImpl {
         let db_path = config.writeable_path + "/" + DB_NAME;
         println!("Connecting to DB at: {}", db_path);
 
-        match Connection::open(db_path.as_str()) {
-            Ok(db) => Ok(db),
-            Err(err) => {
-                eprintln!("Failed to connect to DB: {}", err);
-                Err(ConnectionFailure(err))
-            }
-        }.and_then(|db|
+        let db = Connection::open(db_path.as_str())?;
+        
+        db.execute(
+            "CREATE TABLE user_info (
+                    username TEXT not null,
+                    public_n TEXT not null,
+                    public_e TEXT not null,
+                    private_d TEXT not null,
+                    private_p TEXT not null,
+                    private_q TEXT not null,
+                    private_dmp1 TEXT not null,
+                    private_dmq1 TEXT not null,
+                    private_iqmp TEXT not null,
+                 )",
+            params![],
+        )?;
 
-            // TODO figure out what properties go in here, how to get the subkeys out of the private key
-            match db.execute(
-                "CREATE TABLE user_info (
-                    username TEXT,
-                    d TEXT,
-                    p TEXT,
-                    p TEXT,
-                   )",
-                params![]) {
-                Ok(_) => Ok(db),
-                Err(_) => Err(TableCreationFailure),
-            }
-        )
+        Ok(db)
     }
 }
