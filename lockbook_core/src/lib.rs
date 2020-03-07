@@ -9,11 +9,13 @@ use std::path::Path;
 use crate::account_repo::AccountRepoImpl;
 use crate::account_service::AccountServiceImpl;
 use crate::crypto::RsaCryptoService;
-use crate::db_provider::DbProviderImpl;
+use crate::db_provider::DiskBackedDB;
+use crate::schema::SchemaCreatorImpl;
 
 mod account_repo;
 mod account_service;
 mod crypto;
+mod schema;
 mod db_provider;
 mod error_enum;
 mod state;
@@ -22,9 +24,10 @@ mod account;
 static DB_NAME: &str = "lockbook.db3";
 
 type DefaultCrypto = RsaCryptoService;
-type DefaultDbProvider = DbProviderImpl;
-type DefaultAcountRepo = AccountRepoImpl<DefaultDbProvider>;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo>;
+type DefaultSchema = SchemaCreatorImpl;
+type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
+type DefaultAcountRepo = AccountRepoImpl;
+type DefaultAcountService = AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAcountRepo>;
 
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
