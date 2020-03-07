@@ -6,11 +6,13 @@ use openssl::rsa::Rsa;
 
 use crate::error_enum;
 
+#[derive(PartialEq, Debug)]
 pub struct PublicKey {
     pub n: Vec<u8>,
     pub e: Vec<u8>,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct PrivateKey {
     pub d: Vec<u8>,
     pub p: Vec<u8>,
@@ -20,7 +22,7 @@ pub struct PrivateKey {
     pub iqmp: Vec<u8>,
 }
 
-
+#[derive(PartialEq, Debug)]
 pub struct Account {
     pub username: String,
     pub public_key: PublicKey,
