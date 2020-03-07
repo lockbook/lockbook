@@ -1,43 +1,50 @@
+use std::marker::PhantomData;
+
 use rusqlite::{Connection, params};
 
 use crate::DB_NAME;
 use crate::error_enum;
+use crate::db_provider;
+use crate::schema;
+use crate::schema::SchemaApplier;
 use crate::state::Config;
+
+error_enum! {
+    enum Error {
+        ConnectionFailure(rusqlite::Error),
+        TableCreationFailure(schema::Error),
+    }
+}
 
 pub trait DbProvider {
     fn connect_to_db(config: Config) -> Result<Connection, Error>;
 }
 
-pub struct DbProviderImpl;
-
-error_enum! {
-    enum Error {
-        ConnectionFailure(rusqlite::Error),
-        TableCreationFailure(()),
-    }
+pub struct DiskBackedDB<Schema: SchemaApplier> {
+    schema: PhantomData<Schema>,
 }
 
-impl DbProvider for DbProviderImpl {
+pub struct RamBackedDB<Schema: SchemaApplier> {
+    schema: PhantomData<Schema>,
+}
+
+impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
     fn connect_to_db(config: Config) -> Result<Connection, Error> {
         let db_path = config.writeable_path + "/" + DB_NAME;
         println!("Connecting to DB at: {}", db_path);
 
         let db = Connection::open(db_path.as_str())?;
-        
-        db.execute(
-            "CREATE TABLE user_info (
-                    username TEXT not null,
-                    public_n TEXT not null,
-                    public_e TEXT not null,
-                    private_d TEXT not null,
-                    private_p TEXT not null,
-                    private_q TEXT not null,
-                    private_dmp1 TEXT not null,
-                    private_dmq1 TEXT not null,
-                    private_iqmp TEXT not null,
-                 )",
-            params![],
-        )?;
+
+        Schema::apply_schema(&db)?;
+
+        Ok(db)
+    }
+}
+
+impl<Schema: SchemaApplier> DbProvider for RamBackedDB<Schema> {
+    fn connect_to_db(config: Config) -> Result<Connection, Error> {
+        let db = Connection::open_in_memory()?;
+        Schema::apply_schema(&db)?;
 
         Ok(db)
     }
