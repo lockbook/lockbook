@@ -8,14 +8,11 @@ use base64::{decode, DecodeError, encode};
 use rusqlite::{Connection, params, Row};
 
 use crate::account::{Account, PrivateKey, PublicKey};
-use crate::db_provider;
-use crate::db_provider::DbProvider;
 use crate::error_enum;
 use crate::state::Config;
 
 error_enum! {
     enum Error {
-        ConnectionError(db_provider::Error),
         DbError(rusqlite::Error),
         DecodingError(base64::DecodeError),
         RowMissing(NoneError),
@@ -69,7 +66,7 @@ impl AccountRepo for AccountRepoImpl {
 
         let mut user_iter = stmt.query_map(params![], |row| {
             Ok(
-                AccountRow {
+                AccountRow { // TODO this step should not be needed, why can't we clone the row and return it here?
                     username: row.get(0)?,
                     n: row.get(1)?,
                     e: row.get(2)?,
