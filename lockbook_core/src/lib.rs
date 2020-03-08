@@ -20,6 +20,7 @@ mod db_provider;
 mod error_enum;
 mod state;
 mod account;
+mod account_api;
 
 static DB_NAME: &str = "lockbook.db3";
 

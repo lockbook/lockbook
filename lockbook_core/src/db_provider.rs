@@ -12,7 +12,7 @@ use crate::state::Config;
 error_enum! {
     enum Error {
         ConnectionFailure(rusqlite::Error),
-        TableCreationFailure(schema::Error),
+        SchemaError(schema::Error),
     }
 }
 

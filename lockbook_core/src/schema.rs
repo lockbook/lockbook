@@ -5,7 +5,7 @@ use crate::error_enum;
 
 error_enum! {
     enum Error {
-        ConnectionFailure(rusqlite::Error),
+        TableCreationFailure(rusqlite::Error),
     }
 }
 
