@@ -1,13 +1,12 @@
 use std::marker::PhantomData;
 
-use rusqlite::{Connection, params};
+use rusqlite::Connection;
 
-use crate::DB_NAME;
 use crate::error_enum;
-use crate::db_provider;
 use crate::schema;
 use crate::schema::SchemaApplier;
 use crate::state::Config;
+use crate::DB_NAME;
 
 error_enum! {
     enum Error {
@@ -42,7 +41,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
 }
 
 impl<Schema: SchemaApplier> DbProvider for RamBackedDB<Schema> {
-    fn connect_to_db(config: Config) -> Result<Connection, Error> {
+    fn connect_to_db(_config: Config) -> Result<Connection, Error> {
         let db = Connection::open_in_memory()?;
         Schema::apply_schema(&db)?;
 

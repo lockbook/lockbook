@@ -558,7 +558,6 @@ name = "lockbook_core"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
- "native-tls",
  "openssl",
  "reqwest",
  "rusqlite",
@@ -725,6 +724,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
+name = "openssl-src"
+version = "111.6.1+1.1.1d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c91b04cb43c1a8a90e934e0cd612e2a5715d976d2d6cff4490278a0cddf35005"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -733,6 +741,7 @@ dependencies = [
  "autocfg 1.0.0",
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
