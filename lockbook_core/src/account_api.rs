@@ -30,8 +30,8 @@ impl AccountApi for AccountApiImpl {
         let params = [
             ("hashed_username", account.username.clone()),
             ("auth", "TODO".to_string()),
-            ("pub_key_n", encode(&account.keys.public_key.n)),
-            ("pub_key_e", encode(&account.keys.public_key.e)),
+            ("pub_key_n", &account.keys.public_key.n),
+            ("pub_key_e", &account.keys.public_key.e),
         ];
 
         let client = reqwest::Client::new();
