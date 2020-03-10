@@ -33,14 +33,14 @@ impl AccountRepo for AccountRepoImpl {
             values (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
             &account.username,
-            encode(&account.keys.public_key.n),
-            encode(&account.keys.public_key.e),
-            encode(&account.keys.private_key.d),
-            encode(&account.keys.private_key.p),
-            encode(&account.keys.private_key.q),
-            encode(&account.keys.private_key.dmp1),
-            encode(&account.keys.private_key.dmq1),
-            encode(&account.keys.private_key.iqmp),
+            &account.keys.public_key.n,
+            &account.keys.public_key.e,
+            &account.keys.private_key.d,
+            &account.keys.private_key.p,
+            &account.keys.private_key.q,
+            &account.keys.private_key.dmp1,
+            &account.keys.private_key.dmq1,
+            &account.keys.private_key.iqmp,
             ]).unwrap();
 
         Ok(())
@@ -62,41 +62,29 @@ impl AccountRepo for AccountRepoImpl {
         )?;
 
         let mut user_iter = stmt.query_map(params![], |row| {
-            Ok(AccountRow {
-                // TODO this step should not be needed, why can't we clone the row and return it here?
+            Ok(Account {
                 username: row.get(0)?,
-                n: row.get(1)?,
-                e: row.get(2)?,
-                d: row.get(3)?,
-                p: row.get(4)?,
-                q: row.get(5)?,
-                dmp1: row.get(6)?,
-                dmq1: row.get(7)?,
-                iqmp: row.get(8)?,
+                keys: KeyPair {
+                    public_key: PublicKey {
+                        n: row.get(1)?,
+                        e: row.get(2)?,
+                    },
+                    private_key: PrivateKey {
+                        d: row.get(3)?,
+                        p: row.get(4)?,
+                        q: row.get(5)?,
+                        dmp1: row.get(6)?,
+                        dmq1: row.get(7)?,
+                        iqmp: row.get(8)?,
+                    },
+                },
             })
         })?;
 
         let maybe_row = user_iter.next().into_result()?;
-        let row = maybe_row?;
 
-        // TODO should we check for key validity here or let some subsequent operation fail?
-        Ok(Account {
-            username: row.username,
-            keys: KeyPair {
-                public_key: PublicKey {
-                    n: decode(row.n.as_str())?,
-                    e: decode(row.e.as_str())?,
-                },
-                private_key: PrivateKey {
-                    d: decode(row.d.as_str())?,
-                    p: decode(row.p.as_str())?,
-                    q: decode(row.q.as_str())?,
-                    dmp1: decode(row.dmp1.as_str())?,
-                    dmq1: decode(row.dmq1.as_str())?,
-                    iqmp: decode(row.iqmp.as_str())?,
-                },
-            },
-        })
+        // TODO attempt to check key for validity?
+        Ok(maybe_row?)
     }
 }
 
@@ -119,16 +107,16 @@ mod unit_tests {
             username: "parth".to_string(),
             keys: KeyPair {
                 public_key: PublicKey {
-                    n: vec![1],
-                    e: vec![2],
+                    n: "vec![1]".to_string(),
+                    e: "vec![2]".to_string(),
                 },
                 private_key: PrivateKey {
-                    d: vec![3],
-                    p: vec![4],
-                    q: vec![5],
-                    dmp1: vec![6],
-                    dmq1: vec![7],
-                    iqmp: vec![8],
+                    d: "vec![3]".to_string(),
+                    p: "vec![4]".to_string(),
+                    q: "vec![5]".to_string(),
+                    dmp1: "vec![6]".to_string(),
+                    dmq1: "vec![7]".to_string(),
+                    iqmp: "vec![8]".to_string(),
                 },
             },
         };
