@@ -3,7 +3,6 @@ extern crate base64;
 use std::ops::Try;
 use std::option::NoneError;
 
-use base64::{decode, encode};
 use rusqlite::{Connection, params};
 
 use crate::error_enum;
@@ -130,16 +129,4 @@ mod unit_tests {
         let db_account = DefaultAcountRepo::get_account(&db).unwrap();
         assert_eq!(test_account, db_account);
     }
-}
-
-struct AccountRow {
-    username: String,
-    n: String,
-    e: String,
-    d: String,
-    p: String,
-    q: String,
-    dmp1: String,
-    dmq1: String,
-    iqmp: String,
 }
