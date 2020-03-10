@@ -1,5 +1,5 @@
-use rusqlite::Connection;
 use rusqlite::params;
+use rusqlite::Connection;
 
 use crate::error_enum;
 

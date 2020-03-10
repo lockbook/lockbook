@@ -1,34 +1,38 @@
 #![feature(try_trait)]
-extern crate base64;
 extern crate reqwest;
 
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use crate::account_api::AccountApiImpl;
 use crate::account_repo::AccountRepoImpl;
-use crate::account_service::AccountServiceImpl;
+use crate::account_service::{AccountService, AccountServiceImpl};
 use crate::crypto::RsaCryptoService;
 use crate::db_provider::DiskBackedDB;
 use crate::schema::SchemaCreatorImpl;
+use crate::state::Config;
 
-mod account_repo;
-mod account_service;
-mod crypto;
-mod schema;
-mod db_provider;
-mod error_enum;
-mod state;
-mod account;
-mod account_api;
+pub mod account;
+pub mod account_api;
+pub mod account_repo;
+pub mod account_service;
+pub mod crypto;
+pub mod db_provider;
+pub mod error_enum;
+pub mod schema;
+pub mod state;
 
+static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.db3";
 
 type DefaultCrypto = RsaCryptoService;
 type DefaultSchema = SchemaCreatorImpl;
 type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
 type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAcountService = AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAcountRepo>;
+type DefaultAccountApi = AccountApiImpl;
+type DefaultAcountService =
+    AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAcountRepo, DefaultAccountApi>;
 
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
@@ -52,7 +56,15 @@ pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
         .to_str()
         .expect("Could not C String -> Rust String");
 
-    println!("username: {}", username);
+    let config = Config {
+        writeable_path: "".to_string(),
+    };
 
-    1
+    match DefaultAcountService::create_account(config, username.to_string()) {
+        Ok(_) => 0,
+        Err(err) => {
+            println!("Account creation failed with error: {:?}", err);
+            1
+        }
+    }
 }
