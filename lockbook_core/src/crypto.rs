@@ -2,6 +2,7 @@ extern crate openssl;
 
 use std::ops::Try;
 use std::option::NoneError;
+use base64::encode;
 
 use openssl::rsa::Rsa;
 
@@ -11,18 +12,18 @@ use self::openssl::error::ErrorStack;
 
 #[derive(PartialEq, Debug)]
 pub struct PublicKey {
-    pub n: Vec<u8>,
-    pub e: Vec<u8>,
+    pub n: String,
+    pub e: String,
 }
 
 #[derive(PartialEq, Debug)]
 pub struct PrivateKey {
-    pub d: Vec<u8>,
-    pub p: Vec<u8>,
-    pub q: Vec<u8>,
-    pub dmp1: Vec<u8>,
-    pub dmq1: Vec<u8>,
-    pub iqmp: Vec<u8>,
+    pub d: String,
+    pub p: String,
+    pub q: String,
+    pub dmp1: String,
+    pub dmq1: String,
+    pub iqmp: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -35,7 +36,6 @@ error_enum! {
     enum Error {
         KeyGenerationError(ErrorStack),
         KeyComponentMissing(NoneError),
-
     }
 }
 
@@ -49,14 +49,14 @@ impl CryptoService for RsaCryptoService {
     fn generate_key() -> Result<KeyPair, Error> {
         let their_key = Rsa::generate(2048)?;
 
-        let n = their_key.n().to_vec();
-        let e = their_key.e().to_vec();
-        let d = their_key.d().to_vec();
-        let p = their_key.p().into_result()?.to_vec();
-        let q = their_key.q().into_result()?.to_vec();
-        let dmp1 = their_key.dmp1().into_result()?.to_vec();
-        let dmq1 = their_key.dmq1().into_result()?.to_vec();
-        let iqmp = their_key.iqmp().into_result()?.to_vec();
+        let n = encode(&their_key.n().to_vec());
+        let e = encode(&their_key.e().to_vec());
+        let d = encode(&their_key.d().to_vec());
+        let p = encode(&their_key.p().into_result()?.to_vec());
+        let q = encode(&their_key.q().into_result()?.to_vec());
+        let dmp1 = encode(&their_key.dmp1().into_result()?.to_vec());
+        let dmq1 = encode(&their_key.dmq1().into_result()?.to_vec());
+        let iqmp = encode(&their_key.iqmp().into_result()?.to_vec());
 
         Ok(
             KeyPair {
