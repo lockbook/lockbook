@@ -29,17 +29,17 @@ impl From<ReqwestError> for NewAccountError {
     }
 }
 
-pub fn new_account(account: &NewAccountParams) -> Result<(), NewAccountError> {
+pub fn new_account(params: &NewAccountParams) -> Result<(), NewAccountError> {
     let client = Client::new();
-    let params = [
-        ("username", account.username.as_str()),
-        ("auth", account.auth.as_str()),
-        ("pub_key_n", account.pub_key_n.as_str()),
-        ("pub_key_e", account.pub_key_e.as_str()),
+    let form_params = [
+        ("username", params.username.as_str()),
+        ("auth", params.auth.as_str()),
+        ("pub_key_n", params.pub_key_n.as_str()),
+        ("pub_key_e", params.pub_key_e.as_str()),
     ];
     let mut response = client
         .post(format!("{}/new-account", API_LOC).as_str())
-        .form(&params)
+        .form(&form_params)
         .send()?;
 
     match (response.status().as_u16(), response.json::<NewAccountResponse>()?.error_code.as_str()) {
