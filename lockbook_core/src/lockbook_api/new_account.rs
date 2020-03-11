@@ -29,7 +29,7 @@ impl From<ReqwestError> for NewAccountError {
     }
 }
 
-fn new_account(account: &NewAccountParams) -> Result<(), NewAccountError> {
+pub fn new_account(account: &NewAccountParams) -> Result<(), NewAccountError> {
     let client = Client::new();
     let params = [
         ("username", account.username.as_str()),
