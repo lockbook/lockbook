@@ -43,7 +43,7 @@ pub fn change_file_content(params: &ChangeFileContentParams) -> Result<(), Chang
         ("new_file_content", params.new_file_content.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/change-file-content", API_LOC).as_str())
+        .put(format!("{}/change-file-content", API_LOC).as_str())
         .form(&form_params)
         .send()?;
 

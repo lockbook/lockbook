@@ -40,7 +40,7 @@ pub fn move_file(params: &MoveFileParams) -> Result<(), MoveFileError> {
         ("new_file_path", params.new_file_path.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/move-file", API_LOC).as_str())
+        .put(format!("{}/move-file", API_LOC).as_str())
         .form(&form_params)
         .send()?;
 

@@ -37,7 +37,7 @@ pub fn delete_file(params: &DeleteFileParams) -> Result<(), DeleteFileError> {
         ("file_id", params.file_id.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/delete-file", API_LOC).as_str())
+        .delete(format!("{}/delete-file", API_LOC).as_str())
         .form(&form_params)
         .send()?;
 
