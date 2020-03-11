@@ -23,7 +23,7 @@ pub struct CreateFileParams {
 
 #[derive(Deserialize)]
 struct CreateFileResponse {
-    error_code: String
+    error_code: String,
 }
 
 impl From<ReqwestError> for CreateFileError {
