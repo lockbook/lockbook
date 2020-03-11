@@ -1,7 +1,5 @@
 extern crate reqwest;
 
-use base64::encode;
-
 use crate::account::Account;
 use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken};
 use crate::API_LOC;
@@ -28,8 +26,8 @@ impl From<reqwest::Error> for Error {
 impl AccountApi for AccountApiImpl {
     fn new_account(account: &Account) -> Result<(), Error> {
         let params = [
-            ("hashed_username", account.username.clone()),
-            ("auth", "TODO".to_string()),
+            ("hashed_username", &account.username),
+            ("auth", &"TODO".to_string()),
             ("pub_key_n", &account.keys.public_key.n),
             ("pub_key_e", &account.keys.public_key.e),
         ];
