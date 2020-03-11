@@ -43,7 +43,7 @@ pub fn rename_file(params: &RenameFileParams) -> Result<(), RenameFileError> {
         ("file_content", params.file_content.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/rename-file", API_LOC).as_str())
+        .put(format!("{}/rename-file", API_LOC).as_str())
         .form(&form_params)
         .send()?;
 
