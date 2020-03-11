@@ -12,6 +12,8 @@ use crate::error_enum;
 
 use self::openssl::error::ErrorStack;
 use self::openssl::pkey::Private;
+use self::openssl::rsa::Padding;
+use self::openssl::symm::Mode::Encrypt;
 
 #[derive(PartialEq, Debug)]
 pub struct PublicKey {
@@ -56,6 +58,14 @@ error_enum! {
     }
 }
 
+error_enum! {
+    enum EncryptionError {
+        KeyMalformed(DecodingError),
+    }
+}
+
+pub enum DecryptionError {}
+
 impl KeyPair {
     fn get_big_num(s: &String) -> Result<BigNum, DecodingError> {
         Ok(
@@ -81,9 +91,23 @@ impl KeyPair {
     }
 }
 
+pub struct EncryptedValue {
+    pub garbage: String
+}
+
+pub struct DecryptedValue {
+    pub secret: String
+}
+
 pub trait CryptoService {
     fn generate_key() -> Result<KeyPair, KeyGenError>;
     fn verify_key(key: &KeyPair) -> Result<bool, DecodingError>;
+
+    fn encrypt_public(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError>;
+    fn decrypt_public(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue>;
+
+    fn encrypt_private(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError>;
+    fn decrypt_private(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue>;
 }
 
 pub struct RsaCryptoService;
@@ -117,6 +141,32 @@ impl CryptoService for RsaCryptoService {
                 .check_key()?
         )
     }
+
+    fn encrypt_public(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError> {
+        let openssl_key = key.get_openssl_key()?;
+        let data_in = decrypted.secret.as_bytes();
+        let mut data_out = vec![0; openssl_key.size() as usize];
+        let encrypted_len = openssl_key.public_encrypt(data_in, &mut data_out, Padding::PKCS1);
+        let encoded = encode(&data_out);
+        Ok(EncryptedValue { garbage: encoded })
+    }
+
+    fn decrypt_public(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue> {
+        unimplemented!()
+    }
+
+    fn encrypt_private(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError> {
+        let openssl_key = key.get_openssl_key()?;
+        let data_in = decrypted.secret.as_bytes();
+        let mut data_out = vec![0; openssl_key.size() as usize];
+        let encrypted_len = openssl_key.private_encrypt(data_in, &mut data_out, Padding::PKCS1);
+        let encoded = encode(&data_out);
+        Ok(EncryptedValue { garbage: encoded })
+    }
+
+    fn decrypt_private(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
@@ -129,3 +179,4 @@ mod unit_test {
         assert!(RsaCryptoService::verify_key(&key).unwrap());
     }
 }
+
