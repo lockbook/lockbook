@@ -20,7 +20,7 @@ pub struct NewAccountParams {
 
 #[derive(Deserialize)]
 struct NewAccountResponse {
-    error_code: String
+    error_code: String,
 }
 
 impl From<ReqwestError> for NewAccountError {
