@@ -1,5 +1,3 @@
-extern crate base64;
-
 use std::ops::Try;
 use std::option::NoneError;
 
@@ -12,7 +10,6 @@ use crate::account::Account;
 error_enum! {
     enum Error {
         DbError(rusqlite::Error),
-        DecodingError(base64::DecodeError),
         RowMissing(NoneError),
     }
 }
