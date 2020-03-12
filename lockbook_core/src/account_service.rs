@@ -15,7 +15,7 @@ use crate::state::Config;
 error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
-        KeyGenerationError(crypto::Error),
+        KeyGenerationError(crypto::KeyGenError),
         PersistenceError(account_repo::Error),
         ApiError(account_api::Error)
     }
