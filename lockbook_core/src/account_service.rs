@@ -43,7 +43,7 @@ impl<DB: DbProvider, Crypto: CryptoService, AccountDb: AccountRepo, Api: Account
     fn create_account(config: Config, username: String) -> Result<Account, Error> {
         let db = DB::connect_to_db(config)?;
         let keys = Crypto::generate_key()?;
-        let account = Account{ username, keys };
+        let account = Account { username, keys };
 
         AccountDb::insert_account(&db, &account)?;
         Api::new_account(&account)?;

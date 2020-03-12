@@ -1,11 +1,11 @@
 use std::ops::Try;
 use std::option::NoneError;
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 
-use crate::error_enum;
-use crate::crypto::{KeyPair, PublicKey, PrivateKey};
 use crate::account::Account;
+use crate::crypto::{KeyPair, PrivateKey, PublicKey};
+use crate::error_enum;
 
 error_enum! {
     enum Error {
@@ -88,10 +88,10 @@ impl AccountRepo for AccountRepoImpl {
 mod unit_tests {
     use crate::account::Account;
     use crate::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::schema::SchemaCreatorImpl;
     use crate::state::Config;
-    use crate::crypto::{KeyPair, PublicKey, PrivateKey};
 
     type DefaultSchema = SchemaCreatorImpl;
     type DefaultDbProvider = RamBackedDB<DefaultSchema>;
