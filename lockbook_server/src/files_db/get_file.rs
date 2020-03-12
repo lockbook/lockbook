@@ -1,5 +1,5 @@
-use s3::bucket::Bucket as S3Client;
 use crate::files_db::categorized_s3_error::CategorizedS3Error;
+use s3::bucket::Bucket as S3Client;
 
 #[derive(Debug)]
 pub enum Error {
@@ -15,6 +15,8 @@ pub fn get_file(client: &S3Client, file_id: &str) -> Result<String, Error> {
         })
         .and_then(|body| match String::from_utf8(body) {
             Ok(body) => Ok(body),
-            Err(err) => Err(Error::S3(CategorizedS3Error::ResponseNotUtf8(err.to_string()))),
+            Err(err) => Err(Error::S3(CategorizedS3Error::ResponseNotUtf8(
+                err.to_string(),
+            ))),
         })
 }

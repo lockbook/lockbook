@@ -1,8 +1,8 @@
+use crate::index_db::generate_version::generate_version;
+use crate::index_db::generate_version::Error as VersionGenerationError;
 use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
-use crate::index_db::generate_version::generate_version;
-use crate::index_db::generate_version::Error as VersionGenerationError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -31,7 +31,7 @@ pub fn update_file_version(
     old_version: &i64,
 ) -> Result<i64, Error> {
     let new_version = generate_version(client)?;
-    
+
     let mut transaction = client.transaction()?;
     let num_affected = transaction.execute(
         "UPDATE files SET file_content_version = $1 WHERE file_id = $2 AND file_content_version = $3;",
@@ -39,7 +39,7 @@ pub fn update_file_version(
     )?;
     let row_vec = transaction.query(
         "SELECT file_content_version, deleted FROM files WHERE file_id = $1;",
-        &[&file_id]
+        &[&file_id],
     )?;
     transaction.commit()?;
 
@@ -48,7 +48,7 @@ pub fn update_file_version(
         _ => {
             let current_version = row_vec[0].try_get(0)?;
             let deleted = row_vec[0].try_get(1)?;
-            
+
             match (num_affected, deleted) {
                 (0, false) => Err(Error::IncorrectOldVersion(current_version)),
                 (_, false) => Ok(new_version),
