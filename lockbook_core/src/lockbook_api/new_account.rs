@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum NewAccountError {
@@ -42,7 +42,10 @@ pub fn new_account(params: &NewAccountParams) -> Result<(), NewAccountError> {
         .form(&form_params)
         .send()?;
 
-    match (response.status().as_u16(), response.json::<NewAccountResponse>()?.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response.json::<NewAccountResponse>()?.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
         (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),

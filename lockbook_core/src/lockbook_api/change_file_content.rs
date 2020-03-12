@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum ChangeFileContentError {
@@ -49,12 +49,17 @@ pub fn change_file_content(params: &ChangeFileContentParams) -> Result<(), Chang
 
     let response_body = response.json::<ChangeFileContentResponse>()?;
 
-    match (response.status().as_u16(), response_body.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response_body.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
         (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
         (404, "file_not_found") => Err(ChangeFileContentError::FileNotFound),
-        (409, "edit_conflict") => Err(ChangeFileContentError::EditConflict(response_body.current_version)),
+        (409, "edit_conflict") => Err(ChangeFileContentError::EditConflict(
+            response_body.current_version,
+        )),
         (410, "file_deleted") => Err(ChangeFileContentError::FileDeleted),
         _ => Err(ChangeFileContentError::Unspecified),
     }

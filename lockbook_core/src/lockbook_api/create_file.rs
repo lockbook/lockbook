@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum CreateFileError {
@@ -47,7 +47,10 @@ pub fn create_file(params: &CreateFileParams) -> Result<(), CreateFileError> {
         .form(&form_params)
         .send()?;
 
-    match (response.status().as_u16(), response.json::<CreateFileResponse>()?.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response.json::<CreateFileResponse>()?.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(CreateFileError::InvalidAuth),
         (401, "expired_auth") => Err(CreateFileError::ExpiredAuth),

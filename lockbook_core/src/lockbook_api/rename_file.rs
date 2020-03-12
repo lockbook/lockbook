@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum RenameFileError {
@@ -47,7 +47,10 @@ pub fn rename_file(params: &RenameFileParams) -> Result<(), RenameFileError> {
         .form(&form_params)
         .send()?;
 
-    match (response.status().as_u16(), response.json::<RenameFileResponse>()?.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response.json::<RenameFileResponse>()?.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(RenameFileError::InvalidAuth),
         (401, "expired_auth") => Err(RenameFileError::ExpiredAuth),

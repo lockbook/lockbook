@@ -68,7 +68,7 @@ mod integration_tests {
                 println!("Running integration test: ");
                 let username = "parthmehrotra".to_string();
                 let keys = DefaultCrypto::generate_key().unwrap();
-                let account = Account{ username, keys };
+                let account = Account { username, keys };
 
                 TestAccountApi::new_account(&account).unwrap();
             }

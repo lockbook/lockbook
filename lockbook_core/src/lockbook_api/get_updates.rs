@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum GetUpdatesError {
@@ -35,7 +35,13 @@ impl From<ReqwestError> for GetUpdatesError {
 pub fn get_updates(params: &GetUpdatesParams) -> Result<Vec<FileMetadata>, GetUpdatesError> {
     let client = Client::new();
     let mut response = client
-        .get(format!("{}/get-updates/{}/{}/{}", API_LOC, params.username, params.auth, params.since_version).as_str())
+        .get(
+            format!(
+                "{}/get-updates/{}/{}/{}",
+                API_LOC, params.username, params.auth, params.since_version
+            )
+            .as_str(),
+        )
         .send()?;
 
     match response.status().as_u16() {

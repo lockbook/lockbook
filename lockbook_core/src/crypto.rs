@@ -68,46 +68,52 @@ pub enum DecryptionError {}
 
 impl KeyPair {
     fn get_big_num(s: &String) -> Result<BigNum, DecodingError> {
-        Ok(
-            BigNum::from_slice(
-                &decode(&s)?
-            )?
-        )
+        Ok(BigNum::from_slice(&decode(&s)?)?)
     }
 
     fn get_openssl_key(&self) -> Result<Rsa<Private>, DecodingError> {
-        Ok(
-            Rsa::from_private_components(
-                KeyPair::get_big_num(&self.public_key.n)?,
-                KeyPair::get_big_num(&self.public_key.e)?,
-                KeyPair::get_big_num(&self.private_key.d)?,
-                KeyPair::get_big_num(&self.private_key.p)?,
-                KeyPair::get_big_num(&self.private_key.q)?,
-                KeyPair::get_big_num(&self.private_key.dmp1)?,
-                KeyPair::get_big_num(&self.private_key.dmq1)?,
-                KeyPair::get_big_num(&self.private_key.iqmp)?,
-            )?
-        )
+        Ok(Rsa::from_private_components(
+            KeyPair::get_big_num(&self.public_key.n)?,
+            KeyPair::get_big_num(&self.public_key.e)?,
+            KeyPair::get_big_num(&self.private_key.d)?,
+            KeyPair::get_big_num(&self.private_key.p)?,
+            KeyPair::get_big_num(&self.private_key.q)?,
+            KeyPair::get_big_num(&self.private_key.dmp1)?,
+            KeyPair::get_big_num(&self.private_key.dmq1)?,
+            KeyPair::get_big_num(&self.private_key.iqmp)?,
+        )?)
     }
 }
 
 pub struct EncryptedValue {
-    pub garbage: String
+    pub garbage: String,
 }
 
 pub struct DecryptedValue {
-    pub secret: String
+    pub secret: String,
 }
 
 pub trait CryptoService {
     fn generate_key() -> Result<KeyPair, KeyGenError>;
     fn verify_key(key: &KeyPair) -> Result<bool, DecodingError>;
 
-    fn encrypt_public(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError>;
-    fn decrypt_public(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue>;
+    fn encrypt_public(
+        key: &KeyPair,
+        decrypted: &DecryptedValue,
+    ) -> Result<EncryptedValue, EncryptionError>;
+    fn decrypt_public(
+        key: &KeyPair,
+        encrypted: &EncryptedValue,
+    ) -> Result<EncryptionError, DecryptedValue>;
 
-    fn encrypt_private(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError>;
-    fn decrypt_private(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue>;
+    fn encrypt_private(
+        key: &KeyPair,
+        decrypted: &DecryptedValue,
+    ) -> Result<EncryptedValue, EncryptionError>;
+    fn decrypt_private(
+        key: &KeyPair,
+        encrypted: &EncryptedValue,
+    ) -> Result<EncryptionError, DecryptedValue>;
 }
 
 pub struct RsaCryptoService;
@@ -116,33 +122,30 @@ impl CryptoService for RsaCryptoService {
     fn generate_key() -> Result<KeyPair, KeyGenError> {
         let their_key = Rsa::generate(2048)?;
 
-        Ok(
-            KeyPair {
-                public_key: PublicKey {
-                    n: encode(&their_key.n().to_vec()),
-                    e: encode(&their_key.e().to_vec()),
-                },
-                private_key: PrivateKey {
-                    d: encode(&their_key.d().to_vec()),
-                    p: encode(&their_key.p().into_result()?.to_vec()),
-                    q: encode(&their_key.q().into_result()?.to_vec()),
-                    dmp1: encode(&their_key.dmp1().into_result()?.to_vec()),
-                    dmq1: encode(&their_key.dmq1().into_result()?.to_vec()),
-                    iqmp: encode(&their_key.iqmp().into_result()?.to_vec()),
-                },
-            }
-        )
+        Ok(KeyPair {
+            public_key: PublicKey {
+                n: encode(&their_key.n().to_vec()),
+                e: encode(&their_key.e().to_vec()),
+            },
+            private_key: PrivateKey {
+                d: encode(&their_key.d().to_vec()),
+                p: encode(&their_key.p().into_result()?.to_vec()),
+                q: encode(&their_key.q().into_result()?.to_vec()),
+                dmp1: encode(&their_key.dmp1().into_result()?.to_vec()),
+                dmq1: encode(&their_key.dmq1().into_result()?.to_vec()),
+                iqmp: encode(&their_key.iqmp().into_result()?.to_vec()),
+            },
+        })
     }
 
     fn verify_key(keypair: &KeyPair) -> Result<bool, DecodingError> {
-        Ok(
-            keypair
-                .get_openssl_key()?
-                .check_key()?
-        )
+        Ok(keypair.get_openssl_key()?.check_key()?)
     }
 
-    fn encrypt_public(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError> {
+    fn encrypt_public(
+        key: &KeyPair,
+        decrypted: &DecryptedValue,
+    ) -> Result<EncryptedValue, EncryptionError> {
         let openssl_key = key.get_openssl_key()?;
         let data_in = decrypted.secret.as_bytes();
         let mut data_out = vec![0; openssl_key.size() as usize];
@@ -151,11 +154,17 @@ impl CryptoService for RsaCryptoService {
         Ok(EncryptedValue { garbage: encoded })
     }
 
-    fn decrypt_public(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue> {
+    fn decrypt_public(
+        key: &KeyPair,
+        encrypted: &EncryptedValue,
+    ) -> Result<EncryptionError, DecryptedValue> {
         unimplemented!()
     }
 
-    fn encrypt_private(key: &KeyPair, decrypted: &DecryptedValue) -> Result<EncryptedValue, EncryptionError> {
+    fn encrypt_private(
+        key: &KeyPair,
+        decrypted: &DecryptedValue,
+    ) -> Result<EncryptedValue, EncryptionError> {
         let openssl_key = key.get_openssl_key()?;
         let data_in = decrypted.secret.as_bytes();
         let mut data_out = vec![0; openssl_key.size() as usize];
@@ -164,7 +173,10 @@ impl CryptoService for RsaCryptoService {
         Ok(EncryptedValue { garbage: encoded })
     }
 
-    fn decrypt_private(key: &KeyPair, encrypted: &EncryptedValue) -> Result<EncryptionError, DecryptedValue> {
+    fn decrypt_private(
+        key: &KeyPair,
+        encrypted: &EncryptedValue,
+    ) -> Result<EncryptionError, DecryptedValue> {
         unimplemented!()
     }
 }
@@ -179,4 +191,3 @@ mod unit_test {
         assert!(RsaCryptoService::verify_key(&key).unwrap());
     }
 }
-
