@@ -1,9 +1,9 @@
+use crate::index_db::generate_version::generate_version;
+use crate::index_db::generate_version::Error as VersionGenerationError;
 use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::error::SqlState as SqlState;
-use crate::index_db::generate_version::generate_version;
-use crate::index_db::generate_version::Error as VersionGenerationError;
+use tokio_postgres::error::SqlState;
 
 #[derive(Debug)]
 pub enum Error {
@@ -16,8 +16,18 @@ pub enum Error {
 impl From<PostgresError> for Error {
     fn from(e: PostgresError) -> Error {
         match (e.code(), e.to_string()) {
-            (Some(error_code), error_string) if error_code == &SqlState::UNIQUE_VIOLATION && error_string.contains("pk_files") => Error::FileIdTaken,
-            (Some(error_code), error_string) if error_code == &SqlState::UNIQUE_VIOLATION && error_string.contains("unique_file_path") => Error::FilePathTaken,
+            (Some(error_code), error_string)
+                if error_code == &SqlState::UNIQUE_VIOLATION
+                    && error_string.contains("pk_files") =>
+            {
+                Error::FileIdTaken
+            }
+            (Some(error_code), error_string)
+                if error_code == &SqlState::UNIQUE_VIOLATION
+                    && error_string.contains("unique_file_path") =>
+            {
+                Error::FilePathTaken
+            }
             _ => Error::Uninterpreted(e),
         }
     }

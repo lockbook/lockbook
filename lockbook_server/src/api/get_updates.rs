@@ -12,10 +12,7 @@ pub fn get_updates(
     auth: String,
     version: i64,
 ) -> Response {
-    println!(
-        "get_updates: {:?}, {:?}, {:?}, ",
-        username, auth, version
-    );
+    println!("get_updates: {:?}, {:?}, {:?}, ", username, auth, version);
 
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
