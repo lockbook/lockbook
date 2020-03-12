@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum MoveFileError {
@@ -44,7 +44,10 @@ pub fn move_file(params: &MoveFileParams) -> Result<(), MoveFileError> {
         .form(&form_params)
         .send()?;
 
-    match (response.status().as_u16(), response.json::<MoveFileResponse>()?.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response.json::<MoveFileResponse>()?.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(MoveFileError::InvalidAuth),
         (401, "expired_auth") => Err(MoveFileError::ExpiredAuth),

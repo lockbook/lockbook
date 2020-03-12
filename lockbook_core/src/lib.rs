@@ -13,7 +13,6 @@ use crate::db_provider::DiskBackedDB;
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
 
-pub mod lockbook_api;
 pub mod account;
 pub mod account_api;
 pub mod account_repo;
@@ -21,6 +20,7 @@ pub mod account_service;
 pub mod crypto;
 pub mod db_provider;
 pub mod error_enum;
+pub mod lockbook_api;
 pub mod schema;
 pub mod state;
 

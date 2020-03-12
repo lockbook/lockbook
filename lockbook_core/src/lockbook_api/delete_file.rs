@@ -1,6 +1,6 @@
+use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use crate::API_LOC;
 use serde::Deserialize;
 
 pub enum DeleteFileError {
@@ -41,7 +41,10 @@ pub fn delete_file(params: &DeleteFileParams) -> Result<(), DeleteFileError> {
         .form(&form_params)
         .send()?;
 
-    match (response.status().as_u16(), response.json::<DeleteFileResponse>()?.error_code.as_str()) {
+    match (
+        response.status().as_u16(),
+        response.json::<DeleteFileResponse>()?.error_code.as_str(),
+    ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(DeleteFileError::InvalidAuth),
         (401, "expired_auth") => Err(DeleteFileError::ExpiredAuth),
