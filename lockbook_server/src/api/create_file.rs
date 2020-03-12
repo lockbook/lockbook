@@ -32,12 +32,12 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
 
     match Ok(())
-        .and_then(
-            |_| match files_db::get_file_details(&locked_files_db_client, &create_file.file_id) {
+        .and_then(|_| {
+            match files_db::get_file_details(&locked_files_db_client, &create_file.file_id) {
                 Err(files_db::get_file_details::Error::NoSuchFile(_)) => Ok(()),
                 _ => Err(Error::FileAlreadyExists(())),
-            },
-        )
+            }
+        })
         .and_then(|_| {
             match index_db::create_file(
                 &mut locked_index_db_client,

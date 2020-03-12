@@ -27,12 +27,12 @@ pub fn delete_file(server_state: State<ServerState>, delete_file: Form<DeleteFil
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
 
     match Ok(())
-        .and_then(
-            |_| match index_db::delete_file(&mut locked_index_db_client, &delete_file.file_id) {
+        .and_then(|_| {
+            match index_db::delete_file(&mut locked_index_db_client, &delete_file.file_id) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(Error::IndexDb(err)),
-            },
-        )
+            }
+        })
         .and_then(
             |_| match files_db::delete_file(&locked_files_db_client, &delete_file.file_id) {
                 Ok(()) => Ok(()),
