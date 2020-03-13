@@ -4,6 +4,8 @@ use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
+use serde::Serialize;
+use std::io::Cursor;
 
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
@@ -11,6 +13,11 @@ pub struct NewAccount {
     pub auth: String,
     pub pub_key_n: String,
     pub pub_key_e: String,
+}
+
+#[derive(Serialize)]
+struct NewAccountResponse {
+    error_code: String,
 }
 
 #[post("/new-account", data = "<new_account>")]
@@ -25,11 +32,25 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         &new_account.pub_key_n,
         &new_account.pub_key_e,
     ) {
-        Ok(_) => Response::build().status(Status::Ok).finalize(),
+        Ok(_) => Response::build()
+            .status(Status::Ok)
+            .sized_body(Cursor::new(
+                serde_json::to_string(&NewAccountResponse {
+                    error_code: "ok".to_string(),
+                })
+                .expect("Failed to json-serialize response!"),
+            ))
+            .finalize(),
         Err(err) => {
             println!("{:?}", err);
             Response::build()
                 .status(Status::InternalServerError)
+                .sized_body(Cursor::new(
+                    serde_json::to_string(&NewAccountResponse {
+                        error_code: "internal_server_error".to_string(),
+                    })
+                    .expect("Failed to json-serialize response!"),
+                ))
                 .finalize()
         }
     }

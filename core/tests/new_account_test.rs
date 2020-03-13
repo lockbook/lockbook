@@ -23,7 +23,7 @@ fn test_create_user_duplicate() -> Result<(), NewAccountError> {
     new_account(
         api_loc(),
         &NewAccountParams {
-            username: "test_username".to_string(),
+            username: "test_username_2".to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
             pub_key_e: "test_pub_key_e".to_string(),
@@ -33,7 +33,7 @@ fn test_create_user_duplicate() -> Result<(), NewAccountError> {
     match new_account(
         api_loc(),
         &NewAccountParams {
-            username: "test_username".to_string(),
+            username: "test_username_2".to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
             pub_key_e: "test_pub_key_e".to_string(),
