@@ -38,18 +38,20 @@ pub fn new_account(api_location: &str, params: &NewAccountParams) -> Result<(), 
         .send()
         .map_err(|err| NewAccountError::SendFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response
-            .json::<NewAccountResponse>()
-            .map_err(|err| NewAccountError::ReceiveFailed(err))?
-            .error_code
-            .as_str(),
-    ) {
-        (200..=299, _) => Ok(()),
-        (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
-        (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),
-        (409, "username_taken") => Err(NewAccountError::UsernameTaken),
-        _ => Err(NewAccountError::Unspecified),
+    match response.status().as_u16() {
+        200..=299 => Ok(()),
+        status => match (
+            status,
+            response
+                .json::<NewAccountResponse>()
+                .map_err(|err| NewAccountError::ReceiveFailed(err))?
+                .error_code
+                .as_str(),
+        ) {
+            (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
+            (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),
+            (409, "username_taken") => Err(NewAccountError::UsernameTaken),
+            _ => Err(NewAccountError::Unspecified),
+        },
     }
 }
