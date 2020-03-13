@@ -219,7 +219,9 @@ mod unit_test {
     #[test]
     fn test_private_key_encrypt_decrypt_inverse_property() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: "Parth's secrets".to_string() };
+        let input = DecryptedValue {
+            secret: "Parth's secrets".to_string(),
+        };
 
         let encrypted = RsaCryptoService::encrypt_private(&key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_public(&key, &encrypted).unwrap();
@@ -230,7 +232,9 @@ mod unit_test {
     #[test]
     fn test_public_key_encrypt_decrypt_inverse_property() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: "Parth's secrets".to_string() };
+        let input = DecryptedValue {
+            secret: "Parth's secrets".to_string(),
+        };
 
         let encrypted = RsaCryptoService::encrypt_public(&key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_private(&key, &encrypted).unwrap();
@@ -241,7 +245,9 @@ mod unit_test {
     #[test]
     fn test_private_key_encrypt_decrypt_inverse_property_small_input() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: "".to_string() };
+        let input = DecryptedValue {
+            secret: "".to_string(),
+        };
 
         let encrypted = RsaCryptoService::encrypt_private(&key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_public(&key, &encrypted).unwrap();
@@ -252,7 +258,9 @@ mod unit_test {
     #[test]
     fn test_public_key_encrypt_decrypt_inverse_property_small_input() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: "".to_string() };
+        let input = DecryptedValue {
+            secret: "".to_string(),
+        };
 
         let encrypted = RsaCryptoService::encrypt_public(&key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_private(&key, &encrypted).unwrap();
@@ -265,7 +273,9 @@ mod unit_test {
     #[test]
     fn test_private_key_encrypt_decrypt_inverse_property_large_input() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: LARGE_TEXT.to_string() };
+        let input = DecryptedValue {
+            secret: LARGE_TEXT.to_string(),
+        };
 
         assert!(RsaCryptoService::encrypt_private(&key, &input).is_err());
     }
@@ -273,7 +283,9 @@ mod unit_test {
     #[test]
     fn test_public_key_encrypt_decrypt_inverse_property_large_input() {
         let key = RsaCryptoService::generate_key().unwrap();
-        let input = DecryptedValue { secret: LARGE_TEXT.to_string() };
+        let input = DecryptedValue {
+            secret: LARGE_TEXT.to_string(),
+        };
 
         assert!(RsaCryptoService::encrypt_public(&key, &input).is_err());
     }

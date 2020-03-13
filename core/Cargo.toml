@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name = "lockbook_core"
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
 reqwest = "0.9.24"

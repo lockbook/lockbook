@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum GetUpdatesError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     Unspecified,
@@ -26,26 +27,26 @@ pub struct FileMetadata {
     pub deleted: bool,
 }
 
-impl From<ReqwestError> for GetUpdatesError {
-    fn from(e: ReqwestError) -> GetUpdatesError {
-        GetUpdatesError::SendFailed(e)
-    }
-}
-
-pub fn get_updates(params: &GetUpdatesParams) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+pub fn get_updates(
+    api_location: &str,
+    params: &GetUpdatesParams,
+) -> Result<Vec<FileMetadata>, GetUpdatesError> {
     let client = Client::new();
     let mut response = client
         .get(
             format!(
                 "{}/get-updates/{}/{}/{}",
-                API_LOC, params.username, params.auth, params.since_version
+                api_location, params.username, params.auth, params.since_version
             )
             .as_str(),
         )
-        .send()?;
+        .send()
+        .map_err(|err| GetUpdatesError::SendFailed(err))?;
 
     match response.status().as_u16() {
-        200..=299 => Ok(response.json::<Vec<FileMetadata>>()?),
+        200..=299 => Ok(response
+            .json::<Vec<FileMetadata>>()
+            .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
         _ => Err(GetUpdatesError::Unspecified),
     }
 }

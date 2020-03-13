@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum NewAccountError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     UsernameTaken,
@@ -23,13 +24,7 @@ struct NewAccountResponse {
     error_code: String,
 }
 
-impl From<ReqwestError> for NewAccountError {
-    fn from(e: ReqwestError) -> NewAccountError {
-        NewAccountError::SendFailed(e)
-    }
-}
-
-pub fn new_account(params: &NewAccountParams) -> Result<(), NewAccountError> {
+pub fn new_account(api_location: &str, params: &NewAccountParams) -> Result<(), NewAccountError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -38,13 +33,18 @@ pub fn new_account(params: &NewAccountParams) -> Result<(), NewAccountError> {
         ("pub_key_e", params.pub_key_e.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/new-account", API_LOC).as_str())
+        .post(format!("{}/new-account", api_location).as_str())
         .form(&form_params)
-        .send()?;
+        .send()
+        .map_err(|err| NewAccountError::SendFailed(err))?;
 
     match (
         response.status().as_u16(),
-        response.json::<NewAccountResponse>()?.error_code.as_str(),
+        response
+            .json::<NewAccountResponse>()
+            .map_err(|err| NewAccountError::ReceiveFailed(err))?
+            .error_code
+            .as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
