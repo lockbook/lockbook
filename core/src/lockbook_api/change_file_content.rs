@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum ChangeFileContentError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     FileNotFound,
@@ -27,13 +28,10 @@ struct ChangeFileContentResponse {
     current_version: u64,
 }
 
-impl From<ReqwestError> for ChangeFileContentError {
-    fn from(e: ReqwestError) -> ChangeFileContentError {
-        ChangeFileContentError::SendFailed(e)
-    }
-}
-
-pub fn change_file_content(params: &ChangeFileContentParams) -> Result<(), ChangeFileContentError> {
+pub fn change_file_content(
+    api_location: &str,
+    params: &ChangeFileContentParams,
+) -> Result<(), ChangeFileContentError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -43,11 +41,14 @@ pub fn change_file_content(params: &ChangeFileContentParams) -> Result<(), Chang
         ("new_file_content", params.new_file_content.as_str()),
     ];
     let mut response = client
-        .put(format!("{}/change-file-content", API_LOC).as_str())
+        .put(format!("{}/change-file-content", api_location).as_str())
         .form(&form_params)
-        .send()?;
+        .send()
+        .map_err(|err| ChangeFileContentError::SendFailed(err))?;
 
-    let response_body = response.json::<ChangeFileContentResponse>()?;
+    let response_body = response
+        .json::<ChangeFileContentResponse>()
+        .map_err(|err| ChangeFileContentError::ReceiveFailed(err))?;
 
     match (
         response.status().as_u16(),
