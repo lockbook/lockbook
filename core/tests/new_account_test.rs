@@ -17,3 +17,30 @@ fn test_create_user() -> Result<(), NewAccountError> {
         },
     )
 }
+
+#[test]
+fn test_create_user_duplicate() -> Result<(), NewAccountError> {
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: "test_username".to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    match new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: "test_username".to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    ) {
+        Err(NewAccountError::UsernameTaken) => Ok(()),
+        Ok(()) => Err(NewAccountError::Unspecified), // todo: better way to translate function success to test error
+        err => err,
+    }
+}
