@@ -18,7 +18,7 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub fn create_user(
+pub fn new_account(
     client: &mut PostgresClient,
     username: &String,
     pub_key_n: &String,

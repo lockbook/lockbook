@@ -26,32 +26,32 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
 
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
-    match index_db::create_user(
+    let result = index_db::new_account(
         &mut locked_index_db_client,
         &new_account.username,
         &new_account.pub_key_n,
         &new_account.pub_key_e,
-    ) {
-        Ok(_) => Response::build()
-            .status(Status::Ok)
-            .sized_body(Cursor::new(
-                serde_json::to_string(&NewAccountResponse {
-                    error_code: "ok".to_string(),
-                })
-                .expect("Failed to json-serialize response!"),
-            ))
-            .finalize(),
-        Err(err) => {
-            println!("{:?}", err);
-            Response::build()
-                .status(Status::InternalServerError)
-                .sized_body(Cursor::new(
-                    serde_json::to_string(&NewAccountResponse {
-                        error_code: "internal_server_error".to_string(),
-                    })
-                    .expect("Failed to json-serialize response!"),
-                ))
-                .finalize()
+    );
+
+    let (status, error_code) = match result {
+        Ok(()) => (Status::Ok, String::from("ok")),
+        Err(index_db::new_account::Error::UsernameTaken) => {
+            (Status::UnprocessableEntity, String::from("username_taken"))
         }
-    }
+        Err(index_db::new_account::Error::Uninterpreted(e)) => {
+            (Status::InternalServerError, format!("{:?}", e))
+        }
+    };
+
+    println!("status: {:?}, error_code: {:?}", status, error_code);
+
+    Response::build()
+        .status(status)
+        .sized_body(Cursor::new(
+            serde_json::to_string(&NewAccountResponse {
+                error_code: error_code,
+            })
+            .expect("Failed to json-serialize response!"),
+        ))
+        .finalize()
 }

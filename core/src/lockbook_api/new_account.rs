@@ -50,7 +50,7 @@ pub fn new_account(api_location: &str, params: &NewAccountParams) -> Result<(), 
         ) {
             (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
             (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),
-            (409, "username_taken") => Err(NewAccountError::UsernameTaken),
+            (422, "username_taken") => Err(NewAccountError::UsernameTaken),
             _ => Err(NewAccountError::Unspecified),
         },
     }
