@@ -1,4 +1,4 @@
-name: CI
+name: Lockbook
 
 on:
   push:
@@ -16,3 +16,9 @@ jobs:
     - name: Lint
       run: cargo fmt --quiet -- --check
       working-directory: ${{env.working-directory}}
+    - name: Build
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: build
+        args: --manifest-path server/Cargo.toml
