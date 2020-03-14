@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum RenameFileError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     FileNotFound,
@@ -26,13 +27,7 @@ struct RenameFileResponse {
     error_code: String,
 }
 
-impl From<ReqwestError> for RenameFileError {
-    fn from(e: ReqwestError) -> RenameFileError {
-        RenameFileError::SendFailed(e)
-    }
-}
-
-pub fn rename_file(params: &RenameFileParams) -> Result<(), RenameFileError> {
+pub fn rename_file(api_location: &str, params: &RenameFileParams) -> Result<(), RenameFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -43,13 +38,18 @@ pub fn rename_file(params: &RenameFileParams) -> Result<(), RenameFileError> {
         ("file_content", params.file_content.as_str()),
     ];
     let mut response = client
-        .put(format!("{}/rename-file", API_LOC).as_str())
+        .put(format!("{}/rename-file", api_location).as_str())
         .form(&form_params)
-        .send()?;
+        .send()
+        .map_err(|err| RenameFileError::SendFailed(err))?;
 
     match (
         response.status().as_u16(),
-        response.json::<RenameFileResponse>()?.error_code.as_str(),
+        response
+            .json::<RenameFileResponse>()
+            .map_err(|err| RenameFileError::ReceiveFailed(err))?
+            .error_code
+            .as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(RenameFileError::InvalidAuth),

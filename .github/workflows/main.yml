@@ -1,0 +1,72 @@
+name: Lockbook
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  Server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./server
+      INDEX_DB_CONFIG_USER: ${{ secrets.INDEX_DB_CONFIG_USER }}
+      INDEX_DB_CONFIG_PASS: ${{ secrets.INDEX_DB_CONFIG_PASS }}
+      INDEX_DB_CONFIG_HOST: ${{ secrets.INDEX_DB_CONFIG_HOST }}
+      INDEX_DB_CONFIG_PORT: ${{ secrets.INDEX_DB_CONFIG_PORT }}
+      INDEX_DB_CONFIG_DB: ${{ secrets.INDEX_DB_CONFIG_DB }}
+      INDEX_DB_CONFIG_CERT: ${{ secrets.INDEX_DB_CONFIG_CERT }}
+      FILES_DB_CONFIG_BUCKET: ${{ secrets.FILES_DB_CONFIG_BUCKET }}
+      FILES_DB_CONFIG_REGION: ${{ secrets.FILES_DB_CONFIG_REGION }}
+      FILES_DB_CONFIG_ACCESS_KEY: ${{ secrets.FILES_DB_CONFIG_ACCESS_KEY }}
+      FILES_DB_CONFIG_SECRET_KEY: ${{ secrets.FILES_DB_CONFIG_SECRET_KEY }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          override: true
+    - name: Lint
+      run: cargo fmt --quiet -- --check
+      working-directory: ${{env.working-directory}}
+    - name: Build
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: build
+        args: --manifest-path server/Cargo.toml
+    - name: Test
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: test
+        args: --manifest-path server/Cargo.toml --verbose
+  Core:
+    runs-on: ubuntu-latest
+    env:
+      LDFLAGS: -L/opt/local/lib
+      working-directory: ./core
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          override: true
+    - name: Lint
+      run: cargo fmt -- --check -l
+      working-directory: ${{env.working-directory}}
+    - name: Build
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: build
+        args: --manifest-path core/Cargo.toml
+    - name: Test
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: test
+        args: --manifest-path core/Cargo.toml --verbose
