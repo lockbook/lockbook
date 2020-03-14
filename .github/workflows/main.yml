@@ -46,6 +46,7 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
+      LDFLAGS: -L/opt/local/lib
       working-directory: ./core
     steps:
     - uses: actions/checkout@v2
