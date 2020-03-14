@@ -20,8 +20,7 @@ pub fn get_updates(
         Ok(updates) => Response::build()
             .status(Status::Ok)
             .sized_body(Cursor::new(
-                serde_json::to_string(&updates)
-                    .expect("Failed to json-serialize file update details!"),
+                serde_json::to_string(&updates).expect("Failed to json-serialize response!"),
             ))
             .finalize(),
         Err(_) => Response::build()

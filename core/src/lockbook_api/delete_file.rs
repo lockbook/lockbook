@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum DeleteFileError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     FileNotFound,
@@ -23,13 +24,7 @@ struct DeleteFileResponse {
     error_code: String,
 }
 
-impl From<ReqwestError> for DeleteFileError {
-    fn from(e: ReqwestError) -> DeleteFileError {
-        DeleteFileError::SendFailed(e)
-    }
-}
-
-pub fn delete_file(params: &DeleteFileParams) -> Result<(), DeleteFileError> {
+pub fn delete_file(api_location: &str, params: &DeleteFileParams) -> Result<(), DeleteFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -37,13 +32,18 @@ pub fn delete_file(params: &DeleteFileParams) -> Result<(), DeleteFileError> {
         ("file_id", params.file_id.as_str()),
     ];
     let mut response = client
-        .delete(format!("{}/delete-file", API_LOC).as_str())
+        .delete(format!("{}/delete-file", api_location).as_str())
         .form(&form_params)
-        .send()?;
+        .send()
+        .map_err(|err| DeleteFileError::SendFailed(err))?;
 
     match (
         response.status().as_u16(),
-        response.json::<DeleteFileResponse>()?.error_code.as_str(),
+        response
+            .json::<DeleteFileResponse>()
+            .map_err(|err| DeleteFileError::ReceiveFailed(err))?
+            .error_code
+            .as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(DeleteFileError::InvalidAuth),
