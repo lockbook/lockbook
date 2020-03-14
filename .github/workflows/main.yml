@@ -46,7 +46,7 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
-      LDFLAGS: -L/opt/local/lib
+      LOCKBOOK_API_LOCATION: http://lockbook.app:8000
       working-directory: ./core
     steps:
     - uses: actions/checkout@v2
