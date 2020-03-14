@@ -15,3 +15,4 @@ jobs:
     - uses: actions/checkout@v2
     - name: Lint
       run: cargo fmt --quiet -- --check
+      working-directory: ${{env.working-directory}}
