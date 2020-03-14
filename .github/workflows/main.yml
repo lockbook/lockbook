@@ -43,3 +43,29 @@ jobs:
         toolchain: nightly
         command: test
         args: --manifest-path server/Cargo.toml --verbose
+  Core:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./core
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          override: true
+    - name: Lint
+      run: cargo fmt -- --check -l
+      working-directory: ${{env.working-directory}}
+    - name: Build
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: build
+        args: --manifest-path core/Cargo.toml
+    - name: Test
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: test
+        args: --manifest-path core/Cargo.toml --verbose
