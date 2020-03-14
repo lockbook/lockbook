@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  push:
+    branches: [ .* ]
+
+jobs:
+  Server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./server
+    steps:
+    - uses: actions/checkout@v2
+    - name: Lint
+      run: cargo fmt --quiet -- --check
