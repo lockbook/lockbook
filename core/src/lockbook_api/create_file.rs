@@ -1,10 +1,11 @@
-use crate::API_LOC;
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum CreateFileError {
     SendFailed(ReqwestError),
+    ReceiveFailed(ReqwestError),
     InvalidAuth,
     ExpiredAuth,
     FileIdTaken,
@@ -26,13 +27,7 @@ struct CreateFileResponse {
     error_code: String,
 }
 
-impl From<ReqwestError> for CreateFileError {
-    fn from(e: ReqwestError) -> CreateFileError {
-        CreateFileError::SendFailed(e)
-    }
-}
-
-pub fn create_file(params: &CreateFileParams) -> Result<(), CreateFileError> {
+pub fn create_file(api_location: &str, params: &CreateFileParams) -> Result<(), CreateFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -43,13 +38,18 @@ pub fn create_file(params: &CreateFileParams) -> Result<(), CreateFileError> {
         ("file_content", params.file_content.as_str()),
     ];
     let mut response = client
-        .post(format!("{}/create-file", API_LOC).as_str())
+        .post(format!("{}/create-file", api_location).as_str())
         .form(&form_params)
-        .send()?;
+        .send()
+        .map_err(|err| CreateFileError::SendFailed(err))?;
 
     match (
         response.status().as_u16(),
-        response.json::<CreateFileResponse>()?.error_code.as_str(),
+        response
+            .json::<CreateFileResponse>()
+            .map_err(|err| CreateFileError::ReceiveFailed(err))?
+            .error_code
+            .as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(CreateFileError::InvalidAuth),
