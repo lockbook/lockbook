@@ -10,7 +10,7 @@ crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 reqwest = "0.9.24"
-rusqlite = "0.21.0"
+rusqlite = { version = "0.21.0", features = ["bundled"] }
 openssl = { version = "0.10", features = ["vendored"] }
 base64 = "0.11.0"
 serde = { version = "1.0", features = ["derive"] }
