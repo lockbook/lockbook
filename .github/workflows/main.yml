@@ -37,3 +37,9 @@ jobs:
         toolchain: nightly
         command: build
         args: --manifest-path server/Cargo.toml
+    - name: Test
+      uses: actions-rs/cargo@v1.0.1
+      with:
+        toolchain: nightly
+        command: test
+        args: --manifest-path server/Cargo.toml --verbose
