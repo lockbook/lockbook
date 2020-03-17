@@ -2,8 +2,6 @@
 # Xcode
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
-qa_env.sh
-
 ## User settings
 xcuserdata/
 
@@ -90,7 +88,22 @@ fastlane/test_output
 # https://github.com/johnno1962/injectionforxcode
 
 iOSInjectionProject/
-.DS_Store
+.DS_Store 
+ios_client/include
+ios_client/libs
 
-ios_client/include/
-ios_client/libs/
+# Core
+#
+# Ignoring the target for /core
+core/target/
+
+
+# Secrets
+#
+# Be careful with this stuff!
+qa_env.sh
+server/target/
+server/**/*.rs.bk
+server/.idea/*
+server/qa_secrets.sh
+server/ca-certificate.crt
