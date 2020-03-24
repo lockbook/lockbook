@@ -12,7 +12,7 @@ use openssl::rsa::Rsa;
 use crate::error_enum;
 
 use self::openssl::error::ErrorStack;
-use self::openssl::pkey::Private;
+use self::openssl::pkey::{Private, Public};
 use self::openssl::rsa::Padding;
 
 #[derive(PartialEq, Debug)]
@@ -75,6 +75,15 @@ error_enum! {
     }
 }
 
+impl PublicKey {
+    fn get_openssl_key(&self) -> Result<Rsa<Public>, DecodingError> {
+        Ok(Rsa::from_public_components(
+            KeyPair::get_big_num(&self.n)?,
+            KeyPair::get_big_num(&self.e)?,
+        )?)
+    }
+}
+
 impl KeyPair {
     fn get_big_num(s: &String) -> Result<BigNum, DecodingError> {
         Ok(BigNum::from_slice(&decode(&s)?)?)
@@ -103,17 +112,18 @@ pub struct EncryptedValue {
 pub struct DecryptedValue {
     pub secret: String,
 }
-
+ // create a way to create a public key from its components
+ // encrypt / decrypt , public / private should only use their specific keys
 pub trait CryptoService {
     fn generate_key() -> Result<KeyPair, KeyGenError>;
     fn verify_key(key: &KeyPair) -> Result<bool, DecodingError>;
 
     fn encrypt_public(
-        key: &KeyPair,
+        key: &PublicKey,
         decrypted: &DecryptedValue,
     ) -> Result<EncryptedValue, EncryptionError>;
     fn decrypt_public(
-        key: &KeyPair,
+        key: &PublicKey,
         encrypted: &EncryptedValue,
     ) -> Result<DecryptedValue, DecryptionError>;
 
@@ -154,10 +164,10 @@ impl CryptoService for RsaCryptoService {
     }
 
     fn encrypt_public(
-        key: &KeyPair,
+        pub_key: &PublicKey,
         decrypted: &DecryptedValue,
     ) -> Result<EncryptedValue, EncryptionError> {
-        let openssl_key = key.get_openssl_key()?;
+        let openssl_key = pub_key.get_openssl_key()?;
         let data_in = decrypted.secret.as_bytes();
         let mut data_out = vec![0; openssl_key.size() as usize];
         let _encrypted_len = openssl_key.public_encrypt(data_in, &mut data_out, Padding::PKCS1)?;
@@ -167,10 +177,10 @@ impl CryptoService for RsaCryptoService {
     }
 
     fn decrypt_public(
-        key: &KeyPair,
+        pub_key: &PublicKey,
         encrypted: &EncryptedValue,
     ) -> Result<DecryptedValue, DecryptionError> {
-        let openssl_key = key.get_openssl_key()?;
+        let openssl_key = pub_key.get_openssl_key()?;
         let data_in = decode(&encrypted.garbage)?;
         let mut data_out = vec![0; openssl_key.size() as usize];
         let decrypted_len = openssl_key.public_decrypt(&data_in, &mut data_out, Padding::PKCS1)?;
@@ -224,7 +234,7 @@ mod unit_test {
         };
 
         let encrypted = RsaCryptoService::encrypt_private(&key, &input).unwrap();
-        let decrypted = RsaCryptoService::decrypt_public(&key, &encrypted).unwrap();
+        let decrypted = RsaCryptoService::decrypt_public(&key.public_key, &encrypted).unwrap();
 
         assert_eq!(input, decrypted);
     }
@@ -236,7 +246,7 @@ mod unit_test {
             secret: "Parth's secrets".to_string(),
         };
 
-        let encrypted = RsaCryptoService::encrypt_public(&key, &input).unwrap();
+        let encrypted = RsaCryptoService::encrypt_public(&key.public_key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_private(&key, &encrypted).unwrap();
 
         assert_eq!(input, decrypted);
@@ -250,7 +260,7 @@ mod unit_test {
         };
 
         let encrypted = RsaCryptoService::encrypt_private(&key, &input).unwrap();
-        let decrypted = RsaCryptoService::decrypt_public(&key, &encrypted).unwrap();
+        let decrypted = RsaCryptoService::decrypt_public(&key.public_key, &encrypted).unwrap();
 
         assert_eq!(input, decrypted);
     }
@@ -262,7 +272,7 @@ mod unit_test {
             secret: "".to_string(),
         };
 
-        let encrypted = RsaCryptoService::encrypt_public(&key, &input).unwrap();
+        let encrypted = RsaCryptoService::encrypt_public(&key.public_key, &input).unwrap();
         let decrypted = RsaCryptoService::decrypt_private(&key, &encrypted).unwrap();
 
         assert_eq!(input, decrypted);
@@ -287,6 +297,6 @@ mod unit_test {
             secret: LARGE_TEXT.to_string(),
         };
 
-        assert!(RsaCryptoService::encrypt_public(&key, &input).is_err());
+        assert!(RsaCryptoService::encrypt_public(&key.public_key, &input).is_err());
     }
 }
