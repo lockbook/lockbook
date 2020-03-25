@@ -33,7 +33,7 @@ impl AccountApi for AccountApiImpl {
                                   ",",
                                   SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis().to_string());
 
-        let auth = <RsaCryptoService as CryptoService>::encrypt_public(
+        let auth = <RsaCryptoService as CryptoService>::encrypt_public( // shouldn't I encrypt private?
             &account.keys.public_key,
             &DecryptedValue { secret: decrypt_val }).unwrap().garbage;
 
