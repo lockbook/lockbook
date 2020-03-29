@@ -93,3 +93,4 @@ iOSInjectionProject/
 
 ios_client/include/
 ios_client/libs/
+qa_secrets.sh
