@@ -23,6 +23,9 @@ pub mod error_enum;
 pub mod lockbook_api;
 pub mod schema;
 pub mod state;
+pub mod file_metadata;
+pub mod file_metadata_repo;
+pub mod file_metadata_service;
 
 static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.db3";
@@ -61,7 +64,7 @@ pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
         writeable_path: "".to_string(),
     };
 
-    match DefaultAcountService::create_account(config, username.to_string()) {
+    match DefaultAcountService::create_account(&config, username.to_string()) {
         Ok(_) => 0,
         Err(err) => {
             println!("Account creation failed with error: {:?}", err);

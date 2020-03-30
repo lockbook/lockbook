@@ -22,7 +22,7 @@ error_enum! {
 }
 
 pub trait AccountService {
-    fn create_account(config: Config, username: String) -> Result<Account, Error>;
+    fn create_account(config: &Config, username: String) -> Result<Account, Error>;
 }
 
 pub struct AccountServiceImpl<
@@ -32,7 +32,7 @@ pub struct AccountServiceImpl<
     Api: AccountApi,
 > {
     encyption: PhantomData<Crypto>,
-    acounts: PhantomData<AccountDb>,
+    accounts: PhantomData<AccountDb>,
     db: PhantomData<DB>,
     api: PhantomData<Api>,
 }
@@ -40,8 +40,8 @@ pub struct AccountServiceImpl<
 impl<DB: DbProvider, Crypto: CryptoService, AccountDb: AccountRepo, Api: AccountApi> AccountService
     for AccountServiceImpl<DB, Crypto, AccountDb, Api>
 {
-    fn create_account(config: Config, username: String) -> Result<Account, Error> {
-        let db = DB::connect_to_db(config)?;
+    fn create_account(config: &Config, username: String) -> Result<Account, Error> {
+        let db = DB::connect_to_db(&config)?;
         let keys = Crypto::generate_key()?;
         let account = Account { username, keys };
 

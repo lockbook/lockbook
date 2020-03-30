@@ -16,7 +16,7 @@ error_enum! {
 }
 
 pub trait DbProvider {
-    fn connect_to_db(config: Config) -> Result<Connection, Error>;
+    fn connect_to_db(config: &Config) -> Result<Connection, Error>;
 }
 
 pub struct DiskBackedDB<Schema: SchemaApplier> {
@@ -28,8 +28,8 @@ pub struct RamBackedDB<Schema: SchemaApplier> {
 }
 
 impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
-    fn connect_to_db(config: Config) -> Result<Connection, Error> {
-        let db_path = config.writeable_path + "/" + DB_NAME;
+    fn connect_to_db(config: &Config) -> Result<Connection, Error> {
+        let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
         println!("Connecting to DB at: {}", db_path);
 
         let db = Connection::open(db_path.as_str())?;
@@ -41,7 +41,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
 }
 
 impl<Schema: SchemaApplier> DbProvider for RamBackedDB<Schema> {
-    fn connect_to_db(_config: Config) -> Result<Connection, Error> {
+    fn connect_to_db(_config: &Config) -> Result<Connection, Error> {
         let db = Connection::open_in_memory()?;
         Schema::apply_schema(&db)?;
 
