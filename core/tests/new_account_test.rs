@@ -14,8 +14,20 @@ fn generate_username() -> String {
     Uuid::new_v4().to_string()
 }
 
+#[derive(Debug)]
+enum ApiError {
+    ErrorExpected(),
+    NewAccountError(NewAccountError),
+}
+
+impl From<NewAccountError> for ApiError {
+    fn from(e: NewAccountError) -> ApiError {
+        ApiError::NewAccountError(e)
+    }
+}
+
 #[test]
-fn test_create_user() -> Result<(), NewAccountError> {
+fn test_create_user() -> Result<(), ApiError> {
     new_account(
         api_loc(),
         &NewAccountParams {
@@ -24,11 +36,13 @@ fn test_create_user() -> Result<(), NewAccountError> {
             pub_key_n: "test_pub_key_n".to_string(),
             pub_key_e: "test_pub_key_e".to_string(),
         },
-    )
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_create_user_duplicate() -> Result<(), NewAccountError> {
+fn test_create_user_duplicate() -> Result<(), ApiError> {
     let username = generate_username();
 
     new_account(
@@ -51,7 +65,7 @@ fn test_create_user_duplicate() -> Result<(), NewAccountError> {
         },
     ) {
         Err(NewAccountError::UsernameTaken) => Ok(()),
-        Ok(()) => Err(NewAccountError::Unspecified), // todo: better way to translate function success to test error
-        err => err,
+        Ok(()) => Err(ApiError::ErrorExpected()),
+        Err(e) => Err(ApiError::NewAccountError(e)),
     }
 }
