@@ -17,7 +17,7 @@ fn generate_username() -> String {
 
 #[derive(Debug)]
 enum TestError {
-    ErrorExpected(),
+    ErrorExpected,
     NewAccountError(NewAccountError),
     CreateFileError(CreateFileError),
 }
@@ -73,7 +73,7 @@ fn test_create_user_duplicate() -> Result<(), TestError> {
         },
     ) {
         Err(NewAccountError::UsernameTaken) => Ok(()),
-        Ok(()) => Err(TestError::ErrorExpected()),
+        Ok(()) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::NewAccountError(e)),
     }
 }
@@ -105,4 +105,47 @@ fn test_create_file() -> Result<(), TestError> {
     )?;
 
     Ok(())
+}
+
+#[test]
+fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: "file_id".to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    match create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: "file_id".to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path_2".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    ) {
+        Err(CreateFileError::FileIdTaken) => Ok(()),
+        Ok(()) => Err(TestError::ErrorExpected),
+        Err(e) => Err(TestError::CreateFileError(e)),
+    }
 }
