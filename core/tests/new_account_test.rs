@@ -1,5 +1,6 @@
 extern crate lockbook_core;
 use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
+use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
 use std::env;
 use uuid::Uuid;
 
@@ -15,19 +16,26 @@ fn generate_username() -> String {
 }
 
 #[derive(Debug)]
-enum ApiError {
+enum TestError {
     ErrorExpected(),
     NewAccountError(NewAccountError),
+    CreateFileError(CreateFileError),
 }
 
-impl From<NewAccountError> for ApiError {
-    fn from(e: NewAccountError) -> ApiError {
-        ApiError::NewAccountError(e)
+impl From<NewAccountError> for TestError {
+    fn from(e: NewAccountError) -> TestError {
+        TestError::NewAccountError(e)
+    }
+}
+
+impl From<CreateFileError> for TestError {
+    fn from(e: CreateFileError) -> TestError {
+        TestError::CreateFileError(e)
     }
 }
 
 #[test]
-fn test_create_user() -> Result<(), ApiError> {
+fn test_create_user() -> Result<(), TestError> {
     new_account(
         api_loc(),
         &NewAccountParams {
@@ -42,7 +50,7 @@ fn test_create_user() -> Result<(), ApiError> {
 }
 
 #[test]
-fn test_create_user_duplicate() -> Result<(), ApiError> {
+fn test_create_user_duplicate() -> Result<(), TestError> {
     let username = generate_username();
 
     new_account(
@@ -65,7 +73,36 @@ fn test_create_user_duplicate() -> Result<(), ApiError> {
         },
     ) {
         Err(NewAccountError::UsernameTaken) => Ok(()),
-        Ok(()) => Err(ApiError::ErrorExpected()),
-        Err(e) => Err(ApiError::NewAccountError(e)),
+        Ok(()) => Err(TestError::ErrorExpected()),
+        Err(e) => Err(TestError::NewAccountError(e)),
     }
+}
+
+#[test]
+fn test_create_file() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: "file_id".to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    Ok(())
 }

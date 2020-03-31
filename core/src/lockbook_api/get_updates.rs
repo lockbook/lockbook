@@ -28,7 +28,7 @@ pub struct FileMetadata {
 }
 
 pub fn get_updates(
-    api_location: &str,
+    api_location: String,
     params: &GetUpdatesParams,
 ) -> Result<Vec<FileMetadata>, GetUpdatesError> {
     let client = Client::new();

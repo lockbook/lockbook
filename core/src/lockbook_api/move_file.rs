@@ -26,7 +26,7 @@ struct MoveFileResponse {
     error_code: String,
 }
 
-pub fn move_file(api_location: &str, params: &MoveFileParams) -> Result<(), MoveFileError> {
+pub fn move_file(api_location: String, params: &MoveFileParams) -> Result<(), MoveFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),

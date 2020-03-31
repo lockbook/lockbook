@@ -29,7 +29,7 @@ struct ChangeFileContentResponse {
 }
 
 pub fn change_file_content(
-    api_location: &str,
+    api_location: String,
     params: &ChangeFileContentParams,
 ) -> Result<(), ChangeFileContentError> {
     let client = Client::new();

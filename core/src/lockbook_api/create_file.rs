@@ -27,7 +27,7 @@ struct CreateFileResponse {
     error_code: String,
 }
 
-pub fn create_file(api_location: &str, params: &CreateFileParams) -> Result<(), CreateFileError> {
+pub fn create_file(api_location: String, params: &CreateFileParams) -> Result<(), CreateFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),

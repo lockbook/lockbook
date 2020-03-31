@@ -27,7 +27,7 @@ struct RenameFileResponse {
     error_code: String,
 }
 
-pub fn rename_file(api_location: &str, params: &RenameFileParams) -> Result<(), RenameFileError> {
+pub fn rename_file(api_location: String, params: &RenameFileParams) -> Result<(), RenameFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
