@@ -2,6 +2,7 @@ extern crate lockbook_core;
 use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
 use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
 use lockbook_core::lockbook_api::{change_file_content, ChangeFileContentError, ChangeFileContentParams};
+use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
 use std::env;
 use uuid::Uuid;
 
@@ -26,6 +27,7 @@ enum TestError {
     NewAccountError(NewAccountError),
     CreateFileError(CreateFileError),
     ChangeFileContentError(ChangeFileContentError),
+    RenameFileError(RenameFileError),
 }
 
 impl From<NewAccountError> for TestError {
@@ -43,6 +45,12 @@ impl From<CreateFileError> for TestError {
 impl From<ChangeFileContentError> for TestError {
     fn from(e: ChangeFileContentError) -> TestError {
         TestError::ChangeFileContentError(e)
+    }
+}
+
+impl From<RenameFileError> for TestError {
+    fn from(e: RenameFileError) -> TestError {
+        TestError::RenameFileError(e)
     }
 }
 
@@ -318,4 +326,46 @@ fn test_change_file_content_edit_conflict() -> Result<(), TestError> {
         Ok(_) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::ChangeFileContentError(e)),
     }
+}
+
+// TODO - change file content file deleted
+
+#[test]
+fn test_rename_file() -> Result<(), TestError> {
+    let username = generate_username();
+    let file_id = generate_file_id();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    rename_file(
+        api_loc(),
+        &RenameFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+            new_file_name: "new_file_name".to_string(),
+        },
+    )?;
+
+    Ok(())
 }

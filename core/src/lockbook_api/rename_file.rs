@@ -17,9 +17,7 @@ pub struct RenameFileParams {
     pub username: String,
     pub auth: String,
     pub file_id: String,
-    pub file_name: String,
-    pub file_path: String,
-    pub file_content: String,
+    pub new_file_name: String,
 }
 
 #[derive(Deserialize)]
@@ -33,9 +31,7 @@ pub fn rename_file(api_location: String, params: &RenameFileParams) -> Result<()
         ("username", params.username.as_str()),
         ("auth", params.auth.as_str()),
         ("file_id", params.file_id.as_str()),
-        ("file_name", params.file_name.as_str()),
-        ("file_path", params.file_path.as_str()),
-        ("file_content", params.file_content.as_str()),
+        ("new_file_name", params.new_file_name.as_str()),
     ];
     let mut response = client
         .put(format!("{}/rename-file", api_location).as_str())
