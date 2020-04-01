@@ -1,6 +1,7 @@
 extern crate lockbook_core;
 use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
 use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
+use lockbook_core::lockbook_api::{change_file_content, ChangeFileContentError, ChangeFileContentParams};
 use std::env;
 use uuid::Uuid;
 
@@ -20,6 +21,7 @@ enum TestError {
     ErrorExpected,
     NewAccountError(NewAccountError),
     CreateFileError(CreateFileError),
+    ChangeFileContentError(ChangeFileContentError),
 }
 
 impl From<NewAccountError> for TestError {
@@ -31,6 +33,12 @@ impl From<NewAccountError> for TestError {
 impl From<CreateFileError> for TestError {
     fn from(e: CreateFileError) -> TestError {
         TestError::CreateFileError(e)
+    }
+}
+
+impl From<ChangeFileContentError> for TestError {
+    fn from(e: ChangeFileContentError) -> TestError {
+        TestError::ChangeFileContentError(e)
     }
 }
 
@@ -145,7 +153,7 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     ) {
         Err(CreateFileError::FileIdTaken) => Ok(()),
-        Ok(()) => Err(TestError::ErrorExpected),
+        Ok(_) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::CreateFileError(e)),
     }
 }
@@ -188,7 +196,47 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     ) {
         Err(CreateFileError::FilePathTaken) => Ok(()),
-        Ok(()) => Err(TestError::ErrorExpected),
+        Ok(_) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::CreateFileError(e)),
     }
+}
+
+#[test]
+fn test_change_file_content() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    let old_file_version = create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: "file_id".to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    change_file_content(
+        api_loc(),
+        &ChangeFileContentParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: "file_id".to_string(),
+            old_file_version: old_file_version,
+            new_file_content: "new_file_content".to_string(),
+        },
+    )?;
+
+    Ok(())
 }

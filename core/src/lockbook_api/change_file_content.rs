@@ -31,7 +31,7 @@ struct ChangeFileContentResponse {
 pub fn change_file_content(
     api_location: String,
     params: &ChangeFileContentParams,
-) -> Result<(), ChangeFileContentError> {
+) -> Result<u64, ChangeFileContentError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -54,7 +54,7 @@ pub fn change_file_content(
         response.status().as_u16(),
         response_body.error_code.as_str(),
     ) {
-        (200..=299, _) => Ok(()),
+        (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
         (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
         (404, "file_not_found") => Err(ChangeFileContentError::FileNotFound),
