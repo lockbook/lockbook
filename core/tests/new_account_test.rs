@@ -16,6 +16,10 @@ fn generate_username() -> String {
     Uuid::new_v4().to_string()
 }
 
+fn generate_file_id() -> String {
+    Uuid::new_v4().to_string()
+}
+
 #[derive(Debug)]
 enum TestError {
     ErrorExpected,
@@ -105,7 +109,7 @@ fn test_create_file() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
@@ -118,6 +122,7 @@ fn test_create_file() -> Result<(), TestError> {
 #[test]
 fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
     let username = generate_username();
+    let file_id = generate_file_id();
 
     new_account(
         api_loc(),
@@ -134,7 +139,7 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
@@ -146,7 +151,7 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path_2".to_string(),
             file_content: "file_content".to_string(),
@@ -177,7 +182,7 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
@@ -189,7 +194,7 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id_2".to_string(),
+            file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
@@ -204,6 +209,7 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
 #[test]
 fn test_change_file_content() -> Result<(), TestError> {
     let username = generate_username();
+    let file_id = generate_file_id();
 
     new_account(
         api_loc(),
@@ -220,7 +226,7 @@ fn test_change_file_content() -> Result<(), TestError> {
         &CreateFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
@@ -232,11 +238,41 @@ fn test_change_file_content() -> Result<(), TestError> {
         &ChangeFileContentParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            file_id: "file_id".to_string(),
+            file_id: file_id.to_string(),
             old_file_version: old_file_version,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
 
     Ok(())
+}
+
+#[test]
+fn test_change_file_content_file_not_found() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    match change_file_content(
+        api_loc(),
+        &ChangeFileContentParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: generate_file_id(),
+            old_file_version: 0,
+            new_file_content: "new_file_content".to_string(),
+        },
+    ) {
+        Err(ChangeFileContentError::FileNotFound) => Ok(()),
+        Ok(_) => Err(TestError::ErrorExpected),
+        Err(e) => Err(TestError::ChangeFileContentError(e)),
+    }
 }
