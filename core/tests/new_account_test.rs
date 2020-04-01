@@ -479,3 +479,58 @@ fn test_move_file_file_not_found() -> Result<(), TestError> {
 }
 
 // TODO - move file file deleted
+
+#[test]
+fn test_move_file_file_path_taken() -> Result<(), TestError> {
+    let username = generate_username();
+    let file_id_a = generate_file_id();
+    let file_id_b = generate_file_id();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id_a.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path_a".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id_b.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path_b".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    match move_file(
+        api_loc(),
+        &MoveFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id_b.to_string(),
+            new_file_path: "file_path_a".to_string(),
+        },
+    ) {
+        Err(MoveFileError::FilePathTaken) => Ok(()),
+        Ok(_) => Err(TestError::ErrorExpected),
+        Err(e) => Err(TestError::MoveFileError(e)),
+    }
+}
