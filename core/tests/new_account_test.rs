@@ -3,6 +3,7 @@ use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams
 use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
 use lockbook_core::lockbook_api::{change_file_content, ChangeFileContentError, ChangeFileContentParams};
 use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
+use lockbook_core::lockbook_api::{move_file, MoveFileError, MoveFileParams};
 use std::env;
 use uuid::Uuid;
 
@@ -28,6 +29,7 @@ enum TestError {
     CreateFileError(CreateFileError),
     ChangeFileContentError(ChangeFileContentError),
     RenameFileError(RenameFileError),
+    MoveFileError(MoveFileError),
 }
 
 impl From<NewAccountError> for TestError {
@@ -51,6 +53,12 @@ impl From<ChangeFileContentError> for TestError {
 impl From<RenameFileError> for TestError {
     fn from(e: RenameFileError) -> TestError {
         TestError::RenameFileError(e)
+    }
+}
+
+impl From<MoveFileError> for TestError {
+    fn from(e: MoveFileError) -> TestError {
+        TestError::MoveFileError(e)
     }
 }
 
@@ -397,4 +405,46 @@ fn test_rename_file_file_not_found() -> Result<(), TestError> {
         Ok(_) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::RenameFileError(e)),
     }
+}
+
+// TODO - rename file file deleted
+
+#[test]
+fn test_move_file() -> Result<(), TestError> {
+    let username = generate_username();
+    let file_id = generate_file_id();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    move_file(
+        api_loc(),
+        &MoveFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+            new_file_path: "new_file_path".to_string(),
+        },
+    )?;
+
+    Ok(())
 }
