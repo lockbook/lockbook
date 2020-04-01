@@ -448,3 +448,34 @@ fn test_move_file() -> Result<(), TestError> {
 
     Ok(())
 }
+
+#[test]
+fn test_move_file_file_not_found() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    match move_file(
+        api_loc(),
+        &MoveFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: generate_file_id(),
+            new_file_path: "new_file_path".to_string(),
+        },
+    ) {
+        Err(MoveFileError::FileNotFound) => Ok(()),
+        Ok(_) => Err(TestError::ErrorExpected),
+        Err(e) => Err(TestError::MoveFileError(e)),
+    }
+}
+
+// TODO - move file file deleted
