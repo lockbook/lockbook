@@ -369,3 +369,32 @@ fn test_rename_file() -> Result<(), TestError> {
 
     Ok(())
 }
+
+#[test]
+fn test_rename_file_file_not_found() -> Result<(), TestError> {
+    let username = generate_username();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    match rename_file(
+        api_loc(),
+        &RenameFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: generate_file_id(),
+            new_file_name: "new_file_name".to_string(),
+        },
+    ) {
+        Err(RenameFileError::FileNotFound) => Ok(()),
+        Ok(_) => Err(TestError::ErrorExpected),
+        Err(e) => Err(TestError::RenameFileError(e)),
+    }
+}
