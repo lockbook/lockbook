@@ -4,6 +4,7 @@ use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams
 use lockbook_core::lockbook_api::{change_file_content, ChangeFileContentError, ChangeFileContentParams};
 use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
 use lockbook_core::lockbook_api::{move_file, MoveFileError, MoveFileParams};
+use lockbook_core::lockbook_api::{delete_file, DeleteFileError, DeleteFileParams};
 use std::env;
 use uuid::Uuid;
 
@@ -30,6 +31,7 @@ enum TestError {
     ChangeFileContentError(ChangeFileContentError),
     RenameFileError(RenameFileError),
     MoveFileError(MoveFileError),
+    DeleteFileError(DeleteFileError),
 }
 
 impl From<NewAccountError> for TestError {
@@ -59,6 +61,12 @@ impl From<RenameFileError> for TestError {
 impl From<MoveFileError> for TestError {
     fn from(e: MoveFileError) -> TestError {
         TestError::MoveFileError(e)
+    }
+}
+
+impl From<DeleteFileError> for TestError {
+    fn from(e: DeleteFileError) -> TestError {
+        TestError::DeleteFileError(e)
     }
 }
 
@@ -533,4 +541,43 @@ fn test_move_file_file_path_taken() -> Result<(), TestError> {
         Ok(_) => Err(TestError::ErrorExpected),
         Err(e) => Err(TestError::MoveFileError(e)),
     }
+}
+
+#[test]
+fn test_delete_file() -> Result<(), TestError> {
+    let username = generate_username();
+    let file_id = generate_file_id();
+
+    new_account(
+        api_loc(),
+        &NewAccountParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            pub_key_n: "test_pub_key_n".to_string(),
+            pub_key_e: "test_pub_key_e".to_string(),
+        },
+    )?;
+
+    create_file(
+        api_loc(),
+        &CreateFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    delete_file(
+        api_loc(),
+        &DeleteFileParams {
+            username: username.to_string(),
+            auth: "test_auth".to_string(),
+            file_id: file_id.to_string(),
+        },
+    )?;
+
+    Ok(())
 }
