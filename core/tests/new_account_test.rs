@@ -1,17 +1,22 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
+use lockbook_core::lockbook_api::{
+    change_file_content, ChangeFileContentError, ChangeFileContentParams,
+};
 use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
-use lockbook_core::lockbook_api::{change_file_content, ChangeFileContentError, ChangeFileContentParams};
-use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
-use lockbook_core::lockbook_api::{move_file, MoveFileError, MoveFileParams};
 use lockbook_core::lockbook_api::{delete_file, DeleteFileError, DeleteFileParams};
+use lockbook_core::lockbook_api::{move_file, MoveFileError, MoveFileParams};
+use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
+use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
 use std::env;
 use uuid::Uuid;
 
 fn api_loc() -> String {
     match env::var("LOCKBOOK_API_LOCATION") {
         Ok(s) => s,
-        Err(e) => panic!("Could not read environment variable LOCKBOOK_API_LOCATION: {}", e)
+        Err(e) => panic!(
+            "Could not read environment variable LOCKBOOK_API_LOCATION: {}",
+            e
+        ),
     }
 }
 

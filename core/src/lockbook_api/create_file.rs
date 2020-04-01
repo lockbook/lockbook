@@ -28,7 +28,10 @@ struct CreateFileResponse {
     current_version: u64,
 }
 
-pub fn create_file(api_location: String, params: &CreateFileParams) -> Result<u64, CreateFileError> {
+pub fn create_file(
+    api_location: String,
+    params: &CreateFileParams,
+) -> Result<u64, CreateFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
