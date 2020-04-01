@@ -17,7 +17,7 @@ pub struct GetUpdatesParams {
     pub since_version: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct FileMetadata {
     pub file_id: String,
     pub file_name: String,
