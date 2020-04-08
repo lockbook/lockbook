@@ -55,7 +55,7 @@ pub trait AuthService {
     ) -> Result<EncryptedValue, AuthError>;
 }
 
-struct AuthServiceImpl;
+pub struct AuthServiceImpl;
 
 impl AuthService for AuthServiceImpl {
     fn verify_auth(
