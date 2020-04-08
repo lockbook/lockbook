@@ -28,7 +28,7 @@ struct NewAccountResponse {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     println!("new_account: {:?}", new_account);
 
-    let decrypt_val = <RsaCryptoService as CryptoService>::decrypt_public(
+    let decrypt_val = RsaCryptoService::decrypt_public(
         &PublicKey {
             n: new_account.pub_key_n.clone(),
             e: new_account.pub_key_e.clone(),
@@ -36,31 +36,26 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         &EncryptedValue {
             garbage: new_account.auth.clone(),
         },
-    )
-    .unwrap();
+    )?;
 
     let current_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
         .as_millis();
     let range = current_time - 50..current_time + 50;
     let decrypt_comp = decrypt_val.secret.split(",").collect::<Vec<&str>>();
-    let decrypt_time = decrypt_comp.get(2).unwrap().parse::<u128>().unwrap();
+    let decrypt_time = decrypt_comp.get(2)?.parse::<u128>()?;
 
-    if decrypt_comp.get(0).unwrap() != &new_account.username || !range.contains(&decrypt_time) {
+    if decrypt_comp.get(0)? != &new_account.username || !range.contains(&decrypt_time) {
         return Response::build()
             .status(Status::UnprocessableEntity)
             .sized_body(Cursor::new(
                 serde_json::to_string(&NewAccountResponse {
                     error_code: String::from("Failed Verification"),
                 })
-                .expect("Failed to json-serialize response!"),
+                    .expect("Failed to json-serialize response!"),
             ))
             .finalize();
     }
 
-    // in core, I will take a username, timestamp, and the keys
-    // fix string TODOz with actual auth string
 
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
@@ -89,7 +84,7 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
             serde_json::to_string(&NewAccountResponse {
                 error_code: error_code,
             })
-            .expect("Failed to json-serialize response!"),
+                .expect("Failed to json-serialize response!"),
         ))
         .finalize()
 }
