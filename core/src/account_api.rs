@@ -1,9 +1,12 @@
 extern crate reqwest;
 
+use std::num::ParseIntError;
+use std::option::NoneError;
 use std::time::SystemTime;
+use std::time::SystemTimeError;
 
 use crate::account::Account;
-use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken, IncorrectUsername, ExpiredAuth};
+use crate::account_api::Error::{ExpiredAuth, IncorrectUsername, NetworkError, ServerUnavailable, UsernameTaken, CryptoError};
 use crate::API_LOC;
 use crate::crypto::*;
 use crate::error_enum;
@@ -13,9 +16,20 @@ pub enum Error {
     NetworkError(reqwest::Error),
     UsernameTaken,
     IncorrectUsername,
-    ServerUnavailable(u16),
     ExpiredAuth,
-    DecryptionFailed(DecryptionError)
+    CryptoError,
+    ServerUnavailable(u16),
+}
+
+error_enum! {
+    enum AuthError {
+        DecryptionFailure(DecryptionError),
+        ParseError(ParseIntError),
+        IncompleteAuth(NoneError),
+        NegativeTime(SystemTimeError),
+        AuthGenFailed(EncryptionError),
+        IncorrectAuth(Error)
+    }
 }
 
 pub trait AccountApi {
@@ -29,16 +43,16 @@ pub trait AuthService {
         pub_key: PublicKey,
         username: &String,
         auth: &String,
-    ) -> Result<(), Error>;
+    ) -> Result<(), AuthError>;
     fn verify_auth_comp(
-        auth_time: u128,
+        auth_time: &u128,
         auth_username: &String,
         real_username: &String,
-    ) -> Result<(), Error>;
+    ) -> Result<(), AuthError>;
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<EncryptedValue, EncryptionError>;
+    ) -> Result<EncryptedValue, AuthError>;
 }
 
 struct AuthServiceImpl;
@@ -48,7 +62,7 @@ impl AuthService for AuthServiceImpl {
         pub_key: PublicKey,
         username: &String,
         auth: &String,
-    ) -> Result<(), Error> {
+    ) -> Result<(), AuthError> {
         let decrypt_val = RsaCryptoService::decrypt_public(
             &PublicKey {
                 n: pub_key.n,
@@ -59,30 +73,31 @@ impl AuthService for AuthServiceImpl {
             },
         )?;
 
-        let decrypt_comp = decrypt_val.secret.split(",");
+        let mut auth_comp = decrypt_val.secret.split(",");
 
-        match AuthService::verify_auth_comp(decrypt_comp.next().parse::<u128>()?, username, decrypt_comp.next()) {
+        match AuthServiceImpl::verify_auth_comp(
+            &auth_comp.next()?.parse::<u128>()?,
+            &username,
+            &String::from(auth_comp.next()?)) {
             Ok(_) => Ok(()),
-            Err(e) => e
+            Err(e) => Err(e)
         }
     }
 
     fn verify_auth_comp(
-        auth_time: u128,
+        auth_time: &u128,
         auth_username: &String,
         real_username: &String,
-    ) -> Result<(), Error> {
+    ) -> Result<(), AuthError> {
         let real_time = SystemTime::now()
-            .as_millis();
-        let range = real_time - 50..real_time + 50;
+            .elapsed()?.as_millis();
 
-
-
-        if !range.contains(&auth_time) {
-            return Err(ExpiredAuth);
-        }
         if real_username != auth_username {
-            return Err(IncorrectUsername);
+            return Err(AuthError::IncorrectAuth(IncorrectUsername));
+        }
+        let range = real_time..real_time + 50;
+        if !range.contains(&auth_time) {
+            return Err(AuthError::IncorrectAuth(ExpiredAuth));
         }
         Ok(())
     }
@@ -90,14 +105,17 @@ impl AuthService for AuthServiceImpl {
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<EncryptedValue, EncryptionError> {
+    ) -> Result<EncryptedValue, AuthError> {
         let decrypted = format!("{},{}",
                                 username,
-                                SystemTime::now().as_millis().to_string());
+                                SystemTime::now().elapsed()?.as_millis().to_string());
 
-        CryptoService::encrypt_private(
+        match RsaCryptoService::encrypt_private(
             keys,
-            &DecryptedValue { secret: decrypted })
+            &DecryptedValue { secret: decrypted }) {
+            Ok(i) => Ok(i),
+            Err(e) => Err(AuthError::AuthGenFailed(e))
+        }
     }
 }
 
@@ -107,9 +125,19 @@ impl From<reqwest::Error> for Error {
     }
 }
 
+impl From<AuthError> for Error {
+    fn from(e: AuthError) -> Self {
+        match e {
+            AuthError::IncorrectAuth(IncorrectUsername) => IncorrectUsername,
+            AuthError::IncorrectAuth(ExpiredAuth) => ExpiredAuth,
+            _ => CryptoError
+        }
+    }
+}
+
 impl AccountApi for AccountApiImpl {
     fn new_account(account: &Account) -> Result<(), Error> {
-        let auth = AuthService::generate_auth(&account.keys, &account.username)?.garbage;
+        let auth = AuthServiceImpl::generate_auth(&account.keys, &account.username)?.garbage;
 
         let params = [
             ("hashed_username", &account.username),
