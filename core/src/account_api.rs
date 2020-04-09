@@ -96,7 +96,9 @@ impl AuthService for AuthServiceImpl {
         if real_username != auth_username {
             return Err(AuthError::IncorrectAuth(IncorrectUsername));
         }
+
         let range = *auth_time..auth_time + 50;
+        println!("{}", auth_time + 50 - real_time);
         if !range.contains(&real_time) {
             return Err(AuthError::IncorrectAuth(ExpiredAuth));
         }
@@ -192,6 +194,13 @@ mod integration_tests {
 
     #[test]
     fn test_auth_time_in_bounds() {
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let username = String::from("Smail");
+        let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
+        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
+    }
+
+    fn test_auth_time_expired() {
         let keys = DefaultCrypto::generate_key().unwrap();
         let username = String::from("Smail");
         let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
