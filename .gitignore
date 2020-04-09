@@ -93,3 +93,7 @@ iOSInjectionProject/
 
 ios_client/include/
 ios_client/libs/
+
+# Intellj IDEA
+
+Project.xml
