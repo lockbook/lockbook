@@ -98,7 +98,7 @@ impl AuthService for AuthServiceImpl {
         }
 
         let range = *auth_time..auth_time + 50;
-        println!("{}", auth_time + 50 - real_time);
+
         if !range.contains(&real_time) {
             return Err(AuthError::IncorrectAuth(ExpiredAuth));
         }
@@ -170,7 +170,7 @@ mod integration_tests {
 
     use crate::account::Account;
     use crate::account_api::{AccountApi, AccountApiImpl, AuthService, AuthServiceImpl};
-    use crate::crypto::{CryptoService, RsaCryptoService};
+    use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue};
 
     type DefaultCrypto = RsaCryptoService;
     type TestAccountApi = AccountApiImpl;
@@ -200,10 +200,21 @@ mod integration_tests {
         AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
     }
 
+    #[test]
     fn test_auth_time_expired() {
         let keys = DefaultCrypto::generate_key().unwrap();
         let username = String::from("Smail");
-        let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
-        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
+
+        let decrypt_auth = format!("{},{}", username, 3);
+        let auth = RsaCryptoService::encrypt_private(
+            &keys,
+            &DecryptedValue { secret: decrypt_auth }).unwrap().garbage;
+
+        let result = AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth);
+
+        match result {
+            Ok(()) => panic!("Verifying auth passed when it shouldn't have!"),
+            Err(_) => ()
+        }
     }
 }
