@@ -2,11 +2,11 @@ extern crate reqwest;
 
 use std::num::ParseIntError;
 use std::option::NoneError;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::time::SystemTimeError;
 
 use crate::account::Account;
-use crate::account_api::Error::{ExpiredAuth, IncorrectUsername, NetworkError, ServerUnavailable, UsernameTaken, CryptoError};
+use crate::account_api::Error::{CryptoError, ExpiredAuth, IncorrectUsername, NetworkError, ServerUnavailable, UsernameTaken};
 use crate::API_LOC;
 use crate::crypto::*;
 use crate::error_enum;
@@ -40,33 +40,33 @@ pub struct AccountApiImpl;
 
 pub trait AuthService {
     fn verify_auth(
-        pub_key: PublicKey,
+        pub_key: &PublicKey,
         username: &String,
         auth: &String,
     ) -> Result<(), AuthError>;
     fn verify_auth_comp(
-        auth_time: &u128,
         auth_username: &String,
         real_username: &String,
+        auth_time: &u128,
     ) -> Result<(), AuthError>;
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<EncryptedValue, AuthError>;
+    ) -> Result<String, AuthError>;
 }
 
 pub struct AuthServiceImpl;
 
 impl AuthService for AuthServiceImpl {
     fn verify_auth(
-        pub_key: PublicKey,
+        pub_key: &PublicKey,
         username: &String,
         auth: &String,
     ) -> Result<(), AuthError> {
         let decrypt_val = RsaCryptoService::decrypt_public(
             &PublicKey {
-                n: pub_key.n,
-                e: pub_key.e,
+                n: pub_key.n.clone(),
+                e: pub_key.e.clone(),
             },
             &EncryptedValue {
                 garbage: auth.clone(),
@@ -76,27 +76,28 @@ impl AuthService for AuthServiceImpl {
         let mut auth_comp = decrypt_val.secret.split(",");
 
         match AuthServiceImpl::verify_auth_comp(
-            &auth_comp.next()?.parse::<u128>()?,
+            &String::from(auth_comp.next()?),
             &username,
-            &String::from(auth_comp.next()?)) {
+            &auth_comp.next()?.parse::<u128>()?) {
             Ok(_) => Ok(()),
             Err(e) => Err(e)
         }
     }
 
     fn verify_auth_comp(
-        auth_time: &u128,
         auth_username: &String,
         real_username: &String,
+        auth_time: &u128,
     ) -> Result<(), AuthError> {
-        let real_time = SystemTime::now()
-            .elapsed()?.as_millis();
+        let real_time = SystemTime::now().
+            duration_since(UNIX_EPOCH)?.
+            as_millis();
 
         if real_username != auth_username {
             return Err(AuthError::IncorrectAuth(IncorrectUsername));
         }
-        let range = real_time..real_time + 50;
-        if !range.contains(&auth_time) {
+        let range = *auth_time..auth_time + 50;
+        if !range.contains(&real_time) {
             return Err(AuthError::IncorrectAuth(ExpiredAuth));
         }
         Ok(())
@@ -105,17 +106,14 @@ impl AuthService for AuthServiceImpl {
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<EncryptedValue, AuthError> {
+    ) -> Result<String, AuthError> {
         let decrypted = format!("{},{}",
                                 username,
-                                SystemTime::now().elapsed()?.as_millis().to_string());
+                                SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis().to_string());
 
-        match RsaCryptoService::encrypt_private(
+        Ok(RsaCryptoService::encrypt_private(
             keys,
-            &DecryptedValue { secret: decrypted }) {
-            Ok(i) => Ok(i),
-            Err(e) => Err(AuthError::AuthGenFailed(e))
-        }
+            &DecryptedValue { secret: decrypted })?.garbage)
     }
 }
 
@@ -137,7 +135,7 @@ impl From<AuthError> for Error {
 
 impl AccountApi for AccountApiImpl {
     fn new_account(account: &Account) -> Result<(), Error> {
-        let auth = AuthServiceImpl::generate_auth(&account.keys, &account.username)?.garbage;
+        let auth = AuthServiceImpl::generate_auth(&account.keys, &account.username)?;
 
         let params = [
             ("hashed_username", &account.username),
@@ -169,7 +167,7 @@ mod integration_tests {
     use std::env;
 
     use crate::account::Account;
-    use crate::account_api::{AccountApi, AccountApiImpl};
+    use crate::account_api::{AccountApi, AccountApiImpl, AuthService, AuthServiceImpl};
     use crate::crypto::{CryptoService, RsaCryptoService};
 
     type DefaultCrypto = RsaCryptoService;
@@ -190,5 +188,13 @@ mod integration_tests {
                 println!("Env variable RUN_INTEGRATION_TESTS not set, skipping integration test")
             }
         }
+    }
+
+    #[test]
+    fn test_auth_time_in_bounds() {
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let username = String::from("Smail");
+        let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
+        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
     }
 }
