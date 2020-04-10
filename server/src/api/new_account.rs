@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::config::ServerState;
 use crate::index_db;
+use lockbook_core::account_api::{AuthServiceImpl, AuthService};
 
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
@@ -28,34 +29,14 @@ struct NewAccountResponse {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     println!("new_account: {:?}", new_account);
 
-    let decrypt_val = RsaCryptoService::decrypt_public(
+    let verification = AuthServiceImpl::verify_auth(
         &PublicKey {
             n: new_account.pub_key_n.clone(),
-            e: new_account.pub_key_e.clone(),
+            e: new_account.pub_key_e.clone()
         },
-        &EncryptedValue {
-            garbage: new_account.auth.clone(),
-        },
+        &new_account.username,
+        &new_account.auth
     )?;
-
-    let current_time = SystemTime::now()
-        .as_millis();
-    let range = current_time - 50..current_time + 50;
-    let decrypt_comp = decrypt_val.secret.split(",").collect::<Vec<&str>>();
-    let decrypt_time = decrypt_comp.get(2)?.parse::<u128>()?;
-
-    if decrypt_comp.get(0)? != &new_account.username || !range.contains(&decrypt_time) {
-        return Response::build()
-            .status(Status::UnprocessableEntity)
-            .sized_body(Cursor::new(
-                serde_json::to_string(&NewAccountResponse {
-                    error_code: String::from("Failed Verification"),
-                })
-                    .expect("Failed to json-serialize response!"),
-            ))
-            .finalize();
-    }
-
 
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
