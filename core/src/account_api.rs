@@ -1,16 +1,10 @@
 extern crate reqwest;
 
-use std::num::ParseIntError;
-use std::option::NoneError;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::time::SystemTimeError;
-
 use crate::account::Account;
 use crate::account_api::Error::{CryptoError, NetworkError, ServerUnavailable, UsernameTaken};
 use crate::API_LOC;
 use crate::crypto::*;
-use crate::error_enum;
-use crate::
+use crate::auth_service::{AuthServiceImpl, AuthService};
 
 #[derive(Debug)]
 pub enum Error {
@@ -29,16 +23,6 @@ pub struct AccountApiImpl;
 impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
         NetworkError(e)
-    }
-}
-
-impl From<AuthError> for Error {
-    fn from(e: AuthError) -> Self {
-        match e {
-            AuthError::IncorrectAuth(IncorrectUsername) => IncorrectUsername,
-            AuthError::IncorrectAuth(ExpiredAuth) => ExpiredAuth,
-            _ => CryptoError
-        }
     }
 }
 

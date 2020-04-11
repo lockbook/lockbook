@@ -17,6 +17,7 @@ pub mod account;
 pub mod account_api;
 pub mod account_repo;
 pub mod account_service;
+pub mod auth_service;
 pub mod crypto;
 pub mod db_provider;
 pub mod error_enum;
