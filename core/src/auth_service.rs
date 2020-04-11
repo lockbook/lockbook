@@ -1,26 +1,30 @@
-use crate::crypto::{PublicKey, RsaCryptoService, CryptoService, DecryptedValue, KeyPair, EncryptedValue};
-
 use std::time::{SystemTime, UNIX_EPOCH};
+use core::num::ParseIntError;
+use std::option::NoneError;
+use std::time::SystemTimeError;
 
-error_enum! {
-    enum AuthError {
-        DecryptionFailure(DecryptionError),
+use crate::crypto::{PublicKey, RsaCryptoService, CryptoService, DecryptedValue, KeyPair, EncryptedValue};
+use crate::error_enum;
+use crate::crypto::EncryptionError;
+use crate::crypto::DecryptionError;
 
-        IncompleteAuth(NoneError),
-
-        AuthGenFailed(EncryptionError),
-    }
+enum Error {
+    InvalidUsername,
+    TimeStampOutOfBounds
 }
 
 error_enum! {
     enum VerificationError {
         TimeStampParseFailure(ParseIntError),
+        DecryptionFailure(DecryptionError),
+        IncompleteAuth(NoneError)
     }
 }
 
 error_enum! {
-    enum GenerationError {
-
+    enum AuthGenError {
+        AuthEncryptionFailure(EncryptionError),
+        InvalidTimeStamp(SystemTimeError)
     }
 }
 
@@ -29,11 +33,11 @@ pub trait AuthService {
         pub_key: &PublicKey,
         username: &String,
         auth: &String,
-    ) -> Result<(), AuthError>;
+    ) -> Result<(), VerificationError>;
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<String, AuthError>;
+    ) -> Result<String, AuthGenError>;
 }
 
 pub struct AuthServiceImpl;
@@ -43,7 +47,7 @@ impl AuthService for AuthServiceImpl {
         pub_key: &PublicKey,
         username: &String,
         auth: &String,
-    ) -> Result<(), AuthError> {
+    ) -> Result<(), VerificationError> {
         let decrypt_val = RsaCryptoService::decrypt_public(
             &PublicKey {
                 n: pub_key.n.clone(),
@@ -58,17 +62,17 @@ impl AuthService for AuthServiceImpl {
         let real_time = SystemTime::now().
             duration_since(UNIX_EPOCH)?.
             as_millis();
-        let auth_username = String::from(auth_comp.next()?;
+
         let auth_time = auth_comp.next()?.parse::<u128>()?;
 
-        if real_username != auth_username {
-            return AuthError::IncorrectAuth(IncorrectUsername);
+        if String::from(auth_comp.next()?) != username {
+            return ;
         }
 
         let range = auth_time..auth_time + 50;
 
         if !range.contains(&real_time) {
-            return AuthError::IncorrectAuth(ExpiredAuth);
+            return ;
         }
         Ok(())
     }
@@ -76,7 +80,7 @@ impl AuthService for AuthServiceImpl {
     fn generate_auth(
         keys: &KeyPair,
         username: &String,
-    ) -> Result<String, AuthError> {
+    ) -> Result<String, AuthGenError> {
         let decrypted = format!("{},{}",
                                 username,
                                 SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis().to_string());
