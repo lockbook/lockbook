@@ -1,4 +1,5 @@
 # Project Overview
+![Build](https://github.com/lockbook/monorepo/workflows/Build/badge.svg) ![Deploy](https://github.com/lockbook/monorepo/workflows/Deploy/badge.svg)
 
 Lockbook is a document editor that is:
 + Delightful
