@@ -112,18 +112,17 @@ pub struct EncryptedValue {
 pub struct DecryptedValue {
     pub secret: String,
 }
- // create a way to create a public key from its components
- // encrypt / decrypt , public / private should only use their specific keys
+
 pub trait CryptoService {
     fn generate_key() -> Result<KeyPair, KeyGenError>;
     fn verify_key(key: &KeyPair) -> Result<bool, DecodingError>;
 
     fn encrypt_public(
-        key: &PublicKey,
+        pub_key: &PublicKey,
         decrypted: &DecryptedValue,
     ) -> Result<EncryptedValue, EncryptionError>;
     fn decrypt_public(
-        key: &PublicKey,
+        pub_key: &PublicKey,
         encrypted: &EncryptedValue,
     ) -> Result<DecryptedValue, DecryptionError>;
 
