@@ -1,13 +1,12 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api::{
-    change_file_content, ChangeFileContentError, ChangeFileContentParams,
-};
-use lockbook_core::lockbook_api::{create_file, CreateFileError, CreateFileParams};
-use lockbook_core::lockbook_api::{delete_file, DeleteFileError, DeleteFileParams};
-use lockbook_core::lockbook_api::{get_updates, FileMetadata, GetUpdatesError, GetUpdatesParams};
-use lockbook_core::lockbook_api::{move_file, MoveFileError, MoveFileParams};
-use lockbook_core::lockbook_api::{new_account, NewAccountError, NewAccountParams};
-use lockbook_core::lockbook_api::{rename_file, RenameFileError, RenameFileParams};
+use lockbook_core::lockbook_api;
+use lockbook_core::lockbook_api::{ChangeFileContentError, ChangeFileContentParams};
+use lockbook_core::lockbook_api::{CreateFileError, CreateFileParams};
+use lockbook_core::lockbook_api::{DeleteFileError, DeleteFileParams};
+use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesError, GetUpdatesParams};
+use lockbook_core::lockbook_api::{MoveFileError, MoveFileParams};
+use lockbook_core::lockbook_api::{NewAccountError, NewAccountParams};
+use lockbook_core::lockbook_api::{RenameFileError, RenameFileParams};
 use std::env;
 use uuid::Uuid;
 
@@ -29,9 +28,19 @@ fn generate_file_id() -> String {
     Uuid::new_v4().to_string()
 }
 
+macro_rules! assert_matches(
+    ($actual:expr, $expected:pat) => {
+        // Only compute actual once
+        let actual_value = $actual;
+        match actual_value {
+            $expected => {},
+            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
+        }
+    }
+);
+
 #[derive(Debug)]
 enum TestError {
-    ErrorExpected,
     NewAccountError(NewAccountError),
     CreateFileError(CreateFileError),
     ChangeFileContentError(ChangeFileContentError),
@@ -83,9 +92,8 @@ impl From<GetUpdatesError> for TestError {
     }
 }
 
-#[test]
-fn test_create_user() -> Result<(), TestError> {
-    new_account(
+fn new_account() -> Result<(), TestError> {
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: generate_username(),
@@ -99,10 +107,14 @@ fn test_create_user() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_create_user_duplicate() -> Result<(), TestError> {
+fn test_new_account() {
+    assert_matches!(new_account(), Ok(_));
+}
+
+fn new_account_duplicate() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -112,7 +124,7 @@ fn test_create_user_duplicate() -> Result<(), TestError> {
         },
     )?;
 
-    match new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -120,18 +132,23 @@ fn test_create_user_duplicate() -> Result<(), TestError> {
             pub_key_n: "test_pub_key_n".to_string(),
             pub_key_e: "test_pub_key_e".to_string(),
         },
-    ) {
-        Err(NewAccountError::UsernameTaken) => Ok(()),
-        Ok(()) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::NewAccountError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_create_file() -> Result<(), TestError> {
+fn test_new_account_duplicate() {
+    assert_matches!(
+        new_account_duplicate(),
+        Err(TestError::NewAccountError(NewAccountError::UsernameTaken))
+    );
+}
+
+fn create_file() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -141,7 +158,7 @@ fn test_create_file() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -157,11 +174,15 @@ fn test_create_file() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
+fn test_create_file() {
+    assert_matches!(create_file(), Ok(_));
+}
+
+fn create_file_duplicate_file_id() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -171,7 +192,7 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -183,7 +204,7 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    match create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -193,18 +214,23 @@ fn test_create_file_duplicate_file_id() -> Result<(), TestError> {
             file_path: "file_path_2".to_string(),
             file_content: "file_content".to_string(),
         },
-    ) {
-        Err(CreateFileError::FileIdTaken) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::CreateFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
+fn test_create_file_duplicate_file_id() {
+    assert_matches!(
+        create_file_duplicate_file_id(),
+        Err(TestError::CreateFileError(CreateFileError::FileIdTaken))
+    );
+}
+
+fn create_file_duplicate_file_path() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -214,7 +240,7 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -226,7 +252,7 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    match create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -236,19 +262,24 @@ fn test_create_file_duplicate_file_path() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    ) {
-        Err(CreateFileError::FilePathTaken) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::CreateFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_change_file_content() -> Result<(), TestError> {
+fn test_create_file_duplicate_file_path() {
+    assert_matches!(
+        create_file_duplicate_file_path(),
+        Err(TestError::CreateFileError(CreateFileError::FilePathTaken))
+    );
+}
+
+fn change_file_content() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -258,7 +289,7 @@ fn test_change_file_content() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = create_file(
+    let old_file_version = lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -270,7 +301,7 @@ fn test_change_file_content() -> Result<(), TestError> {
         },
     )?;
 
-    change_file_content(
+    lockbook_api::change_file_content(
         api_loc(),
         &ChangeFileContentParams {
             username: username.to_string(),
@@ -285,10 +316,14 @@ fn test_change_file_content() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_change_file_content_file_not_found() -> Result<(), TestError> {
+fn test_change_file_content() {
+    assert_matches!(change_file_content(), Ok(_));
+}
+
+fn change_file_content_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -298,7 +333,7 @@ fn test_change_file_content_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    match change_file_content(
+    lockbook_api::change_file_content(
         api_loc(),
         &ChangeFileContentParams {
             username: username.to_string(),
@@ -307,19 +342,26 @@ fn test_change_file_content_file_not_found() -> Result<(), TestError> {
             old_file_version: 0,
             new_file_content: "new_file_content".to_string(),
         },
-    ) {
-        Err(ChangeFileContentError::FileNotFound) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::ChangeFileContentError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_change_file_content_edit_conflict() -> Result<(), TestError> {
+fn test_change_file_content_file_not_found() {
+    assert_matches!(
+        change_file_content_file_not_found(),
+        Err(TestError::ChangeFileContentError(
+            ChangeFileContentError::FileNotFound
+        ))
+    );
+}
+
+fn change_file_content_edit_conflict() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -329,7 +371,7 @@ fn test_change_file_content_edit_conflict() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -341,7 +383,7 @@ fn test_change_file_content_edit_conflict() -> Result<(), TestError> {
         },
     )?;
 
-    match change_file_content(
+    lockbook_api::change_file_content(
         api_loc(),
         &ChangeFileContentParams {
             username: username.to_string(),
@@ -350,19 +392,24 @@ fn test_change_file_content_edit_conflict() -> Result<(), TestError> {
             old_file_version: 0,
             new_file_content: "new_file_content".to_string(),
         },
-    ) {
-        Err(ChangeFileContentError::EditConflict(_)) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::ChangeFileContentError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_change_file_content_file_deleted() -> Result<(), TestError> {
+fn test_change_file_content_edit_conflict() {
+    assert_matches!(
+        change_file_content_edit_conflict(),
+        Err(TestError::ChangeFileContentError(ChangeFileContentError::EditConflict(_)))
+    );
+}
+
+fn change_file_content_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -372,7 +419,7 @@ fn test_change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = create_file(
+    let old_file_version = lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -384,7 +431,7 @@ fn test_change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
@@ -393,7 +440,7 @@ fn test_change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    match change_file_content(
+    lockbook_api::change_file_content(
         api_loc(),
         &ChangeFileContentParams {
             username: username.to_string(),
@@ -402,19 +449,26 @@ fn test_change_file_content_file_deleted() -> Result<(), TestError> {
             old_file_version: old_file_version,
             new_file_content: "new_file_content".to_string(),
         },
-    ) {
-        Err(ChangeFileContentError::FileDeleted) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::ChangeFileContentError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_rename_file() -> Result<(), TestError> {
+fn test_change_file_content_file_deleted() {
+    assert_matches!(
+        change_file_content_file_deleted(),
+        Err(TestError::ChangeFileContentError(
+            ChangeFileContentError::FileDeleted
+        ))
+    );
+}
+
+fn rename_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -424,7 +478,7 @@ fn test_rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -436,7 +490,7 @@ fn test_rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    rename_file(
+    lockbook_api::rename_file(
         api_loc(),
         &RenameFileParams {
             username: username.to_string(),
@@ -450,10 +504,14 @@ fn test_rename_file() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_rename_file_file_not_found() -> Result<(), TestError> {
+fn test_rename_file() {
+    assert_matches!(rename_file(), Ok(_));
+}
+
+fn rename_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -463,7 +521,7 @@ fn test_rename_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    match rename_file(
+    lockbook_api::rename_file(
         api_loc(),
         &RenameFileParams {
             username: username.to_string(),
@@ -471,19 +529,24 @@ fn test_rename_file_file_not_found() -> Result<(), TestError> {
             file_id: generate_file_id(),
             new_file_name: "new_file_name".to_string(),
         },
-    ) {
-        Err(RenameFileError::FileNotFound) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::RenameFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_rename_file_file_deleted() -> Result<(), TestError> {
+fn test_rename_file_file_not_found() {
+    assert_matches!(
+        rename_file_file_not_found(),
+        Err(TestError::RenameFileError(RenameFileError::FileNotFound))
+    );
+}
+
+fn rename_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -493,7 +556,7 @@ fn test_rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -505,7 +568,7 @@ fn test_rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
@@ -514,7 +577,7 @@ fn test_rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    match rename_file(
+    lockbook_api::rename_file(
         api_loc(),
         &RenameFileParams {
             username: username.to_string(),
@@ -522,19 +585,24 @@ fn test_rename_file_file_deleted() -> Result<(), TestError> {
             file_id: file_id.to_string(),
             new_file_name: "new_file_name".to_string(),
         },
-    ) {
-        Err(RenameFileError::FileDeleted) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::RenameFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_move_file() -> Result<(), TestError> {
+fn test_rename_file_file_deleted() {
+    assert_matches!(
+        rename_file_file_deleted(),
+        Err(TestError::RenameFileError(RenameFileError::FileDeleted))
+    );
+}
+
+fn move_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -544,7 +612,7 @@ fn test_move_file() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -556,7 +624,7 @@ fn test_move_file() -> Result<(), TestError> {
         },
     )?;
 
-    move_file(
+    lockbook_api::move_file(
         api_loc(),
         &MoveFileParams {
             username: username.to_string(),
@@ -570,10 +638,14 @@ fn test_move_file() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_move_file_file_not_found() -> Result<(), TestError> {
+fn test_move_file() {
+    assert_matches!(move_file(), Ok(_));
+}
+
+fn move_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -583,7 +655,7 @@ fn test_move_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    match move_file(
+    lockbook_api::move_file(
         api_loc(),
         &MoveFileParams {
             username: username.to_string(),
@@ -591,19 +663,24 @@ fn test_move_file_file_not_found() -> Result<(), TestError> {
             file_id: generate_file_id(),
             new_file_path: "new_file_path".to_string(),
         },
-    ) {
-        Err(MoveFileError::FileNotFound) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::MoveFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_move_file_file_deleted() -> Result<(), TestError> {
+fn test_move_file_file_not_found() {
+    assert_matches!(
+        move_file_file_not_found(),
+        Err(TestError::MoveFileError(MoveFileError::FileNotFound))
+    );
+}
+
+fn move_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -613,7 +690,7 @@ fn test_move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -625,7 +702,7 @@ fn test_move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
@@ -634,7 +711,7 @@ fn test_move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    match move_file(
+    lockbook_api::move_file(
         api_loc(),
         &MoveFileParams {
             username: username.to_string(),
@@ -642,20 +719,25 @@ fn test_move_file_file_deleted() -> Result<(), TestError> {
             file_id: file_id.to_string(),
             new_file_path: "new_file_path".to_string(),
         },
-    ) {
-        Err(MoveFileError::FileDeleted) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::MoveFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_move_file_file_path_taken() -> Result<(), TestError> {
+fn test_move_file_file_deleted() {
+    assert_matches!(
+        move_file_file_deleted(),
+        Err(TestError::MoveFileError(MoveFileError::FileDeleted))
+    );
+}
+
+fn move_file_file_path_taken() -> Result<(), TestError> {
     let username = generate_username();
     let file_id_a = generate_file_id();
     let file_id_b = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -665,7 +747,7 @@ fn test_move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -677,7 +759,7 @@ fn test_move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -689,7 +771,7 @@ fn test_move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    match move_file(
+    lockbook_api::move_file(
         api_loc(),
         &MoveFileParams {
             username: username.to_string(),
@@ -697,19 +779,24 @@ fn test_move_file_file_path_taken() -> Result<(), TestError> {
             file_id: file_id_b.to_string(),
             new_file_path: "file_path_a".to_string(),
         },
-    ) {
-        Err(MoveFileError::FilePathTaken) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::MoveFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_delete_file() -> Result<(), TestError> {
+fn test_move_file_file_path_taken() {
+    assert_matches!(
+        move_file_file_path_taken(),
+        Err(TestError::MoveFileError(MoveFileError::FilePathTaken))
+    );
+}
+
+fn delete_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -719,7 +806,7 @@ fn test_delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -731,7 +818,7 @@ fn test_delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
@@ -744,10 +831,14 @@ fn test_delete_file() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_delete_file_file_not_found() -> Result<(), TestError> {
+fn test_delete_file() {
+    assert_matches!(delete_file(), Ok(_));
+}
+
+fn delete_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -757,26 +848,31 @@ fn test_delete_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    match delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
         },
-    ) {
-        Err(DeleteFileError::FileNotFound) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::DeleteFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_delete_file_file_deleted() -> Result<(), TestError> {
+fn test_delete_file_file_not_found() {
+    assert_matches!(
+        delete_file_file_not_found(),
+        Err(TestError::DeleteFileError(DeleteFileError::FileNotFound))
+    );
+}
+
+fn delete_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    new_account(
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -786,7 +882,7 @@ fn test_delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    create_file(
+    lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -798,7 +894,7 @@ fn test_delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
@@ -807,26 +903,28 @@ fn test_delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    match delete_file(
+    lockbook_api::delete_file(
         api_loc(),
         &DeleteFileParams {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
         },
-    ) {
-        Err(DeleteFileError::FileDeleted) => Ok(()),
-        Ok(_) => Err(TestError::ErrorExpected),
-        Err(e) => Err(TestError::DeleteFileError(e)),
-    }
+    )?;
+
+    Ok(())
 }
 
 #[test]
-fn test_get_updates() -> Result<(), TestError> {
-    let username = generate_username();
-    let file_id = generate_file_id();
+fn test_delete_file_file_deleted() {
+    assert_matches!(
+        delete_file_file_deleted(),
+        Err(TestError::DeleteFileError(DeleteFileError::FileDeleted))
+    );
+}
 
-    new_account(
+fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
+    lockbook_api::new_account(
         api_loc(),
         &NewAccountParams {
             username: username.to_string(),
@@ -836,7 +934,7 @@ fn test_get_updates() -> Result<(), TestError> {
         },
     )?;
 
-    let file_version = create_file(
+    let file_version = lockbook_api::create_file(
         api_loc(),
         &CreateFileParams {
             username: username.to_string(),
@@ -848,7 +946,7 @@ fn test_get_updates() -> Result<(), TestError> {
         },
     )?;
 
-    let updates_metadata = get_updates(
+    let updates_metadata = lockbook_api::get_updates(
         api_loc(),
         &GetUpdatesParams {
             username: username.to_string(),
@@ -857,6 +955,17 @@ fn test_get_updates() -> Result<(), TestError> {
         },
     )?;
 
+    Ok((updates_metadata, file_version))
+}
+
+#[test]
+fn test_get_updates() {
+    let username = generate_username();
+    let file_id = generate_file_id();
+
+    let updates_metadata_and_file_version = get_updates(username.to_string(), file_id.to_string());
+    assert_matches!(&updates_metadata_and_file_version, &Ok(_));
+    let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
     assert_eq!(
         updates_metadata[..],
         [FileMetadata {
@@ -868,6 +977,4 @@ fn test_get_updates() -> Result<(), TestError> {
             deleted: false,
         }][..]
     );
-
-    Ok(())
 }
