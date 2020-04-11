@@ -5,7 +5,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
-use crate::account_api::{AccountApiImpl, AuthServiceImpl};
+use crate::account_api::AccountApiImpl;
 use crate::account_repo::AccountRepoImpl;
 use crate::account_service::{AccountService, AccountServiceImpl};
 use crate::crypto::RsaCryptoService;

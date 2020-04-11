@@ -6,30 +6,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::time::SystemTimeError;
 
 use crate::account::Account;
-use crate::account_api::Error::{CryptoError, ExpiredAuth, IncorrectUsername, NetworkError, ServerUnavailable, UsernameTaken};
+use crate::account_api::Error::{CryptoError, NetworkError, ServerUnavailable, UsernameTaken};
 use crate::API_LOC;
 use crate::crypto::*;
 use crate::error_enum;
+use crate::
 
 #[derive(Debug)]
 pub enum Error {
     NetworkError(reqwest::Error),
     UsernameTaken,
-    IncorrectUsername,
-    ExpiredAuth,
     CryptoError,
     ServerUnavailable(u16),
-}
-
-error_enum! {
-    enum AuthError {
-        DecryptionFailure(DecryptionError),
-        ParseError(ParseIntError),
-        IncompleteAuth(NoneError),
-        NegativeTime(SystemTimeError),
-        AuthGenFailed(EncryptionError),
-        IncorrectAuth(Error)
-    }
 }
 
 pub trait AccountApi {
@@ -37,87 +25,6 @@ pub trait AccountApi {
 }
 
 pub struct AccountApiImpl;
-
-pub trait AuthService {
-    fn verify_auth(
-        pub_key: &PublicKey,
-        username: &String,
-        auth: &String,
-    ) -> Result<(), AuthError>;
-    fn verify_auth_comp(
-        auth_username: &String,
-        real_username: &String,
-        auth_time: &u128,
-    ) -> Result<(), AuthError>;
-    fn generate_auth(
-        keys: &KeyPair,
-        username: &String,
-    ) -> Result<String, AuthError>;
-}
-
-pub struct AuthServiceImpl;
-
-impl AuthService for AuthServiceImpl {
-    fn verify_auth(
-        pub_key: &PublicKey,
-        username: &String,
-        auth: &String,
-    ) -> Result<(), AuthError> {
-        let decrypt_val = RsaCryptoService::decrypt_public(
-            &PublicKey {
-                n: pub_key.n.clone(),
-                e: pub_key.e.clone(),
-            },
-            &EncryptedValue {
-                garbage: auth.clone(),
-            },
-        )?;
-
-        let mut auth_comp = decrypt_val.secret.split(",");
-
-        match AuthServiceImpl::verify_auth_comp(
-            &String::from(auth_comp.next()?),
-            &username,
-            &auth_comp.next()?.parse::<u128>()?) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e)
-        }
-    }
-
-    fn verify_auth_comp(
-        auth_username: &String,
-        real_username: &String,
-        auth_time: &u128,
-    ) -> Result<(), AuthError> {
-        let real_time = SystemTime::now().
-            duration_since(UNIX_EPOCH)?.
-            as_millis();
-
-        if real_username != auth_username {
-            return Err(AuthError::IncorrectAuth(IncorrectUsername));
-        }
-
-        let range = *auth_time..auth_time + 50;
-
-        if !range.contains(&real_time) {
-            return Err(AuthError::IncorrectAuth(ExpiredAuth));
-        }
-        Ok(())
-    }
-
-    fn generate_auth(
-        keys: &KeyPair,
-        username: &String,
-    ) -> Result<String, AuthError> {
-        let decrypted = format!("{},{}",
-                                username,
-                                SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis().to_string());
-
-        Ok(RsaCryptoService::encrypt_private(
-            keys,
-            &DecryptedValue { secret: decrypted })?.garbage)
-    }
-}
 
 impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
@@ -169,7 +76,7 @@ mod integration_tests {
     use std::env;
 
     use crate::account::Account;
-    use crate::account_api::{AccountApi, AccountApiImpl, AuthService, AuthServiceImpl};
+    use crate::account_api::{AccountApi, AccountApiImpl};
     use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue};
 
     type DefaultCrypto = RsaCryptoService;
