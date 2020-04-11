@@ -43,6 +43,13 @@ jobs:
         toolchain: nightly
         command: test
         args: --manifest-path server/Cargo.toml --verbose
+    - name: Slack Notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
   Core:
     runs-on: ubuntu-latest
     env:
@@ -76,4 +83,4 @@ jobs:
         status: ${{ job.status }}
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always() # Pick up events even if the job fails or is canceled.
+      if: always()
