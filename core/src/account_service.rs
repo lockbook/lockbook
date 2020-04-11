@@ -11,6 +11,7 @@ use crate::db_provider;
 use crate::db_provider::DbProvider;
 use crate::error_enum;
 use crate::state::Config;
+use crate::auth_service::AuthService;
 
 error_enum! {
     enum Error {

@@ -1,9 +1,8 @@
 extern crate reqwest;
 
 use crate::account::Account;
-use crate::account_api::Error::{CryptoError, NetworkError, ServerUnavailable, UsernameTaken};
+use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken};
 use crate::API_LOC;
-use crate::crypto::*;
 use crate::auth_service::{AuthServiceImpl, AuthService};
 
 #[derive(Debug)]
@@ -62,6 +61,7 @@ mod integration_tests {
     use crate::account::Account;
     use crate::account_api::{AccountApi, AccountApiImpl};
     use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue};
+    use crate::auth_service::{AuthServiceImpl, AuthService};
 
     type DefaultCrypto = RsaCryptoService;
     type TestAccountApi = AccountApiImpl;
