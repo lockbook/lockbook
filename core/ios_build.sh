@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # https://robertohuertas.com/2019/10/27/rust-for-android-ios-flutter/
-# cargo install cargo-lipo
+# cargo install cargo-lipo cbindgen
 # 64 bit targets (real device & simulator):
 # rustup target add aarch64-apple-ios x86_64-apple-ios
 # 32 bit targets (you probably don't need these):
