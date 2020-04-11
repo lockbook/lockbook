@@ -46,8 +46,8 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
-      LOCKBOOK_API_LOCATION: http://lockbook.app:8000
       working-directory: ./core
+      LOCKBOOK_API_LOCATION: http://lockbook.app:8000
     steps:
     - uses: actions/checkout@v2
     - name: Install latest nightly
@@ -70,3 +70,9 @@ jobs:
         toolchain: nightly
         command: test
         args: --manifest-path core/Cargo.toml --verbose
+    - name: Slack Notification 
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_USERNAME: GitHub Slackbot
+        SLACK_CHANNEL: lockbook-github
+      uses: Ilshidur/action-slack@master
