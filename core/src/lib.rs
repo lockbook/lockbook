@@ -12,6 +12,7 @@ use crate::crypto::RsaCryptoService;
 use crate::db_provider::DiskBackedDB;
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
+use crate::auth_service::AuthServiceImpl;
 
 pub mod account;
 pub mod account_api;
