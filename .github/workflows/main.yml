@@ -47,7 +47,7 @@ jobs:
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
-        text: Deploy Server
+        text: Deploy Server ${{ job.status }}
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
@@ -82,7 +82,7 @@ jobs:
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
-        text: Build Core
+        text: Build Core ${{ job.status }}
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
