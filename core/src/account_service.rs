@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::account::Account;
 use crate::account_api;
-use crate::account_api::{AccountApi, AuthService};
+use crate::account_api::AccountApi;
 use crate::account_repo;
 use crate::account_repo::AccountRepo;
 use crate::crypto;
