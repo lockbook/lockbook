@@ -1,5 +1,0 @@
-/target
-**/*.rs.bk
-.idea/*
-qa_secrets.sh
-ca-certificate.crt
