@@ -50,6 +50,13 @@ jobs:
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
     steps:
     - uses: actions/checkout@v2
+    - name: Slack Notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always() # Pick up events even if the job fails or is canceled.
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
@@ -70,9 +77,3 @@ jobs:
         toolchain: nightly
         command: test
         args: --manifest-path core/Cargo.toml --verbose
-    - name: Slack Notification 
-      env:
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-        SLACK_USERNAME: GitHub Slackbot
-        SLACK_CHANNEL: lockbook-github
-      uses: Ilshidur/action-slack@master
