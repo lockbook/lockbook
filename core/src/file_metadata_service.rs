@@ -56,19 +56,22 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
                     name: t.file_name,
                     path: t.file_path,
                     updated_at: t.file_metadata_version as i64,
+                    // TODO: Fix this so status is tracked accurately
                     status: "Remote".to_string(),
                 })
                 .collect::<Vec<FileMetadata>>()
-        });
+        })?;
 
-        updates?
+        updates
             .into_iter()
             .for_each(|meta| match FileMetadataRepoImpl::insert(&db, &meta) {
                 Ok(_) => {}
-                Err(_) => {}
+                Err(err) => {
+                    println!("❤️ Insert Error {:?}", err);
+                }
             });
 
-        let all_meta = FileMetadataRepoImpl::dump(&db)?;
+        let all_meta = FileMetadataRepoImpl::get_all(&db)?;
         Ok(all_meta)
     }
 }

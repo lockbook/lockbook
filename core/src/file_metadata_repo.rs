@@ -18,7 +18,7 @@ pub trait FileMetadataRepo {
     fn update(db: &Connection, file_metadata: &FileMetadata) -> Result<(), Error>;
     fn get(db: &Connection, id: &String) -> Result<FileMetadata, Error>;
     fn last_updated(db: &Connection) -> Result<i64, Error>;
-    fn dump(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
+    fn get_all(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -66,7 +66,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(maybe_max?)
     }
 
-    fn dump(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
+    fn get_all(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let mut stmt = db.prepare("SELECT * FROM file_metadata")?;
 
         let file_iter = stmt.query_map(params![], to_metadata)?;
@@ -188,7 +188,7 @@ mod unit_tests {
         FileMetadataRepoImpl::insert(&db, &test_meta2).unwrap();
         FileMetadataRepoImpl::insert(&db, &test_meta3).unwrap();
 
-        let all_files = FileMetadataRepoImpl::dump(&db).unwrap();
+        let all_files = FileMetadataRepoImpl::get_all(&db).unwrap();
         assert_eq!(all_files.len(), 3);
 
         let updated_max = FileMetadataRepoImpl::last_updated(&db).unwrap();

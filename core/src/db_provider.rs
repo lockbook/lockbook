@@ -34,7 +34,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
 
         match Schema::apply_schema(&db) {
             Ok(_) => {
-                println!("Schema applied succesfully!");
+                println!("💚 Schema applied succesfully!");
                 Ok(db)
             }
             // TODO: This should be handled better or a new library
@@ -44,7 +44,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
                     Some(msg),
                 )) => {
                     if msg.contains("already exists") {
-                        println!("Table already exists! {}", msg);
+                        println!("💚 Table already exists! {}", msg);
                         Ok(db)
                     } else {
                         return Err(Error::SchemaError(schema::Error::TableCreationFailure(
