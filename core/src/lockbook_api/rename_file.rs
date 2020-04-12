@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum RenameFileError {
@@ -20,9 +20,9 @@ pub struct RenameFileRequest {
     pub new_file_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct RenameFileResponse {
-    error_code: String,
+    pub error_code: String,
 }
 
 pub fn rename_file(
