@@ -21,7 +21,7 @@ pub struct NewAccountRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NewAccountResponse {
-    error_code: String,
+    pub error_code: String,
 }
 
 pub fn new_account(

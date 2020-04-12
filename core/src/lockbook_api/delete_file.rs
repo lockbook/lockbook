@@ -21,7 +21,7 @@ pub struct DeleteFileRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct DeleteFileResponse {
-    error_code: String,
+    pub error_code: String,
 }
 
 pub fn delete_file(

@@ -24,8 +24,8 @@ pub struct ChangeFileContentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ChangeFileContentResponse {
-    error_code: String,
-    current_version: u64,
+    pub error_code: String,
+    pub current_version: u64,
 }
 
 pub fn change_file_content(
