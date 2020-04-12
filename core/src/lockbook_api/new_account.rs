@@ -12,7 +12,7 @@ pub enum NewAccountError {
     Unspecified,
 }
 
-pub struct NewAccountParams {
+pub struct NewAccountRequest {
     pub username: String,
     pub auth: String,
     pub pub_key_n: String,
@@ -24,7 +24,10 @@ struct NewAccountResponse {
     error_code: String,
 }
 
-pub fn new_account(api_location: &str, params: &NewAccountParams) -> Result<(), NewAccountError> {
+pub fn new_account(
+    api_location: String,
+    params: &NewAccountRequest,
+) -> Result<(), NewAccountError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
