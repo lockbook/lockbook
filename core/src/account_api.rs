@@ -9,7 +9,6 @@ use crate::auth_service::{AuthServiceImpl, AuthService};
 pub enum Error {
     NetworkError(reqwest::Error),
     UsernameTaken,
-    CryptoError,
     ServerUnavailable(u16),
 }
 

@@ -119,6 +119,7 @@ mod unit_tests {
 
         let config = Config {
             writeable_path: "ignored".to_string(),
+            maximum_delay: 50
         };
         let db = DefaultDbProvider::connect_to_db(config).unwrap();
         DefaultAcountRepo::insert_account(&db, &test_account).unwrap();

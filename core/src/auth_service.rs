@@ -1,24 +1,38 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use core::num::ParseIntError;
 use std::option::NoneError;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::time::SystemTimeError;
 
-use crate::crypto::{PublicKey, RsaCryptoService, CryptoService, DecryptedValue, KeyPair, EncryptedValue};
-use crate::error_enum;
-use crate::crypto::EncryptionError;
+use crate::auth_service::VerificationError::{DecryptionFailure, IncompleteAuth, InvalidTimeStamp, InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure};
+use crate::crypto::{CryptoService, DecryptedValue, EncryptedValue, KeyPair, PublicKey, RsaCryptoService};
 use crate::crypto::DecryptionError;
+use crate::crypto::EncryptionError;
+use crate::error_enum;
 
-enum Error {
+#[derive(Debug)]
+pub enum VerificationError {
+    TimeStampParseFailure(ParseIntError),
+    DecryptionFailure(DecryptionError),
+    IncompleteAuth(NoneError),
+    InvalidTimeStamp(SystemTimeError),
     InvalidUsername,
-    TimeStampOutOfBounds
+    TimeStampOutOfBounds,
 }
 
-error_enum! {
-    enum VerificationError {
-        TimeStampParseFailure(ParseIntError),
-        DecryptionFailure(DecryptionError),
-        IncompleteAuth(NoneError)
-    }
+impl From<ParseIntError> for VerificationError {
+    fn from(e: ParseIntError) -> Self { TimeStampParseFailure(e) }
+}
+
+impl From<DecryptionError> for VerificationError {
+    fn from(e: DecryptionError) -> Self { DecryptionFailure(e) }
+}
+
+impl From<NoneError> for VerificationError {
+    fn from(e: NoneError) -> Self { IncompleteAuth(e) }
+}
+
+impl From<SystemTimeError> for VerificationError {
+    fn from(e: SystemTimeError) -> Self { InvalidTimeStamp(e) }
 }
 
 error_enum! {
@@ -59,20 +73,20 @@ impl AuthService for AuthServiceImpl {
         )?;
 
         let mut auth_comp = decrypt_val.secret.split(",");
-        let real_time = SystemTime::now().
-            duration_since(UNIX_EPOCH)?.
-            as_millis();
+        let real_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)?
+            .as_millis();
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
 
-        if String::from(auth_comp.next()?) != username {
-            return ;
+        if &String::from(auth_comp.next()?) != username {
+            return Err(InvalidUsername);
         }
 
         let range = auth_time..auth_time + 50;
 
         if !range.contains(&real_time) {
-            return ;
+            return Err(TimeStampOutOfBounds);
         }
         Ok(())
     }
