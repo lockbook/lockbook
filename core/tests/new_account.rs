@@ -1,13 +1,13 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::{NewAccountError, NewAccountRequest};
+use lockbook_core::lockbook_api::{NewAccountError, NewAccountRequest, NewAccountClientImpl};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_username, TestError};
+use lockbook_core::lockbook_api::new_account::NewAccountClient;
 
 fn new_account() -> Result<(), TestError> {
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: generate_username(),
@@ -28,7 +28,7 @@ fn test_new_account() {
 fn new_account_duplicate() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -38,7 +38,7 @@ fn new_account_duplicate() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),

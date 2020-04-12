@@ -24,7 +24,7 @@ struct DeleteFileResponse {
     error_code: String,
 }
 
-trait DeleteFileClient {
+pub trait DeleteFileClient {
     fn delete_file(
         api_location: String,
         params: &DeleteFileRequest,

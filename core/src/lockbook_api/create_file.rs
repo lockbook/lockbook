@@ -28,7 +28,7 @@ struct CreateFileResponse {
     current_version: u64,
 }
 
-trait CreateFileClient {
+pub trait CreateFileClient {
     fn create_file(
         api_location: String,
         params: &CreateFileRequest,

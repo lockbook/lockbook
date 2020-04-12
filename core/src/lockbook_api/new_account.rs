@@ -33,7 +33,7 @@ impl From<VerificationError> for NewAccountError {
     fn from(e: VerificationError) -> Self { AuthVerificationFailure(e) }
 }
 
-trait NewAccountClient {
+pub trait NewAccountClient {
     fn new_account(
         api_location: String,
         params: &NewAccountRequest,

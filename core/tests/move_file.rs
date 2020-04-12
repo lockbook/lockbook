@@ -1,6 +1,5 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::CreateFileRequest;
+use lockbook_core::lockbook_api::{CreateFileRequest, NewAccountClientImpl, CreateFileClientImpl, MoveFileClientImpl, DeleteFileClientImpl};
 use lockbook_core::lockbook_api::DeleteFileRequest;
 use lockbook_core::lockbook_api::NewAccountRequest;
 use lockbook_core::lockbook_api::{MoveFileError, MoveFileRequest};
@@ -8,12 +7,16 @@ use lockbook_core::lockbook_api::{MoveFileError, MoveFileRequest};
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
+use lockbook_core::lockbook_api::new_account::NewAccountClient;
+use lockbook_core::lockbook_api::create_file::CreateFileClient;
+use lockbook_core::lockbook_api::move_file::MoveFileClient;
+use lockbook_core::lockbook_api::delete_file::DeleteFileClient;
 
 fn move_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -23,7 +26,7 @@ fn move_file() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -35,7 +38,7 @@ fn move_file() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::move_file(
+    MoveFileClientImpl::move_file(
         api_loc(),
         &MoveFileRequest {
             username: username.to_string(),
@@ -56,7 +59,7 @@ fn test_move_file() {
 fn move_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -66,7 +69,7 @@ fn move_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::move_file(
+    MoveFileClientImpl::move_file(
         api_loc(),
         &MoveFileRequest {
             username: username.to_string(),
@@ -91,7 +94,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -101,7 +104,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -113,7 +116,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::delete_file(
+    DeleteFileClientImpl::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -122,7 +125,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::move_file(
+    MoveFileClientImpl::move_file(
         api_loc(),
         &MoveFileRequest {
             username: username.to_string(),
@@ -148,7 +151,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
     let file_id_a = generate_file_id();
     let file_id_b = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -158,7 +161,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -170,7 +173,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -182,7 +185,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::move_file(
+    MoveFileClientImpl::move_file(
         api_loc(),
         &MoveFileRequest {
             username: username.to_string(),
