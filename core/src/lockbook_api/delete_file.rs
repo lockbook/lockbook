@@ -40,13 +40,13 @@ pub fn delete_file(
         .send()
         .map_err(|err| DeleteFileError::SendFailed(err))?;
 
+    let response_body = response
+        .json::<DeleteFileResponse>()
+        .map_err(|err| DeleteFileError::ReceiveFailed(err))?;
+
     match (
         response.status().as_u16(),
-        response
-            .json::<DeleteFileResponse>()
-            .map_err(|err| DeleteFileError::ReceiveFailed(err))?
-            .error_code
-            .as_str(),
+        response_body.error_code.as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(DeleteFileError::InvalidAuth),

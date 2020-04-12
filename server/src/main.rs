@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate rocket;
 extern crate base64;
+extern crate lockbook_core;
 
 pub mod api;
 pub mod config;
