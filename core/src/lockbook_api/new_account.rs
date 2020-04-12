@@ -2,6 +2,10 @@ use reqwest::Client;
 use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
+use crate::auth_service::{AuthService, AuthServiceImpl, VerificationError};
+use crate::crypto::PublicKey;
+use crate::lockbook_api::new_account::NewAccountError::AuthVerificationFailure;
+
 #[derive(Debug)]
 pub enum NewAccountError {
     SendFailed(ReqwestError),
@@ -10,6 +14,7 @@ pub enum NewAccountError {
     ExpiredAuth,
     UsernameTaken,
     Unspecified,
+    AuthVerificationFailure(VerificationError),
 }
 
 pub struct NewAccountRequest {
@@ -24,11 +29,24 @@ struct NewAccountResponse {
     error_code: String,
 }
 
+impl From<VerificationError> for NewAccountError {
+    fn from(e: VerificationError) -> Self { AuthVerificationFailure(e) }
+}
+
 pub fn new_account(
     api_location: String,
     params: &NewAccountRequest,
 ) -> Result<(), NewAccountError> {
     let client = Client::new();
+
+    AuthServiceImpl::verify_auth(
+        &PublicKey {
+            n: params.pub_key_n.clone(),
+            e: params.pub_key_e.clone(),
+        },
+        &params.username,
+        &params.auth)?;
+
     let form_params = [
         ("username", params.username.as_str()),
         ("auth", params.auth.as_str()),
