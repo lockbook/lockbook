@@ -26,7 +26,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Create the Lockbook Core Api with the path all our business happens
         print(documentsDirectory)
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
-//        let lockbookApi = FakeApi()
         
         // Use a UIHostingController as window root view controller.
         let controllerView = ControllerView(lockbookApi: lockbookApi).environmentObject(screenCoordinator)

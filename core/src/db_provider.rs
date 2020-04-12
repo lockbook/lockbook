@@ -30,9 +30,6 @@ pub struct RamBackedDB<Schema: SchemaApplier> {
 impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
     fn connect_to_db(config: &Config) -> Result<Connection, Error> {
         let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
-        // This gets called a lot maybe we'll not print it
-        // println!("Connecting to DB at: {}", db_path);
-
         let db = Connection::open(db_path.as_str())?;
 
         match Schema::apply_schema(&db) {
@@ -40,13 +37,23 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
                 println!("Schema applied succesfully!");
                 Ok(db)
             }
-            Err(err) => {
-                println!(
-                    "Table creation failure, probably already exists, continuing! Error: {:?}",
-                    err
-                );
-                Ok(db)
-            }
+            // TODO: This should be handled better or a new library
+            Err(err) => match err {
+                schema::Error::TableCreationFailure(rusqlite::Error::SqliteFailure(
+                    sqlite_err,
+                    Some(msg),
+                )) => {
+                    if msg.contains("already exists") {
+                        println!("Table already exists! {}", msg);
+                        Ok(db)
+                    } else {
+                        return Err(Error::SchemaError(schema::Error::TableCreationFailure(
+                            rusqlite::Error::SqliteFailure(sqlite_err, Some(msg)),
+                        )));
+                    }
+                }
+                _ => Err(Error::SchemaError(err)),
+            },
         }
     }
 }

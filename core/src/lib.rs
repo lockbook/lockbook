@@ -15,6 +15,7 @@ use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl}
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
 use rusqlite::Connection;
+use serde_json::json;
 
 pub mod account;
 pub mod account_api;
@@ -133,12 +134,10 @@ pub unsafe extern "C" fn list_files(c_path: *const c_char) -> *mut c_char {
     };
 
     match DefaultFileMetadataService::update(&db) {
-        Ok(files) => CString::new(serde_json::to_string(&files).unwrap())
-            .unwrap()
-            .into_raw(),
+        Ok(files) => CString::new(json!(&files).to_string()).unwrap().into_raw(),
         Err(err) => {
             println!("Update Metadata failed with error: {:?}", err);
-            CString::new(FAILURE_META_UPDATE).unwrap().into_raw()
+            CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }
 }
