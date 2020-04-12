@@ -3,7 +3,7 @@ use reqwest::Error as ReqwestError;
 use serde::Deserialize;
 
 #[derive(Debug)]
-    pub enum GetUpdatesError {
+pub enum GetUpdatesError {
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
     InvalidAuth,

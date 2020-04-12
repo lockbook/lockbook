@@ -1,4 +1,6 @@
-#[derive(PartialEq, Debug)]
+use serde::Serialize;
+
+#[derive(PartialEq, Debug, Serialize)]
 pub struct FileMetadata {
     pub id: String,
     pub name: String,
