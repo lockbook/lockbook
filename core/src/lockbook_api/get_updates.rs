@@ -11,13 +11,13 @@ pub enum GetUpdatesError {
     Unspecified,
 }
 
-pub struct GetUpdatesParams {
+pub struct GetUpdatesRequest {
     pub username: String,
     pub auth: String,
     pub since_version: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct FileMetadata {
     pub file_id: String,
     pub file_name: String,
@@ -28,8 +28,8 @@ pub struct FileMetadata {
 }
 
 pub fn get_updates(
-    api_location: &str,
-    params: &GetUpdatesParams,
+    api_location: String,
+    params: &GetUpdatesRequest,
 ) -> Result<Vec<FileMetadata>, GetUpdatesError> {
     let client = Client::new();
     let mut response = client
