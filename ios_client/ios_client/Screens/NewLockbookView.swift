@@ -14,18 +14,15 @@ struct NewLockbookView: View {
     
     var body: some View {
         VStack {
-            HStack {
-                Text("Username:")
-                    .font(.callout)
-                    .bold()
-                TextField("", text: $username)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-            }.padding(.bottom, 50)
-            
+            TextField("Username", text: $username)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .multilineTextAlignment(.center)
+                .padding(50)
+                
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
                     print(create_account(self.username))
-            }
+                }
         }
         .navigationBarTitle("New Lockbook")
     }

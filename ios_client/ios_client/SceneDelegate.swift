@@ -23,15 +23,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
         
         // Create the SwiftUI view that provides the window contents.
+        let lockbookApi = CoreApi()
         
         // Use a UIHostingController as window root view controller.
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
             if (is_db_present(documentsDirectory) == 0) {
-                window.rootViewController = UIHostingController(rootView: WelcomeView())
+                window.rootViewController = UIHostingController(rootView: WelcomeView(lockbookApi: lockbookApi))
             } else {
-                window.rootViewController = UIHostingController(rootView: NewLockbookView())
+                window.rootViewController = UIHostingController(rootView: ListView(lockbookApi: lockbookApi))
             }
+            
             self.window = window
             window.makeKeyAndVisible()
         }

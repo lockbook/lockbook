@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct WelcomeView: View {
+    var lockbookApi: CoreApi
     @State public var navigationBarHidden = true
     
     var body: some View {
@@ -16,12 +17,13 @@ struct WelcomeView: View {
                 HStack {
                     Spacer()
                 }
-                Text("Lockbook")
+                Text("lockbook")
                     .fontWeight(.light)
                     .font(.system(size: 45, design: .monospaced))
                     .padding(.bottom, 15)
                 
                 Text("Secure. Private. Reliable.")
+                    .font(.system(size: 15, design: .monospaced))
                     .padding(.bottom, 100)
                 
                 NavigationLink(destination: NewLockbookView()) {
@@ -29,8 +31,8 @@ struct WelcomeView: View {
                 }
                 
                 NavigationLink(destination:
-                    Text("Unimplemented")
-                        .navigationBarTitle("Import Lockbook")) {
+                    ListView(lockbookApi: lockbookApi)
+                ) {
                             MonokaiButton(text: "Import Lockbook")
                 }
             }.onAppear(perform: {
@@ -50,7 +52,7 @@ var documentsDirectory: String {
 #if DEBUG
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        WelcomeView()
+        WelcomeView(lockbookApi: CoreApi())
     }
 }
 #endif
