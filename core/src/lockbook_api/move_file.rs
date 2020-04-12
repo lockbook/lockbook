@@ -23,7 +23,7 @@ pub struct MoveFileRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct MoveFileResponse {
-    error_code: String,
+    pub error_code: String,
 }
 
 pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), MoveFileError> {
