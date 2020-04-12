@@ -7,7 +7,7 @@ use crate::file_metadata::FileMetadata;
 use crate::file_metadata_repo;
 use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::lockbook_api;
-use crate::lockbook_api::GetUpdatesParams;
+use crate::lockbook_api::GetUpdatesRequest;
 use crate::{db_provider, API_LOC};
 use rusqlite::Connection;
 
@@ -41,8 +41,8 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
         };
 
         let updates = lockbook_api::get_updates(
-            API_LOC,
-            &GetUpdatesParams {
+            API_LOC.to_string(),
+            &GetUpdatesRequest {
                 username: account.username.to_string(),
                 auth: "".to_string(),
                 since_version: max_updated as u64,

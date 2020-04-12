@@ -5,7 +5,6 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
-use crate::account::Account;
 use crate::account_api::AccountApiImpl;
 use crate::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::account_service::{AccountService, AccountServiceImpl};
