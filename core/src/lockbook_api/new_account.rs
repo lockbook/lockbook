@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum NewAccountError {
@@ -19,7 +19,7 @@ pub struct NewAccountRequest {
     pub pub_key_e: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NewAccountResponse {
     error_code: String,
 }
