@@ -13,6 +13,7 @@ pub enum RenameFileError {
     Unspecified,
 }
 
+#[derive(FromForm, Debug)]
 pub struct RenameFileRequest {
     pub username: String,
     pub auth: String,
