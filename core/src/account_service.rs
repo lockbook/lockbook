@@ -8,9 +8,8 @@ use crate::account_repo::AccountRepo;
 use crate::crypto;
 use crate::crypto::CryptoService;
 use crate::db_provider;
-use crate::db_provider::DbProvider;
 use crate::error_enum;
-use crate::state::Config;
+use rusqlite::Connection;
 
 error_enum! {
     enum Error {
@@ -22,26 +21,19 @@ error_enum! {
 }
 
 pub trait AccountService {
-    fn create_account(config: Config, username: String) -> Result<Account, Error>;
+    fn create_account(db: &Connection, username: String) -> Result<Account, Error>;
 }
 
-pub struct AccountServiceImpl<
-    DB: DbProvider,
-    Crypto: CryptoService,
-    AccountDb: AccountRepo,
-    Api: AccountApi,
-> {
+pub struct AccountServiceImpl<Crypto: CryptoService, AccountDb: AccountRepo, Api: AccountApi> {
     encyption: PhantomData<Crypto>,
-    acounts: PhantomData<AccountDb>,
-    db: PhantomData<DB>,
+    accounts: PhantomData<AccountDb>,
     api: PhantomData<Api>,
 }
 
-impl<DB: DbProvider, Crypto: CryptoService, AccountDb: AccountRepo, Api: AccountApi> AccountService
-    for AccountServiceImpl<DB, Crypto, AccountDb, Api>
+impl<Crypto: CryptoService, AccountDb: AccountRepo, Api: AccountApi> AccountService
+    for AccountServiceImpl<Crypto, AccountDb, Api>
 {
-    fn create_account(config: Config, username: String) -> Result<Account, Error> {
-        let db = DB::connect_to_db(config)?;
+    fn create_account(db: &Connection, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
         let account = Account { username, keys };
 
