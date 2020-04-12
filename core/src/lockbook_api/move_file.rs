@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum MoveFileError {
@@ -21,7 +21,7 @@ pub struct MoveFileRequest {
     pub new_file_path: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct MoveFileResponse {
     error_code: String,
 }
