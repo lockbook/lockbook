@@ -102,7 +102,7 @@ pub unsafe extern "C" fn list_files() -> *mut c_char {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_files_release(s: *mut c_char) {
+pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     if s.is_null() {
         return;
     }

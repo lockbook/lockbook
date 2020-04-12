@@ -13,7 +13,7 @@ struct CoreApi {
         let result = list_files()
         let resultString = String(cString: result!)
         // We need to release the pointer once we have the result string
-        list_files_release(UnsafeMutablePointer(mutating: result))
+        release_pointer(UnsafeMutablePointer(mutating: result))
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
