@@ -20,7 +20,7 @@ pub struct NewAccountRequest {
 }
 
 #[derive(Deserialize)]
-struct NewAccountResponse {
+pub struct NewAccountResponse {
     error_code: String,
 }
 

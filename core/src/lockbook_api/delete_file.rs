@@ -20,7 +20,7 @@ pub struct DeleteFileRequest {
 }
 
 #[derive(Deserialize)]
-struct DeleteFileResponse {
+pub struct DeleteFileResponse {
     error_code: String,
 }
 
