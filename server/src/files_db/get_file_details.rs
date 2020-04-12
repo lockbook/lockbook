@@ -4,7 +4,7 @@ use s3::error::S3Error;
 #[derive(Debug)]
 pub enum Error {
     S3ConnectionFailed(S3Error),
-    S3OperationUnsuccessful((u16, String)),
+    S3OperationUnsuccessful(u16),
     NoSuchFile(()),
 }
 
@@ -34,7 +34,7 @@ pub fn get_file_details(client: &S3Client, file_id: &str) -> Result<FileDetails,
                 .first()
                 .ok_or(Error::NoSuchFile(()))
                 .map(FileDetails::from),
-            Some((_, code)) => Err(Error::S3OperationUnsuccessful((*code, "".to_string()))),
+            Some((_, code)) => Err(Error::S3OperationUnsuccessful(*code)),
             None => Err(Error::NoSuchFile(())),
         })
 }

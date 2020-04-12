@@ -40,9 +40,9 @@ pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), M
         .send()
         .map_err(|err| MoveFileError::SendFailed(err))?;
 
-        let response_body = response
-            .json::<MoveFileResponse>()
-            .map_err(|err| MoveFileError::ReceiveFailed(err))?;
+    let response_body = response
+        .json::<MoveFileResponse>()
+        .map_err(|err| MoveFileError::ReceiveFailed(err))?;
 
     match (
         response.status().as_u16(),
