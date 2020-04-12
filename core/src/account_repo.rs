@@ -10,7 +10,7 @@ use crate::error_enum;
 error_enum! {
     enum Error {
         DbError(rusqlite::Error),
-        RowMissing(NoneError),
+        AccountRowMissing(NoneError),
     }
 }
 
@@ -28,17 +28,17 @@ impl AccountRepo for AccountRepoImpl {
             (id, username, public_n, public_e, private_d, private_p, private_q, private_dmp1, private_dmq1, private_iqmp)
             values (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
-            &account.username,
-            &account.keys.public_key.n,
-            &account.keys.public_key.e,
-            &account.keys.private_key.d,
-            &account.keys.private_key.p,
-            &account.keys.private_key.q,
-            &account.keys.private_key.dmp1,
-            &account.keys.private_key.dmq1,
-            &account.keys.private_key.iqmp,
-            ]).unwrap();
-
+                &account.username,
+                &account.keys.public_key.n,
+                &account.keys.public_key.e,
+                &account.keys.private_key.d,
+                &account.keys.private_key.p,
+                &account.keys.private_key.q,
+                &account.keys.private_key.dmp1,
+                &account.keys.private_key.dmq1,
+                &account.keys.private_key.iqmp,
+            ],
+        )?;
         Ok(())
     }
 
@@ -117,7 +117,7 @@ mod unit_tests {
             },
         };
 
-        let config = Config {
+        let config = &Config {
             writeable_path: "ignored".to_string(),
         };
         let db = DefaultDbProvider::connect_to_db(config).unwrap();
