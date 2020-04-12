@@ -62,6 +62,7 @@ pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
 
     let config = Config {
         writeable_path: "".to_string(),
+        maximum_delay: 50
     };
 
     match DefaultAcountService::create_account(config, username.to_string()) {
