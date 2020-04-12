@@ -1,15 +1,16 @@
 extern crate reqwest;
 
 use crate::account::Account;
-use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken};
+use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken, AuthGenFailure};
 use crate::API_LOC;
-use crate::auth_service::{AuthServiceImpl, AuthService};
+use crate::auth_service::{AuthServiceImpl, AuthService, AuthGenError};
 
 #[derive(Debug)]
 pub enum Error {
     NetworkError(reqwest::Error),
     UsernameTaken,
     ServerUnavailable(u16),
+    AuthGenFailure(AuthGenError)
 }
 
 pub trait AccountApi {
@@ -22,6 +23,10 @@ impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
         NetworkError(e)
     }
+}
+
+impl From<AuthGenError> for Error {
+    fn from(e: AuthGenError) -> Self { AuthGenFailure(e) }
 }
 
 impl AccountApi for AccountApiImpl {

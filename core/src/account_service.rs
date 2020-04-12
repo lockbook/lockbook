@@ -13,7 +13,6 @@ use crate::db_provider;
 use crate::db_provider::DbProvider;
 use crate::error_enum;
 use crate::state::Config;
-use crate::lockbook_api::new_account;
 
 error_enum! {
     enum Error {
@@ -21,7 +20,7 @@ error_enum! {
         KeyGenerationError(crypto::KeyGenError),
         PersistenceError(account_repo::Error),
         ApiError(account_api::Error),
-        AuthError(auth_service::VerificationError)
+        AuthError(auth_service::AuthGenError)
     }
 }
 
@@ -37,7 +36,7 @@ pub struct AccountServiceImpl<
     Auth: AuthService
 > {
     encryption: PhantomData<Crypto>,
-    acocunts: PhantomData<AccountDb>,
+    accounts: PhantomData<AccountDb>,
     db: PhantomData<DB>,
     api: PhantomData<Api>,
     auth: PhantomData<Auth>,
