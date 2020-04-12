@@ -23,7 +23,7 @@ pub struct CreateFileRequest {
 }
 
 #[derive(Deserialize)]
-struct CreateFileResponse {
+pub struct CreateFileResponse {
     error_code: String,
     current_version: u64,
 }

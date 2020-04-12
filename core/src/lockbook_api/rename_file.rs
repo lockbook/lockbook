@@ -21,7 +21,7 @@ pub struct RenameFileRequest {
 }
 
 #[derive(Deserialize)]
-struct RenameFileResponse {
+pub struct RenameFileResponse {
     error_code: String,
 }
 

@@ -22,7 +22,7 @@ pub struct MoveFileRequest {
 }
 
 #[derive(Deserialize)]
-struct MoveFileResponse {
+pub struct MoveFileResponse {
     error_code: String,
 }
 
