@@ -10,7 +10,7 @@ echo "Sourcing secrets for QA" &&
 source qa_secrets.sh &&
 echo "Success\n" && 
 
-echo "Grabbing the cross compiler"
+echo "Grabbing the cross compiler" &&
 cargo install cross && 
 echo "Success\n" &&
 
