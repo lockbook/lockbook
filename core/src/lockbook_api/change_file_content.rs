@@ -14,7 +14,7 @@ pub enum ChangeFileContentError {
     Unspecified,
 }
 
-pub struct ChangeFileContentParams {
+pub struct ChangeFileContentRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -23,15 +23,15 @@ pub struct ChangeFileContentParams {
 }
 
 #[derive(Deserialize)]
-struct ChangeFileContentResponse {
+pub struct ChangeFileContentResponse {
     error_code: String,
     current_version: u64,
 }
 
 pub fn change_file_content(
-    api_location: &str,
-    params: &ChangeFileContentParams,
-) -> Result<(), ChangeFileContentError> {
+    api_location: String,
+    params: &ChangeFileContentRequest,
+) -> Result<u64, ChangeFileContentError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -54,7 +54,7 @@ pub fn change_file_content(
         response.status().as_u16(),
         response_body.error_code.as_str(),
     ) {
-        (200..=299, _) => Ok(()),
+        (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
         (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
         (404, "file_not_found") => Err(ChangeFileContentError::FileNotFound),

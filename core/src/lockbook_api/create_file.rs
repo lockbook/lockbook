@@ -13,7 +13,7 @@ pub enum CreateFileError {
     Unspecified,
 }
 
-pub struct CreateFileParams {
+pub struct CreateFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -23,11 +23,15 @@ pub struct CreateFileParams {
 }
 
 #[derive(Deserialize)]
-struct CreateFileResponse {
+pub struct CreateFileResponse {
     error_code: String,
+    current_version: u64,
 }
 
-pub fn create_file(api_location: &str, params: &CreateFileParams) -> Result<(), CreateFileError> {
+pub fn create_file(
+    api_location: String,
+    params: &CreateFileRequest,
+) -> Result<u64, CreateFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
@@ -43,15 +47,15 @@ pub fn create_file(api_location: &str, params: &CreateFileParams) -> Result<(), 
         .send()
         .map_err(|err| CreateFileError::SendFailed(err))?;
 
+    let response_body = response
+        .json::<CreateFileResponse>()
+        .map_err(|err| CreateFileError::ReceiveFailed(err))?;
+
     match (
         response.status().as_u16(),
-        response
-            .json::<CreateFileResponse>()
-            .map_err(|err| CreateFileError::ReceiveFailed(err))?
-            .error_code
-            .as_str(),
+        response_body.error_code.as_str(),
     ) {
-        (200..=299, _) => Ok(()),
+        (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(CreateFileError::InvalidAuth),
         (401, "expired_auth") => Err(CreateFileError::ExpiredAuth),
         (422, "file_id_taken") => Err(CreateFileError::InvalidAuth),

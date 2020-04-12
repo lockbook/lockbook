@@ -13,18 +13,21 @@ pub enum DeleteFileError {
     Unspecified,
 }
 
-pub struct DeleteFileParams {
+pub struct DeleteFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
 }
 
 #[derive(Deserialize)]
-struct DeleteFileResponse {
+pub struct DeleteFileResponse {
     error_code: String,
 }
 
-pub fn delete_file(api_location: &str, params: &DeleteFileParams) -> Result<(), DeleteFileError> {
+pub fn delete_file(
+    api_location: String,
+    params: &DeleteFileRequest,
+) -> Result<(), DeleteFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
