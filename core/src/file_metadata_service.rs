@@ -4,7 +4,8 @@ use crate::account_repo;
 use crate::account_repo::AccountRepo;
 use crate::error_enum;
 use crate::file_metadata::FileMetadata;
-use crate::file_metadata_repo::FileMetadataRepo;
+use crate::file_metadata_repo;
+use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::lockbook_api;
 use crate::lockbook_api::GetUpdatesParams;
 use crate::{db_provider, API_LOC};
@@ -15,11 +16,12 @@ error_enum! {
         ConnectionFailure(db_provider::Error),
         RetrievalError(account_repo::Error),
         ApiError(lockbook_api::get_updates::GetUpdatesError),
+        MetadataRepoError(file_metadata_repo::Error),
     }
 }
 
 pub trait FileMetadataService {
-    fn get_all_files(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
+    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
 }
 
 pub struct FileMetadataServiceImpl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> {
@@ -30,15 +32,20 @@ pub struct FileMetadataServiceImpl<FileMetadataDb: FileMetadataRepo, AccountDb: 
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataService
     for FileMetadataServiceImpl<FileMetadataDb, AccountDb>
 {
-    fn get_all_files(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
+    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
+
+        let max_updated = match FileMetadataRepoImpl::last_updated(db) {
+            Ok(max) => max,
+            Err(_) => 0,
+        };
 
         let updates = lockbook_api::get_updates(
             API_LOC,
             &GetUpdatesParams {
                 username: account.username.to_string(),
                 auth: "".to_string(),
-                since_version: 0,
+                since_version: max_updated as u64,
             },
         )
         .map(|metadatas| {
@@ -54,7 +61,15 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
                 .collect::<Vec<FileMetadata>>()
         });
 
-        Ok(updates?)
+        updates?
+            .into_iter()
+            .for_each(|meta| match FileMetadataRepoImpl::insert(&db, &meta) {
+                Ok(_) => {}
+                Err(_) => {}
+            });
+
+        let all_meta = FileMetadataRepoImpl::dump(&db)?;
+        Ok(all_meta)
     }
 }
 
@@ -72,7 +87,7 @@ mod unit_tests {
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
 
     #[test]
-    fn get_all_files() {
+    fn get_updates() {
         let config = &Config {
             writeable_path: "ignored".to_string(),
         };
@@ -104,7 +119,7 @@ mod unit_tests {
         )
         .unwrap();
 
-        let all_files = DefaultFileMetadataService::get_all_files(&db).unwrap();
+        let all_files = DefaultFileMetadataService::update(&db).unwrap();
 
         println!("{:?}", serde_json::to_string(&all_files))
     }

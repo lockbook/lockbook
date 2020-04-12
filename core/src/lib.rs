@@ -93,7 +93,7 @@ pub unsafe extern "C" fn list_files() -> *mut c_char {
         Err(_) => return CString::new("none").unwrap().into_raw(),
     };
 
-    match DefaultFileMetadataService::get_all_files(&db) {
+    match DefaultFileMetadataService::update(&db) {
         Ok(files) => CString::new(serde_json::to_string(&files).unwrap())
             .unwrap()
             .into_raw(),
