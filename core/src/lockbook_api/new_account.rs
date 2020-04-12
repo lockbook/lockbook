@@ -33,46 +33,57 @@ impl From<VerificationError> for NewAccountError {
     fn from(e: VerificationError) -> Self { AuthVerificationFailure(e) }
 }
 
-pub fn new_account(
-    api_location: String,
-    params: &NewAccountRequest,
-) -> Result<(), NewAccountError> {
-    let client = Client::new();
+trait NewAccountClient {
+    fn new_account(
+        api_location: String,
+        params: &NewAccountRequest,
+    ) -> Result<(), NewAccountError>;
+}
 
-    AuthServiceImpl::verify_auth(
-        &PublicKey {
-            n: params.pub_key_n.clone(),
-            e: params.pub_key_e.clone(),
-        },
-        &params.username,
-        &params.auth)?;
+pub struct NewAccountClientImpl;
 
-    let form_params = [
-        ("username", params.username.as_str()),
-        ("auth", params.auth.as_str()),
-        ("pub_key_n", params.pub_key_n.as_str()),
-        ("pub_key_e", params.pub_key_e.as_str()),
-    ];
-    let mut response = client
-        .post(format!("{}/new-account", api_location).as_str())
-        .form(&form_params)
-        .send()
-        .map_err(|err| NewAccountError::SendFailed(err))?;
+impl NewAccountClient for NewAccountClientImpl {
+    fn new_account(
+        api_location: String,
+        params: &NewAccountRequest,
+    ) -> Result<(), NewAccountError> {
+        let client = Client::new();
 
-    match response.status().as_u16() {
-        200..=299 => Ok(()),
-        status => match (
-            status,
-            response
-                .json::<NewAccountResponse>()
-                .map_err(|err| NewAccountError::ReceiveFailed(err))?
-                .error_code
-                .as_str(),
-        ) {
-            (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
-            (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),
-            (422, "username_taken") => Err(NewAccountError::UsernameTaken),
-            _ => Err(NewAccountError::Unspecified),
-        },
+        AuthServiceImpl::verify_auth(
+            &PublicKey {
+                n: params.pub_key_n.clone(),
+                e: params.pub_key_e.clone(),
+            },
+            &params.username,
+            &params.auth)?;
+
+        let form_params = [
+            ("username", params.username.as_str()),
+            ("auth", params.auth.as_str()),
+            ("pub_key_n", params.pub_key_n.as_str()),
+            ("pub_key_e", params.pub_key_e.as_str()),
+        ];
+        let mut response = client
+            .post(format!("{}/new-account", api_location).as_str())
+            .form(&form_params)
+            .send()
+            .map_err(|err| NewAccountError::SendFailed(err))?;
+
+        match response.status().as_u16() {
+            200..=299 => Ok(()),
+            status => match (
+                status,
+                response
+                    .json::<NewAccountResponse>()
+                    .map_err(|err| NewAccountError::ReceiveFailed(err))?
+                    .error_code
+                    .as_str(),
+            ) {
+                (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
+                (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),
+                (422, "username_taken") => Err(NewAccountError::UsernameTaken),
+                _ => Err(NewAccountError::Unspecified),
+            },
+        }
     }
 }
