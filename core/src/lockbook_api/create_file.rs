@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum CreateFileError {
