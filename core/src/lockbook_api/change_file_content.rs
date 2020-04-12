@@ -22,7 +22,7 @@ pub struct ChangeFileContentRequest {
     pub new_file_content: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ChangeFileContentResponse {
     error_code: String,
     current_version: u64,

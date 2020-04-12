@@ -22,7 +22,7 @@ pub struct CreateFileRequest {
     pub file_content: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CreateFileResponse {
     error_code: String,
     current_version: u64,

@@ -19,7 +19,7 @@ pub struct DeleteFileRequest {
     pub file_id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct DeleteFileResponse {
     error_code: String,
 }

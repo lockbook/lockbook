@@ -21,7 +21,7 @@ pub struct MoveFileRequest {
     pub new_file_path: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct MoveFileResponse {
     error_code: String,
 }
