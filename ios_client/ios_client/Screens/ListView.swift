@@ -9,38 +9,36 @@
 import SwiftUI
 
 struct ListView: View {
-    var lockbookApi: CoreApi
+    var lockbookApi: LockbookApi
+    var username: String
     @State private var files: [FileMetadata]
-    
+
     var body: some View {
         VStack {
             NavigationView {
                 List {
                     ForEach(files) { file in
-                        NavigationLink(destination: EditorView(metadata: file)) {
-                            Text(file.name)
-                        }
+                        FileRow(lockbookApi: self.lockbookApi, metadata: file)
                     }
                 }
-                .navigationBarTitle("Files")
+                .navigationBarTitle("\(self.username)'s Files")
             }
             MonokaiButton(text: "Reload Files")
                 .onTapGesture {
-                    let files = self.lockbookApi.get_files()
-                    print(files)
-                    self.files = files
+                    self.files = self.lockbookApi.updateMetadata()
                 }
         }
     }
     
-    init(lockbookApi: CoreApi) {
+    init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
-        self._files = State(initialValue: lockbookApi.get_files())
+        self._files = State(initialValue: lockbookApi.updateMetadata())
+        self.username = lockbookApi.getAccount()!
     }
 }
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: CoreApi())
+        ListView(lockbookApi: FakeApi())
     }
 }

@@ -8,10 +8,12 @@
 
 import SwiftUI
 
-struct NewLockbookView: View {
-    
+struct CreateAccountView: View {
+    var lockbookApi: LockbookApi
     @State private var username: String = ""
-    
+    @State private var showingAlert = false
+    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+
     var body: some View {
         VStack {
             TextField("Username", text: $username)
@@ -21,21 +23,22 @@ struct NewLockbookView: View {
                 
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
-                    print(create_account(self.username))
+                    if (self.lockbookApi.createAccount(username: self.username)) {
+                        self.screenCoordinator.currentView = .listView
+                    } else {
+                        self.showingAlert = true
+                    }
                 }
         }
         .navigationBarTitle("New Lockbook")
+        .alert(isPresented: $showingAlert) {
+            Alert(title: Text("Failed to create account..."))
+        }
     }
-    
-    // Push view when that button is clicked and succeeds:
-    // https://stackoverflow.com/questions/57315409/push-view-programmatically-in-callback-swiftui
-    
-    // make it so the new view that is pushed is the root:
-    // https://stackoverflow.com/questions/58562063/create-a-navigationlink-without-back-button-swiftui
 }
 
 struct NewLockbookView_Previews: PreviewProvider {
     static var previews: some View {
-        NewLockbookView()
+        CreateAccountView(lockbookApi: FakeApi())
     }
 }

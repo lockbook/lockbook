@@ -12,28 +12,33 @@ import SwiftUI
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     var window: UIWindow?
+    var screenCoordinator = ScreenCoordinator()
     
     var documentsDirectory: String {
-        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.absoluteString
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
     }
-    
+        
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
         // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
         // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
         
-        // Create the SwiftUI view that provides the window contents.
-        let lockbookApi = CoreApi()
+        // Create the Lockbook Core Api with the path all our business happens
+        print(documentsDirectory)
+        let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
+//        let lockbookApi = FakeApi()
         
         // Use a UIHostingController as window root view controller.
+        let controllerView = ControllerView(lockbookApi: lockbookApi).environmentObject(screenCoordinator)
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
-            if (is_db_present(documentsDirectory) == 0) {
-                window.rootViewController = UIHostingController(rootView: WelcomeView(lockbookApi: lockbookApi))
+            if let username = lockbookApi.getAccount() {
+                print("User \(username) loaded!")
+                screenCoordinator.currentView = .listView
             } else {
-                window.rootViewController = UIHostingController(rootView: ListView(lockbookApi: lockbookApi))
+                screenCoordinator.currentView = .welcomeView
             }
-            
+            window.rootViewController = UIHostingController(rootView: controllerView)
             self.window = window
             window.makeKeyAndVisible()
         }
@@ -70,3 +75,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
 }
 
+final class ScreenCoordinator: ObservableObject {
+    @Published var currentView: PushedItem?
+    
+    enum PushedItem {
+        case welcomeView
+        case createAccountView
+        case listView
+    }
+}
