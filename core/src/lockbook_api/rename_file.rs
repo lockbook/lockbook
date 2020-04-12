@@ -22,7 +22,7 @@ pub struct RenameFileRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct RenameFileResponse {
-    error_code: String,
+    pub error_code: String,
 }
 
 pub fn rename_file(
