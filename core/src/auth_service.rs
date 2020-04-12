@@ -114,12 +114,11 @@ impl AuthService for AuthServiceImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::auth_service::{AuthServiceImpl, AuthService, VerificationError};
+    use crate::auth_service::{AuthServiceImpl, AuthService};
     use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue, KeyPair, PrivateKey, PublicKey};
-    use crate::auth_service::VerificationError::TimeStampOutOfBounds;
 
     #[test]
-    fn test_auth_time_in_bounds() {
+    fn test_auth_inverse_property() {
         let keys = KeyPair {
             public_key: PublicKey {
                 n: "AQAB".to_string(),
@@ -163,6 +162,6 @@ mod unit_tests {
             &keys,
             &DecryptedValue { secret: decrypt_auth }).unwrap().garbage;
 
-        let result = AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth);
+        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap_err();
     }
 }

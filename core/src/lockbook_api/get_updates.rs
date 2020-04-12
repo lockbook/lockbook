@@ -27,7 +27,7 @@ pub struct FileMetadata {
     pub deleted: bool,
 }
 
-trait GetUpdatesClient {
+pub trait GetUpdatesClient {
     fn get_updates(
         api_location: String,
         params: &GetUpdatesRequest,

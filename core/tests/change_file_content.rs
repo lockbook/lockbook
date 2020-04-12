@@ -1,6 +1,5 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::CreateFileRequest;
+use lockbook_core::lockbook_api::{CreateFileRequest, NewAccountClientImpl, CreateFileClientImpl, FileContentClientImpl, DeleteFileClientImpl};
 use lockbook_core::lockbook_api::DeleteFileRequest;
 use lockbook_core::lockbook_api::NewAccountRequest;
 use lockbook_core::lockbook_api::{ChangeFileContentError, ChangeFileContentRequest};
@@ -8,12 +7,16 @@ use lockbook_core::lockbook_api::{ChangeFileContentError, ChangeFileContentReque
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
+use lockbook_core::lockbook_api::create_file::CreateFileClient;
+use lockbook_core::lockbook_api::new_account::NewAccountClient;
+use lockbook_core::lockbook_api::change_file_content::FileContentClient;
+use lockbook_core::lockbook_api::delete_file::DeleteFileClient;
 
 fn change_file_content() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -23,7 +26,7 @@ fn change_file_content() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = lockbook_api::create_file(
+    let old_file_version = CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -35,7 +38,7 @@ fn change_file_content() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::change_file_content(
+    FileContentClientImpl::change_file_content(
         api_loc(),
         &ChangeFileContentRequest {
             username: username.to_string(),
@@ -57,7 +60,7 @@ fn test_change_file_content() {
 fn change_file_content_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -67,7 +70,7 @@ fn change_file_content_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::change_file_content(
+    FileContentClientImpl::change_file_content(
         api_loc(),
         &ChangeFileContentRequest {
             username: username.to_string(),
@@ -95,7 +98,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -105,7 +108,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -117,7 +120,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::change_file_content(
+    FileContentClientImpl::change_file_content(
         api_loc(),
         &ChangeFileContentRequest {
             username: username.to_string(),
@@ -143,7 +146,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -153,7 +156,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = lockbook_api::create_file(
+    let old_file_version = CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -165,7 +168,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::delete_file(
+    DeleteFileClientImpl::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -174,7 +177,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::change_file_content(
+    FileContentClientImpl::change_file_content(
         api_loc(),
         &ChangeFileContentRequest {
             username: username.to_string(),

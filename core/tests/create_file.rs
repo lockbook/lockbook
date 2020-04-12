@@ -1,16 +1,17 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::NewAccountRequest;
+use lockbook_core::lockbook_api::{NewAccountRequest, CreateFileClientImpl, NewAccountClientImpl};
 use lockbook_core::lockbook_api::{CreateFileError, CreateFileRequest};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
+use lockbook_core::lockbook_api::create_file::CreateFileClient;
+use lockbook_core::lockbook_api::new_account::NewAccountClient;
 
 fn create_file() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -20,7 +21,7 @@ fn create_file() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -44,7 +45,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -54,7 +55,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -66,7 +67,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -92,7 +93,7 @@ fn test_create_file_duplicate_file_id() {
 fn create_file_duplicate_file_path() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    NewAccountClientImpl::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -102,7 +103,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -114,7 +115,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    CreateFileClientImpl::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),

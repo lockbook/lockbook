@@ -28,7 +28,7 @@ struct ChangeFileContentResponse {
     current_version: u64,
 }
 
-trait FileContentClient {
+pub trait FileContentClient {
     fn change_file_content(
         api_location: String,
         params: &ChangeFileContentRequest,
