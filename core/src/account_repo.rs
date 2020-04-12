@@ -95,7 +95,7 @@ mod unit_tests {
 
     type DefaultSchema = SchemaCreatorImpl;
     type DefaultDbProvider = RamBackedDB<DefaultSchema>;
-    type DefaultAcountRepo = AccountRepoImpl;
+    type DefaultAccountRepo = AccountRepoImpl;
 
     #[test]
     fn insert_account() {
@@ -119,11 +119,12 @@ mod unit_tests {
 
         let config = Config {
             writeable_path: "ignored".to_string(),
+            max_auth_delay: 50
         };
         let db = DefaultDbProvider::connect_to_db(config).unwrap();
-        DefaultAcountRepo::insert_account(&db, &test_account).unwrap();
+        DefaultAccountRepo::insert_account(&db, &test_account).unwrap();
 
-        let db_account = DefaultAcountRepo::get_account(&db).unwrap();
+        let db_account = DefaultAccountRepo::get_account(&db).unwrap();
         assert_eq!(test_account, db_account);
     }
 }
