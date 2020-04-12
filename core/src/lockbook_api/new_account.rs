@@ -12,7 +12,6 @@ pub enum NewAccountError {
     Unspecified,
 }
 
-#[derive(FromForm, Debug)]
 pub struct NewAccountRequest {
     pub username: String,
     pub auth: String,

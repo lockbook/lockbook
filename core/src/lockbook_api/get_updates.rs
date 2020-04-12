@@ -11,7 +11,6 @@ pub enum GetUpdatesError {
     Unspecified,
 }
 
-#[derive(FromForm, Debug)]
 pub struct GetUpdatesRequest {
     pub username: String,
     pub auth: String,

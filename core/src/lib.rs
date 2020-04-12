@@ -1,7 +1,5 @@
 #![feature(try_trait)]
 extern crate reqwest;
-#[macro_use]
-extern crate rocket;
 
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
