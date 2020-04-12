@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use rusqlite::Connection;
 
-use crate::error_enum;
 use crate::schema;
 use crate::schema::SchemaApplier;
 use crate::state::Config;
 use crate::DB_NAME;
+use crate::{debug, error_enum};
 
 error_enum! {
     enum Error {
@@ -34,7 +34,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
 
         match Schema::apply_schema(&db) {
             Ok(_) => {
-                println!("💚 Schema applied succesfully!");
+                debug("Schema applied succesfully!".to_string());
                 Ok(db)
             }
             // TODO: This should be handled better or a new library
@@ -44,7 +44,7 @@ impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
                     Some(msg),
                 )) => {
                     if msg.contains("already exists") {
-                        println!("💚 Table already exists! {}", msg);
+                        debug(format!("Table already exists! {}", msg));
                         Ok(db)
                     } else {
                         return Err(Error::SchemaError(schema::Error::TableCreationFailure(

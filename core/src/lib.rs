@@ -48,6 +48,22 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_UPDATE: &str = "FAILURE<METADATA>";
 
+fn info(msg: String) {
+    println!("ℹ️ {}", msg)
+}
+fn debug(msg: String) {
+    println!("🚧 {}", msg)
+}
+fn warn(msg: String) {
+    println!("⚠️ {}", msg)
+}
+fn error(msg: String) {
+    eprintln!("🛑 {}", msg)
+}
+fn fatal(msg: String) {
+    eprintln!("🆘 {}", msg)
+}
+
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
         .to_str()
@@ -63,7 +79,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Connection> {
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
         Err(err) => {
-            println!("❤️ DB connection failed! Error: {:?}", err);
+            error(format!("DB connection failed! Error: {:?}", err));
             None
         }
     }
@@ -74,12 +90,12 @@ pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
     let path = string_from_ptr(c_path);
 
     let db_path = path + "/" + DB_NAME;
-    println!("💚 Checking if {:?} exists", db_path);
+    debug(format!("Checking if {:?} exists", db_path));
     if Path::new(db_path.as_str()).exists() {
-        println!("💚 DB Exists!");
+        debug(format!("DB Exists!"));
         1
     } else {
-        println!("❤️ DB Does not exist!");
+        error(format!("DB Does not exist!"));
         0
     }
 }
@@ -102,7 +118,7 @@ pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
     match DefaultAcountRepo::get_account(&db) {
         Ok(account) => CString::new(account.username).unwrap().into_raw(),
         Err(err) => {
-            println!("❤️ Account retrieval failed with error: {:?}", err);
+            error(format!("Account retrieval failed with error: {:?}", err));
             CString::new(FAILURE_ACCOUNT).unwrap().into_raw()
         }
     }
@@ -120,7 +136,7 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
     match DefaultAcountService::create_account(&db, username.to_string()) {
         Ok(_) => 1,
         Err(err) => {
-            println!("❤️ Account creation failed with error: {:?}", err);
+            error(format!("Account creation failed with error: {:?}", err));
             0
         }
     }
@@ -136,7 +152,7 @@ pub unsafe extern "C" fn list_files(c_path: *const c_char) -> *mut c_char {
     match DefaultFileMetadataService::update(&db) {
         Ok(files) => CString::new(json!(&files).to_string()).unwrap().into_raw(),
         Err(err) => {
-            println!("❤️ Update metadata failed with error: {:?}", err);
+            error(format!("Update metadata failed with error: {:?}", err));
             CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }

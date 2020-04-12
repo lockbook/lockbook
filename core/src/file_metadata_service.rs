@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::account_repo;
 use crate::account_repo::AccountRepo;
 use crate::error_enum;
 use crate::file_metadata::FileMetadata;
@@ -8,6 +7,7 @@ use crate::file_metadata_repo;
 use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::lockbook_api;
 use crate::lockbook_api::GetUpdatesRequest;
+use crate::{account_repo, error};
 use crate::{db_provider, API_LOC};
 use rusqlite::Connection;
 
@@ -67,7 +67,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
             .for_each(|meta| match FileMetadataRepoImpl::insert(&db, &meta) {
                 Ok(_) => {}
                 Err(err) => {
-                    println!("❤️ Insert Error {:?}", err);
+                    error(format!("Insert Error {:?}", err));
                 }
             });
 
@@ -82,6 +82,7 @@ mod unit_tests {
     use crate::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::db_provider::{DbProvider, RamBackedDB};
+    use crate::debug;
     use crate::file_metadata_repo::FileMetadataRepoImpl;
     use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use crate::schema::SchemaCreatorImpl;
@@ -124,6 +125,6 @@ mod unit_tests {
 
         let all_files = DefaultFileMetadataService::update(&db).unwrap();
 
-        println!("{:?}", serde_json::to_string(&all_files))
+        debug(format!("{:?}", serde_json::to_string(&all_files)))
     }
 }
