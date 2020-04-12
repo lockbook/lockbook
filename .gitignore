@@ -96,7 +96,8 @@ ios_client/libs/
 #
 # Ignoring the target for /core
 core/target/
-
+# Ignoring header
+core/lockbook_core.h
 
 # Secrets
 #
