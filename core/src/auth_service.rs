@@ -9,6 +9,16 @@ use crate::crypto::DecryptionError;
 use crate::crypto::EncryptionError;
 use crate::error_enum;
 
+pub struct Clock;
+
+impl Clock {
+    fn get_time() -> Result<u128, SystemTimeError> {
+        Ok(SystemTime::now()
+            .duration_since(UNIX_EPOCH)?
+            .as_millis())
+    }
+}
+
 #[derive(Debug)]
 pub enum VerificationError {
     TimeStampParseFailure(ParseIntError),
@@ -73,9 +83,7 @@ impl AuthService for AuthServiceImpl {
         )?;
 
         let mut auth_comp = decrypt_val.secret.split(",");
-        let real_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_millis();
+        let real_time = Clock::get_time()?;
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
 
@@ -97,10 +105,43 @@ impl AuthService for AuthServiceImpl {
     ) -> Result<String, AuthGenError> {
         let decrypted = format!("{},{}",
                                 username,
-                                SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis().to_string());
+                                Clock::get_time()?.to_string());
 
         Ok(RsaCryptoService::encrypt_private(
             keys,
             &DecryptedValue { secret: decrypted })?.garbage)
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::DefaultCrypto;
+    use crate::auth_service::{AuthServiceImpl, AuthService};
+    use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue};
+
+    #[test]
+    fn test_auth_time_in_bounds() {
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let username = String::from("Smail");
+        let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
+        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
+    }
+
+    #[test]
+    fn test_auth_time_expired() {
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let username = String::from("Smail");
+
+        let decrypt_auth = format!("{},{}", username, 3);
+        let auth = RsaCryptoService::encrypt_private(
+            &keys,
+            &DecryptedValue { secret: decrypt_auth }).unwrap().garbage;
+
+        let result = AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth);
+
+        match result {
+            Ok(()) => panic!("Verifying auth passed when it shouldn't have!"),
+            Err(_) => ()
+        }
     }
 }

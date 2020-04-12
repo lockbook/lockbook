@@ -13,6 +13,7 @@ use crate::db_provider;
 use crate::db_provider::DbProvider;
 use crate::error_enum;
 use crate::state::Config;
+use crate::lockbook_api::new_account;
 
 error_enum! {
     enum Error {
@@ -48,8 +49,8 @@ for AccountServiceImpl<DB, Crypto, AccountDb, Api, Auth>
     fn create_account(config: Config, username: String) -> Result<Account, Error> {
         let db = DB::connect_to_db(config)?;
         let keys = Crypto::generate_key()?;
+        let auth = Auth::generate_auth(&keys, &username)?;
         let account = Account { username, keys };
-        let auth = AuthService::generate_auth(&keys, &username);
 
         AccountDb::insert_account(&db, &account)?;
         Api::new_account(&account)?;
