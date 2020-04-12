@@ -19,6 +19,7 @@ struct MonokaiButton: View {
             .foregroundColor(Monokai.black)
             .padding(.bottom, 25)
             .frame(minWidth: 250)
+            .font(.system(size: 15, design: .monospaced))
     }
 }
 
