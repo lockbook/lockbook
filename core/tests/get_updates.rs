@@ -1,8 +1,8 @@
 extern crate lockbook_core;
 use lockbook_core::lockbook_api;
 use lockbook_core::lockbook_api::CreateFileRequest;
-use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesRequest};
 use lockbook_core::lockbook_api::NewAccountRequest;
+use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
