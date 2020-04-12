@@ -24,7 +24,10 @@ struct DeleteFileResponse {
     error_code: String,
 }
 
-pub fn delete_file(api_location: String, params: &DeleteFileRequest) -> Result<(), DeleteFileError> {
+pub fn delete_file(
+    api_location: String,
+    params: &DeleteFileRequest,
+) -> Result<(), DeleteFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),

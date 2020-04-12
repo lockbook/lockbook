@@ -24,7 +24,10 @@ struct NewAccountResponse {
     error_code: String,
 }
 
-pub fn new_account(api_location: String, params: &NewAccountRequest) -> Result<(), NewAccountError> {
+pub fn new_account(
+    api_location: String,
+    params: &NewAccountRequest,
+) -> Result<(), NewAccountError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),
