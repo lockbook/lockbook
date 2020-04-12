@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum DeleteFileError {
@@ -19,7 +19,7 @@ pub struct DeleteFileRequest {
     pub file_id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct DeleteFileResponse {
     error_code: String,
 }
