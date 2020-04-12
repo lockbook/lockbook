@@ -5,8 +5,9 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use crate::account::Account;
 use crate::account_api::AccountApiImpl;
-use crate::account_repo::AccountRepoImpl;
+use crate::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::account_service::{AccountService, AccountServiceImpl};
 use crate::crypto::RsaCryptoService;
 use crate::db_provider::{DbProvider, DiskBackedDB};
@@ -14,6 +15,7 @@ use crate::file_metadata_repo::FileMetadataRepoImpl;
 use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
+use rusqlite::Connection;
 
 pub mod account;
 pub mod account_api;
@@ -42,62 +44,43 @@ type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
     FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo>;
 
-#[no_mangle]
-pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
-    let path = CStr::from_ptr(path_c)
+static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
+static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
+static FAILURE_META_UPDATE: &str = "FAILURE<METADATA>";
+
+unsafe fn string_from_ptr(c_path: *const c_char) -> String {
+    CStr::from_ptr(c_path)
         .to_str()
         .expect("Could not C String -> Rust String")
-        .to_string();
-
-    let db_path = path + "/" + DB_NAME;
-
-    if Path::new(db_path.as_str()).exists() {
-        1
-    } else {
-        0
-    }
+        .to_string()
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
+unsafe fn connect_db(c_path: *const c_char) -> Option<Connection> {
+    let path = string_from_ptr(c_path);
     let config = Config {
-        writeable_path: "".to_string(),
+        writeable_path: path,
     };
-
-    let db = match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => db,
-        Err(_) => return 1,
-    };
-
-    let username = CStr::from_ptr(c_username)
-        .to_str()
-        .expect("Could not C String -> Rust String");
-
-    match DefaultAcountService::create_account(&db, username.to_string()) {
-        Ok(_) => 0,
+    match DefaultDbProvider::connect_to_db(&config) {
+        Ok(db) => Some(db),
         Err(err) => {
-            println!("Account creation failed with error: {:?}", err);
-            1
+            println!("DB connection failed! Error: {:?}", err);
+            None
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_files() -> *mut c_char {
-    let config = Config {
-        writeable_path: "".to_string(),
-    };
+pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
+    let path = string_from_ptr(c_path);
 
-    let db = match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => db,
-        Err(_) => return CString::new("none").unwrap().into_raw(),
-    };
-
-    match DefaultFileMetadataService::update(&db) {
-        Ok(files) => CString::new(serde_json::to_string(&files).unwrap())
-            .unwrap()
-            .into_raw(),
-        Err(_) => CString::new("none").unwrap().into_raw(),
+    let db_path = path + "/" + DB_NAME;
+    // println!("Checking if {:?} exists", db_path);
+    if Path::new(db_path.as_str()).exists() {
+        // println!("DB Exists!");
+        1
+    } else {
+        // println!("DB Does not exist!");
+        0
     }
 }
 
@@ -107,4 +90,56 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
         return;
     }
     CString::from_raw(s);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+
+    match DefaultAcountRepo::get_account(&db) {
+        Ok(account) => CString::new(account.username).unwrap().into_raw(),
+        Err(err) => {
+            println!("{:?}", err);
+            CString::new(FAILURE_ACCOUNT).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *const c_char) -> c_int {
+    let db = match connect_db(c_path) {
+        None => return 0,
+        Some(db) => db,
+    };
+
+    let username = string_from_ptr(c_username);
+
+    match DefaultAcountService::create_account(&db, username.to_string()) {
+        Ok(_) => 1,
+        Err(err) => {
+            println!("Account creation failed with error: {:?}", err);
+            0
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn list_files(c_path: *const c_char) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+
+    match DefaultFileMetadataService::update(&db) {
+        Ok(files) => CString::new(serde_json::to_string(&files).unwrap())
+            .unwrap()
+            .into_raw(),
+        Err(err) => {
+            println!("Update Metadata failed with error: {:?}", err);
+            CString::new(FAILURE_META_UPDATE).unwrap().into_raw()
+        }
+    }
 }
