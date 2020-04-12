@@ -1,5 +1,3 @@
-# export RUST_BACKTRACE=1;
-
 if cargo fmt --quiet -- --check ; then
 	cargo test --all --no-fail-fast
 else
