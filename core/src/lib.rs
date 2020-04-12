@@ -32,11 +32,11 @@ static DB_NAME: &str = "lockbook.db3";
 type DefaultCrypto = RsaCryptoService;
 type DefaultSchema = SchemaCreatorImpl;
 type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
-type DefaultAcountRepo = AccountRepoImpl;
+type DefaultAccountRepo = AccountRepoImpl;
 type DefaultAccountApi = AccountApiImpl;
 type DefaultAuthService = AuthServiceImpl;
-type DefaultAcountService =
-    AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAcountRepo, DefaultAccountApi, DefaultAuthService>;
+type DefaultAccountService =
+    AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAccountRepo, DefaultAccountApi, DefaultAuthService>;
 
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {
@@ -62,10 +62,10 @@ pub unsafe extern "C" fn create_account(c_username: *const c_char) -> c_int {
 
     let config = Config {
         writeable_path: "".to_string(),
-        maximum_delay: 50
+        max_auth_delay: 50
     };
 
-    match DefaultAcountService::create_account(config, username.to_string()) {
+    match DefaultAccountService::create_account(config, username.to_string()) {
         Ok(_) => 0,
         Err(err) => {
             println!("Account creation failed with error: {:?}", err);
