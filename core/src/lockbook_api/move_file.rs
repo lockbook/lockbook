@@ -26,7 +26,7 @@ struct MoveFileResponse {
     error_code: String,
 }
 
-trait MoveFileClient {
+pub trait MoveFileClient {
     fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), MoveFileError>;
 }
 

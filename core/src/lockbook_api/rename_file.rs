@@ -25,7 +25,7 @@ struct RenameFileResponse {
     error_code: String,
 }
 
-trait RenameFileClient {
+pub trait RenameFileClient {
     fn rename_file(
         api_location: String,
         params: &RenameFileRequest,
