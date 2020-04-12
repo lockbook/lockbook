@@ -56,11 +56,9 @@ impl AccountApi for AccountApiImpl {
 #[cfg(test)]
 mod integration_tests {
     use std::env;
-
     use crate::account::Account;
-    use crate::account_api::{AccountApi, AccountApiImpl};
-    use crate::crypto::{CryptoService, RsaCryptoService, DecryptedValue};
-    use crate::auth_service::{AuthServiceImpl, AuthService};
+    use crate::account_api::{AccountApiImpl, AccountApi};
+    use crate::crypto::{RsaCryptoService, CryptoService};
 
     type DefaultCrypto = RsaCryptoService;
     type TestAccountApi = AccountApiImpl;
@@ -79,32 +77,6 @@ mod integration_tests {
             Err(_) => {
                 println!("Env variable RUN_INTEGRATION_TESTS not set, skipping integration test")
             }
-        }
-    }
-
-    #[test]
-    fn test_auth_time_in_bounds() {
-        let keys = DefaultCrypto::generate_key().unwrap();
-        let username = String::from("Smail");
-        let auth = AuthServiceImpl::generate_auth(&keys, &username).unwrap();
-        AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth).unwrap();
-    }
-
-    #[test]
-    fn test_auth_time_expired() {
-        let keys = DefaultCrypto::generate_key().unwrap();
-        let username = String::from("Smail");
-
-        let decrypt_auth = format!("{},{}", username, 3);
-        let auth = RsaCryptoService::encrypt_private(
-            &keys,
-            &DecryptedValue { secret: decrypt_auth }).unwrap().garbage;
-
-        let result = AuthServiceImpl::verify_auth(&keys.public_key, &username, &auth);
-
-        match result {
-            Ok(()) => panic!("Verifying auth passed when it shouldn't have!"),
-            Err(_) => ()
         }
     }
 }
