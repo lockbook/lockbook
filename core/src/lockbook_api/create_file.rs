@@ -13,7 +13,7 @@ pub enum CreateFileError {
     Unspecified,
 }
 
-pub struct CreateFileParams {
+pub struct CreateFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -30,7 +30,7 @@ struct CreateFileResponse {
 
 pub fn create_file(
     api_location: String,
-    params: &CreateFileParams,
+    params: &CreateFileRequest,
 ) -> Result<u64, CreateFileError> {
     let client = Client::new();
     let form_params = [

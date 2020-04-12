@@ -13,7 +13,7 @@ pub enum RenameFileError {
     Unspecified,
 }
 
-pub struct RenameFileParams {
+pub struct RenameFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -25,7 +25,7 @@ struct RenameFileResponse {
     error_code: String,
 }
 
-pub fn rename_file(api_location: String, params: &RenameFileParams) -> Result<(), RenameFileError> {
+pub fn rename_file(api_location: String, params: &RenameFileRequest) -> Result<(), RenameFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),

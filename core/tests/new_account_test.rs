@@ -1,12 +1,12 @@
 extern crate lockbook_core;
 use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::{ChangeFileContentError, ChangeFileContentParams};
-use lockbook_core::lockbook_api::{CreateFileError, CreateFileParams};
-use lockbook_core::lockbook_api::{DeleteFileError, DeleteFileParams};
-use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesError, GetUpdatesParams};
-use lockbook_core::lockbook_api::{MoveFileError, MoveFileParams};
-use lockbook_core::lockbook_api::{NewAccountError, NewAccountParams};
-use lockbook_core::lockbook_api::{RenameFileError, RenameFileParams};
+use lockbook_core::lockbook_api::{ChangeFileContentError, ChangeFileContentRequest};
+use lockbook_core::lockbook_api::{CreateFileError, CreateFileRequest};
+use lockbook_core::lockbook_api::{DeleteFileError, DeleteFileRequest};
+use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesError, GetUpdatesRequest};
+use lockbook_core::lockbook_api::{MoveFileError, MoveFileRequest};
+use lockbook_core::lockbook_api::{NewAccountError, NewAccountRequest};
+use lockbook_core::lockbook_api::{RenameFileError, RenameFileRequest};
 use std::env;
 use uuid::Uuid;
 
@@ -95,7 +95,7 @@ impl From<GetUpdatesError> for TestError {
 fn new_account() -> Result<(), TestError> {
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: generate_username(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -116,7 +116,7 @@ fn new_account_duplicate() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -126,7 +126,7 @@ fn new_account_duplicate() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -150,7 +150,7 @@ fn create_file() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -160,7 +160,7 @@ fn create_file() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -184,7 +184,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -194,7 +194,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -206,7 +206,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -232,7 +232,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -242,7 +242,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -254,7 +254,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -281,7 +281,7 @@ fn change_file_content() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -291,7 +291,7 @@ fn change_file_content() -> Result<(), TestError> {
 
     let old_file_version = lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -303,7 +303,7 @@ fn change_file_content() -> Result<(), TestError> {
 
     lockbook_api::change_file_content(
         api_loc(),
-        &ChangeFileContentParams {
+        &ChangeFileContentRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -325,7 +325,7 @@ fn change_file_content_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -335,7 +335,7 @@ fn change_file_content_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::change_file_content(
         api_loc(),
-        &ChangeFileContentParams {
+        &ChangeFileContentRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -363,7 +363,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -373,7 +373,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -385,7 +385,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
 
     lockbook_api::change_file_content(
         api_loc(),
-        &ChangeFileContentParams {
+        &ChangeFileContentRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -411,7 +411,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -421,7 +421,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
 
     let old_file_version = lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -433,7 +433,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -442,7 +442,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::change_file_content(
         api_loc(),
-        &ChangeFileContentParams {
+        &ChangeFileContentRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -470,7 +470,7 @@ fn rename_file() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -480,7 +480,7 @@ fn rename_file() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -492,7 +492,7 @@ fn rename_file() -> Result<(), TestError> {
 
     lockbook_api::rename_file(
         api_loc(),
-        &RenameFileParams {
+        &RenameFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -513,7 +513,7 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -523,7 +523,7 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::rename_file(
         api_loc(),
-        &RenameFileParams {
+        &RenameFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -548,7 +548,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -558,7 +558,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -570,7 +570,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -579,7 +579,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::rename_file(
         api_loc(),
-        &RenameFileParams {
+        &RenameFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -604,7 +604,7 @@ fn move_file() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -614,7 +614,7 @@ fn move_file() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -626,7 +626,7 @@ fn move_file() -> Result<(), TestError> {
 
     lockbook_api::move_file(
         api_loc(),
-        &MoveFileParams {
+        &MoveFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -647,7 +647,7 @@ fn move_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -657,7 +657,7 @@ fn move_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::move_file(
         api_loc(),
-        &MoveFileParams {
+        &MoveFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -682,7 +682,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -692,7 +692,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -704,7 +704,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -713,7 +713,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::move_file(
         api_loc(),
-        &MoveFileParams {
+        &MoveFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -739,7 +739,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -749,7 +749,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id_a.to_string(),
@@ -761,7 +761,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id_b.to_string(),
@@ -773,7 +773,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
 
     lockbook_api::move_file(
         api_loc(),
-        &MoveFileParams {
+        &MoveFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id_b.to_string(),
@@ -798,7 +798,7 @@ fn delete_file() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -808,7 +808,7 @@ fn delete_file() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -820,7 +820,7 @@ fn delete_file() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -840,7 +840,7 @@ fn delete_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -850,7 +850,7 @@ fn delete_file_file_not_found() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
@@ -874,7 +874,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -884,7 +884,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -896,7 +896,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -905,7 +905,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 
     lockbook_api::delete_file(
         api_loc(),
-        &DeleteFileParams {
+        &DeleteFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -926,7 +926,7 @@ fn test_delete_file_file_deleted() {
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
     lockbook_api::new_account(
         api_loc(),
-        &NewAccountParams {
+        &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             pub_key_n: "test_pub_key_n".to_string(),
@@ -936,7 +936,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
 
     let file_version = lockbook_api::create_file(
         api_loc(),
-        &CreateFileParams {
+        &CreateFileRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
@@ -948,7 +948,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
 
     let updates_metadata = lockbook_api::get_updates(
         api_loc(),
-        &GetUpdatesParams {
+        &GetUpdatesRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
             since_version: 0,

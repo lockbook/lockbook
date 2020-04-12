@@ -14,7 +14,7 @@ pub enum MoveFileError {
     Unspecified,
 }
 
-pub struct MoveFileParams {
+pub struct MoveFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -26,7 +26,7 @@ struct MoveFileResponse {
     error_code: String,
 }
 
-pub fn move_file(api_location: String, params: &MoveFileParams) -> Result<(), MoveFileError> {
+pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), MoveFileError> {
     let client = Client::new();
     let form_params = [
         ("username", params.username.as_str()),

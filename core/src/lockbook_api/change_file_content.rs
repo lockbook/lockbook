@@ -14,7 +14,7 @@ pub enum ChangeFileContentError {
     Unspecified,
 }
 
-pub struct ChangeFileContentParams {
+pub struct ChangeFileContentRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
@@ -30,7 +30,7 @@ struct ChangeFileContentResponse {
 
 pub fn change_file_content(
     api_location: String,
-    params: &ChangeFileContentParams,
+    params: &ChangeFileContentRequest,
 ) -> Result<u64, ChangeFileContentError> {
     let client = Client::new();
     let form_params = [
