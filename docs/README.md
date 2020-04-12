@@ -1,4 +1,5 @@
 # Project Overview
+![Build](https://github.com/lockbook/monorepo/workflows/Build/badge.svg)
 
 Lockbook is a document editor that is:
 + Delightful
@@ -84,3 +85,33 @@ Clients generate keys locally and perform all operations by using these keys. Ke
 To figure out which files need updating, a client can pass a `LastUpdated` `ServerTimestamp` that it stored the last time it updated. The server will return every file greater then this timestamp.
 
 When a user edits a file and is ready to push that change upto the server, they'll specify which version they have been editing. If someone edited the file while you were also editing it, the server will reject your edit. This will indicate you'll need to resync this file, and merge the differences between what you have and what the server has. After you've merged, you can retry and will be successful as you'll hand the server a more recent timestamp. Whenever possible, this process will happen automatically, and you'll only resolve merge conflicts - git style.
+
+# Getting Started
+
+## Requirements
+
++ rust
++ XCode 11+ (for iOS, ipadOS and macOS)
+
+## Setup
+
+### Installing Rust
+
+curl down the `rustup` script and tell `rustup` to use rust nightly, required for `feature(try_trait)`
+```
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+$ rustup default nightly
+```
+
+### Build Core
+
+Navigate to the core folder and use cargo to build
+```shell script
+$ cd ./core
+$ cargo build
+``` 
+
+If you don't tell `rustup` to use nightly you'll get the following error
+```shell script
+error[E0554]: `#![feature]` may not be used on the stable release channel
+```
