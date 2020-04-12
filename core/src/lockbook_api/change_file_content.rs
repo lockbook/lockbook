@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub enum ChangeFileContentError {
