@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum CreateFileError {
@@ -22,7 +22,7 @@ pub struct CreateFileRequest {
     pub file_content: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CreateFileResponse {
     error_code: String,
     current_version: u64,
