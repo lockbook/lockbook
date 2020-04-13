@@ -14,12 +14,14 @@ jobs:
     env:
       working-directory: ./core
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
+      MAX_AUTH_DELAY: 50
     steps:
     - uses: actions/checkout@v2
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
           toolchain: nightly
+
           override: true
     - name: Lint
       run: cargo fmt -- --check -l
