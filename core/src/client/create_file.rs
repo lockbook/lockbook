@@ -58,8 +58,8 @@ pub fn create_file(
         (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(CreateFileError::InvalidAuth),
         (401, "expired_auth") => Err(CreateFileError::ExpiredAuth),
-        (422, "file_id_taken") => Err(CreateFileError::InvalidAuth),
-        (422, "file_path_taken") => Err(CreateFileError::ExpiredAuth),
+        (422, "file_id_taken") => Err(CreateFileError::FileIdTaken),
+        (422, "file_path_taken") => Err(CreateFileError::FilePathTaken),
         _ => Err(CreateFileError::Unspecified),
     }
 }

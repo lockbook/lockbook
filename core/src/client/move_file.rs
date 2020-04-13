@@ -40,13 +40,13 @@ pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), M
         .send()
         .map_err(|err| MoveFileError::SendFailed(err))?;
 
+    let response_body = response
+        .json::<MoveFileResponse>()
+        .map_err(|err| MoveFileError::ReceiveFailed(err))?;
+
     match (
         response.status().as_u16(),
-        response
-            .json::<MoveFileResponse>()
-            .map_err(|err| MoveFileError::ReceiveFailed(err))?
-            .error_code
-            .as_str(),
+        response_body.error_code.as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(MoveFileError::InvalidAuth),

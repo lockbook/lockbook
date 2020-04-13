@@ -14,6 +14,6 @@ CREATE TABLE files (
 	file_metadata_version	BIGINT NOT NULL,
 	deleted					BOOLEAN,
 	CONSTRAINT pk_files PRIMARY KEY (file_id),
-	CONSTRAINT unique_file_path UNIQUE (file_path),
+	CONSTRAINT unique_file_path UNIQUE (username, file_path),
 	CONSTRAINT fk_files_username FOREIGN KEY (username) REFERENCES users(username)
 );
