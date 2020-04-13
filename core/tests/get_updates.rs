@@ -1,15 +1,15 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::CreateFileRequest;
-use lockbook_core::lockbook_api::NewAccountRequest;
-use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesRequest};
+use lockbook_core::client;
+use lockbook_core::client::CreateFileRequest;
+use lockbook_core::client::NewAccountRequest;
+use lockbook_core::client::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
 
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
-    lockbook_api::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -19,7 +19,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         },
     )?;
 
-    let file_version = lockbook_api::create_file(
+    let file_version = client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -31,7 +31,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         },
     )?;
 
-    let updates_metadata = lockbook_api::get_updates(
+    let updates_metadata = client::get_updates(
         api_loc(),
         &GetUpdatesRequest {
             username: username.to_string(),

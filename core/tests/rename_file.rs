@@ -1,9 +1,9 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api;
-use lockbook_core::lockbook_api::CreateFileRequest;
-use lockbook_core::lockbook_api::DeleteFileRequest;
-use lockbook_core::lockbook_api::NewAccountRequest;
-use lockbook_core::lockbook_api::{RenameFileError, RenameFileRequest};
+use lockbook_core::client;
+use lockbook_core::client::CreateFileRequest;
+use lockbook_core::client::DeleteFileRequest;
+use lockbook_core::client::NewAccountRequest;
+use lockbook_core::client::{RenameFileError, RenameFileRequest};
 
 #[macro_use]
 pub mod utils;
@@ -13,7 +13,7 @@ fn rename_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -23,7 +23,7 @@ fn rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -35,7 +35,7 @@ fn rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),
@@ -56,7 +56,7 @@ fn test_rename_file() {
 fn rename_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    lockbook_api::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -66,7 +66,7 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),
@@ -91,7 +91,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    lockbook_api::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
@@ -101,7 +101,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -113,7 +113,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -122,7 +122,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    lockbook_api::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),
