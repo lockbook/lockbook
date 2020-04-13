@@ -17,8 +17,6 @@ pub struct NewAccount {
 
 #[post("/new-account", data = "<new_account>")]
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
-    println!("new_account: {:?}", new_account);
-
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
     let result = index_db::new_account(
@@ -36,14 +34,13 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
             make_response(500, "internal_error")
         }
     }
-
-    
 }
 
 fn make_response(http_code: u16, error_code: &str) -> Response {
     Response::build()
-        .status(Status::from_code(http_code)
-        .expect("Server has an invalid status code hard-coded!"))
+        .status(
+            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
+        )
         .sized_body(Cursor::new(
             serde_json::to_string(&NewAccountResponse {
                 error_code: String::from(error_code),

@@ -31,18 +31,16 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
 
     match files_db::get_file_details(&locked_files_db_client, &create_file.file_id) {
-        Err(files_db::get_file_details::Error::NoSuchFile(())) => {},
+        Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(files_db::get_file_details::Error::S3ConnectionFailed(s3_error)) => {
             println!("Internal server error! {:?}", s3_error);
             return make_response(500, "internal_error", 0);
-        },
+        }
         Err(files_db::get_file_details::Error::S3OperationUnsuccessful(s3_err_code)) => {
             println!("Internal server error! {:?}", s3_err_code);
             return make_response(500, "internal_error", 0);
-        },
-        Ok(_) => {
-            return make_response(422, "file_id_taken", 0)
         }
+        Ok(_) => return make_response(422, "file_id_taken", 0),
     };
 
     let new_version = match index_db::create_file(
@@ -55,14 +53,14 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
         Ok(version) => version,
         Err(index_db::create_file::Error::FileIdTaken) => {
             return make_response(422, "file_id_taken", 0);
-        },
+        }
         Err(index_db::create_file::Error::FilePathTaken) => {
             return make_response(422, "file_path_taken", 0);
-        },
+        }
         Err(index_db::create_file::Error::Uninterpreted(postgres_error)) => {
             println!("Internal server error! {:?}", postgres_error);
             return make_response(500, "internal_error", 0);
-        },
+        }
         Err(index_db::create_file::Error::VersionGeneration(version_generation_error)) => {
             println!("Internal server error! {:?}", version_generation_error);
             return make_response(500, "internal_error", 0);
@@ -84,8 +82,9 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
 
 fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
     Response::build()
-        .status(Status::from_code(http_code)
-        .expect("Server has an invalid status code hard-coded!"))
+        .status(
+            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
+        )
         .sized_body(Cursor::new(
             serde_json::to_string(&CreateFileResponse {
                 error_code: String::from(error_code),

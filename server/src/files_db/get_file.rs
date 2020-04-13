@@ -15,6 +15,8 @@ pub fn get_file(client: &S3Client, file_id: &str) -> Result<String, Error> {
         })
         .and_then(|body| match String::from_utf8(body) {
             Ok(body) => Ok(body),
-            Err(err) => Err(Error::S3(categorized_s3_error::Error::ResponseNotUtf8(err.to_string()))),
+            Err(err) => Err(Error::S3(categorized_s3_error::Error::ResponseNotUtf8(
+                err.to_string(),
+            ))),
         })
 }

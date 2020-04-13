@@ -73,8 +73,9 @@ pub fn change_file_content(
 
 fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
     Response::build()
-        .status(Status::from_code(http_code)
-        .expect("Server has an invalid status code hard-coded!"))
+        .status(
+            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
+        )
         .sized_body(Cursor::new(
             serde_json::to_string(&ChangeFileContentResponse {
                 error_code: String::from(error_code),
