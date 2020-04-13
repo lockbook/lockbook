@@ -33,7 +33,11 @@ struct ListView: View {
     init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
         self._files = State(initialValue: lockbookApi.updateMetadata())
-        self.username = lockbookApi.getAccount()!
+        if let username = lockbookApi.getAccount() {
+            self.username = username
+        } else {
+            self.username = "<USERNAME>"
+        }
     }
 }
 

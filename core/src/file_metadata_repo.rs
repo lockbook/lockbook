@@ -47,7 +47,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn get(db: &Connection, id: &String) -> Result<FileMetadata, Error> {
-        let mut stmt = db.prepare("SELECT * FROM file_metadata WHERE id = ?1")?;
+        let mut stmt = db.prepare(
+            "SELECT id, name, path, updated_at, status FROM file_metadata WHERE id = ?1",
+        )?;
 
         let mut file_iter = stmt.query_map(params![&id], to_metadata)?;
 
@@ -67,7 +69,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn get_all(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
-        let mut stmt = db.prepare("SELECT * FROM file_metadata")?;
+        let mut stmt =
+            db.prepare("SELECT id, name, path, updated_at, status FROM file_metadata")?;
 
         let file_iter = stmt.query_map(params![], to_metadata)?;
 
