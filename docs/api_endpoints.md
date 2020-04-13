@@ -105,24 +105,15 @@ Outputs:
 + `404 file_not_found`
 + `410 file_deleted`
 
-## Get Updated Metadata
+## Get Updates
 
-`GET /get-updated-metadata/<username>/<auth>/<since_version>`
+`GET /get-updates/<username>/<auth>/<version>`
 
 Inputs:
 + `username`: SHA1-hashed username
 + `auth`: string `${username},${unix_timestamp_millis}` signed by user's private key
-+ `since_version`: all updates after this version are included in response
++ `version`: all updates after this version are included in response
 
 Outputs:
 + `200`: response contains list of file ids updated since `version`
 
-## Get File
-
-`GET /get-file/<file_id>`
-
-Inputs:
-+ `file_id`: UUID to identify file
-
-Outputs:
-+ `200`: response contains base64-encoded encrypted `file_content`
