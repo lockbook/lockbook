@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::client;
-use crate::client::GetUpdatesRequest;
+use crate::client::{Client, GetUpdatesRequest};
 use crate::error;
 use crate::error_enum;
 use crate::model::file_metadata::FileMetadata;
@@ -16,7 +16,7 @@ error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
-        ApiError(client::get_updates::GetUpdatesError),
+        ApiError(client::ClientError),
         MetadataRepoError(repo::file_metadata_repo::Error),
     }
 }
@@ -25,13 +25,18 @@ pub trait FileMetadataService {
     fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
 }
 
-pub struct FileMetadataServiceImpl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> {
+pub struct FileMetadataServiceImpl<
+    FileMetadataDb: FileMetadataRepo,
+    AccountDb: AccountRepo,
+    C: Client,
+> {
     metadatas: PhantomData<FileMetadataDb>,
     accounts: PhantomData<AccountDb>,
+    client: PhantomData<C>,
 }
 
-impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataService
-    for FileMetadataServiceImpl<FileMetadataDb, AccountDb>
+impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
+    FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
     fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
@@ -41,7 +46,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
             Err(_) => 0,
         };
 
-        let updates = client::get_updates(
+        let updates = ApiClient::get_updates(
             API_LOC.to_string(),
             &GetUpdatesRequest {
                 username: account.username.to_string(),
@@ -79,6 +84,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
 
 #[cfg(test)]
 mod unit_tests {
+    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::debug;
     use crate::model::account::Account;
@@ -91,6 +97,23 @@ mod unit_tests {
 
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
 
+    struct ClientFake;
+    impl Client for ClientFake {
+        fn new_account(
+            api_location: String,
+            params: &NewAccountRequest,
+        ) -> Result<(), ClientError> {
+            Ok(())
+        }
+
+        fn get_updates(
+            api_location: String,
+            params: &GetUpdatesRequest,
+        ) -> Result<Vec<FileMetadata>, ClientError> {
+            Ok(vec![])
+        }
+    }
+
     #[test]
     fn get_updates() {
         let config = &Config {
@@ -100,7 +123,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         type DefaultFileMetadataService =
-            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoImpl>;
+            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoImpl, ClientFake>;
 
         AccountRepoImpl::insert_account(
             &db,
@@ -126,6 +149,6 @@ mod unit_tests {
 
         let all_files = DefaultFileMetadataService::update(&db).unwrap();
 
-        debug(format!("{:?}", serde_json::to_string(&all_files)))
+        assert_eq!(all_files, vec![]);
     }
 }

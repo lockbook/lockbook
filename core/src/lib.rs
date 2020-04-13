@@ -5,6 +5,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -29,11 +30,12 @@ static DB_NAME: &str = "lockbook.db3";
 type DefaultCrypto = RsaCryptoService;
 type DefaultSchema = SchemaCreatorImpl;
 type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
+type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo>;
+type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
-    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo>;
+    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
