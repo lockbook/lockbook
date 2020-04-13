@@ -24,9 +24,7 @@ pub struct AccountRepoImpl;
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Connection, account: &Account) -> Result<(), Error> {
         db.execute(
-            "insert into user_info
-            (id, username, public_n, public_e, private_d, private_p, private_q, private_dmp1, private_dmq1, private_iqmp)
-            values (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO user_info (id, username, public_n, public_e, private_d, private_p, private_q, private_dmp1, private_dmq1, private_iqmp) VALUES (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 &account.username,
                 &account.keys.public_key.n,
@@ -44,17 +42,7 @@ impl AccountRepo for AccountRepoImpl {
 
     fn get_account(db: &Connection) -> Result<Account, Error> {
         let mut stmt = db.prepare(
-            "select
-                        username,
-                        public_n,
-                        public_e,
-                        private_d,
-                        private_p,
-                        private_q,
-                        private_dmp1,
-                        private_dmq1,
-                        private_iqmp
-                    from user_info where id = 0",
+            "SELECT username, public_n, public_e, private_d, private_p, private_q, private_dmp1, private_dmq1, private_iqmp FROM user_info WHERE id = 0",
         )?;
 
         let mut user_iter = stmt.query_map(params![], |row| {
