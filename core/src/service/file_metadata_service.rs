@@ -1,22 +1,23 @@
 use std::marker::PhantomData;
 
-use crate::account_repo::AccountRepo;
+use crate::client;
+use crate::client::GetUpdatesRequest;
+use crate::error;
 use crate::error_enum;
-use crate::file_metadata::FileMetadata;
-use crate::file_metadata_repo;
-use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
-use crate::lockbook_api;
-use crate::lockbook_api::GetUpdatesRequest;
-use crate::{account_repo, error};
-use crate::{db_provider, API_LOC};
+use crate::model::file_metadata::FileMetadata;
+use crate::repo;
+use crate::repo::account_repo::AccountRepo;
+use crate::repo::db_provider;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
+use crate::API_LOC;
 use rusqlite::Connection;
 
 error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
-        RetrievalError(account_repo::Error),
-        ApiError(lockbook_api::get_updates::GetUpdatesError),
-        MetadataRepoError(file_metadata_repo::Error),
+        RetrievalError(repo::account_repo::Error),
+        ApiError(client::get_updates::GetUpdatesError),
+        MetadataRepoError(repo::file_metadata_repo::Error),
     }
 }
 
@@ -35,12 +36,12 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
     fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
 
-        let max_updated = match FileMetadataRepoImpl::last_updated(db) {
+        let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
             Err(_) => 0,
         };
 
-        let updates = lockbook_api::get_updates(
+        let updates = client::get_updates(
             API_LOC.to_string(),
             &GetUpdatesRequest {
                 username: account.username.to_string(),
@@ -64,29 +65,29 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
 
         updates
             .into_iter()
-            .for_each(|meta| match FileMetadataRepoImpl::insert(&db, &meta) {
+            .for_each(|meta| match FileMetadataDb::insert(&db, &meta) {
                 Ok(_) => {}
                 Err(err) => {
                     error(format!("Insert Error {:?}", err));
                 }
             });
 
-        let all_meta = FileMetadataRepoImpl::get_all(&db)?;
+        let all_meta = FileMetadataDb::get_all(&db)?;
         Ok(all_meta)
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::account::Account;
-    use crate::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
-    use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::debug;
-    use crate::file_metadata_repo::FileMetadataRepoImpl;
-    use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-    use crate::schema::SchemaCreatorImpl;
-    use crate::state::Config;
+    use crate::model::account::Account;
+    use crate::model::state::Config;
+    use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::repo::db_provider::{DbProvider, RamBackedDB};
+    use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+    use crate::repo::schema::SchemaCreatorImpl;
+    use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
 
