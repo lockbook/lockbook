@@ -1,23 +1,22 @@
 use std::marker::PhantomData;
 
-use crate::account::account_repo;
-use crate::account::account_repo::AccountRepo;
 use crate::error;
 use crate::error_enum;
-use crate::file_metadata::file_metadata_repo;
-use crate::file_metadata::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::lockbook_api;
 use crate::lockbook_api::GetUpdatesRequest;
 use crate::models::file_metadata::FileMetadata;
+use crate::repo;
+use crate::repo::account_repo::AccountRepo;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::{db_provider, API_LOC};
 use rusqlite::Connection;
 
 error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
-        RetrievalError(account_repo::Error),
+        RetrievalError(repo::account_repo::Error),
         ApiError(lockbook_api::get_updates::GetUpdatesError),
-        MetadataRepoError(file_metadata_repo::Error),
+        MetadataRepoError(repo::file_metadata_repo::Error),
     }
 }
 
@@ -36,7 +35,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
     fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
 
-        let max_updated = match FileMetadataRepoImpl::last_updated(db) {
+        let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
             Err(_) => 0,
         };
@@ -65,30 +64,28 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
 
         updates
             .into_iter()
-            .for_each(|meta| match FileMetadataRepoImpl::insert(&db, &meta) {
+            .for_each(|meta| match FileMetadataDb::insert(&db, &meta) {
                 Ok(_) => {}
                 Err(err) => {
                     error(format!("Insert Error {:?}", err));
                 }
             });
 
-        let all_meta = FileMetadataRepoImpl::get_all(&db)?;
+        let all_meta = FileMetadataDb::get_all(&db)?;
         Ok(all_meta)
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::account::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::debug;
-    use crate::file_metadata::file_metadata_repo::FileMetadataRepoImpl;
-    use crate::file_metadata::file_metadata_service::{
-        FileMetadataService, FileMetadataServiceImpl,
-    };
     use crate::models::account::Account;
+    use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
     use crate::schema::SchemaCreatorImpl;
+    use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use crate::state::Config;
 
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;

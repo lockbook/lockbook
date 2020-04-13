@@ -74,10 +74,10 @@ impl AccountRepo for AccountRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::account::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::models::account::Account;
+    use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::schema::SchemaCreatorImpl;
     use crate::state::Config;
 

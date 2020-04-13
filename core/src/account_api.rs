@@ -54,9 +54,9 @@ impl AccountApi for AccountApiImpl {
 mod integration_tests {
     use std::env;
 
-    use crate::account::Account;
     use crate::account_api::{AccountApi, AccountApiImpl};
     use crate::crypto::{CryptoService, RsaCryptoService};
+    use crate::models::account::Account;
 
     type DefaultCrypto = RsaCryptoService;
     type TestAccountApi = AccountApiImpl;
