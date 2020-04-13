@@ -19,18 +19,17 @@ pub struct NewAccount {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
-    let result = index_db::new_account(
+    let new_account_result = index_db::new_account(
         &mut locked_index_db_client,
         &new_account.username,
         &new_account.pub_key_n,
         &new_account.pub_key_e,
     );
-
-    match result {
+    match new_account_result {
         Ok(()) => make_response(201, "ok"),
         Err(index_db::new_account::Error::UsernameTaken) => make_response(422, "username_taken"),
-        Err(index_db::new_account::Error::Uninterpreted(e)) => {
-            println!("Internal server error! {:?}", e);
+        Err(index_db::new_account::Error::Uninterpreted(_)) => {
+            println!("Internal server error! {:?}", new_account_result);
             make_response(500, "internal_error")
         }
     }

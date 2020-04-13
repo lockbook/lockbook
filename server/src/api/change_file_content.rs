@@ -31,20 +31,19 @@ pub fn change_file_content(
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
 
-    let new_version = match index_db::update_file_version(
+    let update_file_version_result = index_db::update_file_version(
         &mut locked_index_db_client,
         &change_file.file_id,
         &change_file.old_file_version,
-    ) {
+    );
+    let new_version = match update_file_version_result {
         Ok(new_version) => new_version,
-        Err(index_db::update_file_version::Error::Uninterpreted(postgres_error)) => {
-            println!("Internal server error! {:?}", postgres_error);
+        Err(index_db::update_file_version::Error::Uninterpreted(_)) => {
+            println!("Internal server error! {:?}", update_file_version_result);
             return make_response(500, "internal_error", 0);
         }
-        Err(index_db::update_file_version::Error::VersionGeneration(
-            index_db::generate_version::Error::Uninterpreted(postgres_error),
-        )) => {
-            println!("Internal server error! {:?}", postgres_error);
+        Err(index_db::update_file_version::Error::VersionGeneration(_)) => {
+            println!("Internal server error! {:?}", update_file_version_result);
             return make_response(500, "internal_error", 0);
         }
         Err(index_db::update_file_version::Error::FileDoesNotExist) => {
@@ -58,14 +57,15 @@ pub fn change_file_content(
         }
     };
 
-    match files_db::create_file(
+    let create_file_result = files_db::create_file(
         &locked_files_db_client,
         &change_file.file_id,
         &change_file.new_file_content,
-    ) {
+    );
+    match create_file_result {
         Ok(()) => make_response(200, "ok", new_version),
-        Err(files_db::create_file::Error::S3(s3_error)) => {
-            println!("Internal server error! {:?}", s3_error);
+        Err(files_db::create_file::Error::S3(_)) => {
+            println!("Internal server error! {:?}", create_file_result);
             make_response(500, "internal_error", 0)
         }
     }

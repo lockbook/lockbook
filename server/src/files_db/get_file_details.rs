@@ -8,6 +8,7 @@ pub enum Error {
     NoSuchFile(()),
 }
 
+#[derive(Debug)]
 pub struct FileDetails {
     pub id: String,
     pub size: u64,
