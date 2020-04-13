@@ -64,13 +64,14 @@ for AccountServiceImpl<
         let db = DB::connect_to_db(config)?;
         let keys = Crypto::generate_key()?;
         let auth = Auth::generate_auth(&keys, &username)?;
-        let account = Account { username, keys };
         let account_req = NewAccountRequest {
             username: username.clone(),
             auth,
             pub_key_n: keys.public_key.n.clone(),
             pub_key_e: keys.public_key.e.clone(),
         };
+        let account = Account { username, keys };
+
 
         AccountDb::insert_account(&db, &account)?;
         NewAccount::new_account(String::from(Config::get_auth_delay()), &account_req)?;
