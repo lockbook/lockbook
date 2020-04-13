@@ -5,14 +5,14 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
-use crate::account_api::AccountApiImpl;
 use crate::account_repo::AccountRepoImpl;
 use crate::account_service::{AccountService, AccountServiceImpl};
+use crate::auth_service::AuthServiceImpl;
 use crate::crypto::RsaCryptoService;
 use crate::db_provider::DiskBackedDB;
+use crate::lockbook_api::NewAccountClientImpl;
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
-use crate::auth_service::AuthServiceImpl;
 
 pub mod account;
 pub mod account_api;
@@ -33,10 +33,10 @@ type DefaultCrypto = RsaCryptoService;
 type DefaultSchema = SchemaCreatorImpl;
 type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
 type DefaultAccountRepo = AccountRepoImpl;
-type DefaultAccountApi = AccountApiImpl;
 type DefaultAuthService = AuthServiceImpl;
+type DefaultNewAccount = NewAccountClientImpl;
 type DefaultAccountService =
-    AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAccountRepo, DefaultAccountApi, DefaultAuthService>;
+    AccountServiceImpl<DefaultDbProvider, DefaultCrypto, DefaultAccountRepo, DefaultAuthService, DefaultNewAccount>;
 
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(path_c: *const c_char) -> c_int {

@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use crate::account::Account;
 use crate::account_api;
-use crate::account_api::AccountApi;
 use crate::account_repo;
 use crate::account_repo::AccountRepo;
 use crate::auth_service;
@@ -12,6 +11,9 @@ use crate::crypto::CryptoService;
 use crate::db_provider;
 use crate::db_provider::DbProvider;
 use crate::error_enum;
+use crate::lockbook_api::new_account;
+use crate::lockbook_api::new_account::NewAccountClient;
+use crate::lockbook_api::NewAccountRequest;
 use crate::state::Config;
 
 error_enum! {
@@ -20,7 +22,8 @@ error_enum! {
         KeyGenerationError(crypto::KeyGenError),
         PersistenceError(account_repo::Error),
         ApiError(account_api::Error),
-        AuthError(auth_service::AuthGenError)
+        AuthError(auth_service::AuthGenError),
+        AccountGenerationError(new_account::NewAccountError)
     }
 }
 
@@ -32,27 +35,45 @@ pub struct AccountServiceImpl<
     DB: DbProvider,
     Crypto: CryptoService,
     AccountDb: AccountRepo,
-    Api: AccountApi,
-    Auth: AuthService
+    Auth: AuthService,
+    NewAccount: NewAccountClient,
 > {
+    db: PhantomData<DB>,
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
-    db: PhantomData<DB>,
-    api: PhantomData<Api>,
     auth: PhantomData<Auth>,
+    new_account: PhantomData<NewAccount>,
 }
 
-impl<DB: DbProvider, Crypto: CryptoService, AccountDb: AccountRepo, Api: AccountApi, Auth: AuthService> AccountService
-for AccountServiceImpl<DB, Crypto, AccountDb, Api, Auth>
+impl<
+    DB: DbProvider,
+    Crypto: CryptoService,
+    AccountDb: AccountRepo,
+    Auth: AuthService,
+    NewAccount: NewAccountClient,
+> AccountService
+for AccountServiceImpl<
+    DB,
+    Crypto,
+    AccountDb,
+    Auth,
+    NewAccount,
+>
 {
     fn create_account(config: Config, username: String) -> Result<Account, Error> {
         let db = DB::connect_to_db(config)?;
         let keys = Crypto::generate_key()?;
         let auth = Auth::generate_auth(&keys, &username)?;
         let account = Account { username, keys };
+        let account_req = NewAccountRequest {
+            username: username.clone(),
+            auth,
+            pub_key_n: keys.public_key.n.clone(),
+            pub_key_e: keys.public_key.e.clone(),
+        };
 
         AccountDb::insert_account(&db, &account)?;
-        Api::new_account(&account)?;
+        NewAccount::new_account(String::from(Config::get_auth_delay()), &account_req)?;
 
         Ok(account)
     }
