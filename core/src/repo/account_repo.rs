@@ -3,9 +3,9 @@ use std::option::NoneError;
 
 use rusqlite::{params, Connection};
 
-use crate::account::Account;
 use crate::crypto::{KeyPair, PrivateKey, PublicKey};
 use crate::error_enum;
+use crate::model::account::Account;
 
 error_enum! {
     enum Error {
@@ -74,12 +74,12 @@ impl AccountRepo for AccountRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::account::Account;
-    use crate::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
-    use crate::db_provider::{DbProvider, RamBackedDB};
-    use crate::schema::SchemaCreatorImpl;
-    use crate::state::Config;
+    use crate::model::account::Account;
+    use crate::model::state::Config;
+    use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::repo::db_provider::{DbProvider, RamBackedDB};
+    use crate::repo::schema::SchemaCreatorImpl;
 
     type DefaultSchema = SchemaCreatorImpl;
     type DefaultDbProvider = RamBackedDB<DefaultSchema>;

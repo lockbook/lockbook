@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 
 use rusqlite::Connection;
 
-use crate::schema;
-use crate::schema::SchemaApplier;
-use crate::state::Config;
+use crate::model::state::Config;
+use crate::repo::schema;
+use crate::repo::schema::SchemaApplier;
 use crate::DB_NAME;
 use crate::{debug, error_enum};
 
