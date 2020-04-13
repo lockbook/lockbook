@@ -1,13 +1,14 @@
 use std::marker::PhantomData;
 
-use crate::account_repo::AccountRepo;
+use crate::account::account_repo;
+use crate::account::account_repo::AccountRepo;
+use crate::error;
 use crate::error_enum;
-use crate::file_metadata::FileMetadata;
-use crate::file_metadata_repo;
-use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+use crate::file_metadata::file_metadata_repo;
+use crate::file_metadata::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::lockbook_api;
 use crate::lockbook_api::GetUpdatesRequest;
-use crate::{account_repo, error};
+use crate::models::file_metadata::FileMetadata;
 use crate::{db_provider, API_LOC};
 use rusqlite::Connection;
 
@@ -78,13 +79,15 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::account::Account;
-    use crate::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::account::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::debug;
-    use crate::file_metadata_repo::FileMetadataRepoImpl;
-    use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+    use crate::file_metadata::file_metadata_repo::FileMetadataRepoImpl;
+    use crate::file_metadata::file_metadata_service::{
+        FileMetadataService, FileMetadataServiceImpl,
+    };
+    use crate::models::account::Account;
     use crate::schema::SchemaCreatorImpl;
     use crate::state::Config;
 

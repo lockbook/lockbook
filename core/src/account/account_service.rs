@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
 
-use crate::account::Account;
+use crate::account::account_repo;
+use crate::account::account_repo::AccountRepo;
 use crate::account_api;
 use crate::account_api::AccountApi;
-use crate::account_repo;
-use crate::account_repo::AccountRepo;
 use crate::crypto;
 use crate::crypto::CryptoService;
 use crate::db_provider;
 use crate::error_enum;
+use crate::models::account::Account;
 use rusqlite::Connection;
 
 error_enum! {

@@ -1,7 +1,7 @@
 extern crate reqwest;
 
-use crate::account::Account;
 use crate::account_api::Error::{NetworkError, ServerUnavailable, UsernameTaken};
+use crate::models::account::Account;
 use crate::API_LOC;
 
 #[derive(Debug)]

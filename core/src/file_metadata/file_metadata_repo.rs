@@ -3,7 +3,7 @@ use std::option::NoneError;
 use rusqlite::{params, Connection, Row};
 
 use crate::error_enum;
-use crate::file_metadata::FileMetadata;
+use crate::models::file_metadata::FileMetadata;
 use std::ops::Try;
 
 error_enum! {
@@ -95,8 +95,8 @@ fn to_metadata(row: &Row) -> Result<FileMetadata, rusqlite::Error> {
 #[cfg(test)]
 mod unit_tests {
     use crate::db_provider::{DbProvider, RamBackedDB};
-    use crate::file_metadata::FileMetadata;
-    use crate::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::file_metadata::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::models::file_metadata::FileMetadata;
     use crate::schema::SchemaCreatorImpl;
     use crate::state::Config;
     use uuid::Uuid;

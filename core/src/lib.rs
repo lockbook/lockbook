@@ -5,13 +5,13 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use crate::account::account_repo::{AccountRepo, AccountRepoImpl};
+use crate::account::account_service::{AccountService, AccountServiceImpl};
 use crate::account_api::AccountApiImpl;
-use crate::account_repo::{AccountRepo, AccountRepoImpl};
-use crate::account_service::{AccountService, AccountServiceImpl};
 use crate::crypto::RsaCryptoService;
 use crate::db_provider::{DbProvider, DiskBackedDB};
-use crate::file_metadata_repo::FileMetadataRepoImpl;
-use crate::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+use crate::file_metadata::file_metadata_repo::FileMetadataRepoImpl;
+use crate::file_metadata::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use crate::schema::SchemaCreatorImpl;
 use crate::state::Config;
 use rusqlite::Connection;
@@ -19,15 +19,12 @@ use serde_json::json;
 
 pub mod account;
 pub mod account_api;
-pub mod account_repo;
-pub mod account_service;
 pub mod crypto;
 pub mod db_provider;
 pub mod error_enum;
 pub mod file_metadata;
-pub mod file_metadata_repo;
-pub mod file_metadata_service;
 pub mod lockbook_api;
+pub mod models;
 pub mod schema;
 pub mod state;
 
