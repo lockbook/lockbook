@@ -71,7 +71,7 @@ Inputs:
 + `new_file_name`: new base64-encoded encrypted file name
 
 Outputs:
-+ `204`
++ `200`
 + `404 file_not_found`
 + `410 file_deleted`
 
@@ -86,7 +86,7 @@ Inputs:
 + `new_file_path`: new base64-encoded encrypted file path
 
 Outputs:
-+ `204`
++ `200`
 + `404 file_not_found`
 + `410 file_deleted`
 + `422 file_path_taken`
@@ -101,7 +101,7 @@ Inputs:
 + `file_id`: UUID to identify file
 
 Outputs:
-+ `204`
++ `200`
 + `404 file_not_found`
 + `410 file_deleted`
 
