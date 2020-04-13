@@ -34,7 +34,7 @@ impl SchemaApplier for SchemaCreatorImpl {
         )?;
 
         db.execute(
-                 "CREATE TABLE file_metadata (
+            "CREATE TABLE file_metadata (
                     id TEXT PRIMARY KEY,
                     name TEXT not null,
                     path TEXT not null,
