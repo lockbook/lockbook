@@ -35,7 +35,7 @@ jobs:
       with:
         toolchain: nightly
         command: test
-        args: --manifest-path core/Cargo.toml --verbose
+        args: --manifest-path core/Cargo.toml --verbose --all --no-fail-fast
     - name: Slack Notification
       uses: 8398a7/action-slack@v3
       with:
