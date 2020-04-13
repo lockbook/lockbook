@@ -2,8 +2,6 @@ use core::num::ParseIntError;
 use std::option::NoneError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::time::SystemTimeError;
-use std::any::Any;
-use std::mem::discriminant;
 
 use crate::auth_service::VerificationError::{DecryptionFailure, IncompleteAuth, InvalidTimeStamp, InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure};
 use crate::crypto::{CryptoService, DecryptedValue, EncryptedValue, KeyPair, PublicKey, RsaCryptoService};
