@@ -42,13 +42,13 @@ pub fn rename_file(
         .send()
         .map_err(|err| RenameFileError::SendFailed(err))?;
 
+    let response_body = response
+        .json::<RenameFileResponse>()
+        .map_err(|err| RenameFileError::ReceiveFailed(err))?;
+
     match (
         response.status().as_u16(),
-        response
-            .json::<RenameFileResponse>()
-            .map_err(|err| RenameFileError::ReceiveFailed(err))?
-            .error_code
-            .as_str(),
+        response_body.error_code.as_str(),
     ) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(RenameFileError::InvalidAuth),
