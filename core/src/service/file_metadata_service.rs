@@ -1,21 +1,22 @@
 use std::marker::PhantomData;
 
+use crate::client;
+use crate::client::GetUpdatesRequest;
 use crate::error;
 use crate::error_enum;
-use crate::lockbook_api;
-use crate::lockbook_api::GetUpdatesRequest;
-use crate::models::file_metadata::FileMetadata;
+use crate::model::file_metadata::FileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
+use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::{db_provider, API_LOC};
+use crate::API_LOC;
 use rusqlite::Connection;
 
 error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
-        ApiError(lockbook_api::get_updates::GetUpdatesError),
+        ApiError(client::get_updates::GetUpdatesError),
         MetadataRepoError(repo::file_metadata_repo::Error),
     }
 }
@@ -40,7 +41,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
             Err(_) => 0,
         };
 
-        let updates = lockbook_api::get_updates(
+        let updates = client::get_updates(
             API_LOC.to_string(),
             &GetUpdatesRequest {
                 username: account.username.to_string(),
@@ -79,14 +80,14 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo> FileMetadataServi
 #[cfg(test)]
 mod unit_tests {
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
-    use crate::db_provider::{DbProvider, RamBackedDB};
     use crate::debug;
-    use crate::models::account::Account;
+    use crate::model::account::Account;
+    use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+    use crate::repo::db_provider::{DbProvider, RamBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
-    use crate::schema::SchemaCreatorImpl;
+    use crate::repo::schema::SchemaCreatorImpl;
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-    use crate::state::Config;
 
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
 

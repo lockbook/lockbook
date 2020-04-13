@@ -5,28 +5,23 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
-use crate::account_api::AccountApiImpl;
 use crate::crypto::RsaCryptoService;
-use crate::db_provider::{DbProvider, DiskBackedDB};
+use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
-use crate::schema::SchemaCreatorImpl;
+use crate::repo::schema::SchemaCreatorImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-use crate::state::Config;
 use rusqlite::Connection;
 use serde_json::json;
 
-pub mod account_api;
+pub mod client;
 pub mod crypto;
-pub mod db_provider;
 pub mod error_enum;
-pub mod lockbook_api;
-pub mod models;
+pub mod model;
 pub mod repo;
-pub mod schema;
 pub mod service;
-pub mod state;
 
 static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.db3";
@@ -35,8 +30,7 @@ type DefaultCrypto = RsaCryptoService;
 type DefaultSchema = SchemaCreatorImpl;
 type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
 type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAccountApi = AccountApiImpl;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultAccountApi>;
+type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
     FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo>;
