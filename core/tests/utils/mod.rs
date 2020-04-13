@@ -1,4 +1,9 @@
 extern crate lockbook_core;
+
+use std::env;
+
+use uuid::Uuid;
+
 use lockbook_core::lockbook_api::ChangeFileContentError;
 use lockbook_core::lockbook_api::CreateFileError;
 use lockbook_core::lockbook_api::DeleteFileError;
@@ -6,14 +11,22 @@ use lockbook_core::lockbook_api::GetUpdatesError;
 use lockbook_core::lockbook_api::MoveFileError;
 use lockbook_core::lockbook_api::NewAccountError;
 use lockbook_core::lockbook_api::RenameFileError;
-use std::env;
-use uuid::Uuid;
 
 pub fn api_loc() -> String {
     match env::var("LOCKBOOK_API_LOCATION") {
         Ok(s) => s,
         Err(e) => panic!(
             "Could not read environment variable LOCKBOOK_API_LOCATION: {}",
+            e
+        ),
+    }
+}
+
+pub fn max_auth_delay() -> String {
+    match env::var("MAX_AUTH_DELAY") {
+        Ok(s) => s,
+        Err(e) => panic!(
+            "Could not read environment variable MAX_AUTH_DELAY: {}",
             e
         ),
     }
@@ -27,7 +40,7 @@ pub fn generate_file_id() -> String {
     Uuid::new_v4().to_string()
 }
 
-macro_rules! assert_matches(
+macro_rules! assert_matches (
     ($actual:expr, $expected:pat) => {
         // Only compute actual once
         let actual_value = $actual;
