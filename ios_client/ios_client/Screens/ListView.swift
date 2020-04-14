@@ -12,6 +12,7 @@ struct ListView: View {
     var lockbookApi: LockbookApi
     var username: String
     @State private var files: [FileMetadata]
+    @EnvironmentObject var screenCoordinator: ScreenCoordinator
 
     var body: some View {
         VStack {
@@ -22,6 +23,12 @@ struct ListView: View {
                     }
                 }
                 .navigationBarTitle("\(self.username)'s Files")
+                .navigationBarItems(trailing:
+                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
+                        Image(systemName: "plus")
+                    }
+                )
+                
             }
             MonokaiButton(text: "Reload Files")
                 .onTapGesture {
@@ -43,6 +50,6 @@ struct ListView: View {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi())
+        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
     }
 }

@@ -141,9 +141,31 @@ pub unsafe extern "C" fn list_files(c_path: *const c_char) -> *mut c_char {
     };
 
     match DefaultFileMetadataService::update(&db) {
-        Ok(files) => CString::new(json!(&files).to_string()).unwrap().into_raw(),
+        Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             error(format!("Update metadata failed with error: {:?}", err));
+            CString::new(json!([]).to_string()).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn create_file(
+    c_path: *const c_char,
+    c_file_name: *const c_char,
+    c_file_path: *const c_char,
+) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+    let file_name = string_from_ptr(c_file_name);
+    let file_path = string_from_ptr(c_file_path);
+
+    match DefaultFileMetadataService::create(&db, file_name, file_path) {
+        Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
+        Err(err) => {
+            error(format!("Failed to create file! Error: {:?}", err));
             CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }

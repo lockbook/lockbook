@@ -1,16 +1,17 @@
 use std::marker::PhantomData;
+use std::time::SystemTime;
 
-use crate::client;
-use crate::client::{Client, GetUpdatesRequest};
-use crate::error;
+use crate::client::{Client, ClientError, CreateFileRequest, GetUpdatesRequest};
 use crate::error_enum;
-use crate::model::file_metadata::FileMetadata;
+use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::API_LOC;
+use crate::{client, debug};
+use crate::{error, info};
 use sled::Db;
+use uuid::Uuid;
 
 error_enum! {
     enum Error {
@@ -18,11 +19,13 @@ error_enum! {
         RetrievalError(repo::account_repo::Error),
         ApiError(client::ClientError),
         MetadataRepoError(repo::file_metadata_repo::Error),
+        SystemTimeError(std::time::SystemTimeError),
     }
 }
 
 pub trait FileMetadataService {
     fn update(db: &Db) -> Result<Vec<FileMetadata>, Error>;
+    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
 
 pub struct FileMetadataServiceImpl<
@@ -40,20 +43,17 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 {
     fn update(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
-
         let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
             Err(_) => 0,
         };
-
-        let updates = ApiClient::get_updates(
-            API_LOC.to_string(),
-            &GetUpdatesRequest {
-                username: account.username.to_string(),
-                auth: "".to_string(),
-                since_version: max_updated as u64,
-            },
-        )
+        debug(format!("Getting updates past {}", max_updated));
+        let updates = ApiClient::get_updates(&GetUpdatesRequest {
+            username: account.username.to_string(),
+            // FIXME: Real auth...
+            auth: "JUNKAUTH".to_string(),
+            since_version: max_updated,
+        })
         .map(|metadatas| {
             metadatas
                 .into_iter()
@@ -61,72 +61,203 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
                     id: t.file_id,
                     name: t.file_name,
                     path: t.file_path,
-                    updated_at: t.file_metadata_version as i64,
+                    updated_at: t.file_metadata_version,
                     // TODO: Fix this so status is tracked accurately
-                    status: "Remote".to_string(),
+                    status: Status::Remote,
                 })
                 .collect::<Vec<FileMetadata>>()
         })?;
+        debug(format!("Updates {:?}", updates));
+        let mut all_meta = FileMetadataDb::get_all(&db)?;
+        all_meta.retain(|f| f.status == Status::Local);
+        debug(format!("Local {:?}", all_meta));
 
-        updates
-            .into_iter()
-            .for_each(|meta| match FileMetadataDb::insert(&db, &meta) {
+        updates.into_iter().for_each(|meta| {
+            match FileMetadataDb::update(
+                &db,
+                &FileMetadata {
+                    id: meta.id,
+                    name: meta.name,
+                    path: meta.path,
+                    updated_at: meta.updated_at,
+                    status: Status::Synced,
+                },
+            ) {
                 Ok(_) => {}
                 Err(err) => {
                     error(format!("Insert Error {:?}", err));
                 }
-            });
+            }
+        });
 
-        let all_meta = FileMetadataDb::get_all(&db)?;
-        Ok(all_meta)
+        all_meta.into_iter().for_each(|meta| {
+            let meta_copy = meta.clone();
+            match ApiClient::create_file(&CreateFileRequest {
+                username: account.username.to_string(),
+                auth: "JUNKAUTH".to_string(),
+                file_id: meta.id,
+                file_name: meta.name,
+                file_path: meta.path,
+                file_content: "JUNKCONTENT".to_string(),
+            }) {
+                Ok(_) => {
+                    info(format!("Uploaded file!"));
+                    match FileMetadataDb::update(
+                        &db,
+                        &FileMetadata {
+                            id: meta_copy.id,
+                            name: meta_copy.name,
+                            path: meta_copy.path,
+                            updated_at: meta.updated_at,
+                            status: Status::Synced,
+                        },
+                    ) {
+                        Ok(_) => info(format!("Updated file locally")),
+                        Err(err) => {
+                            error(format!("Failed to update file locally! Error {:?}", err))
+                        }
+                    }
+                }
+                Err(err) => error(format!("Upload error {:?}", err)),
+            }
+        });
+
+        Ok(FileMetadataDb::get_all(&db)?)
+    }
+
+    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error> {
+        let meta = FileMetadata {
+            id: Uuid::new_v4().to_string(),
+            name,
+            path,
+            updated_at: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)?
+                .as_micros() as u64,
+            status: Status::Local,
+        };
+
+        FileMetadataDb::insert(&db, &meta)?;
+        Ok(meta)
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
+    use crate::client::{
+        Client, ClientError, CreateFileRequest, FileMetadata, GetUpdatesRequest, NewAccountRequest,
+    };
     use crate::crypto::{KeyPair, PrivateKey, PublicKey};
     use crate::debug;
     use crate::model::account::Account;
+    use crate::model::file_metadata;
+    use crate::model::file_metadata::Status;
     use crate::model::state::Config;
+    use crate::repo::account_repo;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+    use crate::repo::file_metadata_repo;
+    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+    use sled::Db;
 
     type DefaultDbProvider = TempBackedDB;
 
-    struct ClientFake;
-    impl Client for ClientFake {
-        fn new_account(
-            api_location: String,
-            params: &NewAccountRequest,
-        ) -> Result<(), ClientError> {
+    struct FileMetaRepoFake;
+    impl FileMetadataRepo for FileMetaRepoFake {
+        fn insert(
+            db: &Db,
+            file_metadata: &file_metadata::FileMetadata,
+        ) -> Result<(), file_metadata_repo::Error> {
+            unimplemented!()
+        }
+
+        fn update(
+            db: &Db,
+            file_metadata: &file_metadata::FileMetadata,
+        ) -> Result<(), file_metadata_repo::Error> {
+            debug(format!("Updating in DB {:?}", file_metadata));
             Ok(())
         }
 
-        fn get_updates(
-            api_location: String,
-            params: &GetUpdatesRequest,
-        ) -> Result<Vec<FileMetadata>, ClientError> {
-            Ok(vec![])
+        fn get(
+            db: &Db,
+            id: &String,
+        ) -> Result<file_metadata::FileMetadata, file_metadata_repo::Error> {
+            unimplemented!()
+        }
+
+        fn last_updated(db: &Db) -> Result<u64, file_metadata_repo::Error> {
+            Ok(100)
+        }
+
+        fn get_all(db: &Db) -> Result<Vec<file_metadata::FileMetadata>, file_metadata_repo::Error> {
+            Ok(vec![
+                file_metadata::FileMetadata {
+                    id: "a".to_string(),
+                    name: "".to_string(),
+                    path: "".to_string(),
+                    updated_at: 50,
+                    status: Status::Synced,
+                },
+                file_metadata::FileMetadata {
+                    id: "n".to_string(),
+                    name: "".to_string(),
+                    path: "".to_string(),
+                    updated_at: 75,
+                    status: Status::Local,
+                },
+            ])
         }
     }
 
-    #[test]
-    fn get_updates() {
-        let config = &Config {
-            writeable_path: "ignored".to_string(),
-        };
+    struct ClientFake;
+    impl Client for ClientFake {
+        fn new_account(params: &NewAccountRequest) -> Result<(), ClientError> {
+            Ok(())
+        }
 
-        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+        fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
+            Ok(vec![
+                FileMetadata {
+                    file_id: "a".to_string(),
+                    file_name: "".to_string(),
+                    file_path: "".to_string(),
+                    file_content_version: 0,
+                    file_metadata_version: 50,
+                    deleted: false,
+                },
+                FileMetadata {
+                    file_id: "b".to_string(),
+                    file_name: "".to_string(),
+                    file_path: "".to_string(),
+                    file_content_version: 0,
+                    file_metadata_version: 100,
+                    deleted: false,
+                },
+                FileMetadata {
+                    file_id: "c".to_string(),
+                    file_name: "".to_string(),
+                    file_path: "".to_string(),
+                    file_content_version: 0,
+                    file_metadata_version: 150,
+                    deleted: false,
+                },
+            ])
+        }
 
-        type DefaultFileMetadataService =
-            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoImpl, ClientFake>;
+        fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
+            debug(format!("Uploading to server {:?}", params));
+            Ok(1)
+        }
+    }
+    struct AccountRepoFake;
+    impl AccountRepo for AccountRepoFake {
+        fn insert_account(db: &Db, account: &Account) -> Result<(), account_repo::Error> {
+            unimplemented!()
+        }
 
-        AccountRepoImpl::insert_account(
-            &db,
-            &Account {
+        fn get_account(db: &Db) -> Result<Account, account_repo::Error> {
+            Ok(Account {
                 username: "jimmyjohn".to_string(),
                 keys: KeyPair {
                     public_key: PublicKey {
@@ -142,12 +273,46 @@ mod unit_tests {
                         iqmp: "k".to_string(),
                     },
                 },
+            })
+        }
+    }
+
+    #[test]
+    fn get_updates() {
+        let config = &Config {
+            writeable_path: "ignored".to_string(),
+        };
+
+        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+        type DefaultFileMetadataService =
+            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoFake, ClientFake>;
+        FileMetadataRepoImpl::insert(
+            &db,
+            &file_metadata::FileMetadata {
+                id: "a".to_string(),
+                name: "".to_string(),
+                path: "".to_string(),
+                updated_at: 50,
+                status: Status::Synced,
+            },
+        )
+        .unwrap();
+        FileMetadataRepoImpl::insert(
+            &db,
+            &file_metadata::FileMetadata {
+                id: "n".to_string(),
+                name: "".to_string(),
+                path: "".to_string(),
+                updated_at: 75,
+                status: Status::Local,
             },
         )
         .unwrap();
 
+        assert_eq!(FileMetadataRepoImpl::get_all(&db).unwrap().len(), 2);
+
         let all_files = DefaultFileMetadataService::update(&db).unwrap();
 
-        assert_eq!(all_files, vec![]);
+        assert_eq!(all_files.len(), 4);
     }
 }

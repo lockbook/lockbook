@@ -17,6 +17,7 @@ struct ControllerView: View {
             case .welcomeView: return AnyView(WelcomeView(lockbookApi: lockbookApi))
             case .createAccountView: return AnyView(CreateAccountView(lockbookApi: lockbookApi))
             case .listView: return AnyView(ListView(lockbookApi: lockbookApi))
+            case .createFileView: return AnyView(CreateFileView(lockbookApi: lockbookApi))
             case .none: return AnyView(Text("Nothing!"))
         }
     }

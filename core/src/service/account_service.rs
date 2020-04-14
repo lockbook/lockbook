@@ -2,13 +2,13 @@ use std::marker::PhantomData;
 
 use crate::client;
 use crate::client::{Client, NewAccountRequest};
+use crate::crypto;
 use crate::crypto::CryptoService;
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
-use crate::{crypto, API_LOC};
 use sled::Db;
 
 error_enum! {
@@ -38,14 +38,14 @@ impl<Crypto: CryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountSe
         let account = Account { username, keys };
 
         AccountDb::insert_account(&db, &account)?;
-        let new_account_request = NewAccountRequest {
+
+        ApiClient::new_account(&NewAccountRequest {
             username: format!("{}", &account.username),
-            auth: "".to_string(),
+            // FIXME: Real auth...
+            auth: "JUNKAUTH".to_string(),
             pub_key_n: format!("{}", &&account.keys.public_key.n.to_string()),
             pub_key_e: format!("{}", &account.keys.public_key.e.to_string()),
-        };
-
-        ApiClient::new_account(API_LOC.to_string(), &new_account_request)?;
+        })?;
 
         Ok(account)
     }

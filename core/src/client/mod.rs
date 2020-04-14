@@ -16,33 +16,33 @@ pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdat
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
+use crate::API_LOC;
 
 #[derive(Debug)]
 pub enum ClientError {
-    AccountError(NewAccountError),
-    UpdatesError(GetUpdatesError),
+    CreateAccount(NewAccountError),
+    GetUpdates(GetUpdatesError),
+    CreateFile(CreateFileError),
 }
 
 pub trait Client {
-    fn new_account(api_location: String, params: &NewAccountRequest) -> Result<(), ClientError>;
-
-    fn get_updates(
-        api_location: String,
-        params: &GetUpdatesRequest,
-    ) -> Result<Vec<FileMetadata>, ClientError>;
+    fn new_account(params: &NewAccountRequest) -> Result<(), ClientError>;
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError>;
+    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError>;
 }
 
 pub struct ClientImpl;
 
 impl Client for ClientImpl {
-    fn new_account(api_location: String, params: &NewAccountRequest) -> Result<(), ClientError> {
-        new_account(api_location, params).map_err(|err| ClientError::AccountError(err))
+    fn new_account(params: &NewAccountRequest) -> Result<(), ClientError> {
+        new_account(API_LOC.to_string(), params).map_err(|err| ClientError::CreateAccount(err))
     }
 
-    fn get_updates(
-        api_location: String,
-        params: &GetUpdatesRequest,
-    ) -> Result<Vec<FileMetadata>, ClientError> {
-        get_updates(api_location, params).map_err(|err| ClientError::UpdatesError(err))
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
+        get_updates(API_LOC.to_string(), params).map_err(|err| ClientError::GetUpdates(err))
+    }
+
+    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
+        create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
     }
 }

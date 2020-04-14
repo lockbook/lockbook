@@ -81,5 +81,6 @@ final class ScreenCoordinator: ObservableObject {
         case welcomeView
         case createAccountView
         case listView
+        case createFileView
     }
 }

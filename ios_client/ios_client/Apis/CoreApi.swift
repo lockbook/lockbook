@@ -13,6 +13,7 @@ protocol LockbookApi {
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
     func updateMetadata() -> [FileMetadata]
+    func createFile(name: String, path: String) -> Optional<FileMetadata>
 }
 
 struct CoreApi: LockbookApi {
@@ -51,20 +52,39 @@ struct CoreApi: LockbookApi {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
-        do {
-            print("Incoming JSON \(resultString)")
-            let files = try decoder.decode([FileMetadata].self, from: Data(resultString.utf8))
-            return files
-        } catch {
-            print("Serialization Error: \(error)")
-            return []
+        if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
+            return resultMetas
+        } else {
+            return [FileMetadata].init()
         }
+    }
+    
+    func createFile(name: String, path: String) -> Optional<FileMetadata> {
+        let result = create_file(documentsDirectory, name, path)
+        let resultString = String(cString: result!)
+        release_pointer(UnsafeMutablePointer(mutating: result))
+        
+        let resultMeta: Optional<FileMetadata> = deserialize(jsonStr: resultString)
+        return resultMeta
+    }
+}
+
+fileprivate func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    do {
+        print("Incoming JSON \(jsonStr)")
+        let result = try decoder.decode(T.self, from: Data(jsonStr.utf8))
+        return Optional.some(result)
+    } catch {
+        print("Serialization Error: \(error)")
+        return Optional.none
     }
 }
 
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
-    var fakeMetadata: [FileMetadata] = [
+    var fakeMetadatas: [FileMetadata] = [
         FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, status: "Remote"),
         FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, status: "Remote"),
         FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, status: "Remote"),
@@ -84,6 +104,12 @@ struct FakeApi: LockbookApi {
     
     func updateMetadata() -> [FileMetadata] {
         var rander = SystemRandomNumberGenerator()
-        return fakeMetadata.shuffled(using: &rander)
+        return fakeMetadatas.shuffled(using: &rander)
+    }
+    
+    func createFile(name: String, path: String) -> Optional<FileMetadata> {
+        let now = Date().timeIntervalSince1970
+
+        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), status: "Local"))
     }
 }

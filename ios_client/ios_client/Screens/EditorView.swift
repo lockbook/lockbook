@@ -28,6 +28,6 @@ struct EditorView: View {
 
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
-        EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadata.first!)
+        EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!)
     }
 }

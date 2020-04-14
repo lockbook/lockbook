@@ -1,11 +1,10 @@
 use std::option::NoneError;
 
-use serde_json;
-use sled;
-
 use crate::error_enum;
 use crate::model::file_metadata::FileMetadata;
-use sled::{Db, IVec};
+use serde_json;
+use sled;
+use sled::Db;
 
 error_enum! {
     enum Error {
@@ -19,7 +18,7 @@ pub trait FileMetadataRepo {
     fn insert(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
     fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
     fn get(db: &Db, id: &String) -> Result<FileMetadata, Error>;
-    fn last_updated(db: &Db) -> Result<i64, Error>;
+    fn last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error>;
 }
 
@@ -36,7 +35,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
-        Self::insert(db, file_metadata);
+        Self::insert(db, file_metadata)?;
         Ok(())
     }
 
@@ -49,7 +48,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata)
     }
 
-    fn last_updated(db: &Db) -> Result<i64, Error> {
+    fn last_updated(db: &Db) -> Result<u64, Error> {
         Ok(Self::get_all(db)?
             .iter()
             .fold(0, |max, meta| max.max(meta.updated_at)))
@@ -71,7 +70,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::file_metadata::FileMetadata;
+    use crate::model::file_metadata::{FileMetadata, Status};
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
@@ -86,7 +85,7 @@ mod unit_tests {
             name: "test_file".to_string(),
             path: "a/b/c".to_string(),
             updated_at: 1234,
-            status: "".to_string(),
+            status: Status::Local,
         };
 
         let config = Config {
@@ -107,14 +106,14 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 0,
-            status: "".to_string(),
+            status: Status::Local,
         };
         let test_meta_updated = FileMetadata {
             id: "test".to_string(),
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 1000,
-            status: "".to_string(),
+            status: Status::Local,
         };
 
         let config = Config {
@@ -141,21 +140,21 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 0,
-            status: "".to_string(),
+            status: Status::Local,
         };
         let test_meta2 = FileMetadata {
             id: Uuid::new_v4().to_string(),
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 100,
-            status: "".to_string(),
+            status: Status::Local,
         };
         let test_meta3 = FileMetadata {
             id: Uuid::new_v4().to_string(),
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 9000,
-            status: "".to_string(),
+            status: Status::Local,
         };
 
         let config = Config {
