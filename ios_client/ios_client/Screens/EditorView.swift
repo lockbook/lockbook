@@ -21,7 +21,7 @@ struct EditorView: View {
             Text("id: \(metadata.id)")
             Text("path: \(metadata.path)")
             Text("updatedAt: \(metadata.updatedAt)")
-            Text("status: \(metadata.status)")
+            Text("status: \(metadata.status.rawValue)")
         }
     }
 }

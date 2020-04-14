@@ -24,7 +24,7 @@ error_enum! {
 }
 
 pub trait FileMetadataService {
-    fn update(db: &Db) -> Result<Vec<FileMetadata>, Error>;
+    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error>;
     fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
 
@@ -41,86 +41,89 @@ pub struct FileMetadataServiceImpl<
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
     FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
-    fn update(db: &Db) -> Result<Vec<FileMetadata>, Error> {
+    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
         let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
             Err(_) => 0,
         };
         debug(format!("Getting updates past {}", max_updated));
-        let updates = ApiClient::get_updates(&GetUpdatesRequest {
-            username: account.username.to_string(),
-            // FIXME: Real auth...
-            auth: "JUNKAUTH".to_string(),
-            since_version: max_updated,
-        })
-        .map(|metadatas| {
-            metadatas
-                .into_iter()
-                .map(|t| FileMetadata {
-                    id: t.file_id,
-                    name: t.file_name,
-                    path: t.file_path,
-                    updated_at: t.file_metadata_version,
-                    // TODO: Fix this so status is tracked accurately
-                    status: Status::Remote,
-                })
-                .collect::<Vec<FileMetadata>>()
-        })?;
-        debug(format!("Updates {:?}", updates));
+        if (sync) {
+            let updates = ApiClient::get_updates(&GetUpdatesRequest {
+                username: account.username.to_string(),
+                // FIXME: Real auth...
+                auth: "JUNKAUTH".to_string(),
+                since_version: max_updated,
+            })
+            .map(|metadatas| {
+                metadatas
+                    .into_iter()
+                    .map(|t| FileMetadata {
+                        id: t.file_id,
+                        name: t.file_name,
+                        path: t.file_path,
+                        updated_at: t.file_metadata_version,
+                        // TODO: Fix this so status is tracked accurately
+                        status: Status::Remote,
+                    })
+                    .collect::<Vec<FileMetadata>>()
+            })?;
+            debug(format!("Updates {:?}", updates));
+            updates.into_iter().for_each(|meta| {
+                match FileMetadataDb::update(
+                    &db,
+                    &FileMetadata {
+                        id: meta.id,
+                        name: meta.name,
+                        path: meta.path,
+                        updated_at: meta.updated_at,
+                        status: Status::Synced,
+                    },
+                ) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error(format!("Insert Error {:?}", err));
+                    }
+                }
+            });
+        }
         let mut all_meta = FileMetadataDb::get_all(&db)?;
         all_meta.retain(|f| f.status == Status::Local);
         debug(format!("Local {:?}", all_meta));
 
-        updates.into_iter().for_each(|meta| {
-            match FileMetadataDb::update(
-                &db,
-                &FileMetadata {
-                    id: meta.id,
-                    name: meta.name,
-                    path: meta.path,
-                    updated_at: meta.updated_at,
-                    status: Status::Synced,
-                },
-            ) {
-                Ok(_) => {}
-                Err(err) => {
-                    error(format!("Insert Error {:?}", err));
-                }
-            }
-        });
-
-        all_meta.into_iter().for_each(|meta| {
-            let meta_copy = meta.clone();
-            match ApiClient::create_file(&CreateFileRequest {
-                username: account.username.to_string(),
-                auth: "JUNKAUTH".to_string(),
-                file_id: meta.id,
-                file_name: meta.name,
-                file_path: meta.path,
-                file_content: "JUNKCONTENT".to_string(),
-            }) {
-                Ok(_) => {
-                    info(format!("Uploaded file!"));
-                    match FileMetadataDb::update(
-                        &db,
-                        &FileMetadata {
-                            id: meta_copy.id,
-                            name: meta_copy.name,
-                            path: meta_copy.path,
-                            updated_at: meta.updated_at,
-                            status: Status::Synced,
-                        },
-                    ) {
-                        Ok(_) => info(format!("Updated file locally")),
-                        Err(err) => {
-                            error(format!("Failed to update file locally! Error {:?}", err))
+        if (sync) {
+            all_meta.into_iter().for_each(|meta| {
+                let meta_copy = meta.clone();
+                match ApiClient::create_file(&CreateFileRequest {
+                    username: account.username.to_string(),
+                    auth: "JUNKAUTH".to_string(),
+                    file_id: meta.id,
+                    file_name: meta.name,
+                    file_path: meta.path,
+                    file_content: "JUNKCONTENT".to_string(),
+                }) {
+                    Ok(_) => {
+                        info(format!("Uploaded file!"));
+                        match FileMetadataDb::update(
+                            &db,
+                            &FileMetadata {
+                                id: meta_copy.id,
+                                name: meta_copy.name,
+                                path: meta_copy.path,
+                                updated_at: meta.updated_at,
+                                status: Status::Synced,
+                            },
+                        ) {
+                            Ok(_) => info(format!("Updated file locally")),
+                            Err(err) => {
+                                error(format!("Failed to update file locally! Error {:?}", err))
+                            }
                         }
                     }
+                    Err(err) => error(format!("Upload error {:?}", err)),
                 }
-                Err(err) => error(format!("Upload error {:?}", err)),
-            }
-        });
+            });
+        }
 
         Ok(FileMetadataDb::get_all(&db)?)
     }
@@ -311,7 +314,7 @@ mod unit_tests {
 
         assert_eq!(FileMetadataRepoImpl::get_all(&db).unwrap().len(), 2);
 
-        let all_files = DefaultFileMetadataService::update(&db).unwrap();
+        let all_files = DefaultFileMetadataService::update(&db, true).unwrap();
 
         assert_eq!(all_files.len(), 4);
     }

@@ -10,6 +10,7 @@ import SwiftUI
 
 struct CreateFileView: View {
     var lockbookApi: LockbookApi
+    @Binding var files: [FileMetadata]
     @State private var fileName: String = ""
     @State private var filePath: String = ""
     @State private var showingAlert = false
@@ -34,6 +35,7 @@ struct CreateFileView: View {
                 .onTapGesture {
                     if let file = self.lockbookApi.createFile(name: self.fileName, path: self.filePath) {
                         print("File created \(file)")
+                        self.files = self.lockbookApi.updateMetadata(sync: false)
                         self.presentationMode.wrappedValue.dismiss()
                     } else {
                         self.showingAlert = true
@@ -49,6 +51,6 @@ struct CreateFileView: View {
 
 struct CreateFileView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateFileView(lockbookApi: FakeApi())
+        CreateFileView(lockbookApi: FakeApi(), files: Binding<[FileMetadata]>.constant([]))
     }
 }

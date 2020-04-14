@@ -24,22 +24,66 @@ struct ListView: View {
                 }
                 .navigationBarTitle("\(self.username)'s Files")
                 .navigationBarItems(trailing:
-                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
+                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi, files: self.$files)) {
                         Image(systemName: "plus")
                     }
                 )
-                
             }
-            MonokaiButton(text: "Reload Files")
-                .onTapGesture {
-                    self.files = self.lockbookApi.updateMetadata()
+            HStack {
+                Spacer()
+                Button(action: {
+                    self.files = self.lockbookApi.updateMetadata(sync: false)
+                }) {
+                    HStack {
+                        Image(systemName: "bolt")
+                        Text("Reload")
+                        Image(systemName: "bolt")
+                    }
                 }
+                Spacer()
+                Button(action: {
+                    self.files = self.lockbookApi.updateMetadata(sync: true)
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.up.arrow.down")
+                        Text("Sync")
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .foregroundColor(.green)
+                }
+                Spacer()
+            }
+            HStack {
+                Spacer()
+                Button(action: {
+                    print("Purging files...")
+                }) {
+                    HStack {
+                        Image(systemName: "flame")
+                        Text("Purge")
+                        Image(systemName: "flame")
+                    }
+                    .foregroundColor(.red)
+                }
+                Spacer()
+                Button(action: {
+                    print("Logging out...")
+                }) {
+                    HStack {
+                        Image(systemName: "person.badge.minus")
+                        Text("Logout")
+                        Image(systemName: "person.badge.minus")
+                    }
+                    .foregroundColor(.yellow)
+                }
+                Spacer()
+            }
         }
     }
     
     init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
-        self._files = State(initialValue: lockbookApi.updateMetadata())
+        self._files = State(initialValue: lockbookApi.updateMetadata(sync: false))
         if let username = lockbookApi.getAccount() {
             self.username = username
         } else {

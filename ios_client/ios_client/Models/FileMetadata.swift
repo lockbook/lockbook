@@ -13,5 +13,11 @@ struct FileMetadata: Codable, Identifiable {
     var name: String
     var path: String
     var updatedAt: Int
-    var status: String
+    var status: Status
+}
+
+enum Status: String, Codable {
+    case Local
+    case Remote
+    case Synced
 }

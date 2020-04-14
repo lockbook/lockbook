@@ -12,7 +12,7 @@ protocol LockbookApi {
     func isDbPresent() -> Bool
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
-    func updateMetadata() -> [FileMetadata]
+    func updateMetadata(sync: Bool) -> [FileMetadata]
     func createFile(name: String, path: String) -> Optional<FileMetadata>
 }
 
@@ -44,8 +44,8 @@ struct CoreApi: LockbookApi {
         return false
     }
     
-    func updateMetadata() -> [FileMetadata] {
-        let result = list_files(documentsDirectory)
+    func updateMetadata(sync: Bool) -> [FileMetadata] {
+        let result = list_files(documentsDirectory, sync)
         let resultString = String(cString: result!)
         // We need to release the pointer once we have the result string
         release_pointer(UnsafeMutablePointer(mutating: result))
@@ -85,9 +85,9 @@ fileprivate func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, status: "Remote"),
-        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, status: "Remote"),
-        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, status: "Remote"),
+        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, status: .Synced),
+        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, status: .Synced),
+        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, status: .Local),
     ]
     
     func isDbPresent() -> Bool {
@@ -102,7 +102,7 @@ struct FakeApi: LockbookApi {
         false
     }
     
-    func updateMetadata() -> [FileMetadata] {
+    func updateMetadata(sync: Bool) -> [FileMetadata] {
         var rander = SystemRandomNumberGenerator()
         return fakeMetadatas.shuffled(using: &rander)
     }
@@ -110,6 +110,6 @@ struct FakeApi: LockbookApi {
     func createFile(name: String, path: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
 
-        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), status: "Local"))
+        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), status: .Local))
     }
 }
