@@ -11,11 +11,10 @@ use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
-use crate::repo::schema::SchemaCreatorImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-use rusqlite::Connection;
 use serde_json::json;
+use sled::Db;
 
 pub mod client;
 pub mod crypto;
@@ -25,11 +24,10 @@ pub mod repo;
 pub mod service;
 
 static API_LOC: &str = "http://lockbook.app:8000";
-static DB_NAME: &str = "lockbook.db3";
+static DB_NAME: &str = "lockbook.sled";
 
 type DefaultCrypto = RsaCryptoService;
-type DefaultSchema = SchemaCreatorImpl;
-type DefaultDbProvider = DiskBackedDB<DefaultSchema>;
+type DefaultDbProvider = DiskBackedDB;
 type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
 type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
@@ -64,7 +62,7 @@ unsafe fn string_from_ptr(c_path: *const c_char) -> String {
         .to_string()
 }
 
-unsafe fn connect_db(c_path: *const c_char) -> Option<Connection> {
+unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     let path = string_from_ptr(c_path);
     let config = Config {
         writeable_path: path,

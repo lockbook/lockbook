@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Debug, Serialize)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct FileMetadata {
     pub id: String,
     pub name: String,
