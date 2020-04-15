@@ -27,37 +27,26 @@ pub struct FileMetadata {
     pub deleted: bool,
 }
 
-pub trait GetUpdatesClient {
-    fn get_updates(
-        api_location: String,
-        params: &GetUpdatesRequest,
-    ) -> Result<Vec<FileMetadata>, GetUpdatesError>;
-}
-
-pub struct GetUpdatesClientImpl;
-
-impl GetUpdatesClient for GetUpdatesClientImpl {
-    fn get_updates(
-        api_location: String,
-        params: &GetUpdatesRequest,
-    ) -> Result<Vec<FileMetadata>, GetUpdatesError> {
-        let client = Client::new();
-        let mut response = client
-            .get(
-                format!(
-                    "{}/get-updates/{}/{}/{}",
-                    api_location, params.username, params.auth, params.since_version
-                )
-                    .as_str(),
+pub fn get_updates(
+    api_location: String,
+    params: &GetUpdatesRequest,
+) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+    let client = Client::new();
+    let mut response = client
+        .get(
+            format!(
+                "{}/get-updates/{}/{}/{}",
+                api_location, params.username, params.auth, params.since_version
             )
-            .send()
-            .map_err(|err| GetUpdatesError::SendFailed(err))?;
+                .as_str(),
+        )
+        .send()
+        .map_err(|err| GetUpdatesError::SendFailed(err))?;
 
-        match response.status().as_u16() {
-            200..=299 => Ok(response
-                .json::<Vec<FileMetadata>>()
-                .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
-            _ => Err(GetUpdatesError::Unspecified),
-        }
+    match response.status().as_u16() {
+        200..=299 => Ok(response
+            .json::<Vec<FileMetadata>>()
+            .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
+        _ => Err(GetUpdatesError::Unspecified),
     }
 }
