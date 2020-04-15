@@ -1,107 +1,83 @@
 use std::option::NoneError;
 
-use rusqlite::{params, Connection, Row};
+use serde_json;
+use sled;
 
 use crate::error_enum;
 use crate::model::file_metadata::FileMetadata;
-use std::ops::Try;
+use sled::{Db, IVec};
 
 error_enum! {
     enum Error {
-        DbError(rusqlite::Error),
+        SledError(sled::Error),
+        SerdeError(serde_json::Error),
         FileRowMissing(NoneError)
     }
 }
 
 pub trait FileMetadataRepo {
-    fn insert(db: &Connection, file_metadata: &FileMetadata) -> Result<(), Error>;
-    fn update(db: &Connection, file_metadata: &FileMetadata) -> Result<(), Error>;
-    fn get(db: &Connection, id: &String) -> Result<FileMetadata, Error>;
-    fn last_updated(db: &Connection) -> Result<i64, Error>;
-    fn get_all(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
+    fn insert(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
+    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
+    fn get(db: &Db, id: &String) -> Result<FileMetadata, Error>;
+    fn last_updated(db: &Db) -> Result<i64, Error>;
+    fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error>;
 }
 
 pub struct FileMetadataRepoImpl;
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(db: &Connection, file_metadata: &FileMetadata) -> Result<(), Error> {
-        db.execute(
-            "INSERT INTO file_metadata (id, name, path, updated_at, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                &file_metadata.id,
-                &file_metadata.name,
-                &file_metadata.path,
-                &file_metadata.updated_at,
-                &file_metadata.status,
-            ],
+    fn insert(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
+        let tree = db.open_tree(b"file_metadata")?;
+        tree.insert(
+            file_metadata.id.as_bytes(),
+            serde_json::to_vec(file_metadata)?,
         )?;
         Ok(())
     }
 
-    fn update(db: &Connection, file_metadata: &FileMetadata) -> Result<(), Error> {
-        db.execute(
-            "UPDATE file_metadata SET updated_at = ?2 WHERE id = ?1",
-            params![&file_metadata.id, &file_metadata.updated_at],
-        )?;
+    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
+        Self::insert(db, file_metadata);
         Ok(())
     }
 
-    fn get(db: &Connection, id: &String) -> Result<FileMetadata, Error> {
-        let mut stmt = db.prepare(
-            "SELECT id, name, path, updated_at, status FROM file_metadata WHERE id = ?1",
-        )?;
+    fn get(db: &Db, id: &String) -> Result<FileMetadata, Error> {
+        let tree = db.open_tree(b"file_metadata")?;
+        let maybe_value = tree.get(id.as_bytes())?;
+        let value = maybe_value?;
+        let file_metadata: FileMetadata = serde_json::from_slice(value.as_ref())?;
 
-        let mut file_iter = stmt.query_map(params![&id], to_metadata)?;
-
-        let maybe_row = file_iter.next().into_result()?;
-
-        Ok(maybe_row?)
+        Ok(file_metadata)
     }
 
-    fn last_updated(db: &Connection) -> Result<i64, Error> {
-        let mut stmt = db.prepare("SELECT MAX(updated_at) FROM file_metadata")?;
-
-        let mut file_iter = stmt.query_map(params![], |row| Ok(row.get(0)?))?;
-
-        let maybe_max = file_iter.next().into_result()?;
-
-        Ok(maybe_max?)
+    fn last_updated(db: &Db) -> Result<i64, Error> {
+        Ok(Self::get_all(db)?
+            .iter()
+            .fold(0, |max, meta| max.max(meta.updated_at)))
     }
 
-    fn get_all(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
-        let mut stmt =
-            db.prepare("SELECT id, name, path, updated_at, status FROM file_metadata")?;
-
-        let file_iter = stmt.query_map(params![], to_metadata)?;
-
-        let maybe_row = file_iter
-            .filter_map(Result::ok)
+    fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error> {
+        let tree = db.open_tree(b"file_metadata")?;
+        let value = tree
+            .iter()
+            .map(|s| {
+                let meta: FileMetadata = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
+                meta
+            })
             .collect::<Vec<FileMetadata>>();
 
-        Ok(maybe_row)
+        Ok(value)
     }
-}
-
-fn to_metadata(row: &Row) -> Result<FileMetadata, rusqlite::Error> {
-    Ok(FileMetadata {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        path: row.get(2)?,
-        updated_at: row.get(3)?,
-        status: row.get(4)?,
-    })
 }
 
 #[cfg(test)]
 mod unit_tests {
     use crate::model::file_metadata::FileMetadata;
     use crate::model::state::Config;
-    use crate::repo::db_provider::{DbProvider, RamBackedDB};
+    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
-    use crate::repo::schema::SchemaCreatorImpl;
     use uuid::Uuid;
 
-    type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
+    type DefaultDbProvider = TempBackedDB;
 
     #[test]
     fn insert_file_metadata() {
@@ -113,15 +89,15 @@ mod unit_tests {
             status: "".to_string(),
         };
 
-        let config = &Config {
+        let config = Config {
             writeable_path: "ignored".to_string(),
         };
-
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+
         FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, &test_file_metadata.id).unwrap();
-        assert_eq!(test_file_metadata, db_file_metadata)
+        assert_eq!(test_file_metadata, db_file_metadata);
     }
 
     #[test]
@@ -141,11 +117,11 @@ mod unit_tests {
             status: "".to_string(),
         };
 
-        let config = &Config {
+        let config = Config {
             writeable_path: "ignored".to_string(),
         };
-
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+
         FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
         assert_eq!(
             test_meta,
@@ -182,16 +158,17 @@ mod unit_tests {
             status: "".to_string(),
         };
 
-        let config = &Config {
+        let config = Config {
             writeable_path: "ignored".to_string(),
         };
-
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+
         FileMetadataRepoImpl::insert(&db, &test_meta1).unwrap();
         FileMetadataRepoImpl::insert(&db, &test_meta2).unwrap();
         FileMetadataRepoImpl::insert(&db, &test_meta3).unwrap();
 
         let all_files = FileMetadataRepoImpl::get_all(&db).unwrap();
+        println!("{:?}", all_files);
         assert_eq!(all_files.len(), 3);
 
         let updated_max = FileMetadataRepoImpl::last_updated(&db).unwrap();

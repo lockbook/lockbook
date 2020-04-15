@@ -9,7 +9,7 @@ use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::{crypto, API_LOC};
-use rusqlite::Connection;
+use sled::Db;
 
 error_enum! {
     enum Error {
@@ -21,7 +21,7 @@ error_enum! {
 }
 
 pub trait AccountService {
-    fn create_account(db: &Connection, username: String) -> Result<Account, Error>;
+    fn create_account(db: &Db, username: String) -> Result<Account, Error>;
 }
 
 pub struct AccountServiceImpl<Crypto: CryptoService, AccountDb: AccountRepo, ApiClient: Client> {
@@ -33,7 +33,7 @@ pub struct AccountServiceImpl<Crypto: CryptoService, AccountDb: AccountRepo, Api
 impl<Crypto: CryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountService
     for AccountServiceImpl<Crypto, AccountDb, ApiClient>
 {
-    fn create_account(db: &Connection, username: String) -> Result<Account, Error> {
+    fn create_account(db: &Db, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
         let account = Account { username, keys };
 
