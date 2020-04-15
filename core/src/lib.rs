@@ -7,10 +7,12 @@ use std::path::Path;
 
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
+use crate::model::file::File;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use serde_json::json;
@@ -32,12 +34,19 @@ type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
 type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+type DefaultFileRepo = FileRepoImpl;
 type DefaultFileMetadataService =
     FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
-static FAILURE_META_UPDATE: &str = "FAILURE<METADATA>";
+
+static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
+static FAILURE_META_UPDATE: &str = "FAILURE<META_UPDATE>";
+
+static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
+static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
+static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
 
 fn info(msg: String) {
     println!("ℹ️ {}", msg)
@@ -163,10 +172,69 @@ pub unsafe extern "C" fn create_file(
     let file_path = string_from_ptr(c_file_path);
 
     match DefaultFileMetadataService::create(&db, file_name, file_path) {
-        Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
+        Ok(meta) => {
+            match DefaultFileRepo::update(
+                &db,
+                &File {
+                    id: format!("{}", meta.id),
+                    content: "".to_string(),
+                },
+            ) {
+                Ok(_) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
+                Err(err) => {
+                    error(format!("Failed to create file! Error: {:?}", err));
+                    CString::new(FAILURE_FILE_CREATE).unwrap().into_raw()
+                }
+            }
+        }
         Err(err) => {
-            error(format!("Failed to create file! Error: {:?}", err));
-            CString::new(json!([]).to_string()).unwrap().into_raw()
+            error(format!("Failed to create file metadata! Error: {:?}", err));
+            CString::new(FAILURE_META_CREATE).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_char) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+    let file_id = string_from_ptr(c_file_id);
+
+    match DefaultFileRepo::get(&db, &file_id) {
+        Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
+        Err(err) => {
+            error(format!("Failed to get file! Error: {:?}", err));
+            CString::new(FAILURE_FILE_GET).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn update_file(
+    c_path: *const c_char,
+    c_file_id: *const c_char,
+    c_file_content: *const c_char,
+) -> c_int {
+    let db = match connect_db(c_path) {
+        None => return 0,
+        Some(db) => db,
+    };
+    let file_id = string_from_ptr(c_file_id);
+    let file_content = string_from_ptr(c_file_content);
+
+    match DefaultFileRepo::update(
+        &db,
+        &File {
+            id: file_id,
+            content: file_content,
+        },
+    ) {
+        Ok(_) => 1,
+        Err(err) => {
+            error(format!("Failed to update file! Error: {:?}", err));
+            0
         }
     }
 }

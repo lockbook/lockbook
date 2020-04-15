@@ -24,6 +24,7 @@
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
 		EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E7724428E6800FFC629 /* EditorView.swift */; };
 		EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */; };
+		EAF7E1892446887600E4C8AC /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF7E1882446887600E4C8AC /* File.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
 		EAC93E7724428E6800FFC629 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
+		EAF7E1882446887600E4C8AC /* File.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = File.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				EAC93E722442811C00FFC629 /* FileMetadata.swift */,
+				EAF7E1882446887600E4C8AC /* File.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -251,6 +254,7 @@
 				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
+				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,
