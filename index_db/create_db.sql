@@ -1,7 +1,6 @@
 CREATE TABLE users (
 	username	TEXT NOT NULL,
-	pub_key_n	TEXT NOT NULL,
-	pub_key_e	TEXT NOT NULL,
+	publik_key	TEXT NOT NULL,
 	CONSTRAINT pk_users PRIMARY KEY (username)
 );
 

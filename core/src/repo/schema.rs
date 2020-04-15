@@ -21,14 +21,7 @@ impl SchemaApplier for SchemaCreatorImpl {
             "CREATE TABLE user_info (
                     id INTEGER PRIMARY KEY,
                     username TEXT not null,
-                    public_n TEXT not null,
-                    public_e TEXT not null,
-                    private_d TEXT not null,
-                    private_p TEXT not null,
-                    private_q TEXT not null,
-                    private_dmp1 TEXT not null,
-                    private_dmq1 TEXT not null,
-                    private_iqmp TEXT not null
+                    private_key TEXT not null,
                  );",
             params![],
         )?;

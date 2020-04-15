@@ -1,7 +1,7 @@
-use crate::crypto::KeyPair;
+use rsa::RSAPrivateKey;
 
 #[derive(PartialEq, Debug)]
 pub struct Account {
     pub username: String,
-    pub keys: KeyPair,
+    pub keys: RSAPrivateKey,
 }

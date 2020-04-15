@@ -1,5 +1,8 @@
 use std::marker::PhantomData;
 
+use rusqlite::Connection;
+
+use crate::API_LOC;
 use crate::client;
 use crate::client::{Client, GetUpdatesRequest};
 use crate::error;
@@ -9,8 +12,6 @@ use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::API_LOC;
-use rusqlite::Connection;
 
 error_enum! {
     enum Error {
@@ -36,7 +37,7 @@ pub struct FileMetadataServiceImpl<
 }
 
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
-    FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
+FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
     fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
@@ -54,19 +55,19 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
                 since_version: max_updated as u64,
             },
         )
-        .map(|metadatas| {
-            metadatas
-                .into_iter()
-                .map(|t| FileMetadata {
-                    id: t.file_id,
-                    name: t.file_name,
-                    path: t.file_path,
-                    updated_at: t.file_metadata_version as i64,
-                    // TODO: Fix this so status is tracked accurately
-                    status: "Remote".to_string(),
-                })
-                .collect::<Vec<FileMetadata>>()
-        })?;
+            .map(|metadatas| {
+                metadatas
+                    .into_iter()
+                    .map(|t| FileMetadata {
+                        id: t.file_id,
+                        name: t.file_name,
+                        path: t.file_path,
+                        updated_at: t.file_metadata_version as i64,
+                        // TODO: Fix this so status is tracked accurately
+                        status: "Remote".to_string(),
+                    })
+                    .collect::<Vec<FileMetadata>>()
+            })?;
 
         updates
             .into_iter()
@@ -85,7 +86,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
-    use crate::crypto::{KeyPair, PrivateKey, PublicKey};
+    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::debug;
     use crate::model::account::Account;
     use crate::model::state::Config;
@@ -98,6 +99,7 @@ mod unit_tests {
     type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
 
     struct ClientFake;
+
     impl Client for ClientFake {
         fn new_account(
             api_location: String,
@@ -123,29 +125,16 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         type DefaultFileMetadataService =
-            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoImpl, ClientFake>;
+        FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoImpl, ClientFake>;
 
         AccountRepoImpl::insert_account(
             &db,
             &Account {
                 username: "jimmyjohn".to_string(),
-                keys: KeyPair {
-                    public_key: PublicKey {
-                        n: "a".to_string(),
-                        e: "s".to_string(),
-                    },
-                    private_key: PrivateKey {
-                        d: "d".to_string(),
-                        p: "f".to_string(),
-                        q: "g".to_string(),
-                        dmp1: "h".to_string(),
-                        dmq1: "j".to_string(),
-                        iqmp: "k".to_string(),
-                    },
-                },
+                keys: RsaCryptoService::generate_key().expect("Key gen failed"),
             },
         )
-        .unwrap();
+            .unwrap();
 
         let all_files = DefaultFileMetadataService::update(&db).unwrap();
 

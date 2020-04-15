@@ -1,22 +1,24 @@
 use std::marker::PhantomData;
 
+use rusqlite::Connection;
+
+use crate::API_LOC;
 use crate::client;
 use crate::client::{Client, NewAccountRequest};
-use crate::crypto::CryptoService;
+use crate::crypto::PubKeyCryptoService;
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
-use crate::{crypto, API_LOC};
-use rusqlite::Connection;
 
 error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
-        KeyGenerationError(crypto::KeyGenError),
+        KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
-        ApiError(client::ClientError)
+        ApiError(client::ClientError),
+        KeySerializationError(serde_json::error::Error),
     }
 }
 
@@ -24,25 +26,28 @@ pub trait AccountService {
     fn create_account(db: &Connection, username: String) -> Result<Account, Error>;
 }
 
-pub struct AccountServiceImpl<Crypto: CryptoService, AccountDb: AccountRepo, ApiClient: Client> {
-    encyption: PhantomData<Crypto>,
+pub struct AccountServiceImpl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> {
+    encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
 }
 
-impl<Crypto: CryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient>
+impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountService
+for AccountServiceImpl<Crypto, AccountDb, ApiClient>
 {
     fn create_account(db: &Connection, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
         let account = Account { username, keys };
 
+        let username = account.username.clone();
+        let auth = "".to_string();
+        let public_key = serde_json::to_string(&account.keys.to_public_key())?;
+
         AccountDb::insert_account(&db, &account)?;
         let new_account_request = NewAccountRequest {
-            username: format!("{}", &account.username),
-            auth: "".to_string(),
-            pub_key_n: format!("{}", &&account.keys.public_key.n.to_string()),
-            pub_key_e: format!("{}", &account.keys.public_key.e.to_string()),
+            username,
+            auth,
+            public_key,
         };
 
         ApiClient::new_account(API_LOC.to_string(), &new_account_request)?;
