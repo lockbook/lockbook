@@ -117,6 +117,7 @@ mod unit_tests {
     fn get_updates() {
         let config = &Config {
             writeable_path: "ignored".to_string(),
+            max_auth_delay: 50
         };
 
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
