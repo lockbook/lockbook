@@ -16,21 +16,37 @@ struct EditorView: View {
 
     var body: some View {
         VStack {
-            MultilineTextView(text: self.$content)
-            Button(action: {
-                if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
-                    print("Updated \(self.metadata)")
-                    
-                } else {
-                    self.showingAlert = true
+            HStack {
+                Spacer()
+                Button(action: {
+                    if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
+                        print("Updated \(self.metadata)")
+                    } else {
+                        self.showingAlert = true
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "tray.and.arrow.down")
+                        Text("Save")
+                    }
+                    .foregroundColor(.green)
                 }
-            }) {
-                HStack {
-                    Image(systemName: "bolt")
-                    Text("Reload")
-                    Image(systemName: "bolt")
+                Spacer()
+                Button(action: {
+                    if let file = self.lockbookApi.getFile(id: self.metadata.id) {
+                        self.content = file.content
+                    } else {
+                        print("Could not load \(self.metadata)")
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "tray.and.arrow.up")
+                        Text("Load")
+                    }
                 }
+                Spacer()
             }
+            TextView(text: self.$content)
             VStack(alignment: .leading) {
                 Text("id: \(metadata.id)")
                 Text("path: \(metadata.path)")
@@ -55,19 +71,45 @@ struct EditorView: View {
     }
 }
 
-struct MultilineTextView: UIViewRepresentable {
+struct TextView: UIViewRepresentable {
     @Binding var text: String
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
     func makeUIView(context: Context) -> UITextView {
-        let view = UITextView()
-        view.isScrollEnabled = true
-        view.isEditable = true
-        view.isUserInteractionEnabled = true
-        return view
+
+        let myTextView = UITextView()
+        myTextView.delegate = context.coordinator
+
+        myTextView.isScrollEnabled = true
+        myTextView.isEditable = true
+        myTextView.isUserInteractionEnabled = true
+        myTextView.backgroundColor = UIColor(white: 0.0, alpha: 0.05)
+
+        return myTextView
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
+    }
+
+    class Coordinator : NSObject, UITextViewDelegate {
+
+        var parent: TextView
+
+        init(_ uiTextView: TextView) {
+            self.parent = uiTextView
+        }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            return true
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            self.parent.text = textView.text
+        }
     }
 }
 

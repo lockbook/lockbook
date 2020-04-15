@@ -54,7 +54,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> Acc
             public_key,
         };
 
-        ApiClient::new_account(API_LOC.to_string(), &new_account_request)?;
+        ApiClient::new_account(&new_account_request)?;
 
         Ok(account)
     }

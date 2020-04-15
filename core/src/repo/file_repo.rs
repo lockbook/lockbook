@@ -2,7 +2,6 @@ use std::option::NoneError;
 
 use crate::error_enum;
 use crate::model::file::File;
-use crate::model::file_metadata::FileMetadata;
 use serde_json;
 use sled;
 use sled::Db;

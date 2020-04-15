@@ -2,14 +2,16 @@ use std::marker::PhantomData;
 use std::time::SystemTime;
 
 use crate::client::{Client, ClientError, CreateFileRequest, GetUpdatesRequest};
-use crate::error_enum;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::API_LOC;
-use rusqlite::Connection;
+use crate::{client, error};
+use crate::{debug, error_enum, info};
+use sled::Db;
+use uuid::Uuid;
 
 error_enum! {
     enum Error {
@@ -22,7 +24,8 @@ error_enum! {
 }
 
 pub trait FileMetadataService {
-    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
+    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error>;
+    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
 
 pub struct FileMetadataServiceImpl<
@@ -38,7 +41,7 @@ pub struct FileMetadataServiceImpl<
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
     FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
-    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
+    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
         let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
@@ -143,23 +146,24 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
+    use crate::client::{
+        Client, ClientError, CreateFileRequest, FileMetadata, GetUpdatesRequest, NewAccountRequest,
+    };
     use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
-    use crate::debug;
     use crate::model::account::Account;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
     use crate::model::state::Config;
-    use crate::repo::account_repo;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::repo::{account_repo, file_metadata_repo};
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+    use crate::{debug, DefaultFileMetadataService};
     use sled::Db;
 
     type DefaultDbProvider = TempBackedDB;
 
-    type DefaultDbProvider = TempBackedDB;
     struct FileMetaRepoFake;
     impl FileMetadataRepo for FileMetaRepoFake {
         fn insert(
@@ -258,14 +262,7 @@ mod unit_tests {
             Ok(Account {
                 username: "jimmyjohn".to_string(),
                 keys: RsaCryptoService::generate_key().expect("Key generation failure"),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(FileMetadataRepoImpl::get_all(&db).unwrap().len(), 2);
-
-        let all_files = DefaultFileMetadataService::update(&db, true).unwrap();
-
-        assert_eq!(all_files.len(), 4);
+            })
+        }
     }
 }
