@@ -68,6 +68,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     let path = string_from_ptr(c_path);
     let config = Config {
         writeable_path: path,
+        max_auth_delay: 50
     };
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),

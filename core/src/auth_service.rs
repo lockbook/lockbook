@@ -1,7 +1,10 @@
 use crate::auth_service::VerificationError::{InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure, IncompleteAuth, InvalidTimeStamp, CryptoVerificationError};
-use rsa::{RSAPrivateKey, PublicKey};
 use crate::clock::Clock;
-use crate::crypto::{PubKeyCryptoService, SignedValue};
+use crate::crypto::{PubKeyCryptoService, SignedValue, SignatureVerificationFailed};
+use crate::error_enum;
+
+use rsa::{RSAPrivateKey, RSAPublicKey};
+
 use serde::export::PhantomData;
 use std::num::ParseIntError;
 use std::option::NoneError;
@@ -48,7 +51,7 @@ error_enum! {
 pub trait AuthService {
     fn verify_auth(
         signed_val: &SignedValue,
-        public_key: &PublicKey,
+        public_key: &RSAPublicKey,
         username: &String
     ) -> Result<(), VerificationError>;
     fn generate_auth(
@@ -57,22 +60,22 @@ pub trait AuthService {
     ) -> Result<SignedValue, AuthGenError>;
 }
 
-pub struct AuthServiceImpl<Clock: Clock, Crypto: PubKeyCryptoService> { //better name
-    clock: PhantomData<Time>,
+pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> { //better name
+clock: PhantomData<Time>,
     crypto: PhantomData<Crypto>
 }
 
-impl<Clock: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Clock, Crypto>
+impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto>
 {
     fn verify_auth(
         signed_val: &SignedValue,
-        public_key: &PublicKey,
+        public_key: &RSAPublicKey,
         username: &String
     ) -> Result<(), VerificationError> {
         Crypto::verify(&public_key, &signed_val)?;
 
         let mut auth_comp = signed_val.content.split(",");
-        let real_time = Clock::get_time();
+        let real_time = Time::get_time();
 
         if &String::from(auth_comp.next()?) != username {
             return Err(InvalidUsername);
@@ -92,8 +95,8 @@ impl<Clock: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<
         username: &String,
     ) -> Result<SignedValue, AuthGenError> {
         let to_sign = format!("{},{}",
-                                username,
-                                Clock::get_time().to_string());
+                              username,
+                              Time::get_time().to_string());
 
         Ok(Crypto::sign(&private_key, to_sign)?) // &?
     }
