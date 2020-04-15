@@ -8,10 +8,8 @@ use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::{client, debug};
-use crate::{error, info};
-use sled::Db;
-use uuid::Uuid;
+use crate::API_LOC;
+use rusqlite::Connection;
 
 error_enum! {
     enum Error {
@@ -24,8 +22,7 @@ error_enum! {
 }
 
 pub trait FileMetadataService {
-    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error>;
-    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
+    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
 }
 
 pub struct FileMetadataServiceImpl<
@@ -41,7 +38,7 @@ pub struct FileMetadataServiceImpl<
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
     FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
-    fn update(db: &Db, sync: bool) -> Result<Vec<FileMetadata>, Error> {
+    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
         let max_updated = match FileMetadataDb::last_updated(db) {
             Ok(max) => max,
@@ -146,10 +143,8 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{
-        Client, ClientError, CreateFileRequest, FileMetadata, GetUpdatesRequest, NewAccountRequest,
-    };
-    use crate::crypto::{KeyPair, PrivateKey, PublicKey};
+    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
+    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::debug;
     use crate::model::account::Account;
     use crate::model::file_metadata;
@@ -158,13 +153,13 @@ mod unit_tests {
     use crate::repo::account_repo;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_metadata_repo;
-    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use sled::Db;
 
     type DefaultDbProvider = TempBackedDB;
 
+    type DefaultDbProvider = TempBackedDB;
     struct FileMetaRepoFake;
     impl FileMetadataRepo for FileMetaRepoFake {
         fn insert(
@@ -262,52 +257,7 @@ mod unit_tests {
         fn get_account(db: &Db) -> Result<Account, account_repo::Error> {
             Ok(Account {
                 username: "jimmyjohn".to_string(),
-                keys: KeyPair {
-                    public_key: PublicKey {
-                        n: "a".to_string(),
-                        e: "s".to_string(),
-                    },
-                    private_key: PrivateKey {
-                        d: "d".to_string(),
-                        p: "f".to_string(),
-                        q: "g".to_string(),
-                        dmp1: "h".to_string(),
-                        dmq1: "j".to_string(),
-                        iqmp: "k".to_string(),
-                    },
-                },
-            })
-        }
-    }
-
-    #[test]
-    fn get_updates() {
-        let config = &Config {
-            writeable_path: "ignored".to_string(),
-        };
-
-        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
-        type DefaultFileMetadataService =
-            FileMetadataServiceImpl<FileMetadataRepoImpl, AccountRepoFake, ClientFake>;
-        FileMetadataRepoImpl::insert(
-            &db,
-            &file_metadata::FileMetadata {
-                id: "a".to_string(),
-                name: "".to_string(),
-                path: "".to_string(),
-                updated_at: 50,
-                status: Status::Synced,
-            },
-        )
-        .unwrap();
-        FileMetadataRepoImpl::insert(
-            &db,
-            &file_metadata::FileMetadata {
-                id: "n".to_string(),
-                name: "".to_string(),
-                path: "".to_string(),
-                updated_at: 75,
-                status: Status::Local,
+                keys: RsaCryptoService::generate_key().expect("Key generation failure"),
             },
         )
         .unwrap();

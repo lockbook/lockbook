@@ -15,8 +15,7 @@ pub enum NewAccountError {
 pub struct NewAccountRequest {
     pub username: String,
     pub auth: String,
-    pub pub_key_n: String,
-    pub pub_key_e: String,
+    pub public_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -32,8 +31,7 @@ pub fn new_account(
     let form_params = [
         ("username", params.username.as_str()),
         ("auth", params.auth.as_str()),
-        ("pub_key_n", params.pub_key_n.as_str()),
-        ("pub_key_e", params.pub_key_e.as_str()),
+        ("public_key", params.public_key.as_str()),
     ];
     let mut response = client
         .post(format!("{}/new-account", api_location).as_str())

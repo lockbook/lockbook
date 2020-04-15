@@ -40,7 +40,7 @@ impl DbProvider for TempBackedDB {
             dir.path().to_str()?.to_string(),
             DB_NAME.to_string()
         );
-        debug(format!("Temp DB at {:?}", dir_path));
+        println!("{:?}", dir_path);
         Ok(sled::open(dir_path)?)
     }
 }
