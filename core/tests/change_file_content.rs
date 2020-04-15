@@ -18,7 +18,7 @@ fn change_file_content() -> Result<(), TestError> {
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            public_key: "test_public_key".to_string()
+            public_key: "test_public_key".to_string(),
         },
     )?;
 

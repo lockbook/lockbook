@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::API_LOC;
 use crate::client;
 use crate::client::{Client, NewAccountRequest};
 use crate::crypto::PubKeyCryptoService;
@@ -9,6 +8,7 @@ use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
+use crate::API_LOC;
 use sled::Db;
 
 error_enum! {
@@ -25,14 +25,18 @@ pub trait AccountService {
     fn create_account(db: &Db, username: String) -> Result<Account, Error>;
 }
 
-pub struct AccountServiceImpl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> {
+pub struct AccountServiceImpl<
+    Crypto: PubKeyCryptoService,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+> {
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
 }
 
 impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountService
-for AccountServiceImpl<Crypto, AccountDb, ApiClient>
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient>
 {
     fn create_account(db: &Db, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;

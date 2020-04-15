@@ -85,6 +85,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
+    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::debug;
     use crate::model::account::Account;
     use crate::model::state::Config;
@@ -92,7 +93,6 @@ mod unit_tests {
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-    use crate::crypto::{RsaCryptoService, PubKeyCryptoService};
 
     type DefaultDbProvider = TempBackedDB;
 

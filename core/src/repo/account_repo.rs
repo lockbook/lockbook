@@ -38,7 +38,7 @@ impl AccountRepo for AccountRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::crypto::{RsaCryptoService, PubKeyCryptoService};
+    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::model::account::Account;
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
