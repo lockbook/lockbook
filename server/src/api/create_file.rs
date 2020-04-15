@@ -1,6 +1,7 @@
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
+use lockbook_core::lockbook_api::CreateFileResponse;
 use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
@@ -26,49 +27,74 @@ pub struct CreateFile {
 
 #[post("/create-file", data = "<create_file>")]
 pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFile>) -> Response {
-    println!("create_file: {:?}", create_file);
-
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
 
-    match Ok(())
-        .and_then(|_| {
-            match files_db::get_file_details(&locked_files_db_client, &create_file.file_id) {
-                Err(files_db::get_file_details::Error::NoSuchFile(_)) => Ok(()),
-                _ => Err(Error::FileAlreadyExists(())),
-            }
-        })
-        .and_then(|_| {
-            match index_db::create_file(
-                &mut locked_index_db_client,
-                &create_file.file_id,
-                &create_file.username,
-                &create_file.file_name,
-                &create_file.file_path,
-            ) {
-                Ok(version) => Ok(version),
-                Err(err) => Err(Error::IndexDb(err)),
-            }
-        })
-        .and_then(|version| {
-            match files_db::create_file(
-                &locked_files_db_client,
-                &create_file.file_id,
-                &create_file.file_content,
-            ) {
-                Ok(()) => Ok(version),
-                Err(err) => Err(Error::FilesDb(err)),
-            }
-        }) {
-        Ok(version) => Response::build()
-            .status(Status::Ok)
-            .sized_body(Cursor::new(version.to_string()))
-            .finalize(),
-        Err(err) => {
-            println!("{:?}", err);
-            Response::build()
-                .status(Status::InternalServerError)
-                .finalize()
+    let get_file_details_result =
+        files_db::get_file_details(&locked_files_db_client, &create_file.file_id);
+    match get_file_details_result {
+        Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
+        Err(files_db::get_file_details::Error::S3ConnectionFailed(_)) => {
+            println!("Internal server error! {:?}", get_file_details_result);
+            return make_response(500, "internal_error", 0);
+        }
+        Err(files_db::get_file_details::Error::S3OperationUnsuccessful(_)) => {
+            println!("Internal server error! {:?}", get_file_details_result);
+            return make_response(500, "internal_error", 0);
+        }
+        Ok(_) => return make_response(422, "file_id_taken", 0),
+    };
+
+    let index_db_create_file_result = index_db::create_file(
+        &mut locked_index_db_client,
+        &create_file.file_id,
+        &create_file.username,
+        &create_file.file_name,
+        &create_file.file_path,
+    );
+    let new_version = match index_db_create_file_result {
+        Ok(version) => version,
+        Err(index_db::create_file::Error::FileIdTaken) => {
+            return make_response(422, "file_id_taken", 0);
+        }
+        Err(index_db::create_file::Error::FilePathTaken) => {
+            return make_response(422, "file_path_taken", 0);
+        }
+        Err(index_db::create_file::Error::Uninterpreted(_)) => {
+            println!("Internal server error! {:?}", index_db_create_file_result);
+            return make_response(500, "internal_error", 0);
+        }
+        Err(index_db::create_file::Error::VersionGeneration(_)) => {
+            println!("Internal server error! {:?}", index_db_create_file_result);
+            return make_response(500, "internal_error", 0);
+        }
+    };
+
+    let files_db_create_file_result = files_db::create_file(
+        &locked_files_db_client,
+        &create_file.file_id,
+        &create_file.file_content,
+    );
+    match files_db_create_file_result {
+        Ok(()) => make_response(201, "ok", new_version),
+        Err(files_db::create_file::Error::S3(_)) => {
+            println!("Internal server error! {:?}", files_db_create_file_result);
+            make_response(500, "internal_error", 0)
         }
     }
+}
+
+fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
+    Response::build()
+        .status(
+            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
+        )
+        .sized_body(Cursor::new(
+            serde_json::to_string(&CreateFileResponse {
+                error_code: String::from(error_code),
+                current_version: current_version as u64,
+            })
+            .expect("Failed to json-serialize response!"),
+        ))
+        .finalize()
 }

@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate rocket;
 extern crate base64;
+extern crate lockbook_core;
 
 pub mod api;
 pub mod config;
@@ -41,7 +42,6 @@ fn main() {
                 api::index::index,
                 api::new_account::new_account,
                 api::create_file::create_file,
-                api::get_file::get_file,
                 api::change_file_content::change_file_content,
                 api::get_updates::get_updates,
                 api::rename_file::rename_file,

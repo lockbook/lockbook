@@ -4,13 +4,13 @@ use std::env;
 
 use uuid::Uuid;
 
-use lockbook_core::lockbook_api::ChangeFileContentError;
-use lockbook_core::lockbook_api::CreateFileError;
-use lockbook_core::lockbook_api::DeleteFileError;
-use lockbook_core::lockbook_api::GetUpdatesError;
-use lockbook_core::lockbook_api::MoveFileError;
-use lockbook_core::lockbook_api::NewAccountError;
-use lockbook_core::lockbook_api::RenameFileError;
+use lockbook_core::client::ChangeFileContentError;
+use lockbook_core::client::CreateFileError;
+use lockbook_core::client::DeleteFileError;
+use lockbook_core::client::GetUpdatesError;
+use lockbook_core::client::MoveFileError;
+use lockbook_core::client::NewAccountError;
+use lockbook_core::client::RenameFileError;
 
 pub fn api_loc() -> String {
     match env::var("LOCKBOOK_API_LOCATION") {

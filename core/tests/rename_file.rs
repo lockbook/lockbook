@@ -1,32 +1,28 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api::{CreateFileRequest, NewAccountClientImpl, CreateFileClientImpl, RenameFileClientImpl, DeleteFileClientImpl};
-use lockbook_core::lockbook_api::DeleteFileRequest;
-use lockbook_core::lockbook_api::NewAccountRequest;
-use lockbook_core::lockbook_api::{RenameFileError, RenameFileRequest};
+use lockbook_core::client;
+use lockbook_core::client::CreateFileRequest;
+use lockbook_core::client::DeleteFileRequest;
+use lockbook_core::client::NewAccountRequest;
+use lockbook_core::client::{RenameFileError, RenameFileRequest};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
-use lockbook_core::lockbook_api::new_account::NewAccountClient;
-use lockbook_core::lockbook_api::rename_file::RenameFileClient;
-use lockbook_core::lockbook_api::create_file::CreateFileClient;
-use lockbook_core::lockbook_api::delete_file::DeleteFileClient;
 
 fn rename_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    CreateFileClientImpl::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -38,7 +34,7 @@ fn rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    RenameFileClientImpl::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),
@@ -59,17 +55,16 @@ fn test_rename_file() {
 fn rename_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    RenameFileClientImpl::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),
@@ -94,17 +89,16 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    CreateFileClientImpl::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -116,7 +110,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    DeleteFileClientImpl::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -125,7 +119,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    RenameFileClientImpl::rename_file(
+    client::rename_file(
         api_loc(),
         &RenameFileRequest {
             username: username.to_string(),

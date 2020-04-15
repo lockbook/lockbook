@@ -1,30 +1,27 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api::{CreateFileRequest, NewAccountClientImpl, CreateFileClientImpl, DeleteFileClientImpl};
-use lockbook_core::lockbook_api::NewAccountRequest;
-use lockbook_core::lockbook_api::{DeleteFileError, DeleteFileRequest};
+use lockbook_core::client;
+use lockbook_core::client::CreateFileRequest;
+use lockbook_core::client::NewAccountRequest;
+use lockbook_core::client::{DeleteFileError, DeleteFileRequest};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
-use lockbook_core::lockbook_api::create_file::CreateFileClient;
-use lockbook_core::lockbook_api::delete_file::DeleteFileClient;
-use lockbook_core::lockbook_api::new_account::NewAccountClient;
 
 fn delete_file() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    CreateFileClientImpl::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -36,7 +33,7 @@ fn delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    DeleteFileClientImpl::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -56,17 +53,16 @@ fn test_delete_file() {
 fn delete_file_file_not_found() -> Result<(), TestError> {
     let username = generate_username();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    DeleteFileClientImpl::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -90,17 +86,16 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    CreateFileClientImpl::create_file(
+    client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -112,7 +107,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    DeleteFileClientImpl::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
@@ -121,7 +116,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    DeleteFileClientImpl::delete_file(
+    client::delete_file(
         api_loc(),
         &DeleteFileRequest {
             username: username.to_string(),
