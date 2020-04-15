@@ -8,6 +8,7 @@ use crate::error_enum;
 use self::rand::rngs::OsRng;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Debug)]
 pub struct EncryptedValue {
@@ -19,6 +20,7 @@ pub struct DecryptedValue {
     pub secret: String,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SignedValue {
     pub content: String,
     pub signature: String,
