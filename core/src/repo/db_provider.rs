@@ -1,68 +1,46 @@
-use std::marker::PhantomData;
-
-use rusqlite::Connection;
+use std::env::temp_dir;
+use std::io;
+use std::option::NoneError;
 
 use crate::model::state::Config;
-use crate::repo::schema;
-use crate::repo::schema::SchemaApplier;
 use crate::DB_NAME;
 use crate::{debug, error_enum};
+use sled::Db;
+use tempfile;
+use tempfile::tempdir;
 
 error_enum! {
     enum Error {
-        ConnectionFailure(rusqlite::Error),
-        SchemaError(schema::Error),
+        SledError(sled::Error),
+        TempFileError(io::Error),
+        NoTempDir(NoneError),
     }
 }
 
 pub trait DbProvider {
-    fn connect_to_db(config: &Config) -> Result<Connection, Error>;
+    fn connect_to_db(config: &Config) -> Result<Db, Error>;
 }
 
-pub struct DiskBackedDB<Schema: SchemaApplier> {
-    schema: PhantomData<Schema>,
-}
+pub struct DiskBackedDB;
 
-pub struct RamBackedDB<Schema: SchemaApplier> {
-    schema: PhantomData<Schema>,
-}
+pub struct TempBackedDB;
 
-impl<Schema: SchemaApplier> DbProvider for DiskBackedDB<Schema> {
-    fn connect_to_db(config: &Config) -> Result<Connection, Error> {
+impl DbProvider for DiskBackedDB {
+    fn connect_to_db(config: &Config) -> Result<Db, Error> {
         let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
-        let db = Connection::open(db_path.as_str())?;
-
-        match Schema::apply_schema(&db) {
-            Ok(_) => {
-                debug("Schema applied succesfully!".to_string());
-                Ok(db)
-            }
-            // TODO: This should be handled better or a new library
-            Err(err) => match err {
-                schema::Error::TableCreationFailure(rusqlite::Error::SqliteFailure(
-                    sqlite_err,
-                    Some(msg),
-                )) => {
-                    if msg.contains("already exists") {
-                        debug(format!("Table already exists! {}", msg));
-                        Ok(db)
-                    } else {
-                        return Err(Error::SchemaError(schema::Error::TableCreationFailure(
-                            rusqlite::Error::SqliteFailure(sqlite_err, Some(msg)),
-                        )));
-                    }
-                }
-                _ => Err(Error::SchemaError(err)),
-            },
-        }
+        Ok(sled::open(db_path.as_str())?)
     }
 }
 
-impl<Schema: SchemaApplier> DbProvider for RamBackedDB<Schema> {
-    fn connect_to_db(_config: &Config) -> Result<Connection, Error> {
-        let db = Connection::open_in_memory()?;
-        Schema::apply_schema(&db)?;
-
-        Ok(db)
+impl DbProvider for TempBackedDB {
+    fn connect_to_db(_config: &Config) -> Result<Db, Error> {
+        let dir = tempdir()?;
+        let dir_path = format!(
+            "{}/{}",
+            dir.path().to_str()?.to_string(),
+            DB_NAME.to_string()
+        );
+        println!("{:?}", dir_path);
+        Ok(sled::open(dir_path)?)
     }
 }

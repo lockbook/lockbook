@@ -10,7 +10,7 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::API_LOC;
-use rusqlite::Connection;
+use sled::Db;
 
 error_enum! {
     enum Error {
@@ -22,7 +22,7 @@ error_enum! {
 }
 
 pub trait FileMetadataService {
-    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error>;
+    fn update(db: &Db) -> Result<Vec<FileMetadata>, Error>;
 }
 
 pub struct FileMetadataServiceImpl<
@@ -38,7 +38,7 @@ pub struct FileMetadataServiceImpl<
 impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client>
     FileMetadataService for FileMetadataServiceImpl<FileMetadataDb, AccountDb, ApiClient>
 {
-    fn update(db: &Connection) -> Result<Vec<FileMetadata>, Error> {
+    fn update(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         let account = AccountDb::get_account(&db)?;
 
         let max_updated = match FileMetadataDb::last_updated(db) {
@@ -90,12 +90,11 @@ mod unit_tests {
     use crate::model::account::Account;
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
-    use crate::repo::db_provider::{DbProvider, RamBackedDB};
+    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
-    use crate::repo::schema::SchemaCreatorImpl;
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 
-    type DefaultDbProvider = RamBackedDB<SchemaCreatorImpl>;
+    type DefaultDbProvider = TempBackedDB;
 
     struct ClientFake;
     impl Client for ClientFake {

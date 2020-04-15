@@ -8,6 +8,7 @@ use std::string::FromUtf8Error;
 use base64::{decode, encode};
 use openssl::bn::BigNum;
 use openssl::rsa::Rsa;
+use serde::{Deserialize, Serialize};
 
 use crate::error_enum;
 
@@ -15,13 +16,13 @@ use self::openssl::error::ErrorStack;
 use self::openssl::pkey::Private;
 use self::openssl::rsa::Padding;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct PublicKey {
     pub n: String,
     pub e: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct PrivateKey {
     pub d: String,
     pub p: String,
@@ -31,7 +32,7 @@ pub struct PrivateKey {
     pub iqmp: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct KeyPair {
     pub public_key: PublicKey,
     pub private_key: PrivateKey,
