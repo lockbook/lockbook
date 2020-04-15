@@ -22,6 +22,8 @@ pub mod error_enum;
 pub mod model;
 pub mod repo;
 pub mod service;
+pub mod auth_service;
+pub mod clock;
 
 static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.sled";
