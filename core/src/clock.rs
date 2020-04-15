@@ -5,8 +5,8 @@ pub trait Clock {
 
 pub struct ClockImpl;
 
-impl ClockImpl {
-    pub fn get_time() -> u128 {
+impl Clock for ClockImpl {
+    fn get_time() -> u128 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
