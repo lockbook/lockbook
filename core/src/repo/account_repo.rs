@@ -4,7 +4,6 @@ use serde_json;
 use sled;
 use sled::Db;
 
-use crate::crypto::{KeyPair, PrivateKey, PublicKey};
 use crate::error_enum;
 use crate::model::account::Account;
 
@@ -39,7 +38,7 @@ impl AccountRepo for AccountRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::crypto::{KeyPair, PrivateKey, PublicKey};
+    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::model::account::Account;
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -52,20 +51,7 @@ mod unit_tests {
     fn insert_account() {
         let test_account = Account {
             username: "parth".to_string(),
-            keys: KeyPair {
-                public_key: PublicKey {
-                    n: "vec![1]".to_string(),
-                    e: "vec![2]".to_string(),
-                },
-                private_key: PrivateKey {
-                    d: "vec![3]".to_string(),
-                    p: "vec![4]".to_string(),
-                    q: "vec![5]".to_string(),
-                    dmp1: "vec![6]".to_string(),
-                    dmq1: "vec![7]".to_string(),
-                    iqmp: "vec![8]".to_string(),
-                },
-            },
+            keys: RsaCryptoService::generate_key().expect("Key generation failure"),
         };
 
         let config = Config {

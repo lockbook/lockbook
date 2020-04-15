@@ -11,8 +11,7 @@ use std::io::Cursor;
 pub struct NewAccount {
     pub username: String,
     pub auth: String,
-    pub pub_key_n: String,
-    pub pub_key_e: String,
+    pub public_key: String,
 }
 
 #[post("/new-account", data = "<new_account>")]
@@ -22,8 +21,7 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
     let new_account_result = index_db::new_account(
         &mut locked_index_db_client,
         &new_account.username,
-        &new_account.pub_key_n,
-        &new_account.pub_key_e,
+        &new_account.public_key,
     );
     match new_account_result {
         Ok(()) => make_response(201, "ok"),
