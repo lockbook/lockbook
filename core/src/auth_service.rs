@@ -77,7 +77,7 @@ impl AuthService for AuthServiceImpl {
     fn verify_auth(
         pub_key: &PublicKey,
         username: &String,
-        auth: &String,
+        auth: &String
     ) -> Result<(), VerificationError> {
         let decrypt_val = RsaCryptoService::decrypt_public(
             &PublicKey {

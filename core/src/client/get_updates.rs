@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum GetUpdatesError {
@@ -17,7 +17,7 @@ pub struct GetUpdatesRequest {
     pub since_version: u64,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct FileMetadata {
     pub file_id: String,
     pub file_name: String,

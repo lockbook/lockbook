@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23C23F0D418000681E0 /* MonokaiButton.swift */; };
 		8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C23E23F0DC7B000681E0 /* Monokai.swift */; };
-		8733C24223F0EAE9000681E0 /* NewLockbookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C24123F0EAE9000681E0 /* NewLockbookView.swift */; };
+		8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8733C24123F0EAE9000681E0 /* CreateAccountView.swift */; };
 		87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616023E3B9CB00945B25 /* AppDelegate.swift */; };
 		87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616223E3B9CB00945B25 /* SceneDelegate.swift */; };
 		87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD616423E3B9CB00945B25 /* WelcomeView.swift */; };
@@ -17,12 +17,18 @@
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
 		87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; };
+		EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* FileRow.swift */; };
+		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
+		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
+		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
+		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
+		EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E7724428E6800FFC629 /* EditorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		8733C23C23F0D418000681E0 /* MonokaiButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonokaiButton.swift; sourceTree = "<group>"; };
 		8733C23E23F0DC7B000681E0 /* Monokai.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monokai.swift; sourceTree = "<group>"; };
-		8733C24123F0EAE9000681E0 /* NewLockbookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewLockbookView.swift; sourceTree = "<group>"; };
+		8733C24123F0EAE9000681E0 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		87BD615D23E3B9CB00945B25 /* ios_client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios_client.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		87BD616023E3B9CB00945B25 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		87BD616223E3B9CB00945B25 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -32,6 +38,12 @@
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		87BD616E23E3B9CB00945B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
+		EA6A0D6F2443652A0072E2B3 /* FileRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRow.swift; sourceTree = "<group>"; };
+		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
+		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
+		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
+		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
+		EAC93E7724428E6800FFC629 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +63,7 @@
 			children = (
 				8733C23C23F0D418000681E0 /* MonokaiButton.swift */,
 				8733C23E23F0DC7B000681E0 /* Monokai.swift */,
+				EA6A0D6F2443652A0072E2B3 /* FileRow.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -58,8 +71,11 @@
 		8733C24023F0EA78000681E0 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
 				87BD616423E3B9CB00945B25 /* WelcomeView.swift */,
-				8733C24123F0EAE9000681E0 /* NewLockbookView.swift */,
+				8733C24123F0EAE9000681E0 /* CreateAccountView.swift */,
+				EAC93E6F244267F400FFC629 /* ListView.swift */,
+				EAC93E7724428E6800FFC629 /* EditorView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -84,6 +100,8 @@
 		87BD615F23E3B9CB00945B25 /* ios_client */ = {
 			isa = PBXGroup;
 			children = (
+				EAC93E762442896900FFC629 /* Apis */,
+				EAC93E712442810600FFC629 /* Models */,
 				8733C24023F0EA78000681E0 /* Screens */,
 				8733C23B23F0D300000681E0 /* Views */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
@@ -112,6 +130,22 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		EAC93E712442810600FFC629 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				EAC93E722442811C00FFC629 /* FileMetadata.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		EAC93E762442896900FFC629 /* Apis */ = {
+			isa = PBXGroup;
+			children = (
+				EAC93E74244284EF00FFC629 /* CoreApi.swift */,
+			);
+			path = Apis;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -119,6 +153,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "ios_client" */;
 			buildPhases = (
+				EA6A0D732443B44E0072E2B3 /* Run Script */,
 				87BD615923E3B9CB00945B25 /* Sources */,
 				87BD615A23E3B9CB00945B25 /* Frameworks */,
 				87BD615B23E3B9CB00945B25 /* Resources */,
@@ -178,17 +213,44 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		EA6A0D732443B44E0072E2B3 /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\necho \"JIMMY\"\ncd ../core\nexport PATH=~/.cargo/bin:$PATH\n./ios_build.sh\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		87BD615923E3B9CB00945B25 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */,
 				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
-				8733C24223F0EAE9000681E0 /* NewLockbookView.swift in Sources */,
+				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
+				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
+				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
+				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
+				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,
+				EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
