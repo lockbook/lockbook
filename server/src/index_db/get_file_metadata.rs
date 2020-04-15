@@ -9,7 +9,7 @@ pub enum Error {
     FileDoesNotExist(()),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FileMetadata {
     pub file_id: String,
     pub file_name: String,

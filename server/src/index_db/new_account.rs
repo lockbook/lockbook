@@ -21,12 +21,11 @@ impl From<PostgresError> for Error {
 pub fn new_account(
     client: &mut PostgresClient,
     username: &String,
-    pub_key_n: &String,
-    pub_key_e: &String,
+    public_key: &String,
 ) -> Result<(), Error> {
     client.execute(
-        "INSERT INTO users (username, pub_key_n, pub_key_e) VALUES ($1, $2, $3);",
-        &[&username, &pub_key_n, &pub_key_e],
+        "INSERT INTO users (username, public_key) VALUES ($1, $2);",
+        &[&username, &public_key],
     )?;
     Ok(())
 }

@@ -1,15 +1,8 @@
-#
-# Xcode
-#
-# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
-## User settings
 xcuserdata/
 
-## compatibility with Xcode 8 and earlier (ignoring not required starting Xcode 9)
 *.xcscmblueprint
 *.xccheckout
 
-## compatibility with Xcode 3 and earlier (ignoring not required starting Xcode 4)
 build/
 DerivedData/
 *.moved-aside
@@ -22,10 +15,8 @@ DerivedData/
 *.perspectivev3
 !default.perspectivev3
 
-## Obj-C/Swift specific
 *.hmap
 
-## App packaging
 *.ipa
 *.dSYM.zip
 *.dSYM
@@ -82,30 +73,19 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
-# Code Injection
-#
-# After new code Injection tools there's a generated folder /iOSInjectionProject
-# https://github.com/johnno1962/injectionforxcode
-
 iOSInjectionProject/
 .DS_Store 
 ios_client/include/
 ios_client/libs/
 
-# Core
-#
-# Ignoring the target for /core
 core/target/
-# Ignoring header
 core/lockbook_core.h
 
-# Secrets
-#
-# Be careful with this stuff!
 qa_env.sh
 server/target/
 server/**/*.rs.bk
 server/.idea/*
+core/.idea/*
 server/qa_secrets.sh
 core/qa_secrets.sh
 server/ca-certificate.crt

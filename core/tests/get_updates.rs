@@ -1,27 +1,24 @@
 extern crate lockbook_core;
-use lockbook_core::lockbook_api::{CreateFileRequest, NewAccountClientImpl, CreateFileClientImpl, GetUpdatesClientImpl};
-use lockbook_core::lockbook_api::NewAccountRequest;
-use lockbook_core::lockbook_api::{FileMetadata, GetUpdatesRequest};
+use lockbook_core::client;
+use lockbook_core::client::CreateFileRequest;
+use lockbook_core::client::NewAccountRequest;
+use lockbook_core::client::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
-use lockbook_core::lockbook_api::new_account::NewAccountClient;
-use lockbook_core::lockbook_api::create_file::CreateFileClient;
-use lockbook_core::lockbook_api::get_updates::GetUpdatesClient;
 
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
-    NewAccountClientImpl::new_account(
+    client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
-    let file_version = CreateFileClientImpl::create_file(
+    let file_version = client::create_file(
         api_loc(),
         &CreateFileRequest {
             username: username.to_string(),
@@ -33,7 +30,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         },
     )?;
 
-    let updates_metadata = GetUpdatesClientImpl::get_updates(
+    let updates_metadata = client::get_updates(
         api_loc(),
         &GetUpdatesRequest {
             username: username.to_string(),
