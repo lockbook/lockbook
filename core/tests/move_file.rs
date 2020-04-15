@@ -18,8 +18,7 @@ fn move_file() -> Result<(), TestError> {
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
@@ -61,8 +60,7 @@ fn move_file_file_not_found() -> Result<(), TestError> {
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
@@ -96,8 +94,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
@@ -153,8 +150,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         &NewAccountRequest {
             username: username.to_string(),
             auth: "test_auth".to_string(),
-            pub_key_n: "test_pub_key_n".to_string(),
-            pub_key_e: "test_pub_key_e".to_string(),
+            public_key: "test_public_key".to_string(),
         },
     )?;
 
