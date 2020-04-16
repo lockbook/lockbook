@@ -114,6 +114,7 @@ mod unit_tests {
     use rsa::{RSAPublicKey, PublicKey, BigUint, RSAPrivateKey};
     use rand::rngs::OsRng;
     use std::option::NoneError;
+    use std::num::ParseIntError;
 
     #[test]
     fn test_auth_inverse_property() {
@@ -131,7 +132,7 @@ mod unit_tests {
         let private_key = RSAPrivateKey::new( &mut OsRng, 2048).unwrap();
         let public_key = RSAPublicKey::from(private_key.clone());
 
-        let username = String::from("Smail");
+        let username = String::from(",");
         let auth = AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username).unwrap();
 
         let result = discriminant(&AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(&auth, &public_key, &String::from("Hamza")).unwrap_err());
