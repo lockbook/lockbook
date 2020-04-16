@@ -8,8 +8,9 @@ use std::path::Path;
 use serde_json::json;
 use sled::Db;
 
-use crate::auth_service::{AuthServiceImpl, AuthService};
+use crate::auth_service::{AuthService, AuthServiceImpl};
 use crate::client::ClientImpl;
+use crate::clock::{Clock, ClockImpl};
 use crate::crypto::RsaCryptoService;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -17,16 +18,15 @@ use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-use crate::clock::{Clock, ClockImpl};
 
+pub mod auth_service;
 pub mod client;
+pub mod clock;
 pub mod crypto;
 pub mod error_enum;
 pub mod model;
 pub mod repo;
 pub mod service;
-pub mod auth_service;
-pub mod clock;
 
 static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.sled";
@@ -37,10 +37,11 @@ type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
 type DefaultClock = ClockImpl;
 type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient, DefaultAuthService>;
+type DefaultAcountService =
+    AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient, DefaultAuthService>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
-FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
+    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
