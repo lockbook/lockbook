@@ -63,7 +63,7 @@ pub trait AuthService {
 }
 
 pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> { //better name
-clock: PhantomData<Time>,
+    clock: PhantomData<Time>,
     crypto: PhantomData<Crypto>
 }
 

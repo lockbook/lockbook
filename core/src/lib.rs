@@ -5,6 +5,10 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use serde_json::json;
+use sled::Db;
+
+use crate::auth_service::{AuthServiceImpl, AuthService};
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::state::Config;
@@ -13,8 +17,7 @@ use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-use serde_json::json;
-use sled::Db;
+use crate::clock::{Clock, ClockImpl};
 
 pub mod client;
 pub mod crypto;
@@ -32,10 +35,12 @@ type DefaultCrypto = RsaCryptoService;
 type DefaultDbProvider = DiskBackedDB;
 type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
+type DefaultClock = ClockImpl;
+type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
+type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient, DefaultAuthService>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
-    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
+FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
@@ -44,15 +49,19 @@ static FAILURE_META_UPDATE: &str = "FAILURE<METADATA>";
 fn info(msg: String) {
     println!("ℹ️ {}", msg)
 }
+
 fn debug(msg: String) {
     println!("🚧 {}", msg)
 }
+
 fn warn(msg: String) {
     println!("⚠️ {}", msg)
 }
+
 fn error(msg: String) {
     eprintln!("🛑 {}", msg)
 }
+
 fn fatal(msg: String) {
     eprintln!("🆘 {}", msg)
 }
@@ -68,7 +77,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     let path = string_from_ptr(c_path);
     let config = Config {
         writeable_path: path,
-        max_auth_delay: 50
+        max_auth_delay: 50,
     };
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
