@@ -56,7 +56,7 @@ mod unit_tests {
 
         let config = Config {
             writeable_path: "ignored".to_string(),
-            max_auth_delay: 50
+            max_auth_delay: 50,
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let res = DefaultAcountRepo::get_account(&db);

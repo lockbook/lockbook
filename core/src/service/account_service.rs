@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use crate::auth_service::AuthGenError;
+use crate::auth_service::AuthService;
 use crate::client;
 use crate::client::{Client, NewAccountRequest};
 use crate::crypto::PubKeyCryptoService;
@@ -10,8 +12,6 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::API_LOC;
 use sled::Db;
-use crate::auth_service::AuthService;
-use crate::auth_service::AuthGenError;
 
 error_enum! {
     enum Error {
@@ -32,20 +32,23 @@ pub struct AccountServiceImpl<
     Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
     ApiClient: Client,
-    Auth: AuthService
+    Auth: AuthService,
 > {
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
-    auth: PhantomData<Auth>
+    auth: PhantomData<Auth>,
 }
 
-impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService> AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
+impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService>
+    AccountService for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
 {
     fn create_account(db: &Db, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
-        let account = Account { username: username, keys: keys.clone() };
+        let account = Account {
+            username: username,
+            keys: keys.clone(),
+        };
 
         let username = account.username.clone();
         let auth = Auth::generate_auth(&keys, &username)?;

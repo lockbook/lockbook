@@ -1,16 +1,19 @@
-use crate::auth_service::VerificationError::{InvalidUsername, TimeStampParseFailure, InvalidAuthLayout, InvalidTimeStamp, CryptoVerificationError, AuthDeserializationError, TimeStampOutOfBounds};
+use crate::auth_service::VerificationError::{
+    AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidTimeStamp,
+    InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure,
+};
 use crate::clock::Clock;
-use crate::crypto::{PubKeyCryptoService, SignedValue, SignatureVerificationFailed};
+use crate::crypto::{PubKeyCryptoService, SignatureVerificationFailed, SignedValue};
 use crate::error_enum;
 
-use rsa::{RSAPrivateKey, RSAPublicKey, PublicKey};
+use rsa::{PublicKey, RSAPrivateKey, RSAPublicKey};
 
+use crate::model::state::Config;
+use serde::de::IntoDeserializer;
 use serde::export::PhantomData;
 use std::num::ParseIntError;
 use std::option::NoneError;
 use std::time::SystemTimeError;
-use serde::de::IntoDeserializer;
-use crate::model::state::Config;
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -20,27 +23,37 @@ pub enum VerificationError {
     InvalidTimeStamp(SystemTimeError),
     AuthDeserializationError(serde_json::error::Error),
     InvalidUsername,
-    TimeStampOutOfBounds
+    TimeStampOutOfBounds,
 }
 
 impl From<ParseIntError> for VerificationError {
-    fn from(e: ParseIntError) -> Self { TimeStampParseFailure(e) }
+    fn from(e: ParseIntError) -> Self {
+        TimeStampParseFailure(e)
+    }
 }
 
 impl From<SignatureVerificationFailed> for VerificationError {
-    fn from(e: SignatureVerificationFailed) -> Self { CryptoVerificationError(e) }
+    fn from(e: SignatureVerificationFailed) -> Self {
+        CryptoVerificationError(e)
+    }
 }
 
 impl From<NoneError> for VerificationError {
-    fn from(e: NoneError) -> Self { InvalidAuthLayout(e) }
+    fn from(e: NoneError) -> Self {
+        InvalidAuthLayout(e)
+    }
 }
 
 impl From<SystemTimeError> for VerificationError {
-    fn from(e: SystemTimeError) -> Self { InvalidTimeStamp(e) }
+    fn from(e: SystemTimeError) -> Self {
+        InvalidTimeStamp(e)
+    }
 }
 
 impl From<serde_json::error::Error> for VerificationError {
-    fn from(e: serde_json::error::Error) -> Self { AuthDeserializationError(e) }
+    fn from(e: serde_json::error::Error) -> Self {
+        AuthDeserializationError(e)
+    }
 }
 
 error_enum! {
@@ -54,25 +67,25 @@ pub trait AuthService {
     fn verify_auth(
         auth: &String,
         public_key: &RSAPublicKey,
-        username: &String
+        username: &String,
     ) -> Result<(), VerificationError>;
     fn generate_auth(
         private_key: &RSAPrivateKey,
-        username: &String
+        username: &String,
     ) -> Result<String, AuthGenError>;
 }
 
-pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> { //better name
+pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
+    //better name
     clock: PhantomData<Time>,
-    crypto: PhantomData<Crypto>
+    crypto: PhantomData<Crypto>,
 }
 
-impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto>
-{
+impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
     fn verify_auth(
         auth: &String,
         public_key: &RSAPublicKey,
-        username: &String
+        username: &String,
     ) -> Result<(), VerificationError> {
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
         Crypto::verify(&public_key, &signed_val)?;
@@ -96,43 +109,56 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         private_key: &RSAPrivateKey,
         username: &String,
     ) -> Result<String, AuthGenError> {
-        let to_sign = format!("{},{}",
-                              username,
-                              Time::get_time().to_string());
+        let to_sign = format!("{},{}", username, Time::get_time().to_string());
 
-        Ok(serde_json::to_string(&Crypto::sign(&private_key, to_sign)?)?)
+        Ok(serde_json::to_string(&Crypto::sign(
+            &private_key,
+            to_sign,
+        )?)?)
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::auth_service::{AuthServiceImpl, AuthService, VerificationError, AuthGenError};
-    use crate::crypto::{RsaCryptoService, DecryptedValue, PubKeyCryptoService, SignedValue};
+    use crate::auth_service::{AuthGenError, AuthService, AuthServiceImpl, VerificationError};
     use crate::clock::ClockImpl;
+    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService, SignedValue};
 
-    use std::mem::discriminant;
-    use rsa::{RSAPublicKey, RSAPrivateKey};
     use rand::rngs::OsRng;
+    use rsa::{RSAPrivateKey, RSAPublicKey};
+    use std::mem::discriminant;
 
     #[test]
     fn test_auth_inverse_property() {
-        let private_key = RSAPrivateKey::new( &mut OsRng, 2048).unwrap();
+        let private_key = RSAPrivateKey::new(&mut OsRng, 2048).unwrap();
         let public_key = RSAPublicKey::from(private_key.clone());
 
         let username = String::from("Smail");
-        let auth = AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username).unwrap();
-        AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(&auth, &public_key, &username).unwrap()
+        let auth =
+            AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username)
+                .unwrap();
+        AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(&auth, &public_key, &username)
+            .unwrap()
     }
 
     #[test]
     fn test_auth_invalid_username() {
-        let private_key = RSAPrivateKey::new( &mut OsRng, 2048).unwrap();
+        let private_key = RSAPrivateKey::new(&mut OsRng, 2048).unwrap();
         let public_key = RSAPublicKey::from(private_key.clone());
 
         let username = String::from(",");
-        let auth = AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username).unwrap();
+        let auth =
+            AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username)
+                .unwrap();
 
-        let result = discriminant(&AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(&auth, &public_key, &String::from("Hamza")).unwrap_err());
+        let result = discriminant(
+            &AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(
+                &auth,
+                &public_key,
+                &String::from("Hamza"),
+            )
+            .unwrap_err(),
+        );
         let error = discriminant(&VerificationError::InvalidUsername);
 
         assert_eq!(result, error);
