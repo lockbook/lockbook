@@ -111,10 +111,8 @@ mod unit_tests {
     use crate::clock::ClockImpl;
 
     use std::mem::discriminant;
-    use rsa::{RSAPublicKey, PublicKey, BigUint, RSAPrivateKey};
+    use rsa::{RSAPublicKey, RSAPrivateKey};
     use rand::rngs::OsRng;
-    use std::option::NoneError;
-    use std::num::ParseIntError;
 
     #[test]
     fn test_auth_inverse_property() {
@@ -123,7 +121,6 @@ mod unit_tests {
 
         let username = String::from("Smail");
         let auth = AuthServiceImpl::<ClockImpl, RsaCryptoService>::generate_auth(&private_key, &username).unwrap();
-        println!("HERE: {}", auth);
         AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(&auth, &public_key, &username).unwrap()
     }
 
