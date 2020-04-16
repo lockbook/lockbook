@@ -38,7 +38,7 @@ pub fn get_updates(
                 "{}/get-updates/{}/{}/{}",
                 api_location, params.username, params.auth, params.since_version
             )
-                .as_str(),
+            .as_str(),
         )
         .send()
         .map_err(|err| GetUpdatesError::SendFailed(err))?;

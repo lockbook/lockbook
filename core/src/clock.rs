@@ -1,4 +1,4 @@
-use std::time::{UNIX_EPOCH, SystemTime};
+use std::time::{SystemTime, UNIX_EPOCH};
 pub trait Clock {
     fn get_time() -> u128;
 }
