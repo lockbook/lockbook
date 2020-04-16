@@ -14,7 +14,7 @@ jobs:
     env:
       working-directory: ./core
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
-      MAX_AUTH_DELAY: 50
+      MAX_AUTH_DELAY: 200
     steps:
     - uses: actions/checkout@v2
     - name: Install latest nightly
