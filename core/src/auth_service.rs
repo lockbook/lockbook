@@ -1,3 +1,11 @@
+use std::num::ParseIntError;
+use std::option::NoneError;
+use std::time::SystemTimeError;
+
+use rsa::{PublicKey, RSAPrivateKey, RSAPublicKey};
+use serde::de::IntoDeserializer;
+use serde::export::PhantomData;
+
 use crate::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout,
     InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure,
@@ -5,15 +13,7 @@ use crate::auth_service::VerificationError::{
 use crate::clock::Clock;
 use crate::crypto::{PubKeyCryptoService, SignatureVerificationFailed, SignedValue};
 use crate::error_enum;
-
-use rsa::{PublicKey, RSAPrivateKey, RSAPublicKey};
-
 use crate::model::state::Config;
-use serde::de::IntoDeserializer;
-use serde::export::PhantomData;
-use std::num::ParseIntError;
-use std::option::NoneError;
-use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -59,7 +59,7 @@ error_enum! {
 pub trait AuthService {
     fn verify_auth(
         auth: &String,
-        public_key: &RSAPublicKey,
+        public_key: &String,
         username: &String,
     ) -> Result<(), VerificationError>;
     fn generate_auth(
@@ -112,15 +112,17 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::auth_service::{AuthGenError, AuthService, AuthServiceImpl, VerificationError};
-    use crate::clock::{ClockImpl, Clock};
-    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService, SignedValue};
+    use std::mem::discriminant;
 
     use rand::rngs::OsRng;
     use rsa::{RSAPrivateKey, RSAPublicKey};
-    use std::mem::discriminant;
+
+    use crate::auth_service::{AuthGenError, AuthService, AuthServiceImpl, VerificationError};
+    use crate::clock::{Clock, ClockImpl};
+    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService, SignedValue};
 
     struct EarlyClock;
+
     impl Clock for EarlyClock {
         fn get_time() -> u128 {
             500
@@ -128,13 +130,12 @@ mod unit_tests {
     }
 
     struct LateClock;
+
     impl Clock for LateClock {
         fn get_time() -> u128 {
             520
         }
     }
-
-
 
     #[test]
     fn test_auth_inverse_property() {
@@ -145,8 +146,10 @@ mod unit_tests {
         let auth =
             AuthServiceImpl::<EarlyClock, RsaCryptoService>::generate_auth(&private_key, &username)
                 .unwrap();
-        AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(&auth, &public_key, &username)
-            .unwrap()
+        AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
+            &auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            &username).unwrap()
     }
 
     #[test]
@@ -162,10 +165,10 @@ mod unit_tests {
         let result = discriminant(
             &AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
                 &auth,
-                &public_key,
+                &serde_json::to_string(&public_key).unwrap(),
                 &String::from("Hamza"),
             )
-            .unwrap_err(),
+                .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 
