@@ -5,6 +5,9 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use serde_json::json;
+use sled::Db;
+
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::state::Config;
@@ -13,8 +16,6 @@ use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-use serde_json::json;
-use sled::Db;
 
 pub mod client;
 pub mod crypto;
@@ -33,24 +34,32 @@ type DefaultAcountRepo = AccountRepoImpl;
 type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileMetadataService =
-    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
+FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
-static FAILURE_META_UPDATE: &str = "FAILURE<METADATA>";
 
+#[allow(dead_code)]
 fn info(msg: String) {
     println!("ℹ️ {}", msg)
 }
+
+#[allow(dead_code)]
 fn debug(msg: String) {
     println!("🚧 {}", msg)
 }
+
+#[allow(dead_code)]
 fn warn(msg: String) {
     println!("⚠️ {}", msg)
 }
+
+#[allow(dead_code)]
 fn error(msg: String) {
     eprintln!("🛑 {}", msg)
 }
+
+#[allow(dead_code)]
 fn fatal(msg: String) {
     eprintln!("🆘 {}", msg)
 }
