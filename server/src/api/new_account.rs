@@ -6,6 +6,9 @@ use rocket::Response;
 use rocket::State;
 use std::io::Cursor;
 use lockbook_core::client::NewAccountResponse;
+use lockbook_core::auth_service::{AuthServiceImpl, AuthService};
+use lockbook_core::crypto::RsaCryptoService;
+use lockbook_core::clock::ClockImpl;
 
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
@@ -17,6 +20,12 @@ pub struct NewAccount {
 #[post("/new-account", data = "<new_account>")]
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
+
+    AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(
+        &new_account.auth,
+        &serde_json::from_str::<RSAPublicKey>(&String::from(&new_account.public_key)),
+        &new_account.username
+    );
 
     let new_account_result = index_db::new_account(
         &mut locked_index_db_client,
