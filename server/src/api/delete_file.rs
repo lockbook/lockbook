@@ -1,12 +1,12 @@
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
-use lockbook_core::lockbook_api::DeleteFileResponse;
 use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
 use std::io::Cursor;
+use lockbook_core::client::DeleteFileResponse;
 
 #[derive(FromForm, Debug)]
 pub struct DeleteFile {

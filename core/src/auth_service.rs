@@ -69,7 +69,6 @@ pub trait AuthService {
 }
 
 pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
-    //TODO: better name
     clock: PhantomData<Time>,
     crypto: PhantomData<Crypto>,
 }
@@ -77,11 +76,11 @@ pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
 impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
     fn verify_auth(
         auth: &String,
-        public_key: &RSAPublicKey,
+        public_key: &String,
         username: &String,
     ) -> Result<(), VerificationError> {
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
-        Crypto::verify(&public_key, &signed_val)?;
+        Crypto::verify(&serde_json::from_str::<RSAPublicKey>(&String::from(public_key))?, &signed_val)?;
 
         let mut auth_comp = signed_val.content.split(",");
 
@@ -90,7 +89,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         }
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
-        let range = auth_time..auth_time + env!("MAX_AUTH_DELAY").parse::<u128>()?; //TODO: Move $MAX_AUTH_DELAY to server
+        let range = auth_time..auth_time + env!("MAX_AUTH_DELAY").parse::<u128>()?;
 
         if !range.contains(&Time::get_time()) {
             return Err(TimeStampOutOfBounds);
