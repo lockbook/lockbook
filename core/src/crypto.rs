@@ -1,6 +1,8 @@
 extern crate rand;
 extern crate rsa;
 
+use std::string::FromUtf8Error;
+
 use sha2::{Digest, Sha256};
 
 use crate::error_enum;
@@ -25,6 +27,14 @@ pub struct SignedValue {
 }
 
 error_enum! {
+    enum DecryptionFailed {
+        ValueCorrupted(base64::DecodeError),
+        DecryptionFailed(rsa::errors::Error),
+        DecryptedValueMalformed(FromUtf8Error),
+    }
+}
+
+error_enum! {
     enum SignatureVerificationFailed {
         SignatureCorrupted(base64::DecodeError),
         VerificationFailed(rsa::errors::Error),
@@ -45,6 +55,10 @@ pub trait PubKeyCryptoService {
         public_key: &RSAPublicKey,
         signed_value: &SignedValue,
     ) -> Result<(), SignatureVerificationFailed>;
+    fn decrypt(
+        private_key: &RSAPrivateKey,
+        encrypted: &EncryptedValue,
+    ) -> Result<DecryptedValue, DecryptionFailed>;
 }
 
 pub struct RsaCryptoService;
@@ -97,5 +111,61 @@ impl PubKeyCryptoService for RsaCryptoService {
             &digest,
             &signature,
         )?)
+    }
+
+    fn decrypt(
+        private_key: &RSAPrivateKey,
+        encrypted: &EncryptedValue,
+    ) -> Result<DecryptedValue, DecryptionFailed> {
+        let data = base64::decode(&encrypted.garbage)?;
+        let secret = private_key.decrypt(PaddingScheme::PKCS1v15, &data)?;
+        let string = String::from_utf8(secret.to_vec())?;
+
+        Ok(DecryptedValue { secret: string })
+    }
+}
+
+#[cfg(test)]
+mod unit_test {
+    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService};
+
+    use super::rsa::{PublicKey, RSAPrivateKey};
+
+    #[test]
+    fn test_key_generation_serde() {
+        let key = RsaCryptoService::generate_key().unwrap();
+
+        let key_read: RSAPrivateKey =
+            serde_json::from_str(serde_json::to_string(&key).unwrap().as_str()).unwrap();
+        key_read
+            .validate()
+            .expect("Invalid key after serialize deserialize");
+        assert_eq!(key, key_read)
+    }
+
+    #[test]
+    fn test_sign_verify() {
+        let key = RsaCryptoService::generate_key().unwrap();
+
+        let value = RsaCryptoService::sign(&key, "Test".to_string()).unwrap();
+        assert_eq!(value.content, "Test");
+
+        RsaCryptoService::verify(&key.to_public_key(), &value).unwrap();
+    }
+
+    #[test]
+    fn test_encrypt_decrypt() {
+        let key = RsaCryptoService::generate_key().unwrap();
+
+        let encrypted = RsaCryptoService::encrypt(
+            &key.to_public_key(),
+            &DecryptedValue {
+                secret: "Secret".to_string(),
+            },
+        )
+        .unwrap();
+        let decrypted = RsaCryptoService::decrypt(&key, &encrypted).unwrap();
+
+        assert_eq!(decrypted.secret, "Secret".to_string());
     }
 }
