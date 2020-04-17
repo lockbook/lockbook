@@ -21,11 +21,13 @@ pub struct NewAccount {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
-    AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(
+    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaCryptoService>::verify_auth(
         &new_account.auth,
-        &serde_json::from_str::<RSAPublicKey>(&String::from(&new_account.public_key)),
+        &new_account.public_key,
         &new_account.username
-    );
+    ) {
+        return make_response(401, "failed_authentication");
+    }
 
     let new_account_result = index_db::new_account(
         &mut locked_index_db_client,
