@@ -8,8 +8,8 @@ use sha2::{Digest, Sha256};
 use crate::error_enum;
 
 use self::rand::rngs::OsRng;
-use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use self::rsa::hash::Hashes;
+use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 
 #[derive(PartialEq, Debug)]
 pub struct EncryptedValue {
@@ -135,8 +135,11 @@ mod unit_test {
     fn test_key_generation_serde() {
         let key = RsaCryptoService::generate_key().unwrap();
 
-        let key_read: RSAPrivateKey = serde_json::from_str(serde_json::to_string(&key).unwrap().as_str()).unwrap();
-        key_read.validate().expect("Invalid key after serialize deserialize");
+        let key_read: RSAPrivateKey =
+            serde_json::from_str(serde_json::to_string(&key).unwrap().as_str()).unwrap();
+        key_read
+            .validate()
+            .expect("Invalid key after serialize deserialize");
         assert_eq!(key, key_read)
     }
 
@@ -154,7 +157,13 @@ mod unit_test {
     fn test_encrypt_decrypt() {
         let key = RsaCryptoService::generate_key().unwrap();
 
-        let encrypted = RsaCryptoService::encrypt(&key.to_public_key(), &DecryptedValue { secret: "Secret".to_string() }).unwrap();
+        let encrypted = RsaCryptoService::encrypt(
+            &key.to_public_key(),
+            &DecryptedValue {
+                secret: "Secret".to_string(),
+            },
+        )
+        .unwrap();
         let decrypted = RsaCryptoService::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted.secret, "Secret".to_string());
