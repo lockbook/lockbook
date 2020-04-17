@@ -90,8 +90,7 @@ mod unit_tests {
         };
 
         let config = Config {
-            writeable_path: "ignored".to_string(),
-            max_auth_delay: 50,
+            writeable_path: "ignored".to_string()
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
@@ -119,8 +118,7 @@ mod unit_tests {
         };
 
         let config = Config {
-            writeable_path: "ignored".to_string(),
-            max_auth_delay: 50,
+            writeable_path: "ignored".to_string()
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
@@ -161,8 +159,7 @@ mod unit_tests {
         };
 
         let config = Config {
-            writeable_path: "ignored".to_string(),
-            max_auth_delay: 50,
+            writeable_path: "ignored".to_string()
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
