@@ -8,13 +8,15 @@ use std::path::Path;
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::file::File;
+use crate::model::file_metadata::FileMetadata;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
-use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+use crate::service::file_service::{FileService, FileServiceImpl};
 use serde_json::json;
 use sled::Db;
 
@@ -35,8 +37,13 @@ type DefaultAcountRepo = AccountRepoImpl;
 type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileRepo = FileRepoImpl;
-type DefaultFileMetadataService =
-    FileMetadataServiceImpl<DefaultFileMetadataRepo, DefaultAcountRepo, DefaultClient>;
+type DefaultFileMetadataService = FileMetadataServiceImpl<
+    DefaultFileMetadataRepo,
+    DefaultFileRepo,
+    DefaultAcountRepo,
+    DefaultClient,
+>;
+type DefaultFileService = FileServiceImpl<DefaultFileMetadataRepo, DefaultFileRepo>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
@@ -143,13 +150,13 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_files(c_path: *const c_char, sync: bool) -> *mut c_char {
+pub unsafe extern "C" fn sync_files(c_path: *const c_char, sync: bool) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
         Some(db) => db,
     };
 
-    match DefaultFileMetadataService::update(&db, sync) {
+    match DefaultFileMetadataService::sync(&db, sync) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             error(format!("Update metadata failed with error: {:?}", err));
@@ -202,7 +209,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileRepo::get(&db, &file_id) {
+    match DefaultFileService::get(&db, file_id) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             error(format!("Failed to get file! Error: {:?}", err));
@@ -224,17 +231,27 @@ pub unsafe extern "C" fn update_file(
     let file_id = string_from_ptr(c_file_id);
     let file_content = string_from_ptr(c_file_content);
 
-    match DefaultFileRepo::update(
-        &db,
-        &File {
-            id: file_id,
-            content: file_content,
-        },
-    ) {
+    match DefaultFileService::update(&db, file_id, file_content) {
         Ok(_) => 1,
         Err(err) => {
             error(format!("Failed to update file! Error: {:?}", err));
             0
         }
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
+    let db = match connect_db(c_path) {
+        None => return 0,
+        Some(db) => db,
+    };
+    match DefaultFileMetadataRepo::get_all(&db) {
+        Ok(metas) => metas.into_iter().for_each(|meta| {
+            DefaultFileMetadataRepo::delete(&db, &meta.id).unwrap();
+            ()
+        }),
+        Err(err) => error(format!("Failed to delete file! Error: {:?}", err)),
+    }
+    1
 }

@@ -16,6 +16,7 @@ pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdat
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
+use crate::model::file::File;
 use crate::API_LOC;
 
 #[derive(Debug)]
@@ -23,12 +24,14 @@ pub enum ClientError {
     CreateAccount(NewAccountError),
     GetUpdates(GetUpdatesError),
     CreateFile(CreateFileError),
+    UpdateFile(ChangeFileContentError),
 }
 
 pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), ClientError>;
     fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError>;
+    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError>;
 }
 
 pub struct ClientImpl;
@@ -44,5 +47,9 @@ impl Client for ClientImpl {
 
     fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
         create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
+    }
+
+    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
+        change_file_content(API_LOC.to_string(), params).map_err(|err| ClientError::UpdateFile(err))
     }
 }

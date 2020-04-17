@@ -16,6 +16,7 @@ protocol LockbookApi {
     func createFile(name: String, path: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<File>
     func updateFile(id: String, content: String) -> Bool
+    func purgeFiles() -> Bool
 }
 
 struct CoreApi: LockbookApi {
@@ -47,7 +48,7 @@ struct CoreApi: LockbookApi {
     }
     
     func updateMetadata(sync: Bool) -> [FileMetadata] {
-        let result = list_files(documentsDirectory, sync)
+        let result = sync_files(documentsDirectory, sync)
         let resultString = String(cString: result!)
         // We need to release the pointer once we have the result string
         release_pointer(UnsafeMutablePointer(mutating: result))
@@ -87,6 +88,13 @@ struct CoreApi: LockbookApi {
             return false
         }
     }
+    func purgeFiles() -> Bool {
+        if(purge_files(documentsDirectory) == 1) {
+            return true
+        } else {
+            return false
+        }
+    }
 }
 
 fileprivate func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
@@ -105,9 +113,9 @@ fileprivate func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, status: .Synced),
-        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, status: .Synced),
-        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, status: .Local),
+        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, version: 0, status: .Synced),
+        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, version: 1000, status: .Synced),
+        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, version: 1500, status: .Local),
     ]
     
     func isDbPresent() -> Bool {
@@ -130,7 +138,7 @@ struct FakeApi: LockbookApi {
     func createFile(name: String, path: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
 
-        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), status: .Local))
+        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), version: Int(now), status: .Local))
     }
     
     func getFile(id: String) -> Optional<File> {
@@ -140,5 +148,7 @@ struct FakeApi: LockbookApi {
     func updateFile(id: String, content: String) -> Bool {
         false
     }
-
+    func purgeFiles() -> Bool {
+        false
+    }
 }

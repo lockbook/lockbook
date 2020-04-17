@@ -13,50 +13,43 @@ struct EditorView: View {
     let metadata: FileMetadata
     @State var content: String
     @State private var showingAlert = false
-
+    
     var body: some View {
         VStack {
-            HStack {
-                Spacer()
-                Button(action: {
-                    if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
-                        print("Updated \(self.metadata)")
-                    } else {
-                        self.showingAlert = true
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "tray.and.arrow.down")
-                        Text("Save")
-                    }
-                    .foregroundColor(.green)
-                }
-                Spacer()
-                Button(action: {
-                    if let file = self.lockbookApi.getFile(id: self.metadata.id) {
-                        self.content = file.content
-                    } else {
-                        print("Could not load \(self.metadata)")
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "tray.and.arrow.up")
-                        Text("Load")
-                    }
-                }
-                Spacer()
-            }
             TextView(text: self.$content)
             VStack(alignment: .leading) {
                 Text("id: \(metadata.id)")
                 Text("path: \(metadata.path)")
                 Text("updatedAt: \(metadata.updatedAt)")
+                Text("version: \(metadata.version)")
                 Text("status: \(metadata.status.rawValue)")
             }
         }
         .navigationBarTitle(metadata.name)
         .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Failed to create file!"))
+            Alert(title: Text("Failed to get/update file!"))
+        }
+        .onAppear {
+            print("Editor -- Appearing")
+            if let file = self.lockbookApi.getFile(id: self.metadata.id) {
+                self.content = file.content
+            } else {
+                print("Could not load \(self.metadata)")
+            }
+        }
+        .onDisappear {
+            print("Editor -- Disappearing")
+            if let file = self.lockbookApi.getFile(id: self.metadata.id) {
+                if file.content != self.content {
+                    if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
+                        print("Updated \(self.metadata)")
+                    } else {
+                        self.showingAlert = true
+                    }
+                } else {
+                    print("Files look the same, not updating")
+                }
+            }
         }
     }
     

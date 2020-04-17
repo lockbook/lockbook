@@ -4,40 +4,63 @@ use serde_json;
 use sled;
 
 use crate::error_enum;
-use crate::model::file_metadata::FileMetadata;
+use crate::model::file_metadata::{FileMetadata, Status};
 use sled::{Db, IVec};
+use std::time::SystemTime;
+use uuid::Uuid;
 
 error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        FileRowMissing(NoneError)
+        SystemTimeError(std::time::SystemTimeError),
+        FileRowMissing(NoneError),
     }
 }
 
 pub trait FileMetadataRepo {
-    fn insert(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
-    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error>;
+    fn insert(db: &Db, name: &String, path: &String) -> Result<FileMetadata, Error>;
+    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<FileMetadata, Error>;
     fn get(db: &Db, id: &String) -> Result<FileMetadata, Error>;
     fn last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error>;
+    fn delete(db: &Db, id: &String) -> Result<u64, Error>;
 }
 
 pub struct FileMetadataRepoImpl;
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
+    fn insert(db: &Db, name: &String, path: &String) -> Result<FileMetadata, Error> {
         let tree = db.open_tree(b"file_metadata")?;
-        tree.insert(
-            file_metadata.id.as_bytes(),
-            serde_json::to_vec(file_metadata)?,
-        )?;
-        Ok(())
+        let version = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_micros() as u64;
+        let meta = FileMetadata {
+            id: Uuid::new_v4().to_string(),
+            name: name.clone(),
+            path: path.clone(),
+            updated_at: version.clone(),
+            version: version.clone(),
+            status: Status::New,
+        };
+        tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
+        Ok(meta)
     }
 
-    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
-        Self::insert(db, file_metadata);
-        Ok(())
+    fn update(db: &Db, file_metadata: &FileMetadata) -> Result<FileMetadata, Error> {
+        let tree = db.open_tree(b"file_metadata")?;
+        let meta = FileMetadata {
+            id: file_metadata.id.clone(),
+            name: file_metadata.name.clone(),
+            path: file_metadata.path.clone(),
+            updated_at: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)?
+                .as_micros() as u64,
+            version: file_metadata.version,
+            status: file_metadata.status.clone(),
+        };
+        tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
+        Ok(meta)
     }
 
     fn get(db: &Db, id: &String) -> Result<FileMetadata, Error> {
@@ -50,9 +73,13 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn last_updated(db: &Db) -> Result<u64, Error> {
-        Ok(Self::get_all(db)?
-            .iter()
-            .fold(0, |max, meta| max.max(meta.updated_at)))
+        Ok(Self::get_all(db)?.iter().fold(0, |max, meta| {
+            // if meta.status != Status::Local {
+            max.max(meta.updated_at)
+            // } else {
+            //     max
+            // }
+        }))
     }
 
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error> {
@@ -66,6 +93,12 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<FileMetadata>>();
 
         Ok(value)
+    }
+
+    fn delete(db: &Db, id: &String) -> Result<u64, Error> {
+        let tree = db.open_tree(b"file_metadata")?;
+        tree.remove(id.as_bytes())?;
+        Ok(1)
     }
 }
 
@@ -86,6 +119,7 @@ mod unit_tests {
             name: "test_file".to_string(),
             path: "a/b/c".to_string(),
             updated_at: 1234,
+            version: 1234,
             status: Status::Local,
         };
 
@@ -94,7 +128,8 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file_metadata.name, &test_file_metadata.path)
+            .unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, &test_file_metadata.id).unwrap();
         assert_eq!(test_file_metadata, db_file_metadata);
@@ -107,6 +142,7 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 0,
+            version: 0,
             status: Status::Local,
         };
         let test_meta_updated = FileMetadata {
@@ -114,6 +150,7 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 1000,
+            version: 1000,
             status: Status::Local,
         };
 
@@ -122,7 +159,7 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta.name, &test_meta.path).unwrap();
         assert_eq!(
             test_meta,
             FileMetadataRepoImpl::get(&db, &test_meta.id).unwrap()
@@ -141,6 +178,7 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 0,
+            version: 0,
             status: Status::Local,
         };
         let test_meta2 = FileMetadata {
@@ -148,6 +186,7 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 100,
+            version: 100,
             status: Status::Local,
         };
         let test_meta3 = FileMetadata {
@@ -155,6 +194,7 @@ mod unit_tests {
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 9000,
+            version: 9000,
             status: Status::Local,
         };
 
@@ -163,9 +203,9 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert(&db, &test_meta1).unwrap();
-        FileMetadataRepoImpl::insert(&db, &test_meta2).unwrap();
-        FileMetadataRepoImpl::insert(&db, &test_meta3).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta1.name, &test_meta1.path).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta2.name, &test_meta2.path).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta3.name, &test_meta3.path).unwrap();
 
         let all_files = FileMetadataRepoImpl::get_all(&db).unwrap();
         println!("{:?}", all_files);

@@ -43,6 +43,7 @@ struct FileRow: View {
         self.lockbookApi = lockbookApi
         self.metadata = metadata
         switch metadata.status {
+            case .New: self.color = Color.purple
             case .Local: self.color = Color.blue
             case .Remote: self.color = Color.red
             case .Synced: self.color = Color.green

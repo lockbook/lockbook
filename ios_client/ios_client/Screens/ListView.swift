@@ -28,11 +28,19 @@ struct ListView: View {
                         Image(systemName: "plus")
                     }
                 )
+                .onAppear {
+                    print("List -- Appearing")
+                    self.files = self.lockbookApi.updateMetadata(sync: false)
+
+                }
+                .onDisappear {
+                    print("List -- Disappearing")
+                }
+
             }
             HStack {
                 Spacer()
                 Button(action: {
-                    self.files = self.lockbookApi.updateMetadata(sync: false)
                 }) {
                     HStack {
                         Image(systemName: "bolt")
@@ -57,6 +65,8 @@ struct ListView: View {
                 Spacer()
                 Button(action: {
                     print("Purging files...")
+                    self.lockbookApi.purgeFiles()
+                    self.files = self.lockbookApi.updateMetadata(sync: false)
                 }) {
                     HStack {
                         Image(systemName: "flame")
@@ -94,6 +104,6 @@ struct ListView: View {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
+        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator()).colorScheme(.dark)
     }
 }
