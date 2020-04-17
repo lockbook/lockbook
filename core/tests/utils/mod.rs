@@ -22,13 +22,6 @@ pub fn api_loc() -> String {
     }
 }
 
-pub fn max_auth_delay() -> String {
-    match env::var("MAX_AUTH_DELAY") {
-        Ok(s) => s,
-        Err(e) => panic!("Could not read environment variable MAX_AUTH_DELAY: {}", e),
-    }
-}
-
 pub fn generate_username() -> String {
     Uuid::new_v4().to_string()
 }

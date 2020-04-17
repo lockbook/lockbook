@@ -1,5 +1,5 @@
 use crate::auth_service::VerificationError::{
-    AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidTimeStamp,
+    AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout,
     InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure,
 };
 use crate::clock::Clock;
@@ -90,7 +90,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         }
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
-        let range = auth_time..auth_time + Config::get_auth_delay().clone().parse::<u128>()?; //TODO: Move $MAX_AUTH_DELAY to server
+        let range = auth_time..auth_time + env!("MAX_AUTH_DELAY").parse::<u128>()?; //TODO: Move $MAX_AUTH_DELAY to server
 
         if !range.contains(&Time::get_time()) {
             return Err(TimeStampOutOfBounds);

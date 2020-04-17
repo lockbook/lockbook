@@ -590,7 +590,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook_core"
-version = "2.1.5"
+version = "3.1.5"
 dependencies = [
  "base64 0.11.0",
  "rand 0.7.3",
