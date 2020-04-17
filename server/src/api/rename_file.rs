@@ -1,11 +1,11 @@
 use crate::config::ServerState;
 use crate::index_db;
-use lockbook_core::lockbook_api::RenameFileResponse;
 use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
 use std::io::Cursor;
+use lockbook_core::client::RenameFileResponse;
 
 #[derive(FromForm, Debug)]
 pub struct RenameFile {
