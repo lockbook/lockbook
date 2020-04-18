@@ -1,9 +1,5 @@
-trait FileEncryptionService {
-
-}
+trait FileEncryptionService {}
 
 pub struct FileEncryptionServiceImpl;
 
-impl FileEncryptionService for FileEncryptionServiceImpl {
-    
-}
+impl FileEncryptionService for FileEncryptionServiceImpl {}

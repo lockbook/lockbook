@@ -3,16 +3,16 @@ extern crate rsa;
 
 use std::string::FromUtf8Error;
 
-use aead::{Aead, generic_array::GenericArray, NewAead};
+use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
 use crate::error_enum;
 
-use self::rand::RngCore;
 use self::rand::rngs::OsRng;
-use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use self::rand::RngCore;
 use self::rsa::hash::Hashes;
+use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 
 #[derive(PartialEq, Debug)]
 pub struct EncryptedValue {
@@ -166,7 +166,7 @@ mod unit_test {
                 secret: "Secret".to_string(),
             },
         )
-            .unwrap();
+        .unwrap();
         let decrypted = RsaImpl::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted.secret, "Secret".to_string());
@@ -181,7 +181,7 @@ pub struct EncryptedValueWithNonce {
 }
 
 pub struct AesKey {
-    pub key: String
+    pub key: String,
 }
 
 error_enum! {
@@ -201,8 +201,14 @@ error_enum! {
 
 pub trait SymmetricCryptoService {
     fn generate_key() -> AesKey;
-    fn encrypt(key: &AesKey, secret: &DecryptedValue) -> Result<EncryptedValueWithNonce, AesEncryptionFailed>;
-    fn decrypt(key: &AesKey, encrypted: &EncryptedValueWithNonce) -> Result<DecryptedValue, AesDecryptionFailed>;
+    fn encrypt(
+        key: &AesKey,
+        secret: &DecryptedValue,
+    ) -> Result<EncryptedValueWithNonce, AesEncryptionFailed>;
+    fn decrypt(
+        key: &AesKey,
+        encrypted: &EncryptedValueWithNonce,
+    ) -> Result<DecryptedValue, AesDecryptionFailed>;
 }
 
 pub struct AesImpl;
@@ -212,10 +218,15 @@ impl SymmetricCryptoService for AesImpl {
         let mut random_bytes = [0u8; 256];
         OsRng.fill_bytes(&mut random_bytes);
 
-        AesKey { key: base64::encode(&random_bytes.to_vec()) }
+        AesKey {
+            key: base64::encode(&random_bytes.to_vec()),
+        }
     }
 
-    fn encrypt(aes_key: &AesKey, secret: &DecryptedValue) -> Result<EncryptedValueWithNonce, AesEncryptionFailed> {
+    fn encrypt(
+        aes_key: &AesKey,
+        secret: &DecryptedValue,
+    ) -> Result<EncryptedValueWithNonce, AesEncryptionFailed> {
         let key_bytes = base64::decode(&aes_key.key)?;
         let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
         let key = Aes256Gcm::new(key_bytes_array);
@@ -227,15 +238,16 @@ impl SymmetricCryptoService for AesImpl {
         let secret = secret.secret.as_bytes();
         let cipher_text = key.encrypt(&nonce, secret)?;
 
-        Ok(
-            EncryptedValueWithNonce {
-                garbage: base64::encode(&cipher_text),
-                nonce: base64::encode(&nonce_bytes),
-            }
-        )
+        Ok(EncryptedValueWithNonce {
+            garbage: base64::encode(&cipher_text),
+            nonce: base64::encode(&nonce_bytes),
+        })
     }
 
-    fn decrypt(aes_key: &AesKey, encrypted: &EncryptedValueWithNonce) -> Result<DecryptedValue, AesDecryptionFailed> {
+    fn decrypt(
+        aes_key: &AesKey,
+        encrypted: &EncryptedValueWithNonce,
+    ) -> Result<DecryptedValue, AesDecryptionFailed> {
         let key_bytes = base64::decode(&aes_key.key).unwrap();
         let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
         let key = Aes256Gcm::new(key_bytes_array);
