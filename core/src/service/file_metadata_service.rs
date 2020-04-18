@@ -85,7 +85,7 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
-    use crate::service::crypto::{PubKeyCryptoService, RsaCryptoService};
+    use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
     use crate::model::account::Account;
     use crate::model::state::Config;
@@ -128,7 +128,7 @@ mod unit_tests {
             &db,
             &Account {
                 username: "jimmyjohn".to_string(),
-                keys: RsaCryptoService::generate_key().expect("Key generation failure"),
+                keys: RsaImpl::generate_key().expect("Key generation failure"),
             },
         )
         .unwrap();
