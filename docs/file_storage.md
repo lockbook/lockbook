@@ -18,6 +18,7 @@ Set `host_bucket` to `%(bucket).nyc3.digitaloceanspaces.com`
 
 ## Content Policy
 This is the current content policy that defines how the bucket behaves.
+Follows the convention of [Amazon S3 IAM policies](https://docs.aws.amazon.com/cli/latest/reference/iam/create-policy.html).
 TLDR, it allows reading of every object to the public.
 ```json
 {
