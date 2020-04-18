@@ -14,7 +14,7 @@ use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
-use crate::service::crypto::RsaCryptoService;
+use crate::service::crypto_service::RsaImpl;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 
 pub mod client;
@@ -26,7 +26,7 @@ pub mod service;
 static API_LOC: &str = "http://lockbook.app:8000";
 static DB_NAME: &str = "lockbook.sled";
 
-type DefaultCrypto = RsaCryptoService;
+type DefaultCrypto = RsaImpl;
 type DefaultDbProvider = DiskBackedDB;
 type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
