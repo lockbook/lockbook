@@ -16,7 +16,6 @@ pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdat
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
-use crate::model::file::File;
 use crate::API_LOC;
 
 #[derive(Debug)]

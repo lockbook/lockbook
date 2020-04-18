@@ -5,7 +5,7 @@ use sled;
 
 use crate::error_enum;
 use crate::model::file_metadata::{FileMetadata, Status};
-use sled::{Db, IVec};
+use sled::Db;
 use std::time::SystemTime;
 use uuid::Uuid;
 

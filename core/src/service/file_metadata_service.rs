@@ -1,10 +1,6 @@
 use std::marker::PhantomData;
-use std::time::SystemTime;
 
-use crate::client::{
-    ChangeFileContentRequest, Client, ClientError, CreateFileRequest, GetUpdatesRequest,
-};
-use crate::model::file::File;
+use crate::client::{ChangeFileContentRequest, Client, CreateFileRequest, GetUpdatesRequest};
 use crate::model::file_metadata::Status::Local;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
@@ -12,11 +8,9 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
-use crate::API_LOC;
 use crate::{client, error};
 use crate::{debug, error_enum, info};
 use sled::Db;
-use uuid::Uuid;
 
 error_enum! {
     enum Error {
@@ -59,7 +53,7 @@ impl<
             Err(_) => 0,
         };
         debug(format!("Getting updates past {}", max_updated));
-        if (sync) {
+        if sync {
             let updates = ApiClient::get_updates(&GetUpdatesRequest {
                 username: account.username.to_string(),
                 // FIXME: Real auth...
@@ -104,7 +98,7 @@ impl<
         all_meta.retain(|f| (f.status == Status::New || f.status == Local));
         debug(format!("Local {:?}", all_meta));
 
-        if (sync) {
+        if sync {
             all_meta.into_iter().for_each(|meta| {
                 let meta_copy = meta.clone();
                 let meta_copy2 = meta.clone();

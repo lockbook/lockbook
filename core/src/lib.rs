@@ -11,7 +11,6 @@ use sled::Db;
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::file::File;
-use crate::model::file_metadata::FileMetadata;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
@@ -50,11 +49,11 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
-static FAILURE_META_UPDATE: &str = "FAILURE<META_UPDATE>";
+// static FAILURE_META_UPDATE: &str = "FAILURE<META_UPDATE>";
 
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
 static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
-static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
+// static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
 
 #[allow(dead_code)]
 fn info(msg: String) {
