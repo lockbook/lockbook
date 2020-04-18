@@ -173,10 +173,10 @@ mod unit_test {
     }
 }
 
-// https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/
 #[derive(PartialEq, Debug)]
 pub struct EncryptedValueWithNonce {
     pub garbage: String,
+    // https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/
     pub nonce: String,
 }
 
