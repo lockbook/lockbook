@@ -197,34 +197,30 @@ mod unit_tests {
         ChangeFileContentRequest, Client, ClientError, CreateFileRequest, FileMetadata,
         GetFileRequest, GetUpdatesRequest, NewAccountRequest,
     };
-    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
+    use crate::debug;
     use crate::model::account::Account;
     use crate::model::file::File;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
-    use crate::model::state::Config;
-    use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::repo::account_repo::AccountRepo;
+    use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::{account_repo, file_metadata_repo};
-    use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
-    use crate::{debug, DefaultFileMetadataService};
+    use crate::service::crypto::{PubKeyCryptoService, RsaCryptoService};
     use sled::Db;
 
-    type DefaultDbProvider = TempBackedDB;
-
+    #[allow(dead_code)]
     struct FileMetaRepoFake;
     impl FileMetadataRepo for FileMetaRepoFake {
         fn insert(
-            db: &Db,
-            name: &String,
-            path: &String,
+            _db: &Db,
+            _name: &String,
+            _path: &String,
         ) -> Result<file_metadata::FileMetadata, file_metadata_repo::Error> {
             unimplemented!()
         }
 
         fn update(
-            db: &Db,
+            _db: &Db,
             file_metadata: &file_metadata::FileMetadata,
         ) -> Result<file_metadata::FileMetadata, file_metadata_repo::Error> {
             debug(format!("Updating in DB {:?}", file_metadata));
@@ -232,17 +228,19 @@ mod unit_tests {
         }
 
         fn get(
-            db: &Db,
-            id: &String,
+            _db: &Db,
+            _id: &String,
         ) -> Result<file_metadata::FileMetadata, file_metadata_repo::Error> {
             unimplemented!()
         }
 
-        fn last_updated(db: &Db) -> Result<u64, file_metadata_repo::Error> {
+        fn last_updated(_db: &Db) -> Result<u64, file_metadata_repo::Error> {
             Ok(100)
         }
 
-        fn get_all(db: &Db) -> Result<Vec<file_metadata::FileMetadata>, file_metadata_repo::Error> {
+        fn get_all(
+            _db: &Db,
+        ) -> Result<Vec<file_metadata::FileMetadata>, file_metadata_repo::Error> {
             Ok(vec![
                 file_metadata::FileMetadata {
                     id: "a".to_string(),
@@ -263,18 +261,19 @@ mod unit_tests {
             ])
         }
 
-        fn delete(db: &Db, id: &String) -> Result<u64, file_metadata_repo::Error> {
+        fn delete(_db: &Db, _id: &String) -> Result<u64, file_metadata_repo::Error> {
             unimplemented!()
         }
     }
 
+    #[allow(dead_code)]
     struct ClientFake;
     impl Client for ClientFake {
-        fn new_account(params: &NewAccountRequest) -> Result<(), ClientError> {
+        fn new_account(_params: &NewAccountRequest) -> Result<(), ClientError> {
             Ok(())
         }
 
-        fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
+        fn get_updates(_params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
             Ok(vec![
                 FileMetadata {
                     file_id: "a".to_string(),
@@ -303,7 +302,7 @@ mod unit_tests {
             ])
         }
 
-        fn get_file(params: &GetFileRequest) -> Result<File, ClientError> {
+        fn get_file(_params: &GetFileRequest) -> Result<File, ClientError> {
             unimplemented!()
         }
 
@@ -312,17 +311,19 @@ mod unit_tests {
             Ok(1)
         }
 
-        fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
+        fn change_file(_params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
             unimplemented!()
         }
     }
+
+    #[allow(dead_code)]
     struct AccountRepoFake;
     impl AccountRepo for AccountRepoFake {
-        fn insert_account(db: &Db, account: &Account) -> Result<(), account_repo::Error> {
+        fn insert_account(_db: &Db, _account: &Account) -> Result<(), account_repo::Error> {
             unimplemented!()
         }
 
-        fn get_account(db: &Db) -> Result<Account, account_repo::Error> {
+        fn get_account(_db: &Db) -> Result<Account, account_repo::Error> {
             Ok(Account {
                 username: "jimmyjohn".to_string(),
                 keys: RsaCryptoService::generate_key().expect("Key generation failure"),
