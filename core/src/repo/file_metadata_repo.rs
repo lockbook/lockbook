@@ -5,7 +5,7 @@ use sled;
 
 use crate::error_enum;
 use crate::model::file_metadata::FileMetadata;
-use sled::{Db, IVec};
+use sled::Db;
 
 error_enum! {
     enum Error {
@@ -36,7 +36,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn update(db: &Db, file_metadata: &FileMetadata) -> Result<(), Error> {
-        Self::insert(db, file_metadata);
+        Self::insert(db, file_metadata)?;
         Ok(())
     }
 
