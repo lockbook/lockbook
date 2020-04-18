@@ -9,16 +9,15 @@ use serde_json::json;
 use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::crypto::RsaCryptoService;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
+use crate::service::crypto::RsaCryptoService;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 
 pub mod client;
-pub mod crypto;
 pub mod error_enum;
 pub mod model;
 pub mod repo;
