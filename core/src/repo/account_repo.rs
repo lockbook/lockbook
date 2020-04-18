@@ -42,7 +42,7 @@ mod unit_tests {
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::service::crypto_service::{PubKeyCryptoService, RsaCryptoService};
+    use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultAcountRepo = AccountRepoImpl;
@@ -51,7 +51,7 @@ mod unit_tests {
     fn insert_account() {
         let test_account = Account {
             username: "parth".to_string(),
-            keys: RsaCryptoService::generate_key().expect("Key generation failure"),
+            keys: RsaImpl::generate_key().expect("Key generation failure"),
         };
 
         let config = Config {
