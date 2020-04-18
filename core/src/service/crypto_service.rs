@@ -14,7 +14,7 @@ use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct EncryptedValue {
     pub garbage: String,
 }
@@ -52,7 +52,7 @@ pub trait PubKeyCryptoService {
     ) -> Result<EncryptedValue, rsa::errors::Error>;
     fn sign(
         private_key: &RSAPrivateKey,
-        to_sign: String,
+        to_sign: String, // TODO borrow here
     ) -> Result<SignedValue, rsa::errors::Error>;
     fn verify(
         public_key: &RSAPublicKey,
