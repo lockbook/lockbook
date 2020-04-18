@@ -6,7 +6,11 @@ use serde::export::PhantomData;
 
 use crate::error_enum;
 use crate::model::account::Account;
-use crate::service::crypto_service::{AesDecryptionFailed, AesEncryptionFailed, AesKey, DecryptedValue, DecryptionFailed, EncryptedValue, EncryptedValueWithNonce, PubKeyCryptoService, SignedValue, SymmetricCryptoService};
+use crate::service::crypto_service::{
+    AesDecryptionFailed, AesEncryptionFailed, AesKey, DecryptedValue, DecryptionFailed,
+    EncryptedValue, EncryptedValueWithNonce, PubKeyCryptoService, SignedValue,
+    SymmetricCryptoService,
+};
 
 #[derive(Clone)]
 pub struct AccessInfo {
@@ -48,7 +52,11 @@ error_enum! {
 
 trait FileEncryptionService {
     fn new_file(author: &Account) -> Result<EncryptedFile, FileCreationError>;
-    fn write_to_file(author: &Account, file_before: &EncryptedFile, content: &DecryptedValue) -> Result<EncryptedFile, FileWriteError>;
+    fn write_to_file(
+        author: &Account,
+        file_before: &EncryptedFile,
+        content: &DecryptedValue,
+    ) -> Result<EncryptedFile, FileWriteError>;
     fn read_file(key: &Account, file: EncryptedFile) -> Result<DecryptedValue, UnableToReadFile>;
 }
 
@@ -58,7 +66,7 @@ pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryp
 }
 
 impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
-for FileEncryptionServiceImpl<PK, AES>
+    for FileEncryptionServiceImpl<PK, AES>
 {
     fn new_file(author: &Account) -> Result<EncryptedFile, FileCreationError> {
         let file_encryption_key = AES::generate_key();
@@ -93,24 +101,33 @@ for FileEncryptionServiceImpl<PK, AES>
         })
     }
 
-    fn write_to_file(author: &Account, file_before: &EncryptedFile, content: &DecryptedValue) -> Result<EncryptedFile, FileWriteError> {
+    fn write_to_file(
+        author: &Account,
+        file_before: &EncryptedFile,
+        content: &DecryptedValue,
+    ) -> Result<EncryptedFile, FileWriteError> {
         let encrypted_key = &file_before.access_keys.get(&author.username)?.access_key;
-        let file_encryption_key = AesKey { key: PK::decrypt(&author.keys, encrypted_key)?.secret };
+        let file_encryption_key = AesKey {
+            key: PK::decrypt(&author.keys, encrypted_key)?.secret,
+        };
         let new_content = AES::encrypt(&file_encryption_key, &content)?;
         let signature = PK::sign(&author.keys, author.username.clone())?;
 
-        Ok(
-            EncryptedFile {
-                access_keys: file_before.access_keys.clone(),
-                content: new_content,
-                last_edited: signature,
-            }
-        )
+        Ok(EncryptedFile {
+            access_keys: file_before.access_keys.clone(),
+            content: new_content,
+            last_edited: signature,
+        })
     }
 
-    fn read_file(account: &Account, file: EncryptedFile) -> Result<DecryptedValue, UnableToReadFile> {
+    fn read_file(
+        account: &Account,
+        file: EncryptedFile,
+    ) -> Result<DecryptedValue, UnableToReadFile> {
         let encrypted_key = &file.access_keys.get(&account.username)?.access_key;
-        let file_encryption_key = AesKey { key: PK::decrypt(&account.keys, encrypted_key)?.secret };
+        let file_encryption_key = AesKey {
+            key: PK::decrypt(&account.keys, encrypted_key)?.secret,
+        };
         Ok(AES::decrypt(&file_encryption_key, &file.content)?)
     }
 }
