@@ -3,13 +3,16 @@ extern crate rsa;
 
 use std::string::FromUtf8Error;
 
+use aead::{Aead, generic_array::GenericArray, NewAead};
+use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
 use crate::error_enum;
 
+use self::rand::RngCore;
 use self::rand::rngs::OsRng;
-use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use self::rsa::hash::Hashes;
 
 #[derive(PartialEq, Debug)]
 pub struct EncryptedValue {
@@ -61,9 +64,9 @@ pub trait PubKeyCryptoService {
     ) -> Result<DecryptedValue, DecryptionFailed>;
 }
 
-pub struct RsaCryptoService;
+pub struct RsaImpl;
 
-impl PubKeyCryptoService for RsaCryptoService {
+impl PubKeyCryptoService for RsaImpl {
     fn generate_key() -> Result<RSAPrivateKey, rsa::errors::Error> {
         let mut rng = OsRng;
         let bits = 2048;
@@ -127,13 +130,13 @@ impl PubKeyCryptoService for RsaCryptoService {
 
 #[cfg(test)]
 mod unit_test {
-    use crate::service::crypto_service::{DecryptedValue, PubKeyCryptoService, RsaCryptoService};
+    use crate::service::crypto_service::{DecryptedValue, PubKeyCryptoService, RsaImpl};
 
     use super::rsa::RSAPrivateKey;
 
     #[test]
     fn test_key_generation_serde() {
-        let key = RsaCryptoService::generate_key().unwrap();
+        let key = RsaImpl::generate_key().unwrap();
 
         let key_read: RSAPrivateKey =
             serde_json::from_str(serde_json::to_string(&key).unwrap().as_str()).unwrap();
@@ -145,27 +148,104 @@ mod unit_test {
 
     #[test]
     fn test_sign_verify() {
-        let key = RsaCryptoService::generate_key().unwrap();
+        let key = RsaImpl::generate_key().unwrap();
 
-        let value = RsaCryptoService::sign(&key, "Test".to_string()).unwrap();
+        let value = RsaImpl::sign(&key, "Test".to_string()).unwrap();
         assert_eq!(value.content, "Test");
 
-        RsaCryptoService::verify(&key.to_public_key(), &value).unwrap();
+        RsaImpl::verify(&key.to_public_key(), &value).unwrap();
     }
 
     #[test]
     fn test_encrypt_decrypt() {
-        let key = RsaCryptoService::generate_key().unwrap();
+        let key = RsaImpl::generate_key().unwrap();
 
-        let encrypted = RsaCryptoService::encrypt(
+        let encrypted = RsaImpl::encrypt(
             &key.to_public_key(),
             &DecryptedValue {
                 secret: "Secret".to_string(),
             },
         )
-        .unwrap();
-        let decrypted = RsaCryptoService::decrypt(&key, &encrypted).unwrap();
+            .unwrap();
+        let decrypted = RsaImpl::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted.secret, "Secret".to_string());
+    }
+}
+
+// https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/
+#[derive(PartialEq, Debug)]
+pub struct EncryptedValueWithNonce {
+    pub garbage: String,
+    pub nonce: String,
+}
+
+pub struct AesKey {
+    pub key: String
+}
+
+error_enum! {
+    enum AesEncryptionFailed {
+        KeyCorrupted(base64::DecodeError),
+        EncryptionFailed(aead::Error),
+    }
+}
+
+error_enum! {
+    enum AesDecryptionFailed {
+        DecryptionFailed(aead::Error),
+        DecryptedValueMalformed(FromUtf8Error),
+        ValueCorrupted(base64::DecodeError),
+    }
+}
+
+pub trait SymmetricCryptoService {
+    fn generate_key() -> AesKey;
+    fn encrypt(key: &AesKey, secret: &DecryptedValue) -> Result<EncryptedValueWithNonce, AesEncryptionFailed>;
+    fn decrypt(key: &AesKey, encrypted: &EncryptedValueWithNonce) -> Result<DecryptedValue, AesDecryptionFailed>;
+}
+
+pub struct AesImpl;
+
+impl SymmetricCryptoService for AesImpl {
+    fn generate_key() -> AesKey {
+        let mut random_bytes = [0u8; 256];
+        OsRng.fill_bytes(&mut random_bytes);
+
+        AesKey { key: base64::encode(&random_bytes.to_vec()) }
+    }
+
+    fn encrypt(aes_key: &AesKey, secret: &DecryptedValue) -> Result<EncryptedValueWithNonce, AesEncryptionFailed> {
+        let key_bytes = base64::decode(&aes_key.key)?;
+        let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
+        let key = Aes256Gcm::new(key_bytes_array);
+
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = GenericArray::from_slice(&nonce_bytes);
+
+        let secret = secret.secret.as_bytes();
+        let cipher_text = key.encrypt(&nonce, secret)?;
+
+        Ok(
+            EncryptedValueWithNonce {
+                garbage: base64::encode(&cipher_text),
+                nonce: base64::encode(&nonce_bytes),
+            }
+        )
+    }
+
+    fn decrypt(aes_key: &AesKey, encrypted: &EncryptedValueWithNonce) -> Result<DecryptedValue, AesDecryptionFailed> {
+        let key_bytes = base64::decode(&aes_key.key).unwrap();
+        let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
+        let key = Aes256Gcm::new(key_bytes_array);
+
+        let decoded_nonce = base64::decode(&encrypted.nonce)?;
+
+        let nonce = GenericArray::clone_from_slice(&decoded_nonce);
+        let secret = key.decrypt(&nonce, encrypted.garbage.as_ref())?;
+        let string = String::from_utf8(secret.to_vec())?;
+
+        Ok(DecryptedValue { secret: string })
     }
 }
