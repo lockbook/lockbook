@@ -1,10 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::client::{
-    ChangeFileContentRequest, Client, ClientError, CreateFileRequest, GetFileRequest,
-    GetUpdatesRequest,
+    ChangeFileContentRequest, Client, CreateFileRequest, GetFileRequest, GetUpdatesRequest,
 };
-use crate::model::file_metadata::Status::Local;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -163,7 +161,11 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
+    use crate::client::{
+        ChangeFileContentRequest, Client, ClientError, CreateFileRequest, FileMetadata,
+        GetFileRequest, GetUpdatesRequest, NewAccountRequest,
+    };
+    use crate::debug;
     use crate::model::account::Account;
     use crate::model::file::File;
     use crate::model::file_metadata;
@@ -174,7 +176,7 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_repo::FileRepo;
     use crate::repo::{account_repo, file_metadata_repo, file_repo};
-    use crate::service::crypto_service::{PubKeyCryptoService, RsaCryptoService, RsaImpl};
+    use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use sled::Db;
 
@@ -245,15 +247,15 @@ mod unit_tests {
 
     struct FileRepoFake;
     impl FileRepo for FileRepoFake {
-        fn update(db: &Db, file: &File) -> Result<(), file_repo::Error> {
+        fn update(_db: &Db, _file: &File) -> Result<(), file_repo::Error> {
             Ok(())
         }
 
-        fn get(db: &Db, id: &String) -> Result<File, file_repo::Error> {
+        fn get(_db: &Db, _id: &String) -> Result<File, file_repo::Error> {
             unimplemented!()
         }
 
-        fn delete(db: &Db, id: &String) -> Result<(), file_repo::Error> {
+        fn delete(_db: &Db, _id: &String) -> Result<(), file_repo::Error> {
             unimplemented!()
         }
     }
@@ -267,7 +269,7 @@ mod unit_tests {
         fn get_account(_db: &Db) -> Result<Account, account_repo::Error> {
             Ok(Account {
                 username: "lockbooker".to_string(),
-                keys: RsaCryptoService::generate_key().expect("Key generation failure"),
+                keys: RsaImpl::generate_key().expect("Key generation failure"),
             })
         }
     }
