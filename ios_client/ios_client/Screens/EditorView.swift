@@ -20,8 +20,8 @@ struct EditorView: View {
             VStack(alignment: .leading) {
                 Text("id: \(metadata.id)")
                 Text("path: \(metadata.path)")
-                Text("updatedAt: \(metadata.updatedAt)")
-                Text("version: \(metadata.version)")
+                Text("updatedAt: \(intEpochToString(unixTime: metadata.updatedAt))")
+                Text("version: \(intEpochToString(unixTime: metadata.version))")
                 Text("status: \(metadata.status.rawValue)")
             }
         }
@@ -62,6 +62,14 @@ struct EditorView: View {
             self._content = State.init(initialValue: "")
         }
     }
+}
+
+func intEpochToString(unixTime: Int) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(unixTime))
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy/mm/dd hh:mm: a"
+    return formatter.string(from: date)
+    
 }
 
 struct TextView: UIViewRepresentable {
