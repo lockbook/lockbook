@@ -17,6 +17,7 @@ error_enum! {
 pub trait FileRepo {
     fn update(db: &Db, file: &File) -> Result<(), Error>;
     fn get(db: &Db, id: &String) -> Result<File, Error>;
+    fn delete(db: &Db, id: &String) -> Result<(), Error>;
 }
 
 pub struct FileRepoImpl;
@@ -35,6 +36,12 @@ impl FileRepo for FileRepoImpl {
         let file: File = serde_json::from_slice(value.as_ref())?;
 
         Ok(file)
+    }
+
+    fn delete(db: &Db, id: &String) -> Result<(), Error> {
+        let tree = db.open_tree(b"files")?;
+        tree.remove(id.as_bytes())?;
+        Ok(())
     }
 }
 

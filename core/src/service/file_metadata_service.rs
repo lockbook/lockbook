@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::client::{ChangeFileContentRequest, Client, CreateFileRequest, GetUpdatesRequest};
+use crate::client::{
+    ChangeFileContentRequest, Client, CreateFileRequest, GetFileRequest, GetUpdatesRequest,
+};
 use crate::model::file_metadata::Status::Local;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
@@ -87,7 +89,19 @@ impl<
                         status: Status::Synced,
                     },
                 ) {
-                    Ok(_) => {}
+                    Ok(meta) => match ApiClient::get_file(&GetFileRequest { file_id: meta.id }) {
+                        Ok(file) => {
+                            info(format!("Retrieved file from bucket!"));
+                            match FileDb::update(&db, &file) {
+                                Ok(_) => info(format!("Saved file to db!")),
+                                Err(err) => error(format!("Failed saving file to db! {:?}", err)),
+                            }
+                        }
+                        Err(err) => error(format!(
+                            "Failed to retrieve file from bucket! Error: {:?}",
+                            err
+                        )),
+                    },
                     Err(err) => {
                         error(format!("Insert Error {:?}", err));
                     }
@@ -181,10 +195,11 @@ impl<
 mod unit_tests {
     use crate::client::{
         ChangeFileContentRequest, Client, ClientError, CreateFileRequest, FileMetadata,
-        GetUpdatesRequest, NewAccountRequest,
+        GetFileRequest, GetUpdatesRequest, NewAccountRequest,
     };
     use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
     use crate::model::account::Account;
+    use crate::model::file::File;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
     use crate::model::state::Config;
@@ -286,6 +301,10 @@ mod unit_tests {
                     deleted: false,
                 },
             ])
+        }
+
+        fn get_file(params: &GetFileRequest) -> Result<File, ClientError> {
+            unimplemented!()
         }
 
         fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {

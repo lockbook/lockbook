@@ -28,6 +28,7 @@ pub mod repo;
 pub mod service;
 
 static API_LOC: &str = "http://lockbook.app:8000";
+static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
 type DefaultCrypto = RsaCryptoService;
@@ -258,6 +259,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
             DefaultFileMetadataRepo::delete(&db, &meta.id).unwrap();
+            DefaultFileRepo::delete(&db, &meta.id).unwrap();
             ()
         }),
         Err(err) => error(format!("Failed to delete file! Error: {:?}", err)),
