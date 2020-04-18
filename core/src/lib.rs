@@ -159,13 +159,13 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn sync_files(c_path: *const c_char, sync: bool) -> *mut c_char {
+pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
         Some(db) => db,
     };
 
-    match DefaultFileMetadataService::sync(&db, sync) {
+    match DefaultFileMetadataService::sync(&db) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             error(format!("Update metadata failed with error: {:?}", err));
