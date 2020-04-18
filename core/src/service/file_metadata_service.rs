@@ -85,8 +85,8 @@ impl<FileMetadataDb: FileMetadataRepo, AccountDb: AccountRepo, ApiClient: Client
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
-    use crate::crypto::{PubKeyCryptoService, RsaCryptoService};
-    use crate::debug;
+    use crate::service::crypto::{PubKeyCryptoService, RsaCryptoService};
+
     use crate::model::account::Account;
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -99,15 +99,15 @@ mod unit_tests {
     struct ClientFake;
     impl Client for ClientFake {
         fn new_account(
-            api_location: String,
-            params: &NewAccountRequest,
+            _api_location: String,
+            _params: &NewAccountRequest,
         ) -> Result<(), ClientError> {
             Ok(())
         }
 
         fn get_updates(
-            api_location: String,
-            params: &GetUpdatesRequest,
+            _api_location: String,
+            _params: &GetUpdatesRequest,
         ) -> Result<Vec<FileMetadata>, ClientError> {
             Ok(vec![])
         }

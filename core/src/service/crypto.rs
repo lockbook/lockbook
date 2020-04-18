@@ -127,9 +127,9 @@ impl PubKeyCryptoService for RsaCryptoService {
 
 #[cfg(test)]
 mod unit_test {
-    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService};
+    use crate::service::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService};
 
-    use super::rsa::{PublicKey, RSAPrivateKey};
+    use super::rsa::RSAPrivateKey;
 
     #[test]
     fn test_key_generation_serde() {

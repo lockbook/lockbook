@@ -2,12 +2,12 @@ use std::marker::PhantomData;
 
 use crate::client;
 use crate::client::{Client, NewAccountRequest};
-use crate::crypto::PubKeyCryptoService;
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
+use crate::service::crypto::PubKeyCryptoService;
 use crate::API_LOC;
 use sled::Db;
 
