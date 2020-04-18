@@ -14,7 +14,7 @@ use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
-use crate::service::crypto::RsaCryptoService;
+use crate::service::crypto_service::RsaCryptoService;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 
 pub mod client;
