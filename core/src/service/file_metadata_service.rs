@@ -20,6 +20,7 @@ error_enum! {
         ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
         ApiError(client::ClientError),
+        FileRepoError(repo::file_repo::Error),
         MetadataRepoError(repo::file_metadata_repo::Error),
     }
 }
@@ -98,52 +99,59 @@ impl<
             }
         });
         let mut updates_local = FileMetadataDb::get_all(db)?;
-        updates_local.retain(|file| file.status == Status::Local);
-        updates_local.iter().for_each(|file| {
-            let content = FileDb::get(db, file.id.borrow()).unwrap().content;
-
-            let new_version = ApiClient::change_file(&ChangeFileContentRequest {
-                username: account.username.to_string(),
-                auth: "JUNK_AUTH".to_string(),
-                file_id: file.id.to_string(),
-                old_file_version: file.version,
-                new_file_content: content,
-            })
-            .unwrap();
-            FileMetadataDb::update(
-                db,
-                &FileMetadata {
-                    id: file.id.to_string(),
-                    name: file.name.to_string(),
-                    path: file.path.to_string(),
-                    updated_at: file.updated_at,
-                    version: new_version,
-                    status: Status::Synced,
-                },
-            )
-            .unwrap();
-            ()
-        });
-        updates_remote.iter().for_each(|file| {
-            let content = ApiClient::get_file(&GetFileRequest {
-                file_id: file.file_id.to_string(),
-            })
-            .unwrap();
-            FileDb::update(db, &content).unwrap();
-            FileMetadataDb::update(
-                db,
-                &FileMetadata {
-                    id: file.file_id.to_string(),
-                    name: file.file_name.to_string(),
-                    path: file.file_path.to_string(),
-                    updated_at: file.file_metadata_version,
-                    version: file.file_content_version,
-                    status: Status::Synced,
-                },
-            )
-            .unwrap();
-            ()
-        });
+        updates_local.retain(|meta| meta.status == Status::Local);
+        let updates_local_res = updates_local
+            .iter()
+            .map(|file| -> Result<FileMetadata, Error> {
+                let content = FileDb::get(db, file.id.borrow())?.content;
+                let new_version = ApiClient::change_file(&ChangeFileContentRequest {
+                    username: account.username.to_string(),
+                    auth: "JUNK_AUTH".to_string(),
+                    file_id: file.id.to_string(),
+                    old_file_version: file.version,
+                    new_file_content: content,
+                })?;
+                Ok(FileMetadataDb::update(
+                    db,
+                    &FileMetadata {
+                        id: file.id.to_string(),
+                        name: file.name.to_string(),
+                        path: file.path.to_string(),
+                        updated_at: file.updated_at,
+                        version: new_version,
+                        status: Status::Synced,
+                    },
+                )?)
+            });
+        let errors_local = updates_local_res
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<Error>>();
+        error(format!("Local Errors: {:?}", errors_local));
+        let updates_remote_res = updates_remote
+            .iter()
+            .map(|meta| -> Result<FileMetadata, Error> {
+                let content = ApiClient::get_file(&GetFileRequest {
+                    file_id: meta.file_id.to_string(),
+                })?;
+                FileDb::update(db, &content)?;
+                Ok(FileMetadataDb::update(
+                    db,
+                    &FileMetadata {
+                        id: meta.file_id.to_string(),
+                        name: meta.file_name.to_string(),
+                        path: meta.file_path.to_string(),
+                        updated_at: meta.file_metadata_version,
+                        version: meta.file_content_version,
+                        status: Status::Synced,
+                    },
+                )?)
+            });
+        let errors_remote = updates_remote_res
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<Error>>();
+        error(format!("Remote Errors: {:?}", errors_remote));
         Ok(FileMetadataDb::get_all(&db)?)
     }
 
