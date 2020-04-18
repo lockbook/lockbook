@@ -24,7 +24,7 @@ pub struct AccountRepoImpl;
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
-        db.insert(b"0", serde_json::to_vec(account)?);
+        db.insert(b"0", serde_json::to_vec(account)?)?;
         Ok(())
     }
 

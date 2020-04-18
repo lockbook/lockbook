@@ -1,10 +1,9 @@
-use std::env::temp_dir;
 use std::io;
 use std::option::NoneError;
 
+use crate::error_enum;
 use crate::model::state::Config;
 use crate::DB_NAME;
-use crate::{debug, error_enum};
 use sled::Db;
 use tempfile;
 use tempfile::tempdir;
