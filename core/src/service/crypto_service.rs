@@ -184,6 +184,14 @@ pub struct AesKey {
     pub key: String,
 }
 
+impl AesKey {
+    pub(crate) fn to_decrypted_value(&self) -> DecryptedValue {
+        DecryptedValue {
+            secret: self.key.clone(),
+        }
+    }
+}
+
 error_enum! {
     enum AesEncryptionFailed {
         KeyCorrupted(base64::DecodeError),
