@@ -55,7 +55,7 @@ struct FileRow: View {
 struct FileRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ForEach(FakeApi().updateMetadata(sync: true)) { meta in
+            ForEach(FakeApi().updateMetadata()) { meta in
                 FileRow(lockbookApi: FakeApi(), metadata: meta)
             }
         }

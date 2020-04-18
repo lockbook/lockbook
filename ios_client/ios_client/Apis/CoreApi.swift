@@ -12,7 +12,7 @@ protocol LockbookApi {
     func isDbPresent() -> Bool
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
-    func updateMetadata(sync: Bool) -> [FileMetadata]
+    func updateMetadata() -> [FileMetadata]
     func createFile(name: String, path: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<File>
     func updateFile(id: String, content: String) -> Bool
@@ -47,8 +47,8 @@ struct CoreApi: LockbookApi {
         return false
     }
     
-    func updateMetadata(sync: Bool) -> [FileMetadata] {
-        let result = sync_files(documentsDirectory, sync)
+    func updateMetadata() -> [FileMetadata] {
+        let result = sync_files(documentsDirectory)
         let resultString = String(cString: result!)
         // We need to release the pointer once we have the result string
         release_pointer(UnsafeMutablePointer(mutating: result))
@@ -130,7 +130,7 @@ struct FakeApi: LockbookApi {
         false
     }
     
-    func updateMetadata(sync: Bool) -> [FileMetadata] {
+    func updateMetadata() -> [FileMetadata] {
         var rander = SystemRandomNumberGenerator()
         return fakeMetadatas.shuffled(using: &rander)
     }

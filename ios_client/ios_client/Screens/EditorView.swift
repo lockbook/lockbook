@@ -13,7 +13,8 @@ struct EditorView: View {
     let metadata: FileMetadata
     @State var content: String
     @State private var showingAlert = false
-    
+    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+
     var body: some View {
         VStack {
             TextView(text: self.$content)
@@ -43,6 +44,7 @@ struct EditorView: View {
                 if file.content != self.content {
                     if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
                         print("Updated \(self.metadata)")
+                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
                     } else {
                         self.showingAlert = true
                     }
@@ -117,7 +119,7 @@ struct TextView: UIViewRepresentable {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!)
+            EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(ScreenCoordinator(files: []))
         }
     }
 }

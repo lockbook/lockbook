@@ -11,27 +11,24 @@ import SwiftUI
 struct ListView: View {
     var lockbookApi: LockbookApi
     var username: String
-    @State private var files: [FileMetadata]
     @EnvironmentObject var screenCoordinator: ScreenCoordinator
 
     var body: some View {
         VStack {
             NavigationView {
                 List {
-                    ForEach(files) { file in
+                    ForEach(self.screenCoordinator.files) { file in
                         FileRow(lockbookApi: self.lockbookApi, metadata: file)
                     }
                 }
                 .navigationBarTitle("\(self.username)'s Files")
                 .navigationBarItems(trailing:
-                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi, files: self.$files)) {
+                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
                         Image(systemName: "plus")
                     }
                 )
                 .onAppear {
                     print("List -- Appearing")
-                    self.files = self.lockbookApi.updateMetadata(sync: false)
-
                 }
                 .onDisappear {
                     print("List -- Disappearing")
@@ -41,32 +38,9 @@ struct ListView: View {
             HStack {
                 Spacer()
                 Button(action: {
-                }) {
-                    HStack {
-                        Image(systemName: "bolt")
-                        Text("Reload")
-                        Image(systemName: "bolt")
-                    }
-                }
-                Spacer()
-                Button(action: {
-                    self.files = self.lockbookApi.updateMetadata(sync: true)
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.up.arrow.down")
-                        Text("Sync")
-                        Image(systemName: "arrow.up.arrow.down")
-                    }
-                    .foregroundColor(.green)
-                }
-                Spacer()
-            }
-            HStack {
-                Spacer()
-                Button(action: {
                     print("Purging files...")
-                    self.lockbookApi.purgeFiles()
-                    self.files = self.lockbookApi.updateMetadata(sync: false)
+                    let _ = self.lockbookApi.purgeFiles()
+                    self.screenCoordinator.files = self.lockbookApi.updateMetadata()
                 }) {
                     HStack {
                         Image(systemName: "flame")
@@ -93,7 +67,6 @@ struct ListView: View {
     
     init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
-        self._files = State(initialValue: lockbookApi.updateMetadata(sync: false))
         if let username = lockbookApi.getAccount() {
             self.username = username
         } else {
@@ -104,6 +77,6 @@ struct ListView: View {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator()).colorScheme(.dark)
+        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: [])).colorScheme(.dark)
     }
 }
