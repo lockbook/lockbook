@@ -163,11 +163,7 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{
-        ChangeFileContentRequest, Client, ClientError, CreateFileRequest, FileMetadata,
-        GetFileRequest, GetUpdatesRequest, NewAccountRequest,
-    };
-    use crate::debug;
+    use crate::client::{Client, ClientError, FileMetadata, GetUpdatesRequest, NewAccountRequest};
     use crate::model::account::Account;
     use crate::model::file::File;
     use crate::model::file_metadata;
@@ -178,7 +174,7 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_repo::FileRepo;
     use crate::repo::{account_repo, file_metadata_repo, file_repo};
-    use crate::service::crypto::{PubKeyCryptoService, RsaCryptoService};
+    use crate::service::crypto_service::{PubKeyCryptoService, RsaCryptoService, RsaImpl};
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use sled::Db;
 

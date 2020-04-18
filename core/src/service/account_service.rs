@@ -7,7 +7,7 @@ use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
-use crate::service::crypto::PubKeyCryptoService;
+use crate::service::crypto_service::PubKeyCryptoService;
 use sled::Db;
 
 error_enum! {
