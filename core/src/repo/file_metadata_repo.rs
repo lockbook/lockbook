@@ -6,7 +6,6 @@ use sled;
 use crate::error_enum;
 use crate::model::file_metadata::{FileMetadata, Status};
 use sled::Db;
-use std::time::SystemTime;
 use uuid::Uuid;
 
 error_enum! {
@@ -32,9 +31,7 @@ pub struct FileMetadataRepoImpl;
 impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert(db: &Db, name: &String, path: &String) -> Result<FileMetadata, Error> {
         let tree = db.open_tree(b"file_metadata")?;
-        let version = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)?
-            .as_micros() as u64;
+        let version = 0;
         let meta = FileMetadata {
             id: Uuid::new_v4().to_string(),
             name: name.clone(),
@@ -53,9 +50,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             id: file_metadata.id.clone(),
             name: file_metadata.name.clone(),
             path: file_metadata.path.clone(),
-            updated_at: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)?
-                .as_micros() as u64,
+            updated_at: file_metadata.updated_at,
             version: file_metadata.version,
             status: file_metadata.status.clone(),
         };
@@ -115,12 +110,12 @@ mod unit_tests {
     #[test]
     fn insert_file_metadata() {
         let test_file_metadata = FileMetadata {
-            id: Uuid::new_v4().to_string(),
+            id: "".to_string(),
             name: "test_file".to_string(),
             path: "a/b/c".to_string(),
-            updated_at: 1234,
-            version: 1234,
-            status: Status::Local,
+            updated_at: 0,
+            version: 0,
+            status: Status::New,
         };
 
         let config = Config {
@@ -128,17 +123,22 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert(&db, &test_file_metadata.name, &test_file_metadata.path)
-            .unwrap();
+        let meta_res =
+            FileMetadataRepoImpl::insert(&db, &test_file_metadata.name, &test_file_metadata.path)
+                .unwrap();
 
-        let db_file_metadata = FileMetadataRepoImpl::get(&db, &test_file_metadata.id).unwrap();
-        assert_eq!(test_file_metadata, db_file_metadata);
+        let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.id).unwrap();
+        assert_eq!(test_file_metadata.name, db_file_metadata.name);
+        assert_eq!(test_file_metadata.path, db_file_metadata.path);
+        assert_eq!(test_file_metadata.updated_at, db_file_metadata.updated_at);
+        assert_eq!(test_file_metadata.version, db_file_metadata.version);
+        assert_eq!(test_file_metadata.status, db_file_metadata.status);
     }
 
     #[test]
     fn update_file_metadata() {
         let test_meta = FileMetadata {
-            id: "test".to_string(),
+            id: "".to_string(),
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 0,
@@ -146,7 +146,7 @@ mod unit_tests {
             status: Status::Local,
         };
         let test_meta_updated = FileMetadata {
-            id: "test".to_string(),
+            id: "".to_string(),
             name: "".to_string(),
             path: "".to_string(),
             updated_at: 1000,
@@ -159,15 +159,19 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert(&db, &test_meta.name, &test_meta.path).unwrap();
+        let meta_res = FileMetadataRepoImpl::insert(&db, &test_meta.name, &test_meta.path).unwrap();
         assert_eq!(
-            test_meta,
-            FileMetadataRepoImpl::get(&db, &test_meta.id).unwrap()
+            test_meta.updated_at,
+            FileMetadataRepoImpl::get(&db, &meta_res.id)
+                .unwrap()
+                .updated_at
         );
-        FileMetadataRepoImpl::update(&db, &test_meta_updated).unwrap();
+        let meta_upd_res = FileMetadataRepoImpl::update(&db, &test_meta_updated).unwrap();
         assert_eq!(
-            test_meta_updated,
-            FileMetadataRepoImpl::get(&db, &test_meta.id).unwrap()
+            test_meta_updated.updated_at,
+            FileMetadataRepoImpl::get(&db, &meta_upd_res.id)
+                .unwrap()
+                .updated_at
         );
     }
 
@@ -208,10 +212,9 @@ mod unit_tests {
         FileMetadataRepoImpl::insert(&db, &test_meta3.name, &test_meta3.path).unwrap();
 
         let all_files = FileMetadataRepoImpl::get_all(&db).unwrap();
-        println!("{:?}", all_files);
         assert_eq!(all_files.len(), 3);
 
         let updated_max = FileMetadataRepoImpl::last_updated(&db).unwrap();
-        assert_eq!(updated_max, 9000);
+        assert_eq!(updated_max, 0);
     }
 }
