@@ -5,6 +5,9 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
+use serde_json::json;
+use sled::Db;
+
 use crate::client::ClientImpl;
 use crate::crypto::RsaCryptoService;
 use crate::model::file::File;
@@ -17,8 +20,6 @@ use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use crate::service::file_service::{FileService, FileServiceImpl};
-use serde_json::json;
-use sled::Db;
 
 pub mod client;
 pub mod crypto;
@@ -55,18 +56,27 @@ static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
 static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
 static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
 
+#[allow(dead_code)]
 fn info(msg: String) {
     println!("ℹ️ {}", msg)
 }
+
+#[allow(dead_code)]
 fn debug(msg: String) {
     println!("🚧 {}", msg)
 }
+
+#[allow(dead_code)]
 fn warn(msg: String) {
     println!("⚠️ {}", msg)
 }
+
+#[allow(dead_code)]
 fn error(msg: String) {
     eprintln!("🛑 {}", msg)
 }
+
+#[allow(dead_code)]
 fn fatal(msg: String) {
     eprintln!("🆘 {}", msg)
 }
