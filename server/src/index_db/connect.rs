@@ -27,10 +27,8 @@ pub fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
                 .port(port)
                 .dbname(config.db);
             postgres_config
-        },
-        Err(err) => {
-            return Err(Error::PostgresPortNotU16(err))
-        },
+        }
+        Err(err) => return Err(Error::PostgresPortNotU16(err)),
     };
 
     match config.cert {
@@ -49,15 +47,11 @@ fn connect_no_tls(postgres_config: &PostgresConfig) -> Result<PostgresClient, Er
 fn connect_with_tls(postgres_config: &PostgresConfig, cert: &str) -> Result<PostgresClient, Error> {
     let mut builder = match SslConnector::builder(SslMethod::tls()) {
         Ok(builder) => builder,
-        Err(err) => {
-            return Err(Error::OpenSslFailed(err))
-        },
+        Err(err) => return Err(Error::OpenSslFailed(err)),
     };
     match builder.set_ca_file(cert) {
-        Ok(()) => {},
-        Err(err) => {
-            return Err(Error::OpenSslFailed(err))
-        },
+        Ok(()) => {}
+        Err(err) => return Err(Error::OpenSslFailed(err)),
     };
     match postgres_config.connect(MakeTlsConnector::new(builder.build())) {
         Ok(connection) => Ok(connection),
