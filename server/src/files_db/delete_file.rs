@@ -2,8 +2,6 @@ use s3::bucket::Bucket as S3Client;
 
 #[derive(Debug)]
 pub enum Error {
-    // S3ConnectionFailed(String),
-    // FileAlreadyExists(String),
     S3OperationUnsuccessful((u16, String)),
 }
 
