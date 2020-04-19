@@ -19,6 +19,8 @@
 		87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; };
 		EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* FileRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
+		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
+		EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */; };
 		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -42,6 +44,8 @@
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
 		EA6A0D6F2443652A0072E2B3 /* FileRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
+		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
+		EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
@@ -78,6 +82,7 @@
 				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
 				87BD616423E3B9CB00945B25 /* WelcomeView.swift */,
 				8733C24123F0EAE9000681E0 /* CreateAccountView.swift */,
+				EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */,
 				EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */,
 				EAC93E6F244267F400FFC629 /* ListView.swift */,
 				EAC93E7724428E6800FFC629 /* EditorView.swift */,
@@ -148,6 +153,7 @@
 			isa = PBXGroup;
 			children = (
 				EAC93E74244284EF00FFC629 /* CoreApi.swift */,
+				EA6CEBE4244CCB4E0017A402 /* Util.swift */,
 			);
 			path = Apis;
 			sourceTree = "<group>";
@@ -159,7 +165,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "ios_client" */;
 			buildPhases = (
-				EA6A0D732443B44E0072E2B3 /* Run Script */,
 				87BD615923E3B9CB00945B25 /* Sources */,
 				87BD615A23E3B9CB00945B25 /* Frameworks */,
 				87BD615B23E3B9CB00945B25 /* Resources */,
@@ -219,27 +224,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		EA6A0D732443B44E0072E2B3 /* Run Script */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Run Script";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\ncd ../core\nexport PATH=~/.cargo/bin:$PATH\n./ios_build.sh\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		87BD615923E3B9CB00945B25 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -250,8 +234,10 @@
 				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
+				EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */,
 				EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */,
 				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
+				EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
 				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
@@ -396,7 +382,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
-				DEVELOPMENT_TEAM = AFMJ24DW4B;
+				DEVELOPMENT_TEAM = RQ7B84U9C2;
 				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
@@ -409,7 +395,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/libs",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.lockbook-client";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.raayanpillai.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
@@ -423,7 +409,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
-				DEVELOPMENT_TEAM = AFMJ24DW4B;
+				DEVELOPMENT_TEAM = RQ7B84U9C2;
 				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
@@ -436,7 +422,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/libs",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "app.Lockbook.lockbook-client";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.raayanpillai.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
 				SWIFT_VERSION = 5.0;
