@@ -14,7 +14,7 @@ protocol LockbookApi {
     func createAccount(username: String) -> Bool
     func updateMetadata() -> [FileMetadata]
     func createFile(name: String, path: String) -> Optional<FileMetadata>
-    func getFile(id: String) -> Optional<File>
+    func getFile(id: String) -> Optional<DecryptedValue>
     func updateFile(id: String, content: String) -> Bool
     func purgeFiles() -> Bool
 }
@@ -71,12 +71,12 @@ struct CoreApi: LockbookApi {
         return resultMeta
     }
     
-    func getFile(id: String) -> Optional<File> {
+    func getFile(id: String) -> Optional<DecryptedValue> {
         let result = get_file(documentsDirectory, id)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
-        let resultFile: Optional<File> = deserialize(jsonStr: resultString)
+        let resultFile: Optional<DecryptedValue> = deserialize(jsonStr: resultString)
         return resultFile
     }
     
@@ -141,7 +141,7 @@ struct FakeApi: LockbookApi {
         return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), version: Int(now), status: .Local))
     }
     
-    func getFile(id: String) -> Optional<File> {
+    func getFile(id: String) -> Optional<DecryptedValue> {
         Optional.none
     }
     

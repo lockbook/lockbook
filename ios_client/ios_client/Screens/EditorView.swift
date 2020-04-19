@@ -33,7 +33,7 @@ struct EditorView: View {
         .onAppear {
             print("Editor -- Appearing")
             if let file = self.lockbookApi.getFile(id: self.metadata.id) {
-                self.content = file.content
+                self.content = file.secret
             } else {
                 print("Could not load \(self.metadata)")
             }
@@ -41,7 +41,7 @@ struct EditorView: View {
         .onDisappear {
             print("Editor -- Disappearing")
             if let file = self.lockbookApi.getFile(id: self.metadata.id) {
-                if file.content != self.content {
+                if file.secret != self.content {
                     if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
                         print("Updated \(self.metadata)")
                         self.screenCoordinator.files = self.lockbookApi.updateMetadata()
@@ -59,7 +59,7 @@ struct EditorView: View {
         self.lockbookApi = lockbookApi
         self.metadata = metadata
         if let file = lockbookApi.getFile(id: metadata.id) {
-            self._content = State.init(initialValue: file.content)
+            self._content = State.init(initialValue: file.secret)
         } else {
             self._content = State.init(initialValue: "")
         }

@@ -8,8 +8,7 @@
 
 import SwiftUI
 
-struct File: Codable, Identifiable {
-    var id: String
-    var content: String
+struct DecryptedValue: Codable {
+    var secret: String
 }
 
