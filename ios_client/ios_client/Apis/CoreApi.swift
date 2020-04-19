@@ -14,7 +14,7 @@ protocol LockbookApi {
     func createAccount(username: String) -> Bool
     func importAccount(username: String, keyString: String) -> Bool
     func updateMetadata() -> [FileMetadata]
-    func createFile(name: String, path: String) -> Optional<FileMetadata>
+    func createFile(name: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<DecryptedValue>
     func updateFile(id: String, content: String) -> Bool
     func purgeFiles() -> Bool
@@ -71,8 +71,8 @@ struct CoreApi: LockbookApi {
         }
     }
     
-    func createFile(name: String, path: String) -> Optional<FileMetadata> {
-        let result = create_file(documentsDirectory, name, path)
+    func createFile(name: String) -> Optional<FileMetadata> {
+        let result = create_file(documentsDirectory, name, "")
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
@@ -148,10 +148,10 @@ struct FakeApi: LockbookApi {
         return fakeMetadatas.shuffled(using: &rander)
     }
     
-    func createFile(name: String, path: String) -> Optional<FileMetadata> {
+    func createFile(name: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
 
-        return Optional.some(FileMetadata(id: "new", name: name, path: path, updatedAt: Int(now), version: Int(now), status: .Local))
+        return Optional.some(FileMetadata(id: "new", name: name, path: "", updatedAt: Int(now), version: Int(now), status: .Local))
     }
     
     func getFile(id: String) -> Optional<DecryptedValue> {

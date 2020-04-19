@@ -12,28 +12,31 @@ struct FileRow: View {
     var lockbookApi: LockbookApi
     var metadata: FileMetadata
     var color: Color
+    var image: Image
     
     var body: some View {
         NavigationLink(destination: EditorView(lockbookApi: lockbookApi, metadata: metadata)) {
             HStack {
                 VStack {
                     HStack {
-                        Text(metadata.name).bold()
+                        Text(metadata.name)
+                            .font(.headline)
                         Spacer()
                     }
                     HStack {
-                        Text("location: \(metadata.path)")
+                        Text("Last updated \(intEpochToString(micros: metadata.updatedAt))")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
                         Spacer()
                     }
                 }
                 Spacer()
                 ZStack {
                     Rectangle()
-                        .fill(self.color)
-                        .frame(width: 100, height: 50)
-                    Text(self.metadata.status.rawValue)
-                        .foregroundColor(.white)
-                        .bold()
+                        .fill(Color.primary)
+                        .frame(width: 50, height: 30)
+                    self.image
+                        .foregroundColor(self.color)
                 }
             }
         }
@@ -43,10 +46,18 @@ struct FileRow: View {
         self.lockbookApi = lockbookApi
         self.metadata = metadata
         switch metadata.status {
-            case .New: self.color = Color.purple
-            case .Local: self.color = Color.blue
-            case .Remote: self.color = Color.red
-            case .Synced: self.color = Color.green
+            case .New:
+                self.color = Color.purple
+                self.image = Image(systemName: "plus")
+            case .Local:
+                self.color = Color.blue
+                self.image = Image(systemName: "tray.and.arrow.up")
+            case .Remote:
+                self.color = Color.red
+                self.image = Image(systemName: "tray.and.arrow.down")
+            case .Synced:
+                self.color = Color.green
+                self.image = Image(systemName: "arrow.2.circlepath")
         }
     }
     
