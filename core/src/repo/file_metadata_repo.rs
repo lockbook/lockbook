@@ -28,13 +28,14 @@ pub trait FileMetadataRepo {
 pub struct FileMetadataRepoImpl;
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(db: &Db, name: &String, path: &String) -> Result<FileMetadata, Error> {
+    fn insert(db: &Db, name: &String, _path: &String) -> Result<FileMetadata, Error> {
         let tree = db.open_tree(b"file_metadata")?;
         let version = 0;
+        let id = Uuid::new_v4().to_string();
         let meta = FileMetadata {
-            id: Uuid::new_v4().to_string(),
+            id: id.to_string(),
             name: name.clone(),
-            path: path.clone(),
+            path: id.to_string(),
             updated_at: version.clone(),
             version: version.clone(),
             status: Status::New,
@@ -124,7 +125,6 @@ mod unit_tests {
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
-        assert_eq!(test_file_metadata.path, db_file_metadata.path);
         assert_eq!(test_file_metadata.updated_at, db_file_metadata.updated_at);
         assert_eq!(test_file_metadata.version, db_file_metadata.version);
         assert_eq!(test_file_metadata.status, db_file_metadata.status);
