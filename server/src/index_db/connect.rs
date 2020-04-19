@@ -5,6 +5,7 @@ use postgres::config::Config as PostgresConfig;
 use postgres::Client as PostgresClient;
 use postgres::NoTls;
 use postgres_openssl::MakeTlsConnector;
+use std::num::ParseIntError;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 
@@ -12,28 +13,30 @@ use tokio_postgres::error::Error as PostgresError;
 pub enum Error {
     OpenSslFailed(OpenSslError),
     PostgresConnectionFailed(PostgresError),
-    PostgresPortNotU16(String),
+    PostgresPortNotU16(ParseIntError),
 }
 
 pub fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
-    Ok(())
-        .and_then(|_| match config.port.parse() {
-            Ok(port) => {
-                let mut postgres_config = PostgresConfig::new();
-                postgres_config
-                    .user(config.user)
-                    .host(config.host)
-                    .password(config.pass)
-                    .port(port)
-                    .dbname(config.db);
-                Ok(postgres_config)
-            }
-            Err(err) => Err(Error::PostgresPortNotU16(err.to_string())),
-        })
-        .and_then(|postgres_config| match config.cert {
-            "" => connect_no_tls(&postgres_config),
-            cert => connect_with_tls(&postgres_config, &cert),
-        })
+    let postgres_config = match config.port.parse() {
+        Ok(port) => {
+            let mut postgres_config = PostgresConfig::new();
+            postgres_config
+                .user(config.user)
+                .host(config.host)
+                .password(config.pass)
+                .port(port)
+                .dbname(config.db);
+            postgres_config
+        },
+        Err(err) => {
+            return Err(Error::PostgresPortNotU16(err))
+        },
+    };
+
+    match config.cert {
+        "" => connect_no_tls(&postgres_config),
+        cert => connect_with_tls(&postgres_config, &cert),
+    }
 }
 
 fn connect_no_tls(postgres_config: &PostgresConfig) -> Result<PostgresClient, Error> {
@@ -44,19 +47,20 @@ fn connect_no_tls(postgres_config: &PostgresConfig) -> Result<PostgresClient, Er
 }
 
 fn connect_with_tls(postgres_config: &PostgresConfig, cert: &str) -> Result<PostgresClient, Error> {
-    Ok(())
-        .and_then(|_| match SslConnector::builder(SslMethod::tls()) {
-            Ok(builder) => Ok(builder),
-            Err(err) => Err(Error::OpenSslFailed(err)),
-        })
-        .and_then(|mut builder| match builder.set_ca_file(cert) {
-            Ok(()) => Ok(builder),
-            Err(err) => Err(Error::OpenSslFailed(err)),
-        })
-        .and_then(
-            |builder| match postgres_config.connect(MakeTlsConnector::new(builder.build())) {
-                Ok(connection) => Ok(connection),
-                Err(err) => Err(Error::PostgresConnectionFailed(err)),
-            },
-        )
+    let mut builder = match SslConnector::builder(SslMethod::tls()) {
+        Ok(builder) => builder,
+        Err(err) => {
+            return Err(Error::OpenSslFailed(err))
+        },
+    };
+    match builder.set_ca_file(cert) {
+        Ok(()) => {},
+        Err(err) => {
+            return Err(Error::OpenSslFailed(err))
+        },
+    };
+    match postgres_config.connect(MakeTlsConnector::new(builder.build())) {
+        Ok(connection) => Ok(connection),
+        Err(err) => Err(Error::PostgresConnectionFailed(err)),
+    }
 }
