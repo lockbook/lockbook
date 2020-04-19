@@ -11,28 +11,62 @@ import SwiftUI
 struct ListView: View {
     var lockbookApi: LockbookApi
     var username: String
-    @State private var files: [FileMetadata]
+    @EnvironmentObject var screenCoordinator: ScreenCoordinator
 
     var body: some View {
         VStack {
             NavigationView {
                 List {
-                    ForEach(files) { file in
+                    ForEach(self.screenCoordinator.files) { file in
                         FileRow(lockbookApi: self.lockbookApi, metadata: file)
                     }
                 }
                 .navigationBarTitle("\(self.username)'s Files")
-            }
-            MonokaiButton(text: "Reload Files")
-                .onTapGesture {
-                    self.files = self.lockbookApi.updateMetadata()
+                .navigationBarItems(trailing:
+                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
+                        Image(systemName: "plus")
+                    }
+                )
+                .onAppear {
+                    print("List -- Appearing")
                 }
+                .onDisappear {
+                    print("List -- Disappearing")
+                }
+
+            }
+            HStack {
+                Spacer()
+                Button(action: {
+                    print("Purging files...")
+                    let _ = self.lockbookApi.purgeFiles()
+                    self.screenCoordinator.files = self.lockbookApi.updateMetadata()
+                }) {
+                    HStack {
+                        Image(systemName: "flame")
+                        Text("Purge")
+                        Image(systemName: "flame")
+                    }
+                    .foregroundColor(.red)
+                }
+                Spacer()
+                Button(action: {
+                    print("Logging out...")
+                }) {
+                    HStack {
+                        Image(systemName: "person.badge.minus")
+                        Text("Logout")
+                        Image(systemName: "person.badge.minus")
+                    }
+                    .foregroundColor(.yellow)
+                }
+                Spacer()
+            }
         }
     }
     
     init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
-        self._files = State(initialValue: lockbookApi.updateMetadata())
         if let username = lockbookApi.getAccount() {
             self.username = username
         } else {
@@ -43,6 +77,6 @@ struct ListView: View {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi())
+        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: [])).colorScheme(.dark)
     }
 }

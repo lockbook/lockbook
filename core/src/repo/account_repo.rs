@@ -31,7 +31,7 @@ impl AccountRepo for AccountRepoImpl {
     fn get_account(db: &Db) -> Result<Account, Error> {
         let maybe_value = db.get(b"0")?;
         let val = maybe_value?;
-        let account: Account = serde_json::from_slice(val.as_ref()).unwrap();
+        let account: Account = serde_json::from_slice(val.as_ref())?;
         Ok(account)
     }
 }

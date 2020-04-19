@@ -11,6 +11,7 @@ import SwiftUI
 struct FileRow: View {
     var lockbookApi: LockbookApi
     var metadata: FileMetadata
+    var color: Color
     
     var body: some View {
         NavigationLink(destination: EditorView(lockbookApi: lockbookApi, metadata: metadata)) {
@@ -26,9 +27,29 @@ struct FileRow: View {
                     }
                 }
                 Spacer()
+                ZStack {
+                    Rectangle()
+                        .fill(self.color)
+                        .frame(width: 100, height: 50)
+                    Text(self.metadata.status.rawValue)
+                        .foregroundColor(.white)
+                        .bold()
+                }
             }
         }
     }
+    
+    init(lockbookApi: LockbookApi, metadata: FileMetadata) {
+        self.lockbookApi = lockbookApi
+        self.metadata = metadata
+        switch metadata.status {
+            case .New: self.color = Color.purple
+            case .Local: self.color = Color.blue
+            case .Remote: self.color = Color.red
+            case .Synced: self.color = Color.green
+        }
+    }
+    
 }
 
 struct FileRow_Previews: PreviewProvider {

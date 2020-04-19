@@ -17,6 +17,7 @@ struct ControllerView: View {
             case .welcomeView: return AnyView(WelcomeView(lockbookApi: lockbookApi))
             case .createAccountView: return AnyView(CreateAccountView(lockbookApi: lockbookApi))
             case .listView: return AnyView(ListView(lockbookApi: lockbookApi))
+            case .createFileView: return AnyView(Text("Not supposed to be here!"))
             case .none: return AnyView(Text("Nothing!"))
         }
     }
@@ -24,6 +25,6 @@ struct ControllerView: View {
 
 struct ControllerView_Previews: PreviewProvider {
     static var previews: some View {
-        ControllerView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
+        ControllerView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: []))
     }
 }

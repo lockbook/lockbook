@@ -12,7 +12,6 @@ import SwiftUI
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     var window: UIWindow?
-    var screenCoordinator = ScreenCoordinator()
     
     var documentsDirectory: String {
         return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
@@ -26,6 +25,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Create the Lockbook Core Api with the path all our business happens
         print(documentsDirectory)
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
+        let files = lockbookApi.getAccount() != nil ? lockbookApi.updateMetadata() : []
+        let screenCoordinator = ScreenCoordinator(files: files)
         
         // Use a UIHostingController as window root view controller.
         let controllerView = ControllerView(lockbookApi: lockbookApi).environmentObject(screenCoordinator)
@@ -76,10 +77,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 final class ScreenCoordinator: ObservableObject {
     @Published var currentView: PushedItem?
+    @Published var files: [FileMetadata]
+    
+    init(files: [FileMetadata]) {
+        self._files = Published.init(initialValue: files)
+    }
     
     enum PushedItem {
         case welcomeView
         case createAccountView
         case listView
+        case createFileView
     }
 }
