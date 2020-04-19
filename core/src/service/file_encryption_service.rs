@@ -3,6 +3,7 @@ use std::option::NoneError;
 
 use rsa::RSAPublicKey;
 use serde::export::PhantomData;
+use serde::{Deserialize, Serialize};
 
 use crate::error_enum;
 use crate::model::account::Account;
@@ -12,13 +13,14 @@ use crate::service::crypto_service::{
     SymmetricCryptoService,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct AccessInfo {
     pub username: String,
     pub public_key: RSAPublicKey,
     pub access_key: EncryptedValue,
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct EncryptedFile {
     pub access_keys: HashMap<String, AccessInfo>,
     pub content: EncryptedValueWithNonce,
@@ -50,7 +52,7 @@ error_enum! {
     }
 }
 
-trait FileEncryptionService {
+pub trait FileEncryptionService {
     fn new_file(author: &Account) -> Result<EncryptedFile, FileCreationError>;
     fn write_to_file(
         author: &Account,

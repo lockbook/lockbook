@@ -16,7 +16,8 @@ struct CreateAccountView: View {
 
     var body: some View {
         VStack {
-            TextField("Username", text: $username)
+            TextField("username", text: $username)
+                .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .multilineTextAlignment(.center)
                 .padding(50)
@@ -30,15 +31,14 @@ struct CreateAccountView: View {
                     }
                 }
         }
-        .navigationBarTitle("New Lockbook")
         .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Failed to create account..."))
+            Alert(title: Text("Failed to create account!"))
         }
     }
 }
 
-struct NewLockbookView_Previews: PreviewProvider {
+struct CreateAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateAccountView(lockbookApi: FakeApi())
+        CreateAccountView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
     }
 }
