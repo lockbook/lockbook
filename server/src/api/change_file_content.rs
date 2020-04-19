@@ -8,12 +8,6 @@ use rocket::Response;
 use rocket::State;
 use std::io::Cursor;
 
-#[derive(Debug)]
-pub enum Error {
-    IndexDbUpdateFileVersion(index_db::update_file_version::Error),
-    FilesDbUpdateCreateFile(files_db::create_file::Error),
-}
-
 #[derive(FromForm, Debug)]
 pub struct ChangeFileContent {
     pub username: String,

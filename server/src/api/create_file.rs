@@ -8,13 +8,6 @@ use rocket::Response;
 use rocket::State;
 use std::io::Cursor;
 
-#[derive(Debug)]
-pub enum Error {
-    IndexDb(index_db::create_file::Error),
-    FilesDb(files_db::create_file::Error),
-    FileAlreadyExists(()),
-}
-
 #[derive(FromForm, Debug)]
 pub struct CreateFile {
     pub username: String,
