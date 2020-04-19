@@ -1,12 +1,11 @@
+use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
 use lockbook_core::lockbook_api::CreateFileResponse;
-use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use std::io::Cursor;
 
 #[derive(FromForm, Debug)]
 pub struct CreateFile {
@@ -78,16 +77,11 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
 }
 
 fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
-    Response::build()
-        .status(
-            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
-        )
-        .sized_body(Cursor::new(
-            serde_json::to_string(&CreateFileResponse {
-                error_code: String::from(error_code),
-                current_version: current_version as u64,
-            })
-            .expect("Failed to json-serialize response!"),
-        ))
-        .finalize()
+    make_response_generic(
+        http_code,
+        CreateFileResponse {
+            error_code: String::from(error_code),
+            current_version: current_version as u64,
+        },
+    )
 }
