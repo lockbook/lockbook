@@ -57,11 +57,8 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
-// static FAILURE_META_UPDATE: &str = "FAILURE<META_UPDATE>";
 
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
-// static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
-// static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
 
 #[allow(dead_code)]
 fn info(msg: String) {
@@ -261,7 +258,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn load_account(
+pub unsafe extern "C" fn import_account(
     c_path: *const c_char,
     c_username: *const c_char,
     c_key: *const c_char,
@@ -272,7 +269,7 @@ pub unsafe extern "C" fn load_account(
     };
     let username = string_from_ptr(c_username);
     let key_string = string_from_ptr(c_key);
-    match DefaultAcountService::load_account(&db, username, key_string) {
+    match DefaultAcountService::import_account(&db, username, key_string) {
         Ok(acc) => {
             debug(format!("Loaded account: {:?}", acc));
             1

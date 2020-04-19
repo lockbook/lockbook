@@ -15,14 +15,14 @@ error_enum! {
         ConnectionFailure(db_provider::Error),
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
-        ApiError(client::ClientError),
+        ApiError(client::NewAccountError),
         KeySerializationError(serde_json::error::Error),
     }
 }
 
 pub trait AccountService {
     fn create_account(db: &Db, username: String) -> Result<Account, Error>;
-    fn load_account(db: &Db, username: String, key_string: String) -> Result<Account, Error>;
+    fn import_account(db: &Db, username: String, key_string: String) -> Result<Account, Error>;
 }
 
 pub struct AccountServiceImpl<
@@ -61,7 +61,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> Acc
         Ok(account)
     }
 
-    fn load_account(db: &Db, username: String, key_string: String) -> Result<Account, Error> {
+    fn import_account(db: &Db, username: String, key_string: String) -> Result<Account, Error> {
         let keys = serde_json::from_str(key_string.as_str())?;
         let account = Account { username, keys };
 

@@ -18,11 +18,16 @@ error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
-        ApiError(client::ClientError),
         FileRepoError(repo::file_repo::Error),
         MetadataRepoError(repo::file_metadata_repo::Error),
         SerderError(serde_json::error::Error),
         FileCreateError(file_encryption_service::FileCreationError),
+        // TODO: Handle errors
+        NewAccountError(client::NewAccountError),
+        GetUpdatesError(client::GetUpdatesError),
+        GetFileError(client::GetFileError),
+        CreateFileError(client::CreateFileError),
+        ChangeFileContentError(client::ChangeFileContentError),
     }
 }
 
@@ -171,8 +176,9 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{
-        ChangeFileContentRequest, Client, ClientError, CreateFileRequest, FileMetadata,
-        GetFileRequest, GetUpdatesRequest, NewAccountRequest,
+        ChangeFileContentError, ChangeFileContentRequest, Client, CreateFileError,
+        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
+        GetUpdatesRequest, NewAccountError, NewAccountRequest,
     };
     use crate::debug;
     use crate::model::account::Account;
@@ -289,11 +295,11 @@ mod unit_tests {
 
     struct ClientFake;
     impl Client for ClientFake {
-        fn new_account(_params: &NewAccountRequest) -> Result<(), ClientError> {
+        fn new_account(_params: &NewAccountRequest) -> Result<(), NewAccountError> {
             Ok(())
         }
 
-        fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
+        fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError> {
             let mut metas = vec![
                 FileMetadata {
                     file_id: "some_uuid_1".to_string(),
@@ -324,7 +330,7 @@ mod unit_tests {
             Ok(metas)
         }
 
-        fn get_file(_params: &GetFileRequest) -> Result<EncryptedFile, ClientError> {
+        fn get_file(_params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
             Ok(EncryptedFile {
                 access_keys: Default::default(),
                 content: EncryptedValueWithNonce {
@@ -338,12 +344,12 @@ mod unit_tests {
             })
         }
 
-        fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
+        fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
             debug(format!("Uploading to server {:?}", params));
             Ok(1)
         }
 
-        fn change_file(_params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
+        fn change_file(_params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError> {
             unimplemented!()
         }
     }

@@ -12,7 +12,6 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        SystemTimeError(std::time::SystemTimeError),
         FileRowMissing(NoneError),
     }
 }
@@ -68,13 +67,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn last_updated(db: &Db) -> Result<u64, Error> {
-        Ok(Self::get_all(db)?.iter().fold(0, |max, meta| {
-            // if meta.status != Status::Local {
-            max.max(meta.updated_at)
-            // } else {
-            //     max
-            // }
-        }))
+        Ok(Self::get_all(db)?
+            .iter()
+            .fold(0, |max, meta| max.max(meta.updated_at)))
     }
 
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, Error> {

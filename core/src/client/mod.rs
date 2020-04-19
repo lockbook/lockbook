@@ -21,40 +21,31 @@ pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, Ren
 use crate::service::file_encryption_service::EncryptedFile;
 use crate::{API_LOC, BUCKET_LOC};
 
-#[derive(Debug)]
-pub enum ClientError {
-    CreateAccount(NewAccountError),
-    GetUpdates(GetUpdatesError),
-    CreateFile(CreateFileError),
-    UpdateFile(ChangeFileContentError),
-    GetFile(GetFileError),
-}
-
 pub trait Client {
-    fn new_account(params: &NewAccountRequest) -> Result<(), ClientError>;
-    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError>;
-    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, ClientError>;
-    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError>;
-    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError>;
+    fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError>;
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError>;
+    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
+    fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
+    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
 }
 
 pub struct ClientImpl;
 impl Client for ClientImpl {
-    fn new_account(params: &NewAccountRequest) -> Result<(), ClientError> {
-        new_account(API_LOC.to_string(), params).map_err(|err| ClientError::CreateAccount(err))
+    fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError> {
+        new_account(API_LOC.to_string(), params)
     }
 
-    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError> {
-        get_updates(API_LOC.to_string(), params).map_err(|err| ClientError::GetUpdates(err))
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+        get_updates(API_LOC.to_string(), params)
     }
 
-    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, ClientError> {
-        get_file(BUCKET_LOC.to_string(), params).map_err(|err| ClientError::GetFile(err))
+    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
+        get_file(BUCKET_LOC.to_string(), params)
     }
-    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
-        create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
+    fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
+        create_file(API_LOC.to_string(), params)
     }
-    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
-        change_file_content(API_LOC.to_string(), params).map_err(|err| ClientError::UpdateFile(err))
+    fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError> {
+        change_file_content(API_LOC.to_string(), params)
     }
 }

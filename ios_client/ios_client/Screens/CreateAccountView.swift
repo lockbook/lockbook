@@ -40,7 +40,7 @@ struct CreateAccountView: View {
             
             MonokaiButton(text: "Load Account")
                 .onTapGesture {
-                    if (self.lockbookApi.loadAccount(username: self.username, keyString: self.keyString)) {
+                    if (self.lockbookApi.importAccount(username: self.username, keyString: self.keyString)) {
                         self.screenCoordinator.files = self.lockbookApi.updateMetadata()
                         self.screenCoordinator.currentView = .listView
                     } else {
