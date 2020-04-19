@@ -11,7 +11,6 @@ import SwiftUI
 struct CreateFileView: View {
     var lockbookApi: LockbookApi
     @State private var fileName: String = ""
-    @State private var filePath: String = ""
     @State private var showingAlert = false
     @EnvironmentObject var screenCoordinator: ScreenCoordinator
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
@@ -24,16 +23,9 @@ struct CreateFileView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 50)
                 
-            TextField("path", text: $filePath)
-                .autocapitalization(.none)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 50)
-                .padding(.bottom, 50)
-            
             MonokaiButton(text: "Create File")
                 .onTapGesture {
-                    if let file = self.lockbookApi.createFile(name: self.fileName, path: self.filePath) {
+                    if let file = self.lockbookApi.createFile(name: self.fileName) {
                         print("File created \(file)")
                         self.screenCoordinator.files = self.lockbookApi.updateMetadata()
                         self.presentationMode.wrappedValue.dismiss()
@@ -42,7 +34,6 @@ struct CreateFileView: View {
                     }
                 }
         }
-        .navigationBarTitle("New File")
         .alert(isPresented: $showingAlert) {
             Alert(title: Text("Failed to create file!"))
         }

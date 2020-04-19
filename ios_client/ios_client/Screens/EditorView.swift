@@ -21,12 +21,11 @@ struct EditorView: View {
             VStack(alignment: .leading) {
                 Text("id: \(metadata.id)")
                 Text("path: \(metadata.path)")
-                Text("updatedAt: \(intEpochToString(unixTime: metadata.updatedAt))")
-                Text("version: \(intEpochToString(unixTime: metadata.version))")
+                Text("updatedAt: \(intEpochToString(micros: metadata.updatedAt))")
+                Text("version: \(intEpochToString(micros: metadata.version))")
                 Text("status: \(metadata.status.rawValue)")
             }
         }
-        .navigationBarTitle(metadata.name)
         .alert(isPresented: $showingAlert) {
             Alert(title: Text("Failed to get/update file!"))
         }
@@ -64,14 +63,6 @@ struct EditorView: View {
             self._content = State.init(initialValue: "")
         }
     }
-}
-
-func intEpochToString(unixTime: Int) -> String {
-    let date = Date(timeIntervalSince1970: TimeInterval(unixTime))
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy/mm/dd hh:mm: a"
-    return formatter.string(from: date)
-    
 }
 
 struct TextView: UIViewRepresentable {
@@ -119,7 +110,7 @@ struct TextView: UIViewRepresentable {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(ScreenCoordinator(files: []))
+            EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(ScreenCoordinator())
         }
     }
 }

@@ -25,6 +25,6 @@ struct ControllerView: View {
 
 struct ControllerView_Previews: PreviewProvider {
     static var previews: some View {
-        ControllerView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: []))
+        ControllerView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
     }
 }
