@@ -131,7 +131,7 @@ impl PubKeyCryptoService for RsaImpl {
 }
 
 #[cfg(test)]
-mod unit_test {
+mod unit_test_pubkey {
     use crate::service::crypto_service::{DecryptedValue, PubKeyCryptoService, RsaImpl};
 
     use super::rsa::RSAPrivateKey;
@@ -182,6 +182,7 @@ pub struct EncryptedValueWithNonce {
     pub nonce: String,
 }
 
+#[derive(Debug)]
 pub struct AesKey {
     pub key: String,
 }
@@ -225,7 +226,7 @@ pub struct AesImpl;
 
 impl SymmetricCryptoService for AesImpl {
     fn generate_key() -> AesKey {
-        let mut random_bytes = [0u8; 256];
+        let mut random_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut random_bytes);
 
         AesKey {
@@ -265,9 +266,29 @@ impl SymmetricCryptoService for AesImpl {
         let decoded_nonce = base64::decode(&encrypted.nonce)?;
 
         let nonce = GenericArray::clone_from_slice(&decoded_nonce);
-        let secret = key.decrypt(&nonce, encrypted.garbage.as_ref())?;
+        let ciphertext = base64::decode(&encrypted.garbage)?;
+        let secret = key.decrypt(&nonce, ciphertext.as_ref())?;
         let string = String::from_utf8(secret.to_vec())?;
 
         Ok(DecryptedValue { secret: string })
+    }
+}
+
+#[cfg(test)]
+mod unit_test_symmetric {
+    use crate::service::crypto_service::{AesImpl, DecryptedValue, SymmetricCryptoService};
+
+    #[test]
+    fn test_key_generation() {
+        let key = AesImpl::generate_key();
+        let encrypted = AesImpl::encrypt(
+            &key,
+            &DecryptedValue {
+                secret: "test".to_string(),
+            },
+        )
+        .unwrap();
+        let decrypted = AesImpl::decrypt(&key, &encrypted).unwrap();
+        assert_eq!("test", decrypted.secret)
     }
 }
