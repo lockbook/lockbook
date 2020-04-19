@@ -57,7 +57,7 @@ pub fn change_file_content(
     );
     match create_file_result {
         Ok(()) => make_response(200, "ok", new_version),
-        Err(files_db::create_file::Error::S3(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", create_file_result);
             make_response(500, "internal_error", 0)
         }

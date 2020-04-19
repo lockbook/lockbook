@@ -1,16 +1,9 @@
+use crate::files_db::categorized_s3_error;
 use s3::bucket::Bucket as S3Client;
 
-#[derive(Debug)]
-pub enum Error {
-    S3OperationUnsuccessful((u16, String)),
-}
-
-pub fn delete_file(client: &S3Client, file_id: &str) -> Result<(), Error> {
-    match client.delete_object(&format!("/{}", file_id)).unwrap() {
+pub fn delete_file(client: &S3Client, file_id: &str) -> Result<(), categorized_s3_error::Error> {
+    match client.delete_object(&format!("/{}", file_id))? {
         (_, 204) => Ok(()),
-        (body, status_code) => Err(Error::S3OperationUnsuccessful((
-            status_code,
-            String::from_utf8(body).unwrap(),
-        ))),
+        (body, _) => Err(categorized_s3_error::Error::from(body)),
     }
 }

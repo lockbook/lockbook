@@ -43,7 +43,7 @@ pub fn delete_file(server_state: State<ServerState>, delete_file: Form<DeleteFil
         files_db::delete_file(&locked_files_db_client, &delete_file.file_id);
     match filed_db_delete_file_result {
         Ok(()) => make_response(200, "ok"),
-        Err(files_db::delete_file::Error::S3OperationUnsuccessful(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", filed_db_delete_file_result);
             make_response(500, "internal_error")
         }

@@ -26,11 +26,7 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
         files_db::get_file_details(&locked_files_db_client, &create_file.file_id);
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
-        Err(files_db::get_file_details::Error::S3ConnectionFailed(_)) => {
-            println!("Internal server error! {:?}", get_file_details_result);
-            return make_response(500, "internal_error", 0);
-        }
-        Err(files_db::get_file_details::Error::S3OperationUnsuccessful(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", get_file_details_result);
             return make_response(500, "internal_error", 0);
         }
@@ -69,7 +65,7 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
     );
     match files_db_create_file_result {
         Ok(()) => make_response(201, "ok", new_version),
-        Err(files_db::create_file::Error::S3(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", files_db_create_file_result);
             make_response(500, "internal_error", 0)
         }
