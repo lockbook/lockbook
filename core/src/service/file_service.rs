@@ -82,7 +82,7 @@ impl<
         info(format!("Getting file contents {:?}", &id));
         let account = AccountDb::get_account(db)?;
         let encrypted_file = FileDb::get(db, &id)?;
-        let decrypted_file = FileCrypto::read_file(&account, encrypted_file)?;
+        let decrypted_file = FileCrypto::read_file(&account, &encrypted_file)?;
         Ok(decrypted_file)
     }
 }

@@ -13,7 +13,6 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::{client, debug, error, error_enum, info};
 use sled::Db;
-use std::borrow::Borrow;
 
 error_enum! {
     enum Error {
@@ -365,7 +364,7 @@ mod unit_tests {
 
         fn read_file(
             _key: &Account,
-            _file: EncryptedFile,
+            _file: &EncryptedFile,
         ) -> Result<DecryptedValue, UnableToReadFile> {
             unimplemented!()
         }
