@@ -9,14 +9,14 @@ use serde_json::json;
 use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::model::file::File;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
-use crate::service::crypto_service::RsaImpl;
+use crate::service::crypto_service::{AesImpl, RsaImpl};
+use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use crate::service::file_service::{FileService, FileServiceImpl};
 
@@ -31,19 +31,27 @@ static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
 type DefaultCrypto = RsaImpl;
+type DefaultSymmetric = AesImpl;
 type DefaultDbProvider = DiskBackedDB;
 type DefaultClient = ClientImpl;
 type DefaultAcountRepo = AccountRepoImpl;
 type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileRepo = FileRepoImpl;
+type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 type DefaultFileMetadataService = FileMetadataServiceImpl<
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAcountRepo,
     DefaultClient,
+    DefaultFileEncryptionService,
 >;
-type DefaultFileService = FileServiceImpl<DefaultFileMetadataRepo, DefaultFileRepo>;
+type DefaultFileService = FileServiceImpl<
+    DefaultFileMetadataRepo,
+    DefaultFileRepo,
+    DefaultAcountRepo,
+    DefaultFileEncryptionService,
+>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
@@ -52,7 +60,7 @@ static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 // static FAILURE_META_UPDATE: &str = "FAILURE<META_UPDATE>";
 
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
-static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
+// static FAILURE_FILE_CREATE: &str = "FAILURE<FILE_CREATE>";
 // static FAILURE_FILE_UPDATE: &str = "FAILURE<FILE_UPDATE>";
 
 #[allow(dead_code)]
@@ -188,21 +196,7 @@ pub unsafe extern "C" fn create_file(
     let file_path = string_from_ptr(c_file_path);
 
     match DefaultFileMetadataService::create(&db, file_name, file_path) {
-        Ok(meta) => {
-            match DefaultFileRepo::update(
-                &db,
-                &File {
-                    id: format!("{}", meta.id),
-                    content: "".to_string(),
-                },
-            ) {
-                Ok(_) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
-                Err(err) => {
-                    error(format!("Failed to create file! Error: {:?}", err));
-                    CString::new(FAILURE_FILE_CREATE).unwrap().into_raw()
-                }
-            }
-        }
+        Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             error(format!("Failed to create file metadata! Error: {:?}", err));
             CString::new(FAILURE_META_CREATE).unwrap().into_raw()

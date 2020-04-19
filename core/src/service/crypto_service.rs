@@ -5,6 +5,7 @@ use std::string::FromUtf8Error;
 
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error_enum;
@@ -14,16 +15,17 @@ use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct EncryptedValue {
     pub garbage: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct DecryptedValue {
     pub secret: String,
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct SignedValue {
     pub content: String,
     pub signature: String,
@@ -173,7 +175,7 @@ mod unit_test {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct EncryptedValueWithNonce {
     pub garbage: String,
     // https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/

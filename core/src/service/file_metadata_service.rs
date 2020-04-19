@@ -9,6 +9,8 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
+use crate::service::file_encryption_service;
+use crate::service::file_encryption_service::FileEncryptionService;
 use crate::{client, debug, error, error_enum, info};
 use sled::Db;
 use std::borrow::Borrow;
@@ -20,6 +22,8 @@ error_enum! {
         ApiError(client::ClientError),
         FileRepoError(repo::file_repo::Error),
         MetadataRepoError(repo::file_metadata_repo::Error),
+        SerderError(serde_json::error::Error),
+        FileCreateError(file_encryption_service::FileCreationError),
     }
 }
 
@@ -33,11 +37,13 @@ pub struct FileMetadataServiceImpl<
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
+    FileCrypto: FileEncryptionService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
+    file_crypto: PhantomData<FileCrypto>,
 }
 
 impl<
@@ -45,8 +51,9 @@ impl<
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
+        FileCrypto: FileEncryptionService,
     > FileMetadataService
-    for FileMetadataServiceImpl<FileMetadataDb, FileDb, AccountDb, ApiClient>
+    for FileMetadataServiceImpl<FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
 {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         // Load user's account
@@ -101,7 +108,7 @@ impl<
         let updates_local_res = updates_local
             .iter()
             .map(|file| -> Result<FileMetadata, Error> {
-                let content = FileDb::get(db, file.id.borrow())?.content;
+                let content = serde_json::to_string(&FileDb::get(db, file.id.borrow())?.content)?;
                 let new_version = ApiClient::change_file(&ChangeFileContentRequest {
                     username: account.username.to_string(),
                     auth: "JUNK_AUTH".to_string(),
@@ -132,7 +139,7 @@ impl<
                 let content = ApiClient::get_file(&GetFileRequest {
                     file_id: meta.file_id.to_string(),
                 })?;
-                FileDb::update(db, &content)?;
+                FileDb::update(db, &meta.file_id, &content)?;
                 Ok(FileMetadataDb::update(
                     db,
                     &FileMetadata {
@@ -154,7 +161,10 @@ impl<
     }
 
     fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error> {
+        let account = AccountDb::get_account(db)?;
+        let encrypted_file = FileCrypto::new_file(&account)?;
         let meta = FileMetadataDb::insert(&db, &name, &path)?;
+        FileDb::update(db, &meta.id, &encrypted_file)?;
         Ok(meta)
     }
 }
@@ -167,7 +177,6 @@ mod unit_tests {
     };
     use crate::debug;
     use crate::model::account::Account;
-    use crate::model::file::File;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
     use crate::model::state::Config;
@@ -176,7 +185,12 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_repo::FileRepo;
     use crate::repo::{account_repo, file_metadata_repo, file_repo};
-    use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
+    use crate::service::crypto_service::{
+        DecryptedValue, EncryptedValueWithNonce, PubKeyCryptoService, RsaImpl, SignedValue,
+    };
+    use crate::service::file_encryption_service::{
+        EncryptedFile, FileCreationError, FileEncryptionService, FileWriteError, UnableToReadFile,
+    };
     use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use sled::Db;
 
@@ -247,11 +261,11 @@ mod unit_tests {
 
     struct FileRepoFake;
     impl FileRepo for FileRepoFake {
-        fn update(_db: &Db, _file: &File) -> Result<(), file_repo::Error> {
+        fn update(_db: &Db, _id: &String, _file: &EncryptedFile) -> Result<(), file_repo::Error> {
             Ok(())
         }
 
-        fn get(_db: &Db, _id: &String) -> Result<File, file_repo::Error> {
+        fn get(_db: &Db, _id: &String) -> Result<EncryptedFile, file_repo::Error> {
             unimplemented!()
         }
 
@@ -311,10 +325,17 @@ mod unit_tests {
             Ok(metas)
         }
 
-        fn get_file(params: &GetFileRequest) -> Result<File, ClientError> {
-            Ok(File {
-                id: params.file_id.to_string(),
-                content: "SOME CONTENT".to_string(),
+        fn get_file(_params: &GetFileRequest) -> Result<EncryptedFile, ClientError> {
+            Ok(EncryptedFile {
+                access_keys: Default::default(),
+                content: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+                last_edited: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
             })
         }
 
@@ -328,9 +349,36 @@ mod unit_tests {
         }
     }
 
+    struct FakeFileEncryptionService;
+    impl FileEncryptionService for FakeFileEncryptionService {
+        fn new_file(_author: &Account) -> Result<EncryptedFile, FileCreationError> {
+            unimplemented!()
+        }
+
+        fn write_to_file(
+            _author: &Account,
+            _file_before: &EncryptedFile,
+            _content: &DecryptedValue,
+        ) -> Result<EncryptedFile, FileWriteError> {
+            unimplemented!()
+        }
+
+        fn read_file(
+            _key: &Account,
+            _file: EncryptedFile,
+        ) -> Result<DecryptedValue, UnableToReadFile> {
+            unimplemented!()
+        }
+    }
+
     type DefaultDbProvider = TempBackedDB;
-    type DefaultFileMetadataService =
-        FileMetadataServiceImpl<FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
+    type DefaultFileMetadataService = FileMetadataServiceImpl<
+        FileMetaRepoFake,
+        FileRepoFake,
+        AccountRepoFake,
+        ClientFake,
+        FakeFileEncryptionService,
+    >;
 
     #[test]
     fn test_sync() {

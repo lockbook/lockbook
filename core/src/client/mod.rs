@@ -18,7 +18,7 @@ pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdat
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
-use crate::model::file::File;
+use crate::service::file_encryption_service::EncryptedFile;
 use crate::{API_LOC, BUCKET_LOC};
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ pub enum ClientError {
 pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), ClientError>;
     fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, ClientError>;
-    fn get_file(params: &GetFileRequest) -> Result<File, ClientError>;
+    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, ClientError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError>;
 }
@@ -52,7 +52,7 @@ impl Client for ClientImpl {
     fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
         create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
     }
-    fn get_file(params: &GetFileRequest) -> Result<File, ClientError> {
+    fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, ClientError> {
         get_file(BUCKET_LOC.to_string(), params).map_err(|err| ClientError::GetFile(err))
     }
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
