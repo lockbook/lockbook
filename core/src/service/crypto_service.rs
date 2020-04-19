@@ -274,19 +274,22 @@ impl SymmetricCryptoService for AesImpl {
 
 #[cfg(test)]
 mod unit_test_symmetric {
+    use uuid::Uuid;
+
     use crate::service::crypto_service::{AesImpl, DecryptedValue, SymmetricCryptoService};
 
     #[test]
     fn test_key_generation() {
         let key = AesImpl::generate_key();
+        let test_value = Uuid::new_v4().to_string();
         let encrypted = AesImpl::encrypt(
             &key,
             &DecryptedValue {
-                secret: "test".to_string(),
+                secret: test_value.clone(),
             },
         )
         .unwrap();
         let decrypted = AesImpl::decrypt(&key, &encrypted).unwrap();
-        assert_eq!("test", decrypted.secret)
+        assert_eq!(test_value, decrypted.secret)
     }
 }
