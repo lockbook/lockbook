@@ -22,8 +22,13 @@ struct ListView: View {
                     }
                 }
                 .navigationBarTitle("\(self.username)'s Files")
-                .navigationBarItems(trailing:
-                    NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
+                .navigationBarItems(
+                    leading: Button(action: {
+                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
+                    }, label: {
+                        Image(systemName: "arrow.2.circlepath")
+                    }),
+                    trailing: NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
                         Image(systemName: "plus")
                     }
                 )
@@ -77,6 +82,6 @@ struct ListView: View {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: [])).colorScheme(.dark)
+        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
     }
 }

@@ -29,7 +29,7 @@ struct WelcomeView: View {
                 NavigationLink(destination: CreateAccountView(lockbookApi: self.lockbookApi)) {
                     MonokaiButton(text: "New Lockbook")
                 }
-                NavigationLink(destination: Text("Unimplemented!")) {
+                NavigationLink(destination: ImportAccountView(lockbookApi: self.lockbookApi)) {
                     MonokaiButton(text: "Import Lockbook")
                 }
             }
