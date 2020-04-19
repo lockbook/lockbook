@@ -108,7 +108,7 @@ impl<
         let updates_local_res = updates_local
             .iter()
             .map(|file| -> Result<FileMetadata, Error> {
-                let content = serde_json::to_string(&FileDb::get(db, file.id.borrow())?.content)?;
+                let content = serde_json::to_string(&FileDb::get(db, &file.id)?)?;
                 let new_version = ApiClient::change_file(&ChangeFileContentRequest {
                     username: account.username.to_string(),
                     auth: "JUNK_AUTH".to_string(),

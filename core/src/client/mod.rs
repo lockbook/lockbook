@@ -39,7 +39,6 @@ pub trait Client {
 }
 
 pub struct ClientImpl;
-
 impl Client for ClientImpl {
     fn new_account(params: &NewAccountRequest) -> Result<(), ClientError> {
         new_account(API_LOC.to_string(), params).map_err(|err| ClientError::CreateAccount(err))
@@ -49,11 +48,11 @@ impl Client for ClientImpl {
         get_updates(API_LOC.to_string(), params).map_err(|err| ClientError::GetUpdates(err))
     }
 
-    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
-        create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
-    }
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, ClientError> {
         get_file(BUCKET_LOC.to_string(), params).map_err(|err| ClientError::GetFile(err))
+    }
+    fn create_file(params: &CreateFileRequest) -> Result<u64, ClientError> {
+        create_file(API_LOC.to_string(), params).map_err(|err| ClientError::CreateFile(err))
     }
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ClientError> {
         change_file_content(API_LOC.to_string(), params).map_err(|err| ClientError::UpdateFile(err))
