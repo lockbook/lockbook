@@ -9,11 +9,10 @@
 import SwiftUI
 
 struct ImportAccountView: View {
-    var lockbookApi: LockbookApi
     @State private var username: String = ""
     @State private var keyString: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+    @EnvironmentObject var screenCoordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -31,12 +30,12 @@ struct ImportAccountView: View {
            
             MonokaiButton(text: "Load Account")
                 .onTapGesture {
-                if (self.lockbookApi.importAccount(username: self.username, keyString: self.keyString)) {
-                    self.screenCoordinator.files = self.lockbookApi.updateMetadata()
-                   self.screenCoordinator.currentView = .listView
-                } else {
-                   self.showingAlert = true
-                }
+                    if (self.screenCoordinator.importAccount(username: self.username, keyString: self.keyString)) {
+                        self.screenCoordinator.sync()
+                        self.screenCoordinator.currentView = .listView
+                    } else {
+                        self.showingAlert = true
+                    }
             }
         }
         .alert(isPresented: $showingAlert) {
@@ -47,6 +46,6 @@ struct ImportAccountView: View {
 
 struct ImportAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        ImportAccountView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(lockbookApi: FakeApi()))
+        ImportAccountView().environmentObject(Coordinator(lockbookApi: FakeApi()))
     }
 }

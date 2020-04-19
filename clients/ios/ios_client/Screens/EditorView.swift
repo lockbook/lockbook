@@ -9,11 +9,10 @@
 import SwiftUI
 
 struct EditorView: View {
-    let lockbookApi: LockbookApi
     let metadata: FileMetadata
     @State var content: String
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+    @EnvironmentObject var screenCoordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -30,20 +29,18 @@ struct EditorView: View {
             Alert(title: Text("Failed to get/update file!"))
         }
         .onAppear {
-            print("Editor -- Appearing")
-            if let file = self.lockbookApi.getFile(id: self.metadata.id) {
+            if let file = self.screenCoordinator.getFile(id: self.metadata.id) {
                 self.content = file.secret
             } else {
                 print("Could not load \(self.metadata)")
             }
         }
         .onDisappear {
-            print("Editor -- Disappearing")
-            if let file = self.lockbookApi.getFile(id: self.metadata.id) {
+            if let file = self.screenCoordinator.getFile(id: self.metadata.id) {
                 if file.secret != self.content {
-                    if (self.lockbookApi.updateFile(id: self.metadata.id, content: self.content)) {
+                    if (self.screenCoordinator.updateFile(id: self.metadata.id, content: self.content)) {
                         print("Updated \(self.metadata)")
-                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
+                        self.screenCoordinator.sync()
                     } else {
                         self.showingAlert = true
                     }
@@ -54,10 +51,9 @@ struct EditorView: View {
         }
     }
     
-    init(lockbookApi: LockbookApi, metadata: FileMetadata) {
-        self.lockbookApi = lockbookApi
+    init(screenCoordinator: Coordinator, metadata: FileMetadata) {
         self.metadata = metadata
-        if let file = lockbookApi.getFile(id: metadata.id) {
+        if let file = screenCoordinator.getFile(id: metadata.id) {
             self._content = State.init(initialValue: file.secret)
         } else {
             self._content = State.init(initialValue: "")
@@ -110,7 +106,7 @@ struct TextView: UIViewRepresentable {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorView(lockbookApi: FakeApi(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(ScreenCoordinator())
+            EditorView(screenCoordinator: Coordinator(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(Coordinator())
         }
     }
 }

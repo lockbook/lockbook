@@ -25,14 +25,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Create the Lockbook Core Api with the path all our business happens
         print(documentsDirectory)
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
-        let screenCoordinator = ScreenCoordinator(lockbookApi: lockbookApi)
+        let screenCoordinator = Coordinator(lockbookApi: lockbookApi)
+        let debugger = Debugger(lockbookApi: lockbookApi)
         
         // Use a UIHostingController as window root view controller.
-        let controllerView = ControllerView(lockbookApi: lockbookApi).environmentObject(screenCoordinator)
+        let controllerView = ControllerView().environmentObject(screenCoordinator).environmentObject(debugger)
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
-            if let username = lockbookApi.getAccount() {
-                print("User \(username) loaded!")
+            if let _ = lockbookApi.getAccount() {
                 screenCoordinator.currentView = .listView
             } else {
                 screenCoordinator.currentView = .welcomeView
@@ -72,35 +72,4 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     
-}
-
-final class ScreenCoordinator: ObservableObject {
-    @Published var currentView: PushedItem?
-    @Published var files: [FileMetadata]
-    private var timer: Timer
-    private var lockbookApi: LockbookApi
-    
-    init() {
-        self.lockbookApi = FakeApi()
-        self._files = Published.init(initialValue: self.lockbookApi.updateMetadata())
-        self.timer = Timer()
-    }
-    
-    init(lockbookApi: LockbookApi) {
-        self._files = Published.init(initialValue: [])
-        self.timer = Timer()
-        self.lockbookApi = lockbookApi
-        self.timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
-            if let _ = lockbookApi.getAccount() {
-                self.files = lockbookApi.updateMetadata()
-            }
-        })
-    }
-    
-    enum PushedItem {
-        case welcomeView
-        case createAccountView
-        case listView
-        case createFileView
-    }
 }

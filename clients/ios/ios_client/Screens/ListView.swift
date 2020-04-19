@@ -9,79 +9,34 @@
 import SwiftUI
 
 struct ListView: View {
-    var lockbookApi: LockbookApi
-    var username: String
-    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+    @EnvironmentObject var screenCoordinator: Coordinator
 
     var body: some View {
-        VStack {
-            NavigationView {
-                List {
-                    ForEach(self.screenCoordinator.files) { file in
-                        FileRow(lockbookApi: self.lockbookApi, metadata: file)
-                    }
+        NavigationView {
+            List {
+                ForEach(self.screenCoordinator.files) { file in
+                    FileRow(metadata: file)
                 }
-                .navigationBarTitle("\(self.username)'s Files")
-                .navigationBarItems(
-                    leading: Button(action: {
-                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
-                    }, label: {
-                        Image(systemName: "arrow.2.circlepath")
-                    }),
-                    trailing: NavigationLink(destination: CreateFileView(lockbookApi: self.lockbookApi)) {
-                        Image(systemName: "plus")
-                    }
-                )
-                .onAppear {
-                    print("List -- Appearing")
+                .onDelete { offset in
+                    let meta = self.screenCoordinator.files.remove(at: offset.first!)
+                    print("Deleting", meta)
                 }
-                .onDisappear {
-                    print("List -- Disappearing")
-                }
-
             }
-            HStack {
-                Spacer()
-                Button(action: {
-                    print("Purging files...")
-                    let _ = self.lockbookApi.purgeFiles()
-                    self.screenCoordinator.files = self.lockbookApi.updateMetadata()
-                }) {
-                    HStack {
-                        Image(systemName: "flame")
-                        Text("Purge")
-                        Image(systemName: "flame")
-                    }
-                    .foregroundColor(.red)
+            .navigationBarTitle("\(self.screenCoordinator.username)'s Files")
+            .navigationBarItems(
+                leading: NavigationLink(destination: DebugView()) {
+                    Image(systemName: "circle.grid.hex")
+                },
+                trailing: NavigationLink(destination: CreateFileView()) {
+                    Image(systemName: "plus")
                 }
-                Spacer()
-                Button(action: {
-                    print("Logging out...")
-                }) {
-                    HStack {
-                        Image(systemName: "person.badge.minus")
-                        Text("Logout")
-                        Image(systemName: "person.badge.minus")
-                    }
-                    .foregroundColor(.yellow)
-                }
-                Spacer()
-            }
-        }
-    }
-    
-    init(lockbookApi: LockbookApi) {
-        self.lockbookApi = lockbookApi
-        if let username = lockbookApi.getAccount() {
-            self.username = username
-        } else {
-            self.username = "<USERNAME>"
+            )
         }
     }
 }
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
+        ListView().environmentObject(Coordinator())
     }
 }

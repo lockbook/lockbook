@@ -9,13 +9,13 @@
 import SwiftUI
 
 struct FileRow: View {
-    var lockbookApi: LockbookApi
     var metadata: FileMetadata
     var color: Color
     var image: Image
-    
+    @EnvironmentObject var screenCoordinator: Coordinator
+
     var body: some View {
-        NavigationLink(destination: EditorView(lockbookApi: lockbookApi, metadata: metadata)) {
+        NavigationLink(destination: EditorView(screenCoordinator: self.screenCoordinator, metadata: metadata)) {
             HStack {
                 VStack {
                     HStack {
@@ -24,7 +24,7 @@ struct FileRow: View {
                         Spacer()
                     }
                     HStack {
-                        Text("Last updated \(intEpochToString(micros: metadata.updatedAt))")
+                        Text("Last synced \(intEpochToString(micros: metadata.version))")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -32,18 +32,15 @@ struct FileRow: View {
                 }
                 Spacer()
                 ZStack {
-                    Rectangle()
-                        .fill(Color.primary)
-                        .frame(width: 50, height: 30)
                     self.image
                         .foregroundColor(self.color)
+                        .frame(width: 50, height: 30)
                 }
             }
         }
     }
     
-    init(lockbookApi: LockbookApi, metadata: FileMetadata) {
-        self.lockbookApi = lockbookApi
+    init(metadata: FileMetadata) {
         self.metadata = metadata
         switch metadata.status {
             case .New:
@@ -67,7 +64,7 @@ struct FileRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             ForEach(FakeApi().updateMetadata()) { meta in
-                FileRow(lockbookApi: FakeApi(), metadata: meta)
+                FileRow(metadata: meta)
             }
         }
         .previewLayout(.fixed(width: 300, height: 50))
