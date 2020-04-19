@@ -9,6 +9,7 @@ use serde_json::json;
 use sled::Db;
 
 use crate::client::ClientImpl;
+use crate::model::file::File;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
@@ -258,4 +259,28 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
         Err(err) => error(format!("Failed to delete file! Error: {:?}", err)),
     }
     1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn load_account(
+    c_path: *const c_char,
+    c_username: *const c_char,
+    c_key: *const c_char,
+) -> c_int {
+    let db = match connect_db(c_path) {
+        None => return 0,
+        Some(db) => db,
+    };
+    let username = string_from_ptr(c_username);
+    let key_string = string_from_ptr(c_key);
+    match DefaultAcountService::load_account(&db, username, key_string) {
+        Ok(acc) => {
+            debug(format!("Loaded account: {:?}", acc));
+            1
+        }
+        Err(err) => {
+            error(format!("Failed to delete file! Error: {:?}", err));
+            0
+        }
+    }
 }

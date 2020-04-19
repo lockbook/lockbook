@@ -12,6 +12,7 @@ protocol LockbookApi {
     func isDbPresent() -> Bool
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
+    func loadAccount(username: String, keyString: String) -> Bool
     func updateMetadata() -> [FileMetadata]
     func createFile(name: String, path: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<DecryptedValue>
@@ -41,6 +42,14 @@ struct CoreApi: LockbookApi {
 
     func createAccount(username: String) -> Bool {
         let result = create_account(documentsDirectory, username)
+        if (result == 1) {
+            return true
+        }
+        return false
+    }
+    
+    func loadAccount(username: String, keyString: String) -> Bool {
+        let result = load_account(documentsDirectory, username, keyString)
         if (result == 1) {
             return true
         }
@@ -127,6 +136,10 @@ struct FakeApi: LockbookApi {
     }
     
     func createAccount(username: String) -> Bool {
+        false
+    }
+    
+    func loadAccount(username: String, keyString: String) -> Bool {
         false
     }
     

@@ -11,6 +11,7 @@ import SwiftUI
 struct CreateAccountView: View {
     var lockbookApi: LockbookApi
     @State private var username: String = ""
+    @State private var keyString: String = ""
     @State private var showingAlert = false
     @EnvironmentObject var screenCoordinator: ScreenCoordinator
 
@@ -25,6 +26,22 @@ struct CreateAccountView: View {
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
                     if (self.lockbookApi.createAccount(username: self.username)) {
+                        self.screenCoordinator.currentView = .listView
+                    } else {
+                        self.showingAlert = true
+                    }
+                }
+            
+            TextField("key string", text: $keyString)
+                .autocapitalization(.none)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .multilineTextAlignment(.center)
+                .padding(50)
+            
+            MonokaiButton(text: "Load Account")
+                .onTapGesture {
+                    if (self.lockbookApi.loadAccount(username: self.username, keyString: self.keyString)) {
+                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
                         self.screenCoordinator.currentView = .listView
                     } else {
                         self.showingAlert = true
