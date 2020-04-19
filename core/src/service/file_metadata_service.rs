@@ -32,6 +32,7 @@ error_enum! {
 }
 
 pub trait FileMetadataService {
+    // TODO: split up error types
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error>;
     fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
@@ -77,38 +78,41 @@ impl<
         debug(format!("Remote Updates {:?}", updates_remote));
 
         // Create all the "new" files
-        let mut all_files = FileMetadataDb::get_all(&db)?;
-        all_files.retain(|file| file.status == Status::New);
-        all_files.iter().for_each(|file| {
-            match ApiClient::create_file(&CreateFileRequest {
+        let new_files: Vec<FileMetadata> = FileMetadataDb::get_all(&db)?
+            .into_iter()
+            .filter(|file| file.status == Status::New)
+            .collect();
+        let new_files_res = new_files.iter().map(|meta| -> Result<FileMetadata, Error> {
+            let version = ApiClient::create_file(&CreateFileRequest {
                 username: account.username.to_string(),
                 auth: "JUNK_AUTH".to_string(),
-                file_id: file.id.to_string(),
-                file_name: file.name.to_string(),
-                file_path: file.path.to_string(),
+                file_id: meta.id.to_string(),
+                file_name: meta.name.to_string(),
+                file_path: meta.path.to_string(),
                 file_content: "".to_string(),
-            }) {
-                Ok(version) => {
-                    // Mark as "synced" on success
-                    FileMetadataDb::update(
-                        db,
-                        &FileMetadata {
-                            id: file.id.to_string(),
-                            name: file.name.to_string(),
-                            path: file.path.to_string(),
-                            updated_at: version,
-                            version: version,
-                            status: Status::Local,
-                        },
-                    )
-                    .unwrap();
-                    debug("CREATE -- SUCCESS".to_string())
-                }
-                Err(err) => error(format!("CREATE -- FAILURE: {:?}", err)),
-            }
+            })?;
+            // Mark as "local" on success
+            Ok(FileMetadataDb::update(
+                db,
+                &FileMetadata {
+                    id: meta.id.to_string(),
+                    name: meta.name.to_string(),
+                    path: meta.path.to_string(),
+                    updated_at: version,
+                    version,
+                    status: Status::Local,
+                },
+            )?)
         });
-        let mut updates_local = FileMetadataDb::get_all(db)?;
-        updates_local.retain(|meta| meta.status == Status::Local);
+        let errors_new_files = new_files_res
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<Error>>();
+        error(format!("New File Errors: {:?}", errors_new_files));
+        let updates_local: Vec<FileMetadata> = FileMetadataDb::get_all(db)?
+            .into_iter()
+            .filter(|meta| meta.status == Status::Local)
+            .collect();
         let updates_local_res = updates_local
             .iter()
             .map(|file| -> Result<FileMetadata, Error> {
