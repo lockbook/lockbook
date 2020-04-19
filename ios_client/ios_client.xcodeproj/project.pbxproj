@@ -23,6 +23,8 @@
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
 		EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E7724428E6800FFC629 /* EditorView.swift */; };
+		EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */; };
+		EAF7E1892446887600E4C8AC /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF7E1882446887600E4C8AC /* File.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +46,8 @@
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
 		EAC93E7724428E6800FFC629 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
+		EAF7E1882446887600E4C8AC /* File.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = File.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +78,7 @@
 				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
 				87BD616423E3B9CB00945B25 /* WelcomeView.swift */,
 				8733C24123F0EAE9000681E0 /* CreateAccountView.swift */,
+				EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */,
 				EAC93E6F244267F400FFC629 /* ListView.swift */,
 				EAC93E7724428E6800FFC629 /* EditorView.swift */,
 			);
@@ -134,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				EAC93E722442811C00FFC629 /* FileMetadata.swift */,
+				EAF7E1882446887600E4C8AC /* File.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -230,7 +236,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\necho \"JIMMY\"\ncd ../core\nexport PATH=~/.cargo/bin:$PATH\n./ios_build.sh\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\ncd ../core\nexport PATH=~/.cargo/bin:$PATH\n./ios_build.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -244,9 +250,11 @@
 				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
+				EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */,
 				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
+				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,

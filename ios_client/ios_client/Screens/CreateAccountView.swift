@@ -11,12 +11,14 @@ import SwiftUI
 struct CreateAccountView: View {
     var lockbookApi: LockbookApi
     @State private var username: String = ""
+    @State private var keyString: String = ""
     @State private var showingAlert = false
     @EnvironmentObject var screenCoordinator: ScreenCoordinator
 
     var body: some View {
         VStack {
-            TextField("Username", text: $username)
+            TextField("username", text: $username)
+                .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .multilineTextAlignment(.center)
                 .padding(50)
@@ -29,16 +31,32 @@ struct CreateAccountView: View {
                         self.showingAlert = true
                     }
                 }
+            
+            TextField("key string", text: $keyString)
+                .autocapitalization(.none)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .multilineTextAlignment(.center)
+                .padding(50)
+            
+            MonokaiButton(text: "Load Account")
+                .onTapGesture {
+                    if (self.lockbookApi.importAccount(username: self.username, keyString: self.keyString)) {
+                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
+                        self.screenCoordinator.currentView = .listView
+                    } else {
+                        self.showingAlert = true
+                    }
+                }
         }
         .navigationBarTitle("New Lockbook")
         .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Failed to create account..."))
+            Alert(title: Text("Failed to create account!"))
         }
     }
 }
 
-struct NewLockbookView_Previews: PreviewProvider {
+struct CreateAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateAccountView(lockbookApi: FakeApi())
+        CreateAccountView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator(files: []))
     }
 }
