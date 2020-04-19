@@ -3,16 +3,16 @@ extern crate rsa;
 
 use std::string::FromUtf8Error;
 
-use aead::{Aead, generic_array::GenericArray, NewAead};
+use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
 use crate::error_enum;
 
-use self::rand::{AsByteSliceMut, RngCore};
 use self::rand::rngs::OsRng;
-use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use self::rand::RngCore;
 use self::rsa::hash::Hashes;
+use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct EncryptedValue {
@@ -166,7 +166,7 @@ mod unit_test_pubkey {
                 secret: "Secret".to_string(),
             },
         )
-            .unwrap();
+        .unwrap();
         let decrypted = RsaImpl::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted.secret, "Secret".to_string());
@@ -279,8 +279,14 @@ mod unit_test_symmetric {
     #[test]
     fn test_key_generation() {
         let key = AesImpl::generate_key();
-        let encrypted = AesImpl::encrypt(&key, &DecryptedValue { secret: "test".to_string() }).unwrap();
+        let encrypted = AesImpl::encrypt(
+            &key,
+            &DecryptedValue {
+                secret: "test".to_string(),
+            },
+        )
+        .unwrap();
         let decrypted = AesImpl::decrypt(&key, &encrypted).unwrap();
-        assert_eq!("test", decrypted)
+        assert_eq!("test", decrypted.secret)
     }
 }
