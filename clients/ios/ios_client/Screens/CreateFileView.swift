@@ -9,10 +9,9 @@
 import SwiftUI
 
 struct CreateFileView: View {
-    var lockbookApi: LockbookApi
     @State private var fileName: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+    @EnvironmentObject var coordinator: Coordinator
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
 
     var body: some View {
@@ -25,9 +24,8 @@ struct CreateFileView: View {
                 
             MonokaiButton(text: "Create File")
                 .onTapGesture {
-                    if let file = self.lockbookApi.createFile(name: self.fileName) {
-                        print("File created \(file)")
-                        self.screenCoordinator.files = self.lockbookApi.updateMetadata()
+                    if self.coordinator.createFile(name: self.fileName) {
+                        self.coordinator.sync()
                         self.presentationMode.wrappedValue.dismiss()
                     } else {
                         self.showingAlert = true
@@ -42,6 +40,6 @@ struct CreateFileView: View {
 
 struct CreateFileView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateFileView(lockbookApi: FakeApi())
+        CreateFileView()
     }
 }

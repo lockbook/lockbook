@@ -9,10 +9,9 @@
 import SwiftUI
 
 struct CreateAccountView: View {
-    var lockbookApi: LockbookApi
     @State private var username: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: ScreenCoordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -24,8 +23,8 @@ struct CreateAccountView: View {
                 
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
-                    if (self.lockbookApi.createAccount(username: self.username)) {
-                        self.screenCoordinator.currentView = .listView
+                    if (self.coordinator.createAccount(username: self.username)) {
+                        self.coordinator.currentView = .listView
                     } else {
                         self.showingAlert = true
                     }
@@ -39,6 +38,6 @@ struct CreateAccountView: View {
 
 struct CreateAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateAccountView(lockbookApi: FakeApi()).environmentObject(ScreenCoordinator())
+        CreateAccountView().environmentObject(Coordinator())
     }
 }

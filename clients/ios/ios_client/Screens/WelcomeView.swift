@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct WelcomeView: View {
-    var lockbookApi: LockbookApi
     @State public var navigationBarHidden = true
     
     var body: some View {
@@ -26,10 +25,10 @@ struct WelcomeView: View {
                     .font(.system(size: 15, design: .monospaced))
                     .padding(.bottom, 100)
                 
-                NavigationLink(destination: CreateAccountView(lockbookApi: self.lockbookApi)) {
+                NavigationLink(destination: CreateAccountView()) {
                     MonokaiButton(text: "New Lockbook")
                 }
-                NavigationLink(destination: ImportAccountView(lockbookApi: self.lockbookApi)) {
+                NavigationLink(destination: ImportAccountView()) {
                     MonokaiButton(text: "Import Lockbook")
                 }
             }
@@ -39,6 +38,6 @@ struct WelcomeView: View {
 
 struct WelcomeView_Previews: PreviewProvider {
     static var previews: some View {
-        WelcomeView(lockbookApi: FakeApi())
+        WelcomeView().environmentObject(Coordinator())
     }
 }
