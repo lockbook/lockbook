@@ -21,6 +21,9 @@
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
 		EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */; };
+		EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */; };
+		EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEA244D0C580017A402 /* DebugView.swift */; };
+		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
 		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -46,6 +49,9 @@
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
 		EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
+		EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Coordinator.swift; sourceTree = "<group>"; };
+		EA6CEBEA244D0C580017A402 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
+		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
@@ -86,6 +92,7 @@
 				EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */,
 				EAC93E6F244267F400FFC629 /* ListView.swift */,
 				EAC93E7724428E6800FFC629 /* EditorView.swift */,
+				EA6CEBEA244D0C580017A402 /* DebugView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -116,6 +123,8 @@
 				8733C23B23F0D300000681E0 /* Views */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
+				EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */,
+				EA6CEBEC244D0E7B0017A402 /* Debugger.swift */,
 				87BD616623E3B9CB00945B25 /* Assets.xcassets */,
 				87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */,
 				87BD616E23E3B9CB00945B25 /* Info.plist */,
@@ -235,11 +244,14 @@
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
 				EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */,
+				EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */,
 				EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */,
 				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
 				EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
+				EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
+				EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */,
 				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
@@ -312,7 +324,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -366,7 +378,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;

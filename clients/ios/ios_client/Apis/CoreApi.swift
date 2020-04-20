@@ -9,7 +9,6 @@
 import Foundation
 
 protocol LockbookApi {
-    func isDbPresent() -> Bool
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
     func importAccount(username: String, keyString: String) -> Bool
@@ -17,13 +16,13 @@ protocol LockbookApi {
     func createFile(name: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<DecryptedValue>
     func updateFile(id: String, content: String) -> Bool
-    func purgeFiles() -> Bool
+    func purgeLocal() -> Bool
 }
 
 struct CoreApi: LockbookApi {
     let documentsDirectory: String
     
-    func isDbPresent() -> Bool {
+    private func isDbPresent() -> Bool {
         if (is_db_present(documentsDirectory) == 1) {
             return true
         }
@@ -57,18 +56,21 @@ struct CoreApi: LockbookApi {
     }
     
     func updateMetadata() -> [FileMetadata] {
-        let result = sync_files(documentsDirectory)
-        let resultString = String(cString: result!)
-        // We need to release the pointer once we have the result string
-        release_pointer(UnsafeMutablePointer(mutating: result))
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        
-        if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
-            return resultMetas
-        } else {
-            return [FileMetadata].init()
+        if (isDbPresent()) {
+            let result = sync_files(documentsDirectory)
+            let resultString = String(cString: result!)
+            // We need to release the pointer once we have the result string
+            release_pointer(UnsafeMutablePointer(mutating: result))
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            
+            if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
+                return resultMetas
+            } else {
+                return [FileMetadata].init()
+            }
         }
+        return []
     }
     
     func createFile(name: String) -> Optional<FileMetadata> {
@@ -97,7 +99,8 @@ struct CoreApi: LockbookApi {
             return false
         }
     }
-    func purgeFiles() -> Bool {
+    
+    func purgeLocal() -> Bool {
         if(purge_files(documentsDirectory) == 1) {
             return true
         } else {
@@ -106,18 +109,6 @@ struct CoreApi: LockbookApi {
     }
 }
 
-fileprivate func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
-    let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
-    do {
-        print("Incoming JSON \(jsonStr)")
-        let result = try decoder.decode(T.self, from: Data(jsonStr.utf8))
-        return Optional.some(result)
-    } catch {
-        print("Serialization Error: \(error)")
-        return Optional.none
-    }
-}
 
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
@@ -126,10 +117,6 @@ struct FakeApi: LockbookApi {
         FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, version: 1000, status: .Synced),
         FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, version: 1500, status: .Local),
     ]
-    
-    func isDbPresent() -> Bool {
-        true
-    }
     
     func getAccount() -> Optional<String> {
         Optional.some(fakeUsername)
@@ -161,7 +148,8 @@ struct FakeApi: LockbookApi {
     func updateFile(id: String, content: String) -> Bool {
         false
     }
-    func purgeFiles() -> Bool {
+    
+    func purgeLocal() -> Bool {
         false
     }
 }
