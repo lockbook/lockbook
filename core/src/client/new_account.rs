@@ -12,6 +12,7 @@ pub enum NewAccountError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct NewAccountRequest {
     pub username: String,
     pub auth: String,

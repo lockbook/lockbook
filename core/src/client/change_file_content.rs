@@ -14,6 +14,7 @@ pub enum ChangeFileContentError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ChangeFileContentRequest {
     pub username: String,
     pub auth: String,

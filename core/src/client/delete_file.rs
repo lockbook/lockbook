@@ -13,6 +13,7 @@ pub enum DeleteFileError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct DeleteFileRequest {
     pub username: String,
     pub auth: String,

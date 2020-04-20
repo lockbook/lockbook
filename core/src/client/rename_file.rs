@@ -13,6 +13,7 @@ pub enum RenameFileError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct RenameFileRequest {
     pub username: String,
     pub auth: String,

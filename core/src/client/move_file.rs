@@ -14,6 +14,7 @@ pub enum MoveFileError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct MoveFileRequest {
     pub username: String,
     pub auth: String,

@@ -13,7 +13,7 @@ pub enum CreateFileError {
     Unspecified,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CreateFileRequest {
     pub username: String,
     pub auth: String,

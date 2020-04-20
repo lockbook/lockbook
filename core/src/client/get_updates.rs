@@ -11,10 +11,17 @@ pub enum GetUpdatesError {
     Unspecified,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct GetUpdatesRequest {
     pub username: String,
     pub auth: String,
     pub since_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct GetUpdatesResponse {
+    pub error_code: String,
+    pub file_metadata: Vec<FileMetadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
