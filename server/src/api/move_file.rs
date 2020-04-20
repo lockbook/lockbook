@@ -1,11 +1,10 @@
+use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::index_db;
 use lockbook_core::lockbook_api::MoveFileResponse;
-use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use std::io::Cursor;
 
 #[derive(FromForm, Debug)]
 pub struct MoveFile {
@@ -41,15 +40,10 @@ pub fn move_file(server_state: State<ServerState>, move_file: Form<MoveFile>) ->
 }
 
 fn make_response(http_code: u16, error_code: &str) -> Response {
-    Response::build()
-        .status(
-            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
-        )
-        .sized_body(Cursor::new(
-            serde_json::to_string(&MoveFileResponse {
-                error_code: String::from(error_code),
-            })
-            .expect("Failed to json-serialize response!"),
-        ))
-        .finalize()
+    make_response_generic(
+        http_code,
+        MoveFileResponse {
+            error_code: String::from(error_code),
+        },
+    )
 }

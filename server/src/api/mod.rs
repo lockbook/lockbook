@@ -6,3 +6,4 @@ pub mod index;
 pub mod move_file;
 pub mod new_account;
 pub mod rename_file;
+pub mod utils;
