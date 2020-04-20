@@ -17,6 +17,10 @@ struct ListView: View {
                 ForEach(self.coordinator.files) { file in
                     FileRow(metadata: file)
                 }
+                .onDelete { offset in
+                    let meta = self.coordinator.files.remove(at: offset.first!)
+                    print("Deleting", meta)
+                }
             }
             .navigationBarTitle("\(self.coordinator.username)'s Files")
             .navigationBarItems(
