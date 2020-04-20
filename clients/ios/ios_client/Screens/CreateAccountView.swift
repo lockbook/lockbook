@@ -11,7 +11,7 @@ import SwiftUI
 struct CreateAccountView: View {
     @State private var username: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -23,8 +23,8 @@ struct CreateAccountView: View {
                 
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
-                    if (self.screenCoordinator.createAccount(username: self.username)) {
-                        self.screenCoordinator.currentView = .listView
+                    if (self.coordinator.createAccount(username: self.username)) {
+                        self.coordinator.currentView = .listView
                     } else {
                         self.showingAlert = true
                     }

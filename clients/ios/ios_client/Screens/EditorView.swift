@@ -12,7 +12,7 @@ struct EditorView: View {
     let metadata: FileMetadata
     @State var content: String
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -29,18 +29,18 @@ struct EditorView: View {
             Alert(title: Text("Failed to get/update file!"))
         }
         .onAppear {
-            if let file = self.screenCoordinator.getFile(id: self.metadata.id) {
+            if let file = self.coordinator.getFile(id: self.metadata.id) {
                 self.content = file.secret
             } else {
                 print("Could not load \(self.metadata)")
             }
         }
         .onDisappear {
-            if let file = self.screenCoordinator.getFile(id: self.metadata.id) {
+            if let file = self.coordinator.getFile(id: self.metadata.id) {
                 if file.secret != self.content {
-                    if (self.screenCoordinator.updateFile(id: self.metadata.id, content: self.content)) {
+                    if (self.coordinator.updateFile(id: self.metadata.id, content: self.content)) {
                         print("Updated \(self.metadata)")
-                        self.screenCoordinator.sync()
+                        self.coordinator.sync()
                     } else {
                         self.showingAlert = true
                     }
@@ -51,9 +51,9 @@ struct EditorView: View {
         }
     }
     
-    init(screenCoordinator: Coordinator, metadata: FileMetadata) {
+    init(coordinator: Coordinator, metadata: FileMetadata) {
         self.metadata = metadata
-        if let file = screenCoordinator.getFile(id: metadata.id) {
+        if let file = coordinator.getFile(id: metadata.id) {
             self._content = State.init(initialValue: file.secret)
         } else {
             self._content = State.init(initialValue: "")
@@ -106,7 +106,7 @@ struct TextView: UIViewRepresentable {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorView(screenCoordinator: Coordinator(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(Coordinator())
+            EditorView(coordinator: Coordinator(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(Coordinator())
         }
     }
 }

@@ -9,20 +9,16 @@
 import SwiftUI
 
 struct ListView: View {
-    @EnvironmentObject var screenCoordinator: Coordinator
-
+    @EnvironmentObject var coordinator: Coordinator
+    
     var body: some View {
         NavigationView {
             List {
-                ForEach(self.screenCoordinator.files) { file in
+                ForEach(self.coordinator.files) { file in
                     FileRow(metadata: file)
                 }
-                .onDelete { offset in
-                    let meta = self.screenCoordinator.files.remove(at: offset.first!)
-                    print("Deleting", meta)
-                }
             }
-            .navigationBarTitle("\(self.screenCoordinator.username)'s Files")
+            .navigationBarTitle("\(self.coordinator.username)'s Files")
             .navigationBarItems(
                 leading: NavigationLink(destination: DebugView()) {
                     Image(systemName: "circle.grid.hex")

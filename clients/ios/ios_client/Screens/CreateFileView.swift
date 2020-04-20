@@ -11,7 +11,7 @@ import SwiftUI
 struct CreateFileView: View {
     @State private var fileName: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
 
     var body: some View {
@@ -24,8 +24,8 @@ struct CreateFileView: View {
                 
             MonokaiButton(text: "Create File")
                 .onTapGesture {
-                    if self.screenCoordinator.createFile(name: self.fileName) {
-                        self.screenCoordinator.sync()
+                    if self.coordinator.createFile(name: self.fileName) {
+                        self.coordinator.sync()
                         self.presentationMode.wrappedValue.dismiss()
                     } else {
                         self.showingAlert = true

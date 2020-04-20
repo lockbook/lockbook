@@ -12,10 +12,10 @@ struct FileRow: View {
     var metadata: FileMetadata
     var color: Color
     var image: Image
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
-        NavigationLink(destination: EditorView(screenCoordinator: self.screenCoordinator, metadata: metadata)) {
+        NavigationLink(destination: EditorView(coordinator: self.coordinator, metadata: metadata)) {
             HStack {
                 VStack {
                     HStack {

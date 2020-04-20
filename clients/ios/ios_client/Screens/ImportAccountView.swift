@@ -12,7 +12,7 @@ struct ImportAccountView: View {
     @State private var username: String = ""
     @State private var keyString: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -30,9 +30,9 @@ struct ImportAccountView: View {
            
             MonokaiButton(text: "Load Account")
                 .onTapGesture {
-                    if (self.screenCoordinator.importAccount(username: self.username, keyString: self.keyString)) {
-                        self.screenCoordinator.sync()
-                        self.screenCoordinator.currentView = .listView
+                    if (self.coordinator.importAccount(username: self.username, keyString: self.keyString)) {
+                        self.coordinator.sync()
+                        self.coordinator.currentView = .listView
                     } else {
                         self.showingAlert = true
                     }

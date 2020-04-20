@@ -9,10 +9,10 @@
 import SwiftUI
 
 struct ControllerView: View {
-    @EnvironmentObject var screenCoordinator: Coordinator
+    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
-        switch screenCoordinator.currentView {
+        switch coordinator.currentView {
             case .welcomeView: return AnyView(WelcomeView())
             case .listView: return AnyView(ListView())
             case .debugView: return AnyView(DebugView())
