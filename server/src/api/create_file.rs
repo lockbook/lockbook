@@ -1,19 +1,11 @@
+use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
 use lockbook_core::lockbook_api::CreateFileResponse;
-use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use std::io::Cursor;
-
-#[derive(Debug)]
-pub enum Error {
-    IndexDb(index_db::create_file::Error),
-    FilesDb(files_db::create_file::Error),
-    FileAlreadyExists(()),
-}
 
 #[derive(FromForm, Debug)]
 pub struct CreateFile {
@@ -34,11 +26,7 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
         files_db::get_file_details(&locked_files_db_client, &create_file.file_id);
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
-        Err(files_db::get_file_details::Error::S3ConnectionFailed(_)) => {
-            println!("Internal server error! {:?}", get_file_details_result);
-            return make_response(500, "internal_error", 0);
-        }
-        Err(files_db::get_file_details::Error::S3OperationUnsuccessful(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", get_file_details_result);
             return make_response(500, "internal_error", 0);
         }
@@ -77,7 +65,7 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
     );
     match files_db_create_file_result {
         Ok(()) => make_response(201, "ok", new_version),
-        Err(files_db::create_file::Error::S3(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", files_db_create_file_result);
             make_response(500, "internal_error", 0)
         }
@@ -85,16 +73,11 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
 }
 
 fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
-    Response::build()
-        .status(
-            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
-        )
-        .sized_body(Cursor::new(
-            serde_json::to_string(&CreateFileResponse {
-                error_code: String::from(error_code),
-                current_version: current_version as u64,
-            })
-            .expect("Failed to json-serialize response!"),
-        ))
-        .finalize()
+    make_response_generic(
+        http_code,
+        CreateFileResponse {
+            error_code: String::from(error_code),
+            current_version: current_version as u64,
+        },
+    )
 }
