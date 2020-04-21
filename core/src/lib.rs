@@ -6,7 +6,7 @@ use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
 use serde_json::json;
-use sled::Db;
+pub use sled::Db;
 
 use crate::client::ClientImpl;
 use crate::model::state::Config;
@@ -26,8 +26,8 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-static API_LOC: &str = "http://lockbook.app:8000";
-static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
+pub static API_LOC: &str = "http://lockbook.app:8000";
+pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
 pub type DefaultCrypto = RsaImpl;

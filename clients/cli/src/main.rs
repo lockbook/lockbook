@@ -1,13 +1,20 @@
 use structopt::StructOpt;
+use std::{io, env};
+use std::io::Write;
+use lockbook_core::{DefaultDbProvider, DefaultAcountService, Db};
+use lockbook_core::repo::db_provider::DbProvider;
+use lockbook_core::model::state::Config;
+use lockbook_core::service::account_service::AccountService;
+use lockbook_core::service::account_service::Error;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
     /// Create a new file
     New,
-    
+
     /// Get updates, push changes
-    Sync, 
+    Sync,
 
     /// Search and edit a file
     Edit,
@@ -44,6 +51,56 @@ enum Lockbook {
 }
 
 fn main() {
-    let args = Lockbook::from_args();
-    println!("{:?}", args);
+    let args: Lockbook = Lockbook::from_args();
+    match args {
+        Lockbook::New => unimplemented!(),
+        Lockbook::Sync => unimplemented!(),
+        Lockbook::Edit => unimplemented!(),
+        Lockbook::Browse => unimplemented!(),
+        Lockbook::Remove => unimplemented!(),
+        Lockbook::Move => unimplemented!(),
+        Lockbook::Find => unimplemented!(),
+        Lockbook::List => unimplemented!(),
+        Lockbook::Copy => unimplemented!(),
+        Lockbook::Share => unimplemented!(),
+        Lockbook::Init => init(),
+        Lockbook::Import => unimplemented!(),
+        Lockbook::Status => unimplemented!(),
+    }
+}
+
+fn connect_to_db() -> Db {
+    let path = env::var("LOCKBOOK_CLI_LOCATION")
+        .unwrap_or("~/.lockbook/".to_string());
+
+    DefaultDbProvider::connect_to_db(&Config { writeable_path: path.clone() })
+        .expect(&format!("Could not connect to db at path: {}", path))
+}
+
+fn init() {
+    print!("Enter a Username: ");
+    io::stdout().flush().unwrap();
+
+    let db = connect_to_db();
+
+    let mut username = String::new();
+    io::stdin().read_line(&mut username)
+        .expect("Failed to read from stdin");
+
+    match DefaultAcountService::create_account(&db, username) {
+        Ok(_) => println!("Account created successfully!"),
+        Err(err) => match err {
+            Error::KeyGenerationError(e) =>
+                eprintln!("Could not generate keypair, error: {}", e),
+
+            Error::PersistenceError(_) =>
+                eprintln!("Could not persist data, error: "),
+
+            Error::ApiError(_) =>
+                eprintln!("Could not send account to API, location: {}", "lockbook_core::API_LOC"),
+
+            Error::KeySerializationError(_) =>
+                eprintln!("Could not serialize key")
+        }
+    }
 }

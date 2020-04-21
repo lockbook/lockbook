@@ -5,14 +5,12 @@ use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::db_provider;
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::{client, debug};
 use sled::Db;
 
 error_enum! {
     enum Error {
-        ConnectionFailure(db_provider::Error),
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
         ApiError(client::NewAccountError),
