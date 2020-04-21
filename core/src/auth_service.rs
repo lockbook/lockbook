@@ -7,8 +7,8 @@ use serde::de::IntoDeserializer;
 use serde::export::PhantomData;
 
 use crate::auth_service::VerificationError::{
-    AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout,
-    InvalidUsername, TimeStampOutOfBounds, TimeStampParseFailure,
+    AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
+    TimeStampOutOfBounds, TimeStampParseFailure,
 };
 use crate::clock::Clock;
 use crate::crypto::{PubKeyCryptoService, SignatureVerificationFailed, SignedValue};
@@ -61,7 +61,7 @@ pub trait AuthService {
         auth: &String,
         public_key: &RSAPublicKey,
         username: &String,
-        max_auth_delay: u128
+        max_auth_delay: u128,
     ) -> Result<(), VerificationError>;
     fn generate_auth(
         private_key: &RSAPrivateKey,
@@ -79,7 +79,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         auth: &String,
         public_key: &RSAPublicKey,
         username: &String,
-        max_auth_delay: u128
+        max_auth_delay: u128,
     ) -> Result<(), VerificationError> {
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
         Crypto::verify(&public_key, &signed_val)?;
@@ -152,9 +152,9 @@ mod unit_tests {
             &auth,
             &public_key,
             &username,
-        100
-        ).unwrap()
-
+            100,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -172,8 +172,9 @@ mod unit_tests {
                 &auth,
                 &public_key,
                 &String::from("Hamza"),
-                100
-            ).unwrap_err(),
+                100,
+            )
+            .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 

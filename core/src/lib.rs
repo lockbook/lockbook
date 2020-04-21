@@ -77,7 +77,7 @@ unsafe fn string_from_ptr(c_path: *const c_char) -> String {
 unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     let path = string_from_ptr(c_path);
     let config = Config {
-        writeable_path: path
+        writeable_path: path,
     };
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
