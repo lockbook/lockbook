@@ -19,7 +19,7 @@ pub struct NewAccount {
 #[post("/new-account", data = "<new_account>")]
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
-    println!("{}, {}", new_account.public_key, config().auth_config);
+    println!("{}, {}", new_account.public_key, config().auth_config.max_auth_delay);
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &new_account.auth,
