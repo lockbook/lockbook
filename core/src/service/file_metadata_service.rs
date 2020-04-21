@@ -116,7 +116,7 @@ mod unit_tests {
     #[test]
     fn get_updates() {
         let config = &Config {
-            writeable_path: "ignored".to_string()
+            writeable_path: "ignored".to_string(),
         };
 
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
