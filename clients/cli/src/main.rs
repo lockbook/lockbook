@@ -96,7 +96,7 @@ fn init() {
             Error::PersistenceError(_) =>
                 eprintln!("Could not persist data, error: "),
 
-            Error::ApiError(_) =>
+            Error::ApiError(err) =>
                 eprintln!("Could not send account to API, location: {}", "lockbook_core::API_LOC"),
 
             Error::KeySerializationError(_) =>
