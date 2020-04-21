@@ -30,23 +30,23 @@ static API_LOC: &str = "http://lockbook.app:8000";
 static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
-type DefaultCrypto = RsaImpl;
-type DefaultSymmetric = AesImpl;
-type DefaultDbProvider = DiskBackedDB;
-type DefaultClient = ClientImpl;
-type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
-type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-type DefaultFileRepo = FileRepoImpl;
-type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-type DefaultFileMetadataService = FileMetadataServiceImpl<
+pub type DefaultCrypto = RsaImpl;
+pub type DefaultSymmetric = AesImpl;
+pub type DefaultDbProvider = DiskBackedDB;
+pub type DefaultClient = ClientImpl;
+pub type DefaultAcountRepo = AccountRepoImpl;
+pub type DefaultAcountService = AccountServiceImpl<DefaultCrypto, DefaultAcountRepo, DefaultClient>;
+pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+pub type DefaultFileRepo = FileRepoImpl;
+pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
+pub type DefaultFileMetadataService = FileMetadataServiceImpl<
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAcountRepo,
     DefaultClient,
     DefaultFileEncryptionService,
 >;
-type DefaultFileService = FileServiceImpl<
+pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAcountRepo,
