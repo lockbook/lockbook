@@ -1,18 +1,11 @@
+use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
-use rocket::http::Status;
+use lockbook_core::client::ChangeFileContentResponse;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use std::io::Cursor;
-use lockbook_core::client::ChangeFileContentResponse;
-
-#[derive(Debug)]
-pub enum Error {
-    IndexDbUpdateFileVersion(index_db::update_file_version::Error),
-    FilesDbUpdateCreateFile(files_db::create_file::Error),
-}
 
 #[derive(FromForm, Debug)]
 pub struct ChangeFileContent {
@@ -64,7 +57,7 @@ pub fn change_file_content(
     );
     match create_file_result {
         Ok(()) => make_response(200, "ok", new_version),
-        Err(files_db::create_file::Error::S3(_)) => {
+        Err(_) => {
             println!("Internal server error! {:?}", create_file_result);
             make_response(500, "internal_error", 0)
         }
@@ -72,16 +65,11 @@ pub fn change_file_content(
 }
 
 fn make_response(http_code: u16, error_code: &str, current_version: i64) -> Response {
-    Response::build()
-        .status(
-            Status::from_code(http_code).expect("Server has an invalid status code hard-coded!"),
-        )
-        .sized_body(Cursor::new(
-            serde_json::to_string(&ChangeFileContentResponse {
-                error_code: String::from(error_code),
-                current_version: current_version as u64,
-            })
-            .expect("Failed to json-serialize response!"),
-        ))
-        .finalize()
+    make_response_generic(
+        http_code,
+        ChangeFileContentResponse {
+            error_code: String::from(error_code),
+            current_version: current_version as u64,
+        },
+    )
 }

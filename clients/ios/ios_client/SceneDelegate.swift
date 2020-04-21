@@ -12,7 +12,6 @@ import SwiftUI
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     var window: UIWindow?
-    var screenCoordinator = ScreenCoordinator()
     
     var documentsDirectory: String {
         return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
@@ -26,16 +25,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Create the Lockbook Core Api with the path all our business happens
         print(documentsDirectory)
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
+        let coordinator = Coordinator(lockbookApi: lockbookApi)
+        let debugger = Debugger(lockbookApi: lockbookApi)
         
         // Use a UIHostingController as window root view controller.
-        let controllerView = ControllerView(lockbookApi: lockbookApi).environmentObject(screenCoordinator)
+        let controllerView = ControllerView().environmentObject(coordinator).environmentObject(debugger)
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
-            if let username = lockbookApi.getAccount() {
-                print("User \(username) loaded!")
-                screenCoordinator.currentView = .listView
+            if let _ = lockbookApi.getAccount() {
+                coordinator.currentView = .listView
             } else {
-                screenCoordinator.currentView = .welcomeView
+                coordinator.currentView = .welcomeView
             }
             window.rootViewController = UIHostingController(rootView: controllerView)
             self.window = window
@@ -72,14 +72,4 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     
-}
-
-final class ScreenCoordinator: ObservableObject {
-    @Published var currentView: PushedItem?
-    
-    enum PushedItem {
-        case welcomeView
-        case createAccountView
-        case listView
-    }
 }

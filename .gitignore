@@ -75,8 +75,8 @@ fastlane/test_output
 
 iOSInjectionProject/
 .DS_Store 
-ios_client/include/
-ios_client/libs/
+clients/ios/include/
+clients/ios/libs/
 
 core/target/
 core/lockbook_core.h

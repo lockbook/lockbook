@@ -1,10 +1,9 @@
+use crate::files_db::categorized_s3_error;
 use s3::bucket::Bucket as S3Client;
-use s3::error::S3Error;
 
 #[derive(Debug)]
 pub enum Error {
-    S3ConnectionFailed(S3Error),
-    S3OperationUnsuccessful(u16),
+    S3(categorized_s3_error::Error),
     NoSuchFile(()),
 }
 
@@ -24,18 +23,19 @@ impl From<&s3::serde_types::Object> for FileDetails {
 }
 
 pub fn get_file_details(client: &S3Client, file_id: &str) -> Result<FileDetails, Error> {
-    Ok(())
-        .and_then(|_| match client.list_all(file_id.to_string(), None) {
-            Ok(file_details) => Ok(file_details),
-            Err(err) => Err(Error::S3ConnectionFailed(err)),
-        })
-        .and_then(|file_details| match file_details.first() {
-            Some((list, 200)) => list
-                .contents
-                .first()
-                .ok_or(Error::NoSuchFile(()))
-                .map(FileDetails::from),
-            Some((_, code)) => Err(Error::S3OperationUnsuccessful(*code)),
-            None => Err(Error::NoSuchFile(())),
-        })
+    let file_details = match client.list_all(file_id.to_string(), None) {
+        Ok(fd) => fd,
+        Err(err) => {
+            return Err(Error::S3(categorized_s3_error::Error::from(err)));
+        }
+    };
+
+    match file_details.first() {
+        Some((list, _)) => list
+            .contents
+            .first()
+            .ok_or(Error::NoSuchFile(()))
+            .map(FileDetails::from),
+        None => Err(Error::NoSuchFile(())),
+    }
 }
