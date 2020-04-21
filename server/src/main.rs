@@ -17,17 +17,11 @@ fn main() {
     let config = config(); // write some code to try to use lockbook core
     let index_db_client = match index_db::connect(&config.index_db_config) {
         Ok(client) => client,
-        Err(index_db::connect::Error::OpenSslFailed(err)) => {
-            println!("{:?}", err);
-            panic!("{}", err);
-        }
-        Err(index_db::connect::Error::PostgresConnectionFailed(err)) => panic!("{}", err),
-        Err(index_db::connect::Error::PostgresPortNotU16(err)) => panic!("{}", err),
+        Err(err) => panic!("{:?}", err),
     };
     let files_db_client = match files_db::connect(&config.files_db_config) {
         Ok(x) => x,
-        Err(files_db::connect::Error::S3ConnectionFailed(err)) => panic!("{}", err),
-        Err(files_db::connect::Error::UnknownRegion(err)) => panic!("{}", err),
+        Err(err) => panic!("{:?}", err),
     };
     let server_state = ServerState {
         index_db_client: Mutex::new(index_db_client),
