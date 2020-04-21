@@ -13,7 +13,7 @@ use lockbook_core::clock::ClockImpl;
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
     pub username: String,
-    pub auth: String,
+    pub c: String,
     pub public_key: String,
 }
 

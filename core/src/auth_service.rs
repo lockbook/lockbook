@@ -59,8 +59,9 @@ error_enum! {
 pub trait AuthService {
     fn verify_auth(
         auth: &String,
-        public_key: &String,
+        public_key: &RSAPublicKey,
         username: &String,
+        max_auth_delay: u128
     ) -> Result<(), VerificationError>;
     fn generate_auth(
         private_key: &RSAPrivateKey,
@@ -76,11 +77,12 @@ pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
 impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
     fn verify_auth(
         auth: &String,
-        public_key: &String,
+        public_key: &RSAPublicKey,
         username: &String,
+        max_auth_delay: u128
     ) -> Result<(), VerificationError> {
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
-        Crypto::verify(&serde_json::from_str::<RSAPublicKey>(&String::from(public_key))?, &signed_val)?;
+        Crypto::verify(&public_key, &signed_val)?;
 
         let mut auth_comp = signed_val.content.split(",");
 
@@ -89,7 +91,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         }
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
-        let range = auth_time..auth_time + env!("MAX_AUTH_DELAY").parse::<u128>()?;
+        let range = auth_time..auth_time + max_auth_delay;
 
         if !range.contains(&Time::get_time()) {
             return Err(TimeStampOutOfBounds);
@@ -148,8 +150,11 @@ mod unit_tests {
                 .unwrap();
         AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
             &auth,
-            &serde_json::to_string(&public_key).unwrap(),
-            &username).unwrap()
+            &public_key,
+            &username,
+        100
+        ).unwrap()
+
     }
 
     #[test]
@@ -165,10 +170,10 @@ mod unit_tests {
         let result = discriminant(
             &AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
                 &auth,
-                &serde_json::to_string(&public_key).unwrap(),
+                &public_key,
                 &String::from("Hamza"),
-            )
-                .unwrap_err(),
+                100
+            ).unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 
