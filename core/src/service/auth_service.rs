@@ -1,19 +1,16 @@
 use std::num::ParseIntError;
 use std::option::NoneError;
-use std::time::SystemTimeError;
 
-use rsa::{PublicKey, RSAPrivateKey, RSAPublicKey};
-use serde::de::IntoDeserializer;
+use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::export::PhantomData;
 
-use crate::auth_service::VerificationError::{
+use crate::service::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
     TimeStampOutOfBounds, TimeStampParseFailure,
 };
-use crate::clock::Clock;
-use crate::crypto::{PubKeyCryptoService, SignatureVerificationFailed, SignedValue};
+use crate::service::crypto_service::{SignatureVerificationFailed, PubKeyCryptoService, SignedValue};
+use crate::service::clock_service::Clock;
 use crate::error_enum;
-use crate::model::state::Config;
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -119,9 +116,9 @@ mod unit_tests {
     use rand::rngs::OsRng;
     use rsa::{RSAPrivateKey, RSAPublicKey};
 
-    use crate::auth_service::{AuthGenError, AuthService, AuthServiceImpl, VerificationError};
-    use crate::clock::{Clock, ClockImpl};
-    use crate::crypto::{DecryptedValue, PubKeyCryptoService, RsaCryptoService, SignedValue};
+    use crate::service::crypto_service::RsaImpl;
+    use crate::service::auth_service::{VerificationError, AuthServiceImpl, AuthService};
+    use crate::service::clock_service::Clock;
 
     struct EarlyClock;
 
@@ -146,13 +143,13 @@ mod unit_tests {
 
         let username = String::from("Smail");
         let auth =
-            AuthServiceImpl::<EarlyClock, RsaCryptoService>::generate_auth(&private_key, &username)
+            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username)
                 .unwrap();
-        AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
+        AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(
             &auth,
             &public_key,
             &username,
-            100,
+            100
         )
         .unwrap()
     }
@@ -164,15 +161,15 @@ mod unit_tests {
 
         let username = String::from(",");
         let auth =
-            AuthServiceImpl::<EarlyClock, RsaCryptoService>::generate_auth(&private_key, &username)
+            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username)
                 .unwrap();
 
         let result = discriminant(
-            &AuthServiceImpl::<LateClock, RsaCryptoService>::verify_auth(
+            &AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(
                 &auth,
                 &public_key,
                 &String::from("Hamza"),
-                100,
+                100
             )
             .unwrap_err(),
         );
