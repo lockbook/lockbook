@@ -11,6 +11,19 @@ import Foundation
 func intEpochToString(micros: Int) -> String {
     let date = Date(timeIntervalSince1970: TimeInterval(micros/1000000))
     let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy/mm/dd hh:mm a"
+    formatter.dateFormat = "yyyy/MM/dd hh:mm a"
     return formatter.string(from: date)
+}
+
+func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    do {
+        let result = try decoder.decode(T.self, from: Data(jsonStr.utf8))
+        return Optional.some(result)
+    } catch {
+        print("Incoming JSON \(jsonStr)")
+        print("Serialization Error: \(error)")
+        return Optional.none
+    }
 }
