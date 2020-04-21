@@ -100,8 +100,9 @@ When a user edits a file and is ready to push that change upto the server, they'
 curl down the `rustup` script and tell `rustup` to use rust nightly, required for `feature(try_trait)`
 ```
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-$ rustup default nightly
 ```
+
+You should elect to do a **custom** install such that you can select **nightly** and **complete**.
 
 ### Build Core
 

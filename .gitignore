@@ -79,6 +79,7 @@ clients/ios/include/
 clients/ios/libs/
 
 core/target/
+clients/cli/target/
 core/lockbook_core.h
 
 qa_env.sh
