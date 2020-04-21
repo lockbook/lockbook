@@ -11,12 +11,14 @@ use lockbook_core::service::crypto_service::{RsaImpl, PubKeyCryptoService};
 
 fn new_account() -> Result<(), TestError> {
     let username = generate_username();
+    let key = RsaImpl::generate_key().unwrap();
+    println!("{}", api_loc());
     client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &RsaImpl::generate_key().unwrap(), &username).unwrap(),
-            public_key: "test_public_key".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &key, &username).unwrap(),
+            public_key: serde_json::to_string(&key.to_public_key()).unwrap(),
         },
     )?;
 
