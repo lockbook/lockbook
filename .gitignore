@@ -88,4 +88,6 @@ server/**/*.rs.bk
 server/qa_secrets.sh
 core/qa_secrets.sh
 server/ca-certificate.crt
-.idea/
+.idea
+*.iml
+server/*.iml
