@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::client;
 use crate::client::{Client, NewAccountRequest};
 use crate::error_enum;
 use crate::model::account::Account;
@@ -7,7 +8,7 @@ use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
 use crate::service::crypto_service::PubKeyCryptoService;
-use crate::{client, debug};
+use crate::service::logging_service::Logger;
 use sled::Db;
 
 error_enum! {
@@ -26,17 +27,19 @@ pub trait AccountService {
 }
 
 pub struct AccountServiceImpl<
+    Log: Logger,
     Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
     ApiClient: Client,
 > {
+    log: PhantomData<Log>,
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
 }
 
-impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient>
+impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client>
+    AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 {
     fn create_account(db: &Db, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
@@ -44,7 +47,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client> Acc
             username,
             keys: keys.clone(),
         };
-        debug(format!("Keys: {:?}", serde_json::to_string(&keys).unwrap()));
+        Log::debug(format!("Keys: {:?}", serde_json::to_string(&keys).unwrap()));
         let username = account.username.clone();
         let auth = "".to_string();
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;

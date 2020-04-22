@@ -1,5 +1,6 @@
 use sled::Db;
 
+use crate::error_enum;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -10,7 +11,7 @@ use crate::repo::file_repo::FileRepo;
 use crate::service::crypto_service::DecryptedValue;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::{error_enum, info};
+use crate::service::logging_service::Logger;
 use serde::export::PhantomData;
 
 error_enum! {
@@ -29,11 +30,13 @@ pub trait FileService {
 }
 
 pub struct FileServiceImpl<
+    Log: Logger,
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
+    log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     account: PhantomData<AccountDb>,
@@ -41,11 +44,12 @@ pub struct FileServiceImpl<
 }
 
 impl<
+        Log: Logger,
         FileMetadataDb: FileMetadataRepo,
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+    > FileService for FileServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn update(db: &Db, id: String, content: String) -> Result<bool, Error> {
         let account = AccountDb::get_account(db)?;
@@ -74,12 +78,12 @@ impl<
                 },
             },
         )?;
-        info(format!("Updated file {:?} contents {:?}", &id, &content));
+        Log::info(format!("Updated file {:?} contents {:?}", &id, &content));
         Ok(true)
     }
 
     fn get(db: &Db, id: String) -> Result<DecryptedValue, Error> {
-        info(format!("Getting file contents {:?}", &id));
+        Log::info(format!("Getting file contents {:?}", &id));
         let account = AccountDb::get_account(db)?;
         let encrypted_file = FileDb::get(db, &id)?;
         let decrypted_file = FileCrypto::read_file(&account, &encrypted_file)?;
