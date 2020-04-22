@@ -44,7 +44,6 @@ AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 
         Log::info(format!("Generating Key..."));
         let keys = Crypto::generate_key()?;
-        Log::debug(format!("Generated Keypair: \n{}", serde_json::to_string(&keys).unwrap()));
 
         let account = Account {
             username,
@@ -65,8 +64,9 @@ AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 
         Log::info(format!("Sending username & public key to server"));
         ApiClient::new_account(&new_account_request)?;
-
         Log::info(format!("Account creation success!"));
+
+        Log::debug(format!("{}", serde_json::to_string(&account).unwrap()));
         Ok(account)
     }
 

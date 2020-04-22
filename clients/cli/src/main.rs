@@ -71,8 +71,11 @@ fn main() {
 }
 
 fn connect_to_db() -> Db {
+    // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
     let path = env::var("LOCKBOOK_CLI_LOCATION")
-        .unwrap_or("~/.lockbook/".to_string());
+        .unwrap_or(format!("{}/.lockbook", env::var("HOME")
+            .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
+        );
 
     DefaultDbProvider::connect_to_db(&Config { writeable_path: path.clone() })
         .expect(&format!("Could not connect to db at path: {}", path))
