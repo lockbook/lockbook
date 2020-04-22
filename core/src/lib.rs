@@ -134,7 +134,7 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
 
     let username = string_from_ptr(c_username);
 
-    match DefaultAcountService::create_account(&db, username.to_string()) {
+    match DefaultAcountService::create_account(&db, &username) {
         Ok(_) => 1,
         Err(err) => {
             DefaultLogger::error(format!("Account creation failed with error: {:?}", err));
@@ -240,16 +240,14 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
 #[no_mangle]
 pub unsafe extern "C" fn import_account(
     c_path: *const c_char,
-    c_username: *const c_char,
-    c_key: *const c_char,
+    c_account: *const c_char,
 ) -> c_int {
     let db = match connect_db(c_path) {
         None => return 0,
         Some(db) => db,
     };
-    let username = string_from_ptr(c_username);
-    let key_string = string_from_ptr(c_key);
-    match DefaultAcountService::import_account(&db, username, key_string) {
+    let account_string = string_from_ptr(c_account);
+    match DefaultAcountService::import_account(&db, &account_string) {
         Ok(acc) => {
             DefaultLogger::debug(format!("Loaded account: {:?}", acc));
             1

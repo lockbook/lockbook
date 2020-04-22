@@ -2,7 +2,7 @@ use lockbook_core::client::NewAccountError;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountService;
-use lockbook_core::service::account_service::Error;
+use lockbook_core::service::account_service::AccountCreationError;
 use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider};
 use std::io::Write;
 use std::{env, io};
@@ -49,6 +49,9 @@ enum Lockbook {
 
     /// See Lockbook's current status
     Status,
+
+    /// Delete the Lockbook data directory from this device
+    Nuke,
 }
 
 fn main() {
@@ -65,8 +68,9 @@ fn main() {
         Lockbook::Copy => unimplemented!(),
         Lockbook::Share => unimplemented!(),
         Lockbook::Init => init(),
-        Lockbook::Import => unimplemented!(),
+        Lockbook::Import => import(),
         Lockbook::Status => unimplemented!(),
+        Lockbook::Nuke => unimplemented!(),
     }
 }
 
@@ -80,7 +84,7 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-    .expect(&format!("Could not connect to db at path: {}", path))
+        .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 fn init() {
@@ -95,14 +99,14 @@ fn init() {
         .expect("Failed to read from stdin");
     username.retain(|c| !c.is_whitespace());
 
-    match DefaultAcountService::create_account(&db, username.clone()) {
+    match DefaultAcountService::create_account(&db, &username) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
-            Error::KeyGenerationError(e) => eprintln!("Could not generate keypair, error: {}", e),
+            AccountCreationError::KeyGenerationError(e) => eprintln!("Could not generate keypair, error: {}", e),
 
-            Error::PersistenceError(_) => eprintln!("Could not persist data, error: "),
+            AccountCreationError::PersistenceError(_) => eprintln!("Could not persist data, error: "),
 
-            Error::ApiError(api_err) => match api_err {
+            AccountCreationError::ApiError(api_err) => match api_err {
                 NewAccountError::SendFailed(_) => eprintln!("Network Error Occurred"),
                 NewAccountError::UsernameTaken => {
                     eprintln!("Username {} not available!", &username)
@@ -110,7 +114,22 @@ fn init() {
                 _ => eprintln!("Unknown Error Occurred!"),
             },
 
-            Error::KeySerializationError(_) => eprintln!("Could not serialize key"),
+            AccountCreationError::KeySerializationError(_) => eprintln!("Could not serialize key"),
         },
+    }
+}
+
+fn import() {
+    let db = connect_to_db();
+    println!("To import an existing Lockbook, enter an Account Export String:");
+
+    let mut account_string = String::new();
+    io::stdin()
+        .read_line(&mut account_string)
+        .expect("Failed to read from stdin");
+
+    match DefaultAcountService::import_account(&db, &account_string) {
+        Ok(_) => println!("Account imported successfully!"),
+        Err(_) => {}
     }
 }

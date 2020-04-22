@@ -11,11 +11,11 @@ pub trait Logger {
 pub struct VerboseStdOut;
 
 impl Logger for VerboseStdOut {
-    fn info(msg: String) {
-        println!("{}{}{}", color::Fg(color::Cyan), msg, color::Fg(color::Reset))
-    }
     fn debug(msg: String) {
         println!("{}{}{}", color::Fg(color::Yellow), msg, color::Fg(color::Reset))
+    }
+    fn info(msg: String) {
+        println!("{}{}{}", color::Fg(color::Cyan), msg, color::Fg(color::Reset))
     }
     fn warn(msg: String) {
         println!("{}{}{}", color::Fg(color::Magenta), msg, color::Fg(color::Reset))
@@ -79,8 +79,8 @@ impl Logger for ConditionalStdOut {
 pub struct BlackHole;
 
 impl Logger for BlackHole {
-    fn info(_msg: String) {}
     fn debug(_msg: String) {}
+    fn info(_msg: String) {}
     fn warn(_msg: String) {}
     fn error(_msg: String) {}
 }

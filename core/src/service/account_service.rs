@@ -11,7 +11,7 @@ use crate::service::logging_service::Logger;
 use sled::Db;
 
 error_enum! {
-    enum Error {
+    enum AccountCreationError {
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
         ApiError(client::NewAccountError),
@@ -19,9 +19,16 @@ error_enum! {
     }
 }
 
+error_enum! {
+    enum AccountImportError {
+        AccountStringCorrupted(serde_json::error::Error),
+        PersistenceError(account_repo::Error),
+    }
+}
+
 pub trait AccountService {
-    fn create_account(db: &Db, username: String) -> Result<Account, Error>;
-    fn import_account(db: &Db, username: String, key_string: String) -> Result<Account, Error>;
+    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError>;
+    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError>;
 }
 
 pub struct AccountServiceImpl<
@@ -39,14 +46,14 @@ pub struct AccountServiceImpl<
 impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client>
 AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 {
-    fn create_account(db: &Db, username: String) -> Result<Account, Error> {
+    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError> {
         Log::info(format!("Creating new account for {}", username));
 
         Log::info(format!("Generating Key..."));
         let keys = Crypto::generate_key()?;
 
         let account = Account {
-            username,
+            username: username.clone(),
             keys: keys.clone(),
         };
         let username = account.username.clone();
@@ -70,11 +77,11 @@ AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
         Ok(account)
     }
 
-    fn import_account(db: &Db, username: String, key_string: String) -> Result<Account, Error> {
-        let keys = serde_json::from_str(key_string.as_str())?;
-        let account = Account { username, keys };
+    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError> {
+        let account = serde_json::from_str(account_string.as_str())?;
 
         AccountDb::insert_account(db, &account)?;
+        Log::info(format!("Account imported successfully"));
         Ok(account)
     }
 }
