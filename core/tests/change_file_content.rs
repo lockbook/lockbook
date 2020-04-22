@@ -18,7 +18,6 @@ use lockbook_core::service::clock_service::ClockImpl;
 
 fn change_file_content() -> Result<(), TestError> {
     let account = generate_account();
-    let keys = RsaImpl::generate_key().unwrap();
     let file_id = generate_file_id();
 
     client::new_account(

@@ -19,7 +19,7 @@ pub enum VerificationError {
     InvalidAuthLayout(NoneError),
     AuthDeserializationError(serde_json::error::Error),
     InvalidUsername,
-    TimeStampOutOfBounds,
+    TimeStampOutOfBounds(u128),
 }
 
 impl From<ParseIntError> for VerificationError {
@@ -89,9 +89,10 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
 
         let auth_time = auth_comp.next()?.parse::<u128>()?;
         let range = auth_time..auth_time + max_auth_delay;
+        let current_time = Time::get_time();
 
-        if !range.contains(&Time::get_time()) {
-            return Err(TimeStampOutOfBounds);
+        if !range.contains(&current_time) {
+            return Err(TimeStampOutOfBounds(current_time - auth_time));
         }
         Ok(())
     }
