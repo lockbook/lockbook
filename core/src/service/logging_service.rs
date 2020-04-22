@@ -1,8 +1,9 @@
-use crate::service::logging_service::LogLevel::{All, Debug, Error, Silent, Warn};
+use crate::service::logging_service::LogLevel::{All, Info, Error, Silent, Warn};
+use termion::color;
 
 pub trait Logger {
-    fn info(msg: String);
     fn debug(msg: String);
+    fn info(msg: String);
     fn warn(msg: String);
     fn error(msg: String);
 }
@@ -11,16 +12,16 @@ pub struct VerboseStdOut;
 
 impl Logger for VerboseStdOut {
     fn info(msg: String) {
-        println!("ℹ️ {}", msg)
+        println!("{}{}{}", color::Fg(color::Cyan), msg, color::Fg(color::Reset))
     }
     fn debug(msg: String) {
-        println!("🚧 {}", msg)
+        println!("{}{}{}", color::Fg(color::Yellow), msg, color::Fg(color::Reset))
     }
     fn warn(msg: String) {
-        println!("⚠️ {}", msg)
+        println!("{}{}{}", color::Fg(color::Magenta), msg, color::Fg(color::Reset))
     }
     fn error(msg: String) {
-        eprintln!("🛑 {}", msg)
+        eprintln!("{}{}{}", color::Fg(color::Red), msg, color::Fg(color::Reset))
     }
 }
 
@@ -29,8 +30,8 @@ pub struct ConditionalStdOut;
 fn get_log_level() -> LogLevel {
     match std::env::var("LOCKBOOK_LOG_LEVEL") {
         Ok(value) => match value.to_lowercase().as_str() {
-            "all" => All,
-            "debug" => Debug,
+            "all" | "verbose" | "debug" => All,
+            "info" => Info,
             "warn" => Warn,
             "error" => Error,
             "silent" => Silent,
@@ -42,34 +43,34 @@ fn get_log_level() -> LogLevel {
 
 enum LogLevel {
     All,
-    Debug,
+    Info,
     Warn,
     Error,
     Silent,
 }
 
 impl Logger for ConditionalStdOut {
-    fn info(msg: String) {
+    fn debug(msg: String) {
         match get_log_level() {
-            All => println!("ℹ️ {}", msg),
+            All => println!("{}{}{}", color::Fg(color::Yellow), msg, color::Fg(color::Reset)),
             _ => {}
         }
     }
-    fn debug(msg: String) {
+    fn info(msg: String) {
         match get_log_level() {
-            All | Debug => println!("ℹ️ {}", msg),
+            All | Info => println!("{}{}{}", color::Fg(color::Cyan), msg, color::Fg(color::Reset)),
             _ => {}
         }
     }
     fn warn(msg: String) {
         match get_log_level() {
-            All | Debug | Warn => println!("ℹ️ {}", msg),
+            All | Info | Warn => println!("{}{}{}", color::Fg(color::Magenta), msg, color::Fg(color::Reset)),
             _ => {}
         }
     }
     fn error(msg: String) {
         match get_log_level() {
-            All | Debug | Warn | Error => println!("ℹ️ {}", msg),
+            All | Info | Warn | Error => eprintln!("{}{}{}", color::Fg(color::Red), msg, color::Fg(color::Reset)),
             _ => {}
         }
     }

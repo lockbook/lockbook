@@ -87,6 +87,7 @@ fn init() {
     let mut username = String::new();
     io::stdin().read_line(&mut username)
         .expect("Failed to read from stdin");
+    username.retain(|c| !c.is_whitespace());
 
     match DefaultAcountService::create_account(&db, username.clone()) {
         Ok(_) => println!("Account created successfully!"),

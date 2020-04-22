@@ -37,28 +37,36 @@ pub struct AccountServiceImpl<
 }
 
 impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client>
-    AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
+AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 {
     fn create_account(db: &Db, username: String) -> Result<Account, Error> {
+        Log::info(format!("Creating new account for {}", username));
+
+        Log::info(format!("Generating Key..."));
         let keys = Crypto::generate_key()?;
+        Log::debug(format!("Generated Keypair: \n{}", serde_json::to_string(&keys).unwrap()));
+
         let account = Account {
             username,
             keys: keys.clone(),
         };
-        Log::debug(format!("Keys: {:?}", serde_json::to_string(&keys).unwrap()));
         let username = account.username.clone();
         let auth = "".to_string();
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
+        Log::info(format!("Saving account locally"));
         AccountDb::insert_account(db, &account)?;
+
         let new_account_request = NewAccountRequest {
             username,
             auth,
             public_key,
         };
 
+        Log::info(format!("Sending username & public key to server"));
         ApiClient::new_account(&new_account_request)?;
 
+        Log::info(format!("Account creation success!"));
         Ok(account)
     }
 

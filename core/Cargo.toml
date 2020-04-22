@@ -1,6 +1,6 @@
 [package]
 name = "lockbook_core"
-version = "2.1.8"
+version = "2.1.9"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
@@ -23,3 +23,4 @@ rand = "0.7"
 sha2 = "0.8.0"
 aead = "0.2.0"
 aes-gcm = "0.5.0"
+termion = "1.5.5"
