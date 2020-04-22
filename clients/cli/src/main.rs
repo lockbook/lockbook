@@ -6,6 +6,7 @@ use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::account_service::Error;
+use lockbook_core::client::NewAccountError;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -87,7 +88,7 @@ fn init() {
     io::stdin().read_line(&mut username)
         .expect("Failed to read from stdin");
 
-    match DefaultAcountService::create_account(&db, username) {
+    match DefaultAcountService::create_account(&db, username.clone()) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
             Error::KeyGenerationError(e) =>
@@ -96,8 +97,15 @@ fn init() {
             Error::PersistenceError(_) =>
                 eprintln!("Could not persist data, error: "),
 
-            Error::ApiError(err) =>
-                eprintln!("Could not send account to API, location: {}", "lockbook_core::API_LOC"),
+            Error::ApiError(api_err) =>
+                match api_err {
+                    NewAccountError::SendFailed(_) =>
+                        eprintln!("Network Error Occurred"),
+                    NewAccountError::UsernameTaken =>
+                        eprintln!("Username {} not available!", &username),
+                    _ =>
+                        eprintln!("Unknown Error Occurred!"),
+                },
 
             Error::KeySerializationError(_) =>
                 eprintln!("Could not serialize key")
