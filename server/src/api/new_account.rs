@@ -1,13 +1,13 @@
 use crate::api::utils::make_response_generic;
-use crate::config::{ServerState, config};
+use crate::config::{config, ServerState};
 use crate::index_db;
+use lockbook_core::client::NewAccountResponse;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use lockbook_core::client::NewAccountResponse;
-use lockbook_core::service::auth_service::{AuthServiceImpl, AuthService};
-use lockbook_core::service::crypto_service::RsaImpl;
-use lockbook_core::service::clock_service::ClockImpl;
 
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
@@ -24,9 +24,12 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         &new_account.auth,
         &serde_json::from_str(&new_account.public_key).unwrap(),
         &new_account.username,
-        config().auth_config.max_auth_delay.parse().unwrap() //TODO: don't unwrap
+        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
-        println!("Auth failed for: {} {} {} {:?}", new_account.username, new_account.auth, new_account.public_key, e);
+        println!(
+            "Auth failed for: {} {} {} {:?}",
+            new_account.username, new_account.auth, new_account.public_key, e
+        );
         return make_response(401, "failed_authentication");
     }
 

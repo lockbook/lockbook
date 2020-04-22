@@ -22,13 +22,13 @@ pub struct FilesDbConfig {
 }
 
 pub struct AuthConfig {
-    pub max_auth_delay: &'static str
+    pub max_auth_delay: &'static str,
 }
 
 pub struct Config {
     pub index_db_config: IndexDbConfig,
     pub files_db_config: FilesDbConfig,
-    pub auth_config: AuthConfig
+    pub auth_config: AuthConfig,
 }
 
 pub fn config() -> Config {
@@ -48,7 +48,7 @@ pub fn config() -> Config {
             secret_key: env!("FILES_DB_CONFIG_SECRET_KEY"),
         },
         auth_config: AuthConfig {
-            max_auth_delay: env!("MAX_AUTH_DELAY")
-        }
+            max_auth_delay: env!("MAX_AUTH_DELAY"),
+        },
     }
 }
