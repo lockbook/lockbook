@@ -82,10 +82,10 @@ fn connect_to_db() -> Db {
 }
 
 fn init() {
+    let db = connect_to_db();
+
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
-
-    let db = connect_to_db();
 
     let mut username = String::new();
     io::stdin().read_line(&mut username)
