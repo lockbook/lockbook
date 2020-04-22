@@ -1,12 +1,12 @@
-use structopt::StructOpt;
-use std::{io, env};
-use std::io::Write;
-use lockbook_core::{DefaultDbProvider, DefaultAcountService, Db};
-use lockbook_core::repo::db_provider::DbProvider;
+use lockbook_core::client::NewAccountError;
 use lockbook_core::model::state::Config;
+use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::account_service::Error;
-use lockbook_core::client::NewAccountError;
+use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider};
+use std::io::Write;
+use std::{env, io};
+use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -77,8 +77,10 @@ fn connect_to_db() -> Db {
             .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
         );
 
-    DefaultDbProvider::connect_to_db(&Config { writeable_path: path.clone() })
-        .expect(&format!("Could not connect to db at path: {}", path))
+    DefaultDbProvider::connect_to_db(&Config {
+        writeable_path: path.clone(),
+    })
+    .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 fn init() {
@@ -88,31 +90,27 @@ fn init() {
     io::stdout().flush().unwrap();
 
     let mut username = String::new();
-    io::stdin().read_line(&mut username)
+    io::stdin()
+        .read_line(&mut username)
         .expect("Failed to read from stdin");
     username.retain(|c| !c.is_whitespace());
 
     match DefaultAcountService::create_account(&db, username.clone()) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
-            Error::KeyGenerationError(e) =>
-                eprintln!("Could not generate keypair, error: {}", e),
+            Error::KeyGenerationError(e) => eprintln!("Could not generate keypair, error: {}", e),
 
-            Error::PersistenceError(_) =>
-                eprintln!("Could not persist data, error: "),
+            Error::PersistenceError(_) => eprintln!("Could not persist data, error: "),
 
-            Error::ApiError(api_err) =>
-                match api_err {
-                    NewAccountError::SendFailed(_) =>
-                        eprintln!("Network Error Occurred"),
-                    NewAccountError::UsernameTaken =>
-                        eprintln!("Username {} not available!", &username),
-                    _ =>
-                        eprintln!("Unknown Error Occurred!"),
-                },
+            Error::ApiError(api_err) => match api_err {
+                NewAccountError::SendFailed(_) => eprintln!("Network Error Occurred"),
+                NewAccountError::UsernameTaken => {
+                    eprintln!("Username {} not available!", &username)
+                }
+                _ => eprintln!("Unknown Error Occurred!"),
+            },
 
-            Error::KeySerializationError(_) =>
-                eprintln!("Could not serialize key")
-        }
+            Error::KeySerializationError(_) => eprintln!("Could not serialize key"),
+        },
     }
 }
