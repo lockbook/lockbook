@@ -34,3 +34,11 @@ If you don't tell `rustup` to use nightly you'll get the following error
 ```shell script
 error[E0554]: `#![feature]` may not be used on the stable release channel
 ```
+
+# iOS, iPadOs, macOS
+
+## Requirements
++ Everything Core requires
++ XCode 11+
++ `cbindgen` for creating c headers `cargo install cbindgen`
++ `cargo-lipo` for creating `[Fat Binaries](https://en.wikipedia.org/wiki/Fat_binary) `cargo install cargo-lipo`
