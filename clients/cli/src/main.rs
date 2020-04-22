@@ -1,8 +1,8 @@
 use lockbook_core::client::NewAccountError;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
-use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::account_service::AccountCreationError;
+use lockbook_core::service::account_service::AccountService;
 use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider};
 use std::io::Write;
 use std::{env, io};
@@ -84,7 +84,7 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-        .expect(&format!("Could not connect to db at path: {}", path))
+    .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 fn init() {
@@ -102,9 +102,13 @@ fn init() {
     match DefaultAcountService::create_account(&db, &username) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
-            AccountCreationError::KeyGenerationError(e) => eprintln!("Could not generate keypair, error: {}", e),
+            AccountCreationError::KeyGenerationError(e) => {
+                eprintln!("Could not generate keypair, error: {}", e)
+            }
 
-            AccountCreationError::PersistenceError(_) => eprintln!("Could not persist data, error: "),
+            AccountCreationError::PersistenceError(_) => {
+                eprintln!("Could not persist data, error: ")
+            }
 
             AccountCreationError::ApiError(api_err) => match api_err {
                 NewAccountError::SendFailed(_) => eprintln!("Network Error Occurred"),

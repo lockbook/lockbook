@@ -44,7 +44,7 @@ pub struct AccountServiceImpl<
 }
 
 impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client>
-AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
+    AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
 {
     fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError> {
         Log::info(format!("Creating new account for {}", username));

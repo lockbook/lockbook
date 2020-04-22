@@ -3,12 +3,12 @@ use std::option::NoneError;
 
 use crate::error_enum;
 use crate::model::state::Config;
+use crate::service::logging_service::Logger;
 use crate::DB_NAME;
 use sled::Db;
+use std::marker::PhantomData;
 use tempfile;
 use tempfile::tempdir;
-use crate::service::logging_service::Logger;
-use std::marker::PhantomData;
 
 error_enum! {
     enum Error {
@@ -23,7 +23,7 @@ pub trait DbProvider {
 }
 
 pub struct DiskBackedDB<Log: Logger> {
-    log: PhantomData<Log>
+    log: PhantomData<Log>,
 }
 
 pub struct TempBackedDB;

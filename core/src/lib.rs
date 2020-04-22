@@ -238,10 +238,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn import_account(
-    c_path: *const c_char,
-    c_account: *const c_char,
-) -> c_int {
+pub unsafe extern "C" fn import_account(c_path: *const c_char, c_account: *const c_char) -> c_int {
     let db = match connect_db(c_path) {
         None => return 0,
         Some(db) => db,
