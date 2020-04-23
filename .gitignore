@@ -89,7 +89,5 @@ core/.idea/*
 server/qa_secrets.sh
 core/qa_secrets.sh
 server/ca-certificate.crt
-
-# Intellj IDEA
-
-Project.xml
+.idea/
+*.iml
