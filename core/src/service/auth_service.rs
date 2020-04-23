@@ -117,7 +117,7 @@ mod unit_tests {
     use rand::rngs::OsRng;
     use rsa::{RSAPrivateKey, RSAPublicKey};
 
-    use crate::service::crypto_service::RsaImpl;
+    use crate::service::crypto_service::{RsaImpl, SignedValue};
     use crate::service::auth_service::{VerificationError, AuthServiceImpl, AuthService};
     use crate::service::clock_service::Clock;
 
@@ -140,7 +140,7 @@ mod unit_tests {
     #[test]
     fn test_auth_inverse_property() {
         let private_key = RSAPrivateKey::new(&mut OsRng, 2048).unwrap();
-        let public_key = RSAPublicKey::from(private_key.clone());
+        let public_key = private_key.to_public_key();
 
         let username = String::from("Smail");
         let auth =
@@ -152,15 +152,15 @@ mod unit_tests {
             &username,
             100
         )
-        .unwrap()
+            .unwrap()
     }
 
     #[test]
     fn test_auth_invalid_username() {
         let private_key = RSAPrivateKey::new(&mut OsRng, 2048).unwrap();
-        let public_key = RSAPublicKey::from(private_key.clone());
+        let public_key = private_key.to_public_key();
 
-        let username = String::from(",");
+        let username = String::from("Smail");
         let auth =
             AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username)
                 .unwrap();
@@ -172,7 +172,7 @@ mod unit_tests {
                 &String::from("Hamza"),
                 100
             )
-            .unwrap_err(),
+                .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 
