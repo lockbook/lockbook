@@ -4,13 +4,15 @@ use std::option::NoneError;
 use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::export::PhantomData;
 
+use crate::error_enum;
 use crate::service::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
     TimeStampOutOfBounds, TimeStampParseFailure,
 };
-use crate::service::crypto_service::{SignatureVerificationFailed, PubKeyCryptoService, SignedValue};
 use crate::service::clock_service::Clock;
-use crate::error_enum;
+use crate::service::crypto_service::{
+    PubKeyCryptoService, SignatureVerificationFailed, SignedValue,
+};
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -117,9 +119,9 @@ mod unit_tests {
     use rand::rngs::OsRng;
     use rsa::{RSAPrivateKey, RSAPublicKey};
 
-    use crate::service::crypto_service::{RsaImpl, SignedValue};
-    use crate::service::auth_service::{VerificationError, AuthServiceImpl, AuthService};
+    use crate::service::auth_service::{AuthService, AuthServiceImpl, VerificationError};
     use crate::service::clock_service::Clock;
+    use crate::service::crypto_service::{RsaImpl, SignedValue};
 
     struct EarlyClock;
 
@@ -144,14 +146,8 @@ mod unit_tests {
 
         let username = String::from("Smail");
         let auth =
-            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username)
-                .unwrap();
-        AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(
-            &auth,
-            &public_key,
-            &username,
-            100
-        )
+            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username).unwrap();
+        AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(&auth, &public_key, &username, 100)
             .unwrap()
     }
 
@@ -162,17 +158,16 @@ mod unit_tests {
 
         let username = String::from("Smail");
         let auth =
-            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username)
-                .unwrap();
+            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username).unwrap();
 
         let result = discriminant(
             &AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(
                 &auth,
                 &public_key,
                 &String::from("Hamza"),
-                100
+                100,
             )
-                .unwrap_err(),
+            .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 

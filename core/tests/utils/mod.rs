@@ -12,7 +12,7 @@ use lockbook_core::client::MoveFileError;
 use lockbook_core::client::NewAccountError;
 use lockbook_core::client::RenameFileError;
 use lockbook_core::model::account::Account;
-use lockbook_core::service::crypto_service::{RsaImpl, PubKeyCryptoService};
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 pub fn api_loc() -> String {
     match env::var("LOCKBOOK_API_LOCATION") {
@@ -24,7 +24,12 @@ pub fn api_loc() -> String {
     }
 }
 
-pub fn generate_account() -> Account { Account { username: generate_username(), keys: RsaImpl::generate_key().unwrap()} }
+pub fn generate_account() -> Account {
+    Account {
+        username: generate_username(),
+        keys: RsaImpl::generate_key().unwrap(),
+    }
+}
 
 pub fn generate_username() -> String {
     Uuid::new_v4().to_string()

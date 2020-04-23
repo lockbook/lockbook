@@ -7,10 +7,10 @@ use lockbook_core::client::{RenameFileError, RenameFileRequest};
 
 #[macro_use]
 pub mod utils;
-use utils::{api_loc, generate_file_id, generate_account, TestError};
-use lockbook_core::service::auth_service::{AuthServiceImpl, AuthService};
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, generate_account, generate_file_id, TestError};
 
 fn rename_file() -> Result<(), TestError> {
     let account = generate_account();
@@ -20,7 +20,11 @@ fn rename_file() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -29,7 +33,11 @@ fn rename_file() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -41,7 +49,11 @@ fn rename_file() -> Result<(), TestError> {
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             new_file_name: "new_file_name".to_string(),
         },
@@ -62,7 +74,11 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -71,7 +87,11 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: generate_file_id(),
             new_file_name: "new_file_name".to_string(),
         },
@@ -96,7 +116,11 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -105,7 +129,11 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -117,7 +145,11 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
         },
     )?;
@@ -126,7 +158,11 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             new_file_name: "new_file_name".to_string(),
         },
