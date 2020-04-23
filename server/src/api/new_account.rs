@@ -1,7 +1,10 @@
 use crate::api::utils::make_response_generic;
-use crate::config::ServerState;
+use crate::config::{config, ServerState};
 use crate::index_db;
-use lockbook_core::lockbook_api::NewAccountResponse;
+use lockbook_core::client::NewAccountResponse;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
@@ -16,6 +19,19 @@ pub struct NewAccount {
 #[post("/new-account", data = "<new_account>")]
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
+
+    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
+        &new_account.auth,
+        &serde_json::from_str(&new_account.public_key).unwrap(),
+        &new_account.username,
+        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+    ) {
+        println!(
+            "Auth failed for: {},,, {},,, {},,, {:?}",
+            new_account.username, new_account.auth, new_account.public_key, e
+        );
+        return make_response(401, "failed_authentication");
+    }
 
     let new_account_result = index_db::new_account(
         &mut locked_index_db_client,

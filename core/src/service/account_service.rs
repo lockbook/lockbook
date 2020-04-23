@@ -7,6 +7,8 @@ use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider;
+use crate::service::auth_service::AuthGenError;
+use crate::service::auth_service::AuthService;
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::logging_service::Logger;
 use sled::Db;
@@ -18,6 +20,7 @@ error_enum! {
         PersistenceError(account_repo::Error),
         ApiError(client::NewAccountError),
         KeySerializationError(serde_json::error::Error),
+        AuthGenFailure(AuthGenError)
     }
 }
 
@@ -31,15 +34,22 @@ pub struct AccountServiceImpl<
     Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
     ApiClient: Client,
+    Auth: AuthService,
 > {
     log: PhantomData<Log>,
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
+    auth: PhantomData<Auth>,
 }
 
-impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client>
-    AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient>
+impl<
+        Log: Logger,
+        Crypto: PubKeyCryptoService,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+    > AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient, Auth>
 {
     fn create_account(db: &Db, username: String) -> Result<Account, Error> {
         let keys = Crypto::generate_key()?;
@@ -49,7 +59,7 @@ impl<Log: Logger, Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient
         };
         Log::debug(format!("Keys: {:?}", serde_json::to_string(&keys).unwrap()));
         let username = account.username.clone();
-        let auth = "".to_string();
+        let auth = Auth::generate_auth(&keys, &username)?;
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
         AccountDb::insert_account(db, &account)?;

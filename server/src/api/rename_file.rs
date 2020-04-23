@@ -1,7 +1,7 @@
 use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::index_db;
-use lockbook_core::lockbook_api::RenameFileResponse;
+use lockbook_core::client::RenameFileResponse;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;

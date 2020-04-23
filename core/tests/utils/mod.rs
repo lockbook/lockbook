@@ -1,4 +1,9 @@
 extern crate lockbook_core;
+
+use std::env;
+
+use uuid::Uuid;
+
 use lockbook_core::client::ChangeFileContentError;
 use lockbook_core::client::CreateFileError;
 use lockbook_core::client::DeleteFileError;
@@ -6,8 +11,8 @@ use lockbook_core::client::GetUpdatesError;
 use lockbook_core::client::MoveFileError;
 use lockbook_core::client::NewAccountError;
 use lockbook_core::client::RenameFileError;
-use std::env;
-use uuid::Uuid;
+use lockbook_core::model::account::Account;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 pub fn api_loc() -> String {
     match env::var("LOCKBOOK_API_LOCATION") {
@@ -19,6 +24,13 @@ pub fn api_loc() -> String {
     }
 }
 
+pub fn generate_account() -> Account {
+    Account {
+        username: generate_username(),
+        keys: RsaImpl::generate_key().unwrap(),
+    }
+}
+
 pub fn generate_username() -> String {
     Uuid::new_v4().to_string()
 }
@@ -27,7 +39,7 @@ pub fn generate_file_id() -> String {
     Uuid::new_v4().to_string()
 }
 
-macro_rules! assert_matches(
+macro_rules! assert_matches (
     ($actual:expr, $expected:pat) => {
         // Only compute actual once
         let actual_value = $actual;

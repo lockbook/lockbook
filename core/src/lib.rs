@@ -15,6 +15,8 @@ use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
+use crate::service::auth_service::AuthServiceImpl;
+use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
@@ -36,9 +38,16 @@ type DefaultCrypto = RsaImpl;
 type DefaultSymmetric = AesImpl;
 type DefaultDbProvider = DiskBackedDB;
 type DefaultClient = ClientImpl;
-type DefaultAcountRepo = AccountRepoImpl;
-type DefaultAcountService =
-    AccountServiceImpl<DefaultLogger, DefaultCrypto, DefaultAcountRepo, DefaultClient>;
+type DefaultAccountRepo = AccountRepoImpl;
+type DefaultClock = ClockImpl;
+type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
+type DefaultAccountService = AccountServiceImpl<
+    DefaultLogger,
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileRepo = FileRepoImpl;
 type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
@@ -46,7 +55,7 @@ type DefaultFileMetadataService = FileMetadataServiceImpl<
     DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
-    DefaultAcountRepo,
+    DefaultAccountRepo,
     DefaultClient,
     DefaultFileEncryptionService,
 >;
@@ -54,7 +63,7 @@ type DefaultFileService = FileServiceImpl<
     DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
-    DefaultAcountRepo,
+    DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
 
@@ -116,7 +125,7 @@ pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
         Some(db) => db,
     };
 
-    match DefaultAcountRepo::get_account(&db) {
+    match DefaultAccountRepo::get_account(&db) {
         Ok(account) => CString::new(account.username).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Account retrieval failed with error: {:?}", err));
@@ -134,7 +143,7 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
 
     let username = string_from_ptr(c_username);
 
-    match DefaultAcountService::create_account(&db, username.to_string()) {
+    match DefaultAccountService::create_account(&db, username.to_string()) {
         Ok(_) => 1,
         Err(err) => {
             DefaultLogger::error(format!("Account creation failed with error: {:?}", err));
@@ -249,7 +258,7 @@ pub unsafe extern "C" fn import_account(
     };
     let username = string_from_ptr(c_username);
     let key_string = string_from_ptr(c_key);
-    match DefaultAcountService::import_account(&db, username, key_string) {
+    match DefaultAccountService::import_account(&db, username, key_string) {
         Ok(acc) => {
             DefaultLogger::debug(format!("Loaded account: {:?}", acc));
             1

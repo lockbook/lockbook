@@ -2,7 +2,7 @@ use crate::api::utils::make_response_generic;
 use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
-use lockbook_core::lockbook_api::DeleteFileResponse;
+use lockbook_core::client::DeleteFileResponse;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;

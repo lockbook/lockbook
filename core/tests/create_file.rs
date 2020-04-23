@@ -1,28 +1,38 @@
 extern crate lockbook_core;
+
+use crate::utils::generate_account;
+
 use lockbook_core::client;
 use lockbook_core::client::NewAccountRequest;
 use lockbook_core::client::{CreateFileError, CreateFileRequest};
 
 #[macro_use]
 pub mod utils;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
 
 fn create_file() -> Result<(), TestError> {
-    let username = generate_username();
+    let account = generate_account();
 
     client::new_account(
         api_loc(),
         &NewAccountRequest {
-            username: username.to_string(),
-            auth: "test_auth".to_string(),
-            public_key: "test_public_key".to_string(),
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
     client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: account.username.clone(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
@@ -40,22 +50,26 @@ fn test_create_file() {
 }
 
 fn create_file_duplicate_file_id() -> Result<(), TestError> {
-    let username = generate_username();
+    let account = generate_account();
     let file_id = generate_file_id();
 
     client::new_account(
         api_loc(),
         &NewAccountRequest {
-            username: username.to_string(),
-            auth: "test_auth".to_string(),
-            public_key: "test_public_key".to_string(),
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
     client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: account.username.clone(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
@@ -67,7 +81,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
     client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: account.username.clone(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
@@ -88,21 +102,25 @@ fn test_create_file_duplicate_file_id() {
 }
 
 fn create_file_duplicate_file_path() -> Result<(), TestError> {
-    let username = generate_username();
+    let account = generate_account();
 
     client::new_account(
         api_loc(),
         &NewAccountRequest {
-            username: username.to_string(),
-            auth: "test_auth".to_string(),
-            public_key: "test_public_key".to_string(),
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
     client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: account.username.clone(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
@@ -114,7 +132,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
     client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: account.username.clone(),
             auth: "test_auth".to_string(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
