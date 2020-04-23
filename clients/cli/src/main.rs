@@ -4,10 +4,9 @@ use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountCreationError;
 use lockbook_core::service::account_service::AccountImportError;
 use lockbook_core::service::account_service::AccountService;
-use lockbook_core::service::file_metadata_service::FileMetadataService;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::{
-    Db, DefaultAccountService, DefaultDbProvider, DefaultFileMetadataService, DefaultFileService,
+    Db, DefaultAccountService, DefaultDbProvider, DefaultFileService,
 };
 use std::fs::File;
 use std::io::Write;
@@ -93,7 +92,7 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-    .expect(&format!("Could not connect to db at path: {}", path))
+        .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 fn get_editor() -> String {
@@ -185,7 +184,7 @@ fn new() {
     let file_content =
         fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-    let file_metadata = DefaultFileMetadataService::create(&db, file_name, file_location)
+    let file_metadata = DefaultFileService::create(&db, file_name, file_location)
         .expect("Handle these errors individually after the sync/file refactor"); // TODO
 
     DefaultFileService::update(&db, file_metadata.id, file_content)

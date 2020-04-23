@@ -19,7 +19,7 @@ use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
-use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+use crate::service::sync_service::{SyncService, FileSyncService};
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::logging_service::{ConditionalStdOut, Logger};
 
@@ -51,7 +51,7 @@ pub type DefaultAccountService = AccountServiceImpl<
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultFileMetadataService = FileMetadataServiceImpl<
+pub type DefaultFileMetadataService = FileSyncService<
     DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn create_file(
     let file_name = string_from_ptr(c_file_name);
     let file_path = string_from_ptr(c_file_path);
 
-    match DefaultFileMetadataService::create(&db, file_name, file_path) {
+    match DefaultFileService::create(&db, file_name, file_path) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to create file metadata! Error: {:?}", err));
