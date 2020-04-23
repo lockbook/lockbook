@@ -1,4 +1,7 @@
 extern crate lockbook_core;
+
+use crate::utils::generate_account;
+
 use lockbook_core::client;
 use lockbook_core::client::CreateFileRequest;
 use lockbook_core::client::NewAccountRequest;
@@ -6,22 +9,31 @@ use lockbook_core::client::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
 use utils::{api_loc, generate_file_id, generate_username, TestError};
 
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
+    let account = generate_account();
+
     client::new_account(
         api_loc(),
         &NewAccountRequest {
-            username: username.to_string(),
-            auth: "test_auth".to_string(),
-            public_key: "test_public_key".to_string(),
+            username: username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &username.clone(),
+            )
+            .unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
     let file_version = client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: username.to_string(),
+            username: username.clone(),
             auth: "test_auth".to_string(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
@@ -33,7 +45,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
     let updates_metadata = client::get_updates(
         api_loc(),
         &GetUpdatesRequest {
-            username: username.to_string(),
+            username: username.clone(),
             auth: "test_auth".to_string(),
             since_version: 0,
         },
@@ -47,7 +59,7 @@ fn test_get_updates() {
     let username = generate_username();
     let file_id = generate_file_id();
 
-    let updates_metadata_and_file_version = get_updates(username.to_string(), file_id.to_string());
+    let updates_metadata_and_file_version = get_updates(username.clone(), file_id.to_string());
     assert_matches!(&updates_metadata_and_file_version, &Ok(_));
     let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
     assert_eq!(
