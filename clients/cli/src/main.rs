@@ -3,7 +3,7 @@ use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountCreationError;
 use lockbook_core::service::account_service::AccountService;
-use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider, DefaultFileService, DefaultFileMetadataService};
+use lockbook_core::{Db, DefaultAccountService, DefaultDbProvider, DefaultFileService, DefaultFileMetadataService};
 use std::io::Write;
 use std::{env, io, fs};
 use structopt::StructOpt;
@@ -112,7 +112,7 @@ fn init() {
         .expect("Failed to read from stdin");
     username.retain(|c| !c.is_whitespace());
 
-    match DefaultAcountService::create_account(&db, &username) {
+    match DefaultAccountService::create_account(&db, &username) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
             AccountCreationError::KeyGenerationError(e) => {
@@ -131,6 +131,8 @@ fn init() {
                 _ => eprintln!("Unknown Error Occurred!"),
             },
 
+            AccountCreationError::AuthGenFailure(_) => eprintln!("Could not use private key to sign message"),
+
             AccountCreationError::KeySerializationError(_) => eprintln!("Could not serialize key"),
         },
     }
@@ -145,7 +147,7 @@ fn import() {
         .read_line(&mut account_string)
         .expect("Failed to read from stdin");
 
-    match DefaultAcountService::import_account(&db, &account_string) {
+    match DefaultAccountService::import_account(&db, &account_string) {
         Ok(_) => println!("Account imported successfully!"),
         Err(err) => match err {
             AccountImportError::AccountStringCorrupted(_) =>
