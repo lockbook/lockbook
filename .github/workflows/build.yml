@@ -59,7 +59,6 @@ jobs:
       FILES_DB_CONFIG_REGION: ${{ secrets.FILES_DB_CONFIG_REGION }}
       FILES_DB_CONFIG_ACCESS_KEY: ${{ secrets.FILES_DB_CONFIG_ACCESS_KEY }}
       FILES_DB_CONFIG_SECRET_KEY: ${{ secrets.FILES_DB_CONFIG_SECRET_KEY }}
-      MAX_AUTH_DELAY: 200
     steps:
       - uses: actions/checkout@v2
       - name: Install latest nightly
