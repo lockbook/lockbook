@@ -9,10 +9,10 @@ use lockbook_core::client::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
-use utils::{api_loc, generate_file_id, generate_username, TestError};
-use lockbook_core::service::auth_service::{AuthServiceImpl, AuthService};
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, generate_file_id, generate_username, TestError};
 
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
     let account = generate_account();
@@ -21,7 +21,11 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         api_loc(),
         &NewAccountRequest {
             username: username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
