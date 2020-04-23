@@ -2,18 +2,20 @@ use lockbook_core::client::NewAccountError;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountCreationError;
+use lockbook_core::service::account_service::AccountImportError;
 use lockbook_core::service::account_service::AccountService;
-use lockbook_core::{Db, DefaultAccountService, DefaultDbProvider, DefaultFileService, DefaultFileMetadataService};
-use std::io::Write;
-use std::{env, io, fs};
-use structopt::StructOpt;
-use uuid::Uuid;
-use std::path::Path;
-use std::fs::File;
-use std::process::Command;
 use lockbook_core::service::file_metadata_service::FileMetadataService;
 use lockbook_core::service::file_service::FileService;
-use lockbook_core::service::account_service::AccountImportError;
+use lockbook_core::{
+    Db, DefaultAccountService, DefaultDbProvider, DefaultFileMetadataService, DefaultFileService,
+};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::process::Command;
+use std::{env, fs, io};
+use structopt::StructOpt;
+use uuid::Uuid;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -91,13 +93,11 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-        .expect(&format!("Could not connect to db at path: {}", path))
+    .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 fn get_editor() -> String {
-    env::var("VISUAL")
-        .unwrap_or(env::var("EDITOR")
-            .unwrap_or("vi".to_string()))
+    env::var("VISUAL").unwrap_or(env::var("EDITOR").unwrap_or("vi".to_string()))
 }
 
 fn init() {
@@ -131,7 +131,9 @@ fn init() {
                 _ => eprintln!("Unknown Error Occurred!"),
             },
 
-            AccountCreationError::AuthGenFailure(_) => eprintln!("Could not use private key to sign message"),
+            AccountCreationError::AuthGenFailure(_) => {
+                eprintln!("Could not use private key to sign message")
+            }
 
             AccountCreationError::KeySerializationError(_) => eprintln!("Could not serialize key"),
         },
@@ -150,21 +152,16 @@ fn import() {
     match DefaultAccountService::import_account(&db, &account_string) {
         Ok(_) => println!("Account imported successfully!"),
         Err(err) => match err {
-            AccountImportError::AccountStringCorrupted(_) =>
-                eprintln!("Account String corrupted!"),
-            AccountImportError::PersistenceError(_) =>
-                eprintln!("Could not persist data!"),
-        }
+            AccountImportError::AccountStringCorrupted(_) => eprintln!("Account String corrupted!"),
+            AccountImportError::PersistenceError(_) => eprintln!("Could not persist data!"),
+        },
     }
 }
 
 fn new() {
     let db = connect_to_db(); // TODO ensure account exists
 
-    let file_location = format!(
-        "/tmp/{}",
-        Uuid::new_v4().to_string()
-    );
+    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
@@ -185,8 +182,8 @@ fn new() {
         .wait()
         .expect(format!("Failed to wait for spawned process: {}", get_editor()).as_str()); // TODO maybe use this as abort signal
 
-    let file_content = fs::read_to_string(temp_file_path)
-        .expect("Could not read file that was edited");
+    let file_content =
+        fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
     let file_metadata = DefaultFileMetadataService::create(&db, file_name, file_location)
         .expect("Handle these errors individually after the sync/file refactor"); // TODO
