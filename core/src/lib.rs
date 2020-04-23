@@ -21,6 +21,7 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
 use crate::service::file_service::{FileService, FileServiceImpl};
+use crate::service::logging_service::{ConditionalStdOut, Logger};
 
 pub mod client;
 pub mod error_enum;
@@ -32,6 +33,7 @@ static API_LOC: &str = "http://lockbook.app:8000";
 static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
+type DefaultLogger = ConditionalStdOut;
 type DefaultCrypto = RsaImpl;
 type DefaultSymmetric = AesImpl;
 type DefaultDbProvider = DiskBackedDB;
@@ -40,11 +42,12 @@ type DefaultAccountRepo = AccountRepoImpl;
 type DefaultClock = ClockImpl;
 type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+    AccountServiceImpl<DefaultLogger, DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileRepo = FileRepoImpl;
 type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 type DefaultFileMetadataService = FileMetadataServiceImpl<
+    DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAccountRepo,
@@ -52,6 +55,7 @@ type DefaultFileMetadataService = FileMetadataServiceImpl<
     DefaultFileEncryptionService,
 >;
 type DefaultFileService = FileServiceImpl<
+    DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAccountRepo,
@@ -64,31 +68,6 @@ static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
-
-#[allow(dead_code)]
-fn info(msg: String) {
-    println!("ℹ️ {}", msg)
-}
-
-#[allow(dead_code)]
-fn debug(msg: String) {
-    println!("🚧 {}", msg)
-}
-
-#[allow(dead_code)]
-fn warn(msg: String) {
-    println!("⚠️ {}", msg)
-}
-
-#[allow(dead_code)]
-fn error(msg: String) {
-    eprintln!("🛑 {}", msg)
-}
-
-#[allow(dead_code)]
-fn fatal(msg: String) {
-    eprintln!("🆘 {}", msg)
-}
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
@@ -105,7 +84,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
         Err(err) => {
-            error(format!("DB connection failed! Error: {:?}", err));
+            DefaultLogger::error(format!("DB connection failed! Error: {:?}", err));
             None
         }
     }
@@ -116,12 +95,12 @@ pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
     let path = string_from_ptr(c_path);
 
     let db_path = path + "/" + DB_NAME;
-    debug(format!("Checking if {:?} exists", db_path));
+    DefaultLogger::debug(format!("Checking if {:?} exists", db_path));
     if Path::new(db_path.as_str()).exists() {
-        debug(format!("DB Exists!"));
+        DefaultLogger::debug(format!("DB Exists!"));
         1
     } else {
-        error(format!("DB Does not exist!"));
+        DefaultLogger::error(format!("DB Does not exist!"));
         0
     }
 }
@@ -144,7 +123,7 @@ pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
     match DefaultAccountRepo::get_account(&db) {
         Ok(account) => CString::new(account.username).unwrap().into_raw(),
         Err(err) => {
-            error(format!("Account retrieval failed with error: {:?}", err));
+            DefaultLogger::error(format!("Account retrieval failed with error: {:?}", err));
             CString::new(FAILURE_ACCOUNT).unwrap().into_raw()
         }
     }
@@ -162,7 +141,7 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
     match DefaultAccountService::create_account(&db, username.to_string()) {
         Ok(_) => 1,
         Err(err) => {
-            error(format!("Account creation failed with error: {:?}", err));
+            DefaultLogger::error(format!("Account creation failed with error: {:?}", err));
             0
         }
     }
@@ -178,7 +157,7 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
     match DefaultFileMetadataService::sync(&db) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
-            error(format!("Update metadata failed with error: {:?}", err));
+            DefaultLogger::error(format!("Update metadata failed with error: {:?}", err));
             CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }
@@ -200,7 +179,7 @@ pub unsafe extern "C" fn create_file(
     match DefaultFileMetadataService::create(&db, file_name, file_path) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
-            error(format!("Failed to create file metadata! Error: {:?}", err));
+            DefaultLogger::error(format!("Failed to create file metadata! Error: {:?}", err));
             CString::new(FAILURE_META_CREATE).unwrap().into_raw()
         }
     }
@@ -217,7 +196,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     match DefaultFileService::get(&db, file_id) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
-            error(format!("Failed to get file! Error: {:?}", err));
+            DefaultLogger::error(format!("Failed to get file! Error: {:?}", err));
             CString::new(FAILURE_FILE_GET).unwrap().into_raw()
         }
     }
@@ -239,7 +218,7 @@ pub unsafe extern "C" fn update_file(
     match DefaultFileService::update(&db, file_id, file_content) {
         Ok(_) => 1,
         Err(err) => {
-            error(format!("Failed to update file! Error: {:?}", err));
+            DefaultLogger::error(format!("Failed to update file! Error: {:?}", err));
             0
         }
     }
@@ -257,7 +236,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
             DefaultFileRepo::delete(&db, &meta.id).unwrap();
             ()
         }),
-        Err(err) => error(format!("Failed to delete file! Error: {:?}", err)),
+        Err(err) => DefaultLogger::error(format!("Failed to delete file! Error: {:?}", err)),
     }
     1
 }
@@ -276,11 +255,11 @@ pub unsafe extern "C" fn import_account(
     let key_string = string_from_ptr(c_key);
     match DefaultAccountService::import_account(&db, username, key_string) {
         Ok(acc) => {
-            debug(format!("Loaded account: {:?}", acc));
+            DefaultLogger::debug(format!("Loaded account: {:?}", acc));
             1
         }
         Err(err) => {
-            error(format!("Failed to delete file! Error: {:?}", err));
+            DefaultLogger::error(format!("Failed to delete file! Error: {:?}", err));
             0
         }
     }
