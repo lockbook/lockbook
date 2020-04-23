@@ -1,7 +1,7 @@
 [package]
 name = "lockbook_core"
-version = "2.1.5"
-authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>"]
+version = "3.3.6"
+authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
 license = "BSD-3-Clause"
