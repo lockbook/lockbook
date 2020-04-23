@@ -8,10 +8,10 @@ use lockbook_core::client::{CreateFileError, CreateFileRequest};
 
 #[macro_use]
 pub mod utils;
-use utils::{api_loc, generate_file_id, generate_username, TestError};
-use lockbook_core::service::auth_service::{AuthServiceImpl, AuthService};
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, generate_file_id, generate_username, TestError};
 
 fn create_file() -> Result<(), TestError> {
     let account = generate_account();
@@ -20,7 +20,11 @@ fn create_file() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -53,7 +57,11 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -100,7 +108,11 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;

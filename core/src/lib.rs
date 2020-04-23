@@ -8,15 +8,15 @@ use std::path::Path;
 use serde_json::json;
 use sled::Db;
 
-use crate::service::auth_service::AuthServiceImpl;
 use crate::client::ClientImpl;
-use crate::service::clock_service::ClockImpl;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
+use crate::service::auth_service::AuthServiceImpl;
+use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
@@ -41,8 +41,13 @@ type DefaultClient = ClientImpl;
 type DefaultAccountRepo = AccountRepoImpl;
 type DefaultClock = ClockImpl;
 type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-type DefaultAccountService =
-    AccountServiceImpl<DefaultLogger, DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+type DefaultAccountService = AccountServiceImpl<
+    DefaultLogger,
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+>;
 type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 type DefaultFileRepo = FileRepoImpl;
 type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
