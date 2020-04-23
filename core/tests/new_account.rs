@@ -12,14 +12,13 @@ use crate::utils::generate_account;
 
 fn new_account() -> Result<(), TestError> {
     let account = generate_account();
-    let key = RsaImpl::generate_key().unwrap();
 
     client::new_account(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth( &account.keys, &account.username.clone()).unwrap(),
-            public_key: serde_json::to_string(&key.to_public_key()).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
