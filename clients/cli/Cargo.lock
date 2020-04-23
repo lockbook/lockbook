@@ -711,6 +711,7 @@ version = "0.1.0"
 dependencies = [
  "lockbook_core",
  "structopt",
+ "uuid 0.8.1",
 ]
 
 [[package]]

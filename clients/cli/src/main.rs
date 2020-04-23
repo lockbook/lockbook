@@ -3,10 +3,17 @@ use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountCreationError;
 use lockbook_core::service::account_service::AccountService;
-use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider};
+use lockbook_core::{Db, DefaultAcountService, DefaultDbProvider, DefaultFileService, DefaultFileMetadataService};
 use std::io::Write;
-use std::{env, io};
+use std::{env, io, fs};
 use structopt::StructOpt;
+use uuid::Uuid;
+use std::path::Path;
+use std::fs::File;
+use std::process::Command;
+use lockbook_core::service::file_metadata_service::FileMetadataService;
+use lockbook_core::service::file_service::FileService;
+use lockbook_core::service::account_service::AccountImportError;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -57,7 +64,7 @@ enum Lockbook {
 fn main() {
     let args: Lockbook = Lockbook::from_args();
     match args {
-        Lockbook::New => unimplemented!(),
+        Lockbook::New => new(),
         Lockbook::Sync => unimplemented!(),
         Lockbook::Edit => unimplemented!(),
         Lockbook::Browse => unimplemented!(),
@@ -84,7 +91,13 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-    .expect(&format!("Could not connect to db at path: {}", path))
+        .expect(&format!("Could not connect to db at path: {}", path))
+}
+
+fn get_editor() -> String {
+    env::var("VISUAL")
+        .unwrap_or(env::var("EDITOR")
+            .unwrap_or("vi".to_string()))
 }
 
 fn init() {
@@ -134,6 +147,50 @@ fn import() {
 
     match DefaultAcountService::import_account(&db, &account_string) {
         Ok(_) => println!("Account imported successfully!"),
-        Err(_) => {}
+        Err(err) => match err {
+            AccountImportError::AccountStringCorrupted(_) =>
+                eprintln!("Account String corrupted!"),
+            AccountImportError::PersistenceError(_) =>
+                eprintln!("Could not persist data!"),
+        }
     }
+}
+
+fn new() {
+    let db = connect_to_db(); // TODO ensure account exists
+
+    let file_location = format!(
+        "/tmp/{}",
+        Uuid::new_v4().to_string()
+    );
+    let temp_file_path = Path::new(file_location.as_str());
+    File::create(&temp_file_path)
+        .expect(format!("Could not create temporary file: {}", &file_location).as_str());
+
+    print!("Enter a filename: ");
+    io::stdout().flush().unwrap();
+
+    let mut file_name = String::new();
+    io::stdin()
+        .read_line(&mut file_name)
+        .expect("Failed to read from stdin");
+    println!("Creating file {}", &file_name);
+
+    Command::new(get_editor())
+        .arg(&file_location)
+        .spawn()
+        .expect(format!("Failed to spawn: {}", get_editor()).as_str())
+        .wait()
+        .expect(format!("Failed to wait for spawned process: {}", get_editor()).as_str()); // TODO maybe use this as abort signal
+
+    let file_content = fs::read_to_string(temp_file_path)
+        .expect("Could not read file that was edited");
+
+    let file_metadata = DefaultFileMetadataService::create(&db, file_name, file_location)
+        .expect("Handle these errors individually after the sync/file refactor"); // TODO
+
+    DefaultFileService::update(&db, file_metadata.id, file_content)
+        .expect("Failed to write encrypted value"); // TODO
+
+    // TODO cleanup
 }

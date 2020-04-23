@@ -9,4 +9,4 @@ edition = "2018"
 [dependencies]
 lockbook_core = { path = "../../core" }
 structopt = "0.3.13"
-
+uuid = "0.8"
