@@ -19,9 +19,9 @@ use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
-use crate::service::sync_service::{SyncService, FileSyncService};
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::logging_service::{ConditionalStdOut, Logger};
+use crate::service::sync_service::{FileSyncService, SyncService};
 
 pub mod client;
 pub mod error_enum;

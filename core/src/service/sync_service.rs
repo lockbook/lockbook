@@ -169,7 +169,6 @@ impl<
         Log::error(format!("Remote Errors: {:?}", errors_remote));
         Ok(FileMetadataDb::get_all(&db)?)
     }
-
 }
 
 #[cfg(test)]
@@ -194,8 +193,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::{
         EncryptedFile, FileCreationError, FileEncryptionService, FileWriteError, UnableToReadFile,
     };
-    use crate::service::sync_service::{SyncService, FileSyncService};
     use crate::service::logging_service::{Logger, VerboseStdOut};
+    use crate::service::sync_service::{FileSyncService, SyncService};
     use sled::Db;
 
     struct FileMetaRepoFake;
