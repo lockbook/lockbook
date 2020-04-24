@@ -11,7 +11,7 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        AccountMissing(NoneError), // TODO not required in get_account
+        AccountMissing(NoneError), // TODO: not required in get_account
     }
 }
 
