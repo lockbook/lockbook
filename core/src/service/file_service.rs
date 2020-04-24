@@ -15,6 +15,15 @@ use crate::service::logging_service::Logger;
 use serde::export::PhantomData;
 
 error_enum! {
+    enum NewFileError {
+        AccountRetrievalError(account_repo::Error),
+        EncryptedFileError(file_encryption_service::FileCreationError),
+        SavingMetadataFailed(file_metadata_repo::Error),
+        SavingFileContentsFailed(file_repo::Error),
+    }
+}
+
+error_enum! {
     enum Error {
         FileRepo(file_repo::Error),
         MetaRepo(file_metadata_repo::Error),
@@ -25,6 +34,7 @@ error_enum! {
 }
 
 pub trait FileService {
+    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, NewFileError>;
     fn update(db: &Db, id: String, content: String) -> Result<bool, Error>;
     fn get(db: &Db, id: String) -> Result<DecryptedValue, Error>;
 }
@@ -51,6 +61,14 @@ impl<
         FileCrypto: FileEncryptionService,
     > FileService for FileServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
+    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, NewFileError> {
+        let account = AccountDb::get_account(db)?;
+        let encrypted_file = FileCrypto::new_file(&account)?;
+        let meta = FileMetadataDb::insert(&db, &name, &path)?;
+        FileDb::update(db, &meta.id, &encrypted_file)?;
+        Ok(meta)
+    }
+
     fn update(db: &Db, id: String, content: String) -> Result<bool, Error> {
         let account = AccountDb::get_account(db)?;
         let encrypted_file = FileDb::get(db, &id)?;
