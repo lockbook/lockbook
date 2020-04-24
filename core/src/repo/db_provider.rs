@@ -3,8 +3,10 @@ use std::option::NoneError;
 
 use crate::error_enum;
 use crate::model::state::Config;
+use crate::service::logging_service::Logger;
 use crate::DB_NAME;
 use sled::Db;
+use std::marker::PhantomData;
 use tempfile;
 use tempfile::tempdir;
 
@@ -20,13 +22,16 @@ pub trait DbProvider {
     fn connect_to_db(config: &Config) -> Result<Db, Error>;
 }
 
-pub struct DiskBackedDB;
+pub struct DiskBackedDB<Log: Logger> {
+    log: PhantomData<Log>,
+}
 
 pub struct TempBackedDB;
 
-impl DbProvider for DiskBackedDB {
+impl<Log: Logger> DbProvider for DiskBackedDB<Log> {
     fn connect_to_db(config: &Config) -> Result<Db, Error> {
         let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
+        Log::debug(format!("DB Location: {}", db_path));
         Ok(sled::open(db_path.as_str())?)
     }
 }
