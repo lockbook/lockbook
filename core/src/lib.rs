@@ -181,7 +181,7 @@ pub unsafe extern "C" fn create_file(
     let file_name = string_from_ptr(c_file_name);
     let file_path = string_from_ptr(c_file_path);
 
-    match DefaultFileService::create(&db, file_name, file_path) {
+    match DefaultFileService::create(&db, &file_name, &file_path) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to create file metadata! Error: {:?}", err));
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, file_id) {
+    match DefaultFileService::get(&db, &file_id) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to get file! Error: {:?}", err));
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn update_file(
     let file_id = string_from_ptr(c_file_id);
     let file_content = string_from_ptr(c_file_content);
 
-    match DefaultFileService::update(&db, file_id, file_content) {
+    match DefaultFileService::update(&db, &file_id, &file_content) {
         Ok(_) => 1,
         Err(err) => {
             DefaultLogger::error(format!("Failed to update file! Error: {:?}", err));

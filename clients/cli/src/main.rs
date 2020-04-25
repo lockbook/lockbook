@@ -1,12 +1,14 @@
 use lockbook_core::client::NewAccountError;
 use lockbook_core::model::state::Config;
+use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::account_service::AccountCreationError;
 use lockbook_core::service::account_service::AccountImportError;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
+use lockbook_core::service::file_service::NewFileError;
 use lockbook_core::{
-    Db, DefaultAccountService, DefaultDbProvider, DefaultFileService,
+    Db, DefaultAccountRepo, DefaultAccountService, DefaultDbProvider, DefaultFileService,
 };
 use std::fs::File;
 use std::io::Write;
@@ -158,7 +160,8 @@ fn import() {
 }
 
 fn new() {
-    let db = connect_to_db(); // TODO ensure account exists
+    let db = connect_to_db();
+    DefaultAccountRepo::get_account(&db).expect("No account found, run init, import or help.");
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
@@ -174,21 +177,52 @@ fn new() {
         .expect("Failed to read from stdin");
     println!("Creating file {}", &file_name);
 
-    Command::new(get_editor())
+    let edit_was_successful = Command::new(get_editor())
         .arg(&file_location)
         .spawn()
-        .expect(format!("Failed to spawn: {}", get_editor()).as_str())
+        .expect(
+            format!(
+                "Failed to spawn: {}, content location: {}",
+                get_editor(),
+                file_location
+            )
+                .as_str(),
+        )
         .wait()
-        .expect(format!("Failed to wait for spawned process: {}", get_editor()).as_str()); // TODO maybe use this as abort signal
+        .expect(
+            format!(
+                "Failed to wait for spawned process: {}, content location: {}",
+                get_editor(),
+                file_location
+            )
+                .as_str(),
+        )
+        .success();
 
-    let file_content =
-        fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
+    if edit_was_successful {
+        let file_content =
+            fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-    let file_metadata = DefaultFileService::create(&db, file_name, file_location)
-        .expect("Handle these errors individually after the sync/file refactor"); // TODO
+        let file_metadata = match DefaultFileService::create(&db, &file_name, &file_location) {
+            Ok(file_metadata) => file_metadata,
+            Err(error) => match error {
+                NewFileError::AccountRetrievalError(_) => {
+                    panic!("No account found, run init, import, or help.")
+                }
+                NewFileError::EncryptedFileError(_) => panic!("Failed to perform encryption!"),
+                NewFileError::SavingMetadataFailed(_) => {
+                    panic!("Failed to persist file metadata locally")
+                }
+                NewFileError::SavingFileContentsFailed(_) => {
+                    panic!("Failed to persist file contents locally")
+                }
+            },
+        };
 
-    DefaultFileService::update(&db, file_metadata.id, file_content)
-        .expect("Failed to write encrypted value"); // TODO
-
+        DefaultFileService::update(&db, &file_metadata.id, &file_content)
+            .expect("Failed to write encrypted value"); // TODO
+    } else {
+        eprintln!("{} indicated a problem, aborting and cleaning up", get_editor());
+    }
     // TODO cleanup
 }

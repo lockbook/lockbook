@@ -13,14 +13,14 @@ use crate::service::crypto_service::{
     SymmetricCryptoService,
 };
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct AccessInfo {
     pub username: String,
     pub public_key: RSAPublicKey,
     pub access_key: EncryptedValue,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EncryptedFile {
     pub access_keys: HashMap<String, AccessInfo>,
     pub content: EncryptedValueWithNonce,
