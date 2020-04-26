@@ -2,6 +2,7 @@ mod change_file_content;
 mod create_file;
 mod delete_file;
 mod get_file;
+mod get_public_key;
 mod get_updates;
 mod move_file;
 mod new_account;
