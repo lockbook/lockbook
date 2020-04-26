@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use sled::Db;
+
 use crate::client::{
     ChangeFileContentRequest, Client, CreateFileRequest, GetFileRequest, GetUpdatesRequest,
 };
@@ -10,10 +12,8 @@ use crate::repo::db_provider;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::file_encryption_service;
-use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::logging_service::Logger;
 use crate::{client, error_enum};
-use sled::Db;
 
 error_enum! {
     enum Error {
@@ -42,14 +42,12 @@ pub struct FileSyncService<
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
-    FileCrypto: FileEncryptionService,
 > {
     log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
-    file_crypto: PhantomData<FileCrypto>,
 }
 
 impl<
@@ -58,9 +56,7 @@ impl<
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
-        FileCrypto: FileEncryptionService,
-    > SyncService
-    for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
+    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
 {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         // Load user's account
@@ -173,6 +169,8 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
+    use sled::Db;
+
     use crate::client::{
         ChangeFileContentError, ChangeFileContentRequest, Client, CreateFileError,
         CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
@@ -188,14 +186,11 @@ mod unit_tests {
     use crate::repo::file_repo::FileRepo;
     use crate::repo::{account_repo, file_metadata_repo, file_repo};
     use crate::service::crypto_service::{
-        DecryptedValue, EncryptedValueWithNonce, PubKeyCryptoService, RsaImpl, SignedValue,
+        EncryptedValueWithNonce, PubKeyCryptoService, RsaImpl, SignedValue,
     };
-    use crate::service::file_encryption_service::{
-        EncryptedFile, FileCreationError, FileEncryptionService, FileWriteError, UnableToReadFile,
-    };
+    use crate::service::file_encryption_service::EncryptedFile;
     use crate::service::logging_service::{Logger, VerboseStdOut};
     use crate::service::sync_service::{FileSyncService, SyncService};
-    use sled::Db;
 
     struct FileMetaRepoFake;
     impl FileMetadataRepo for FileMetaRepoFake {
@@ -352,37 +347,9 @@ mod unit_tests {
         }
     }
 
-    struct FakeFileEncryptionService;
-    impl FileEncryptionService for FakeFileEncryptionService {
-        fn new_file(_author: &Account) -> Result<EncryptedFile, FileCreationError> {
-            unimplemented!()
-        }
-
-        fn write_to_file(
-            _author: &Account,
-            _file_before: &EncryptedFile,
-            _content: &DecryptedValue,
-        ) -> Result<EncryptedFile, FileWriteError> {
-            unimplemented!()
-        }
-
-        fn read_file(
-            _key: &Account,
-            _file: &EncryptedFile,
-        ) -> Result<DecryptedValue, UnableToReadFile> {
-            unimplemented!()
-        }
-    }
-
     type DefaultDbProvider = TempBackedDB;
-    type DefaultFileMetadataService = FileSyncService<
-        VerboseStdOut,
-        FileMetaRepoFake,
-        FileRepoFake,
-        AccountRepoFake,
-        ClientFake,
-        FakeFileEncryptionService,
-    >;
+    type DefaultFileMetadataService =
+        FileSyncService<VerboseStdOut, FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
 
     #[test]
     fn test_sync() {

@@ -7,8 +7,8 @@ pub mod utils;
 use crate::utils::generate_account;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
-use utils::{api_loc, generate_username, TestError};
+use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, TestError};
 
 fn new_account() -> Result<(), TestError> {
     let account = generate_account();
@@ -17,11 +17,7 @@ fn new_account() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
-                &account.keys,
-                &account.username.clone(),
-            )
-            .unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -41,11 +37,7 @@ fn new_account_duplicate() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
-                &account.keys,
-                &account.username.clone(),
-            )
-            .unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -54,11 +46,7 @@ fn new_account_duplicate() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
-                &account.keys,
-                &account.username.clone(),
-            )
-            .unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;

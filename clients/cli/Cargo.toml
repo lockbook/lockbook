@@ -10,3 +10,5 @@ edition = "2018"
 lockbook_core = { path = "../../core" }
 structopt = "0.3.13"
 uuid = "0.8"
+serde_json = "1.0.44"
+

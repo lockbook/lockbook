@@ -710,6 +710,7 @@ name = "lockbook"
 version = "0.1.0"
 dependencies = [
  "lockbook_core",
+ "serde_json",
  "structopt",
  "uuid 0.8.1",
 ]

@@ -57,7 +57,6 @@ pub type DefaultFileMetadataService = FileSyncService<
     DefaultFileRepo,
     DefaultAccountRepo,
     DefaultClient,
-    DefaultFileEncryptionService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultLogger,

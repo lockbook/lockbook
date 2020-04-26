@@ -10,7 +10,7 @@ use crate::repo::file_repo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::crypto_service::DecryptedValue;
 use crate::service::file_encryption_service;
-use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_encryption_service::{EncryptedFile, FileEncryptionService};
 use crate::service::logging_service::Logger;
 use serde::export::PhantomData;
 
@@ -28,6 +28,7 @@ error_enum! {
         AccountRetrievalError(account_repo::Error),
         FileRetrievalError(file_repo::Error),
         EncryptedWriteError(file_encryption_service::FileWriteError),
+        MetadataDbError(file_metadata_repo::Error),
 
     }
 }
@@ -44,7 +45,7 @@ error_enum! {
 
 pub trait FileService {
     fn create(db: &Db, name: &String, path: &String) -> Result<FileMetadata, NewFileError>;
-    fn update(db: &Db, id: &String, content: &String) -> Result<bool, UpdateFileError>;
+    fn update(db: &Db, id: &String, content: &String) -> Result<EncryptedFile, UpdateFileError>;
     fn get(db: &Db, id: &String) -> Result<DecryptedValue, Error>;
 }
 
@@ -63,15 +64,18 @@ pub struct FileServiceImpl<
 }
 
 impl<
-    Log: Logger,
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    FileCrypto: FileEncryptionService,
-> FileService for FileServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, FileCrypto>
+        Log: Logger,
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        FileCrypto: FileEncryptionService,
+    > FileService for FileServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn create(db: &Db, name: &String, path: &String) -> Result<FileMetadata, NewFileError> {
-        Log::info(format!("Creating new file with name: {} at path {}", name, path));
+        Log::info(format!(
+            "Creating new file with name: {} at path {}",
+            name, path
+        ));
 
         let account = AccountDb::get_account(db)?;
         Log::debug(format!("Account retrieved: {:?}", account));
@@ -87,14 +91,20 @@ impl<
         Ok(meta)
     }
 
-    fn update(db: &Db, id: &String, content: &String) -> Result<bool, UpdateFileError> {
-        Log::info(format!("Replacing file id: {} contents with: {}", &id, &content));
+    fn update(db: &Db, id: &String, content: &String) -> Result<EncryptedFile, UpdateFileError> {
+        Log::info(format!(
+            "Replacing file id: {} contents with: {}",
+            &id, &content
+        ));
 
         let account = AccountDb::get_account(db)?;
         Log::debug(format!("Account retrieved: {:?}", account));
 
         let encrypted_file = FileDb::get(db, &id)?;
-        Log::debug(format!("Metadata of the file to edit: {:?}", encrypted_file));
+        Log::debug(format!(
+            "Metadata of the file to edit: {:?}",
+            encrypted_file
+        ));
 
         let updated_enc_file = FileCrypto::write_to_file(
             &account,
@@ -108,6 +118,7 @@ impl<
         FileDb::update(db, &id, &updated_enc_file)?;
 
         let meta = FileMetadataDb::get(db, &id)?;
+        Log::debug(format!("New metadata: {:?}", &meta));
         FileMetadataDb::update(
             db,
             &FileMetadata {
@@ -123,9 +134,8 @@ impl<
                 },
             },
         )?;
-
         Log::info(format!("Updated file {:?} contents {:?}", &id, &content));
-        Ok(true)
+        Ok(updated_enc_file)
     }
 
     fn get(db: &Db, id: &String) -> Result<DecryptedValue, Error> {
