@@ -1,8 +1,8 @@
 use crate::config::ServerState;
 use crate::index_db;
 
-use rocket::http::Status;
 use rocket::http::Header;
+use rocket::http::Status;
 use rocket::{Response, State};
 
 #[put("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
