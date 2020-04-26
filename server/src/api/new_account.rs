@@ -5,6 +5,7 @@ use lockbook_core::client::NewAccountResponse;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
+use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
@@ -20,6 +21,16 @@ pub struct NewAccount {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
+    let public_key =
+        match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
+            Ok(public_key) => public_key,
+            Err(_) => return Response::build().status(Status::NotFound).finalize(),
+        };
+
+    if public_key != new_account.public_key {
+        return Response::build().status(Status::Unauthorized).finalize();
+    }
+
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &new_account.auth,
         &serde_json::from_str(&new_account.public_key).unwrap(),
@@ -27,10 +38,10 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
         println!(
-            "Auth failed for: {},,, {},,, {},,, {:?}",
+            "Auth failed for: {}, {}, {}, {:?}",
             new_account.username, new_account.auth, new_account.public_key, e
         );
-        return make_response(401, "failed_authentication");
+        return Response::build().status(Status::Unauthorized).finalize();
     }
 
     let new_account_result = index_db::new_account(

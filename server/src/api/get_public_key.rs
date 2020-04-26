@@ -5,7 +5,7 @@ use rocket::http::Status;
 use rocket::{Response, State};
 use std::io::Cursor;
 
-#[put("/get_public_key/<username>")] // TODO: should I create a wrapper for data?
+#[put("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
 pub fn get_public_key(server_state: State<ServerState>, username: String) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 

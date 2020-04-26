@@ -1,5 +1,8 @@
-use crate::config::ServerState;
+use crate::config::{config, ServerState};
 use crate::index_db;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
 use rocket::http::Status;
 use rocket::Response;
 use rocket::State;
@@ -13,6 +16,24 @@ pub fn get_updates(
     version: i64,
 ) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
+
+    let public_key = match index_db::get_public_key(&mut locked_index_db_client, &username) {
+        Ok(public_key) => public_key,
+        Err(_) => return Response::build().status(Status::NotFound).finalize(),
+    };
+
+    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
+        &auth,
+        &serde_json::from_str(&public_key).unwrap(),
+        &username,
+        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+    ) {
+        println!(
+            "Auth failed for: {}, {}, {}, {:?}",
+            username, auth, public_key, e
+        );
+        return Response::build().status(Status::Unauthorized).finalize();
+    }
 
     let get_updates_result =
         index_db::get_updates(&mut locked_index_db_client, &username, &version);
