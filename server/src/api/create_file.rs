@@ -1,8 +1,12 @@
 use crate::api::utils::make_response_generic;
-use crate::config::ServerState;
+use crate::config::{config, ServerState};
 use crate::files_db;
 use crate::index_db;
 use lockbook_core::client::CreateFileResponse;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
+use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
@@ -21,6 +25,25 @@ pub struct CreateFile {
 pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFile>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
+
+    let public_key =
+        match index_db::get_public_key(&mut locked_index_db_client, &create_file.username) {
+            Ok(public_key) => public_key,
+            Err(_) => return Response::build().status(Status::NotFound).finalize(),
+        };
+
+    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
+        &create_file.auth,
+        &serde_json::from_str(&public_key).unwrap(),
+        &create_file.username,
+        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+    ) {
+        println!(
+            "Auth failed for: {},] {}, {}, {:?}",
+            create_file.username, create_file.auth, public_key, e
+        );
+        return Response::build().status(Status::Unauthorized).finalize();
+    }
 
     let get_file_details_result =
         files_db::get_file_details(&locked_files_db_client, &create_file.file_id);
