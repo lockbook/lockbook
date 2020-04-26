@@ -7,11 +7,11 @@ use uuid::Uuid;
 use lockbook_core::client::ChangeFileContentError;
 use lockbook_core::client::CreateFileError;
 use lockbook_core::client::DeleteFileError;
+use lockbook_core::client::GetPublicKeyError;
 use lockbook_core::client::GetUpdatesError;
 use lockbook_core::client::MoveFileError;
 use lockbook_core::client::NewAccountError;
 use lockbook_core::client::RenameFileError;
-use lockbook_core::client::GetPublicKeyError;
 use lockbook_core::model::account::Account;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
@@ -60,7 +60,7 @@ pub enum TestError {
     MoveFileError(MoveFileError),
     DeleteFileError(DeleteFileError),
     GetUpdatesError(GetUpdatesError),
-    GetPublicKeyError(GetPublicKeyError)
+    GetPublicKeyError(GetPublicKeyError),
 }
 
 impl From<NewAccountError> for TestError {
@@ -106,5 +106,7 @@ impl From<GetUpdatesError> for TestError {
 }
 
 impl From<GetPublicKeyError> for TestError {
-    fn from(e: GetPublicKeyError) -> TestError { TestError::GetPublicKeyError(e) }
+    fn from(e: GetPublicKeyError) -> TestError {
+        TestError::GetPublicKeyError(e)
+    }
 }
