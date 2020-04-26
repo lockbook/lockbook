@@ -76,7 +76,6 @@ impl<
             "Creating new file with name: {} at path {}",
             name, path
         ));
-
         let account = AccountDb::get_account(db)?;
         Log::debug(format!("Account retrieved: {:?}", account));
 
