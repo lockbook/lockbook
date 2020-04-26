@@ -15,6 +15,7 @@ pub use self::change_file_content::{
 pub use self::create_file::{create_file, CreateFileError, CreateFileRequest, CreateFileResponse};
 pub use self::delete_file::{delete_file, DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 pub use self::get_file::{get_file, GetFileError, GetFileRequest};
+pub use self::get_public_key::{get_public_key, GetPublicKeyError, GetPublicKeyRequest};
 pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdatesRequest};
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
@@ -26,6 +27,7 @@ pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError>;
     fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError>;
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
+    fn get_public_key(username: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
 }
@@ -43,6 +45,11 @@ impl Client for ClientImpl {
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
         get_file(BUCKET_LOC.to_string(), params)
     }
+
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError> {
+        get_public_key(API_LOC.to_string(), params)
+    }
+
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
         create_file(API_LOC.to_string(), params)
     }
