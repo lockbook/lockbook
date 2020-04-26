@@ -1,5 +1,3 @@
-use crate::api::get_public_key::get_public_key;
-use crate::api::new_account::new_account;
 use crate::api::utils::make_response_generic;
 use crate::config::{config, ServerState};
 use crate::index_db;
