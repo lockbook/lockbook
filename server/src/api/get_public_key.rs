@@ -2,8 +2,8 @@ use crate::config::ServerState;
 use crate::index_db;
 
 use rocket::http::Status;
+use rocket::http::Header;
 use rocket::{Response, State};
-use std::io::Cursor;
 
 #[put("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
 pub fn get_public_key(server_state: State<ServerState>, username: String) -> Response {
@@ -14,8 +14,8 @@ pub fn get_public_key(server_state: State<ServerState>, username: String) -> Res
     match get_public_key_result {
         Ok(public_key) => Response::build()
             .status(Status::Ok)
-            .sized_body(Cursor::new(public_key))
+            .header(Header::new("public_key", public_key))
             .finalize(),
-        Err(e) => Response::build().status(Status::NotFound).finalize(),
+        Err(_) => Response::build().status(Status::NotFound).finalize(),
     }
 }
