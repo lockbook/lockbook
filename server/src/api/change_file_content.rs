@@ -1,8 +1,12 @@
 use crate::api::utils::make_response_generic;
-use crate::config::ServerState;
+use crate::config::{config, ServerState};
 use crate::files_db;
 use crate::index_db;
 use lockbook_core::client::ChangeFileContentResponse;
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::RsaImpl;
+use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
@@ -23,6 +27,25 @@ pub fn change_file_content(
 ) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
     let locked_files_db_client = server_state.files_db_client.lock().unwrap();
+
+    let public_key =
+        match index_db::get_public_key(&mut locked_index_db_client, &change_file.username) {
+            Ok(public_key) => public_key,
+            Err(_) => return Response::build().status(Status::NotFound).finalize(),
+        };
+
+    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
+        &change_file.auth,
+        &serde_json::from_str(&public_key).unwrap(),
+        &change_file.username,
+        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+    ) {
+        println!(
+            "Auth failed for: {}, {}, {}, {:?}",
+            change_file.username, change_file.auth, public_key, e
+        );
+        return Response::build().status(Status::Unauthorized).finalize();
+    }
 
     let update_file_version_result = index_db::update_file_version(
         &mut locked_index_db_client,
