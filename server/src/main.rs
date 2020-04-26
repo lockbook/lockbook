@@ -38,6 +38,7 @@ fn main() {
                 api::create_file::create_file,
                 api::change_file_content::change_file_content,
                 api::get_updates::get_updates,
+                api::get_public_key::get_public_key,
                 api::rename_file::rename_file,
                 api::move_file::move_file,
                 api::delete_file::delete_file,
