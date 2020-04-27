@@ -45,7 +45,9 @@ pub fn init() {
                 eprintln!("Could not use private key to sign message: {:?}.", err)
             }
 
-            AccountCreationError::KeySerializationError(err) => eprintln!("Could not serialize key: {}", err),
+            AccountCreationError::KeySerializationError(err) => {
+                eprintln!("Could not serialize key: {}", err)
+            }
         },
     }
 }
