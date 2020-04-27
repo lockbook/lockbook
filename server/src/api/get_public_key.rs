@@ -5,7 +5,7 @@ use rocket::http::Header;
 use rocket::http::Status;
 use rocket::{Response, State};
 
-#[put("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
+#[get("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
 pub fn get_public_key(server_state: State<ServerState>, username: String) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
@@ -16,6 +16,6 @@ pub fn get_public_key(server_state: State<ServerState>, username: String) -> Res
             .status(Status::Ok)
             .header(Header::new("public_key", public_key))
             .finalize(),
-        Err(_) => Response::build().status(Status::NotFound).finalize(),
+        Err(_) => Response::build().status(Status::BadRequest).finalize(),
     }
 }
