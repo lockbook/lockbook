@@ -21,16 +21,6 @@ pub struct NewAccount {
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
-    let public_key =
-        match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
-            Ok(public_key) => public_key,
-            Err(_) => return Response::build().status(Status::NotFound).finalize(),
-        };
-
-    if public_key != new_account.public_key {
-        return Response::build().status(Status::Unauthorized).finalize();
-    }
-
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &new_account.auth,
         &serde_json::from_str(&new_account.public_key).unwrap(),
@@ -49,6 +39,20 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         &new_account.username,
         &new_account.public_key,
     );
+
+    let public_key =
+        match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
+            Ok(public_key) => public_key,
+            Err(e) => {
+
+                return Response::build().status(Status::NotFound).finalize()
+            },
+        };
+
+    if public_key != new_account.public_key {
+        return Response::build().status(Status::Unauthorized).finalize();
+    }
+
     match new_account_result {
         Ok(()) => make_response(201, "ok"),
         Err(index_db::new_account::Error::UsernameTaken) => make_response(422, "username_taken"),
