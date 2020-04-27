@@ -29,23 +29,23 @@ pub fn init() {
                 eprintln!("Could not generate keypair, error: {}", e)
             }
 
-            AccountCreationError::PersistenceError(_) => {
-                eprintln!("Could not persist data, error: ")
+            AccountCreationError::PersistenceError(err) => {
+                eprintln!("Could not persist data, error: {:?}", err)
             }
 
             AccountCreationError::ApiError(api_err) => match api_err {
-                NewAccountError::SendFailed(_) => eprintln!("Network Error Occurred"),
+                NewAccountError::SendFailed(err) => eprintln!("Network Error Occurred: {}", err),
                 NewAccountError::UsernameTaken => {
                     eprintln!("Username {} not available!", &username)
                 }
-                _ => eprintln!("Unknown Error Occurred!"),
+                _ => eprintln!("Unknown Error Occurred: {:?}!", api_err),
             },
 
-            AccountCreationError::AuthGenFailure(_) => {
-                eprintln!("Could not use private key to sign message")
+            AccountCreationError::AuthGenFailure(err) => {
+                eprintln!("Could not use private key to sign message: {:?}.", err)
             }
 
-            AccountCreationError::KeySerializationError(_) => eprintln!("Could not serialize key"),
+            AccountCreationError::KeySerializationError(err) => eprintln!("Could not serialize key: {}", err),
         },
     }
 }

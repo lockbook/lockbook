@@ -6,7 +6,9 @@ use lockbook_core::model::state::Config;
 
 use lockbook_core::repo::db_provider::DbProvider;
 
-use lockbook_core::{Db, DefaultDbProvider};
+use lockbook_core::{Db, DefaultDbProvider, DefaultAccountRepo};
+use lockbook_core::model::account::Account;
+use lockbook_core::repo::account_repo::{AccountRepo, Error};
 
 mod import;
 mod init;
@@ -89,7 +91,19 @@ fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-    .expect(&format!("Could not connect to db at path: {}", path))
+        .expect(&format!("Could not connect to db at path: {}", path))
+}
+
+fn get_account(db: &Db) -> Account {
+    // DefaultAccountRepo::get_account(&db).expect("test")
+    match DefaultAccountRepo::get_account(&db) {
+        Ok(account) => account,
+        Err(err) => match err {
+            Error::SledError(err) => panic!("No account found, run init, import or help. Error: {}", err),
+            Error::SerdeError(err) => panic!("Account data corrupted: {}", err),
+            Error::AccountMissing(_) => panic!("No account found, run init, import or help."),
+        },
+    }
 }
 
 fn get_editor() -> String {

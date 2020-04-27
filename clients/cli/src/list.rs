@@ -1,4 +1,4 @@
-use crate::connect_to_db;
+use crate::{connect_to_db, get_account};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{DefaultClock, DefaultFileMetadataRepo};
@@ -8,6 +8,8 @@ use chrono::Duration;
 
 pub fn list() {
     let db = connect_to_db();
+
+    get_account(&db);
 
     DefaultFileMetadataRepo::get_all(&db)
         .expect("Failed to retrieve content from FileMetadataRepo")

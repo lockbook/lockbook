@@ -8,22 +8,19 @@ use uuid::Uuid;
 
 use lockbook_core::client::{Client, CreateFileError, CreateFileRequest};
 
-use lockbook_core::repo::account_repo::AccountRepo;
-
-use crate::{connect_to_db, get_editor};
+use crate::{connect_to_db, get_editor, get_account};
 use lockbook_core::model::file_metadata::{FileMetadata, Status};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::auth_service::AuthService;
 use lockbook_core::service::file_service::{FileService, NewFileError, UpdateFileError};
 use lockbook_core::{
-    DefaultAccountRepo, DefaultAuthService, DefaultClient, DefaultFileMetadataRepo,
+    DefaultAuthService, DefaultClient, DefaultFileMetadataRepo,
     DefaultFileService,
 };
 
 pub fn new() {
     let db = connect_to_db();
-    let account =
-        DefaultAccountRepo::get_account(&db).expect("No account found, run init, import or help.");
+    let account = get_account(&db);
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
@@ -123,7 +120,7 @@ pub fn new() {
                     },
                 )
                 .expect("Failed to update metadata repo");
-                print!("File saved locally and synced!")
+                println!("File saved locally and synced!")
             }
             Err(err) => match err {
                 CreateFileError::SendFailed(_) => {
