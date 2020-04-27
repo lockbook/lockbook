@@ -17,4 +17,5 @@ pub enum Status {
     Local,
     Remote,
     Synced,
+    Both,
 }

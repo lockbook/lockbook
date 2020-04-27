@@ -5,6 +5,7 @@ mod init;
 mod list;
 mod new;
 mod utils;
+mod status;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -45,7 +46,8 @@ enum Lockbook {
     /// Import an existing Lockbook
     Import,
 
-    /// See Lockbook's current status
+    /// Displays: which files need to be pushed or pulled.
+    /// If conflicts need to be resolved. And when the last successful sync was.
     Status,
 
     /// Delete the Lockbook data directory from this device
@@ -67,7 +69,7 @@ fn main() {
         Lockbook::Share => unimplemented!(),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
-        Lockbook::Status => unimplemented!(),
+        Lockbook::Status => status::status(),
         Lockbook::Nuke => unimplemented!(),
     }
 }

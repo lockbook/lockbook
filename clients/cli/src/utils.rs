@@ -30,7 +30,7 @@ pub fn get_account(db: &Db) -> Account {
                 panic!("No account found, run init, import or help. Error: {}", err)
             }
             Error::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            Error::AccountMissing(_) => panic!("No account found, run init, import or help."),
+            Error::AccountMissing(err) => panic!("No account found, run init, import or help. Error: {:?}", err),
         },
     }
 }

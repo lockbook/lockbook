@@ -34,6 +34,7 @@ error_enum! {
 
 pub trait SyncService {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error>;
+    // fn calculate_work()
 }
 
 pub struct FileSyncService<
