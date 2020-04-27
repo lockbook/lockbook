@@ -27,7 +27,7 @@ pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError>;
     fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError>;
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
-    fn get_public_key(username: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError>;
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
 }
