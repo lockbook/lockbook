@@ -1,12 +1,12 @@
+use crate::index_db::get_public_key::Error::Postgres;
 use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
-use crate::index_db::get_public_key::Error::Postgres;
 
 #[derive(Debug)]
 pub enum Error {
     Postgres(PostgresError),
-    SerializationError(serde_json::Error)
+    SerializationError(serde_json::Error),
 }
 
 pub fn get_public_key(client: &mut PostgresClient, username: &String) -> Result<String, Error> {
@@ -15,6 +15,6 @@ pub fn get_public_key(client: &mut PostgresClient, username: &String) -> Result<
         &[&username],
     ) {
         Ok(row) => Ok(row.get("public_key")),
-        Err(err) => Err(Error::Postgres(err)),
+        Err(e) => Err(Error::Postgres(e)),
     }
 }
