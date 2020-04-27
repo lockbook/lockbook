@@ -18,7 +18,7 @@ pub fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-        .expect(&format!("Could not connect to db at path: {}", path))
+    .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 pub fn get_account(db: &Db) -> Account {

@@ -1,12 +1,10 @@
-
 use structopt::StructOpt;
 
-
-mod utils;
 mod import;
 mod init;
 mod list;
 mod new;
+mod utils;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
