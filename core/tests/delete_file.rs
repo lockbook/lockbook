@@ -12,7 +12,7 @@ pub mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use utils::{api_loc, generate_file_id, generate_username, TestError};
+use utils::{api_loc, generate_file_id, TestError};
 
 fn delete_file() -> Result<(), TestError> {
     let account = generate_account();

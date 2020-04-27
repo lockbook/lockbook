@@ -1,4 +1,5 @@
 extern crate lockbook_core;
+extern crate serde_json;
 
 use crate::utils::{api_loc, generate_account, TestError};
 
@@ -8,6 +9,7 @@ use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
 use rsa::RSAPrivateKey;
+use serde_json::to_string;
 
 pub mod utils;
 
@@ -36,8 +38,8 @@ fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<String, TestE
 fn test_get_public_key() {
     let account = generate_account();
 
-    assert_eq!(
-        get_public_key(account.username.clone(), account.keys.clone()),
-        account.keys.to_public_key()
-    );
+    let retrieved_key = get_public_key(account.username.clone(), account.keys.clone()).unwrap();
+
+    let true_key = serde_json::to_string(&account.keys.to_public_key()).unwrap();
+    assert_eq!(retrieved_key, true_key); // turn one into another
 }

@@ -185,8 +185,9 @@ impl<
 mod unit_tests {
     use crate::client::{
         ChangeFileContentError, ChangeFileContentRequest, Client, CreateFileError,
-        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
-        GetUpdatesRequest, NewAccountError, NewAccountRequest,
+        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetPublicKeyError,
+        GetPublicKeyRequest, GetUpdatesError, GetUpdatesRequest, NewAccountError,
+        NewAccountRequest,
     };
     use crate::model::account::Account;
     use crate::model::file_metadata;
@@ -350,6 +351,10 @@ mod unit_tests {
                     signature: "".to_string(),
                 },
             })
+        }
+
+        fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError> {
+            unimplemented!()
         }
 
         fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
