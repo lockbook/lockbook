@@ -43,10 +43,7 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
     let public_key =
         match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
             Ok(public_key) => public_key,
-            Err(e) => {
-
-                return Response::build().status(Status::NotFound).finalize()
-            },
+            Err(e) => return Response::build().status(Status::NotFound).finalize(),
         };
 
     if public_key != new_account.public_key {

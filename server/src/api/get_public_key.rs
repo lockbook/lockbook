@@ -16,6 +16,6 @@ pub fn get_public_key(server_state: State<ServerState>, username: String) -> Res
             .status(Status::Ok)
             .header(Header::new("public_key", public_key))
             .finalize(),
-        Err(_) => Response::build().status(Status::BadRequest).finalize(),
+        Err(e) => Response::build().status(Status::BadRequest).finalize(),
     }
 }
