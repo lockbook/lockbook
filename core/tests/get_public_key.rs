@@ -14,7 +14,6 @@ use rsa::RSAPrivateKey;
 use serde_json::to_string;
 
 fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<String, TestError> {
-    println!("USER1: {}", username);
     client::new_account(
         api_loc(),
         &NewAccountRequest {
@@ -25,7 +24,6 @@ fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<String, TestE
         },
     )?;
 
-    println!("USER2: {}", username);
     let retrieved_key = client::get_public_key(
         api_loc(),
         &GetPublicKeyRequest {
