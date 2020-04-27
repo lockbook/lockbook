@@ -51,7 +51,7 @@ pub type DefaultAccountService = AccountServiceImpl<
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultFileMetadataService = FileSyncService<
+pub type DefaultSyncService = FileSyncService<
     DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
         Some(db) => db,
     };
 
-    match DefaultFileMetadataService::sync(&db) {
+    match DefaultSyncService::sync(&db) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Update metadata failed with error: {:?}", err));

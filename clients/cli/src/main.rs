@@ -10,6 +10,7 @@ use lockbook_core::{Db, DefaultDbProvider};
 
 mod import;
 mod init;
+mod list;
 mod new;
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -68,7 +69,7 @@ fn main() {
         Lockbook::Remove => unimplemented!(),
         Lockbook::Move => unimplemented!(),
         Lockbook::Find => unimplemented!(),
-        Lockbook::List => unimplemented!(),
+        Lockbook::List => list::list(),
         Lockbook::Copy => unimplemented!(),
         Lockbook::Share => unimplemented!(),
         Lockbook::Init => init::init(),

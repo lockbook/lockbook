@@ -38,6 +38,7 @@ pub fn new() {
         .read_line(&mut file_name)
         .expect("Failed to read from stdin");
     println!("Creating file {}", &file_name);
+    file_name.retain(|c| !c.is_whitespace());
 
     let file_metadata = match DefaultFileService::create(&db, &file_name, &file_location) {
         Ok(file_metadata) => file_metadata,
