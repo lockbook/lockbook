@@ -7,8 +7,8 @@ use lockbook_core::client::NewAccountError;
 use lockbook_core::service::account_service::{AccountCreationError, AccountService};
 
 use lockbook_core::DefaultAccountService;
+use crate::utils::connect_to_db;
 
-use crate::connect_to_db;
 
 pub fn init() {
     let db = connect_to_db();

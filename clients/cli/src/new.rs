@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use lockbook_core::client::{Client, CreateFileError, CreateFileRequest};
 
-use crate::{connect_to_db, get_account, get_editor};
+use crate::utils::{connect_to_db, get_account, get_editor};
 use lockbook_core::model::file_metadata::{FileMetadata, Status};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::auth_service::AuthService;

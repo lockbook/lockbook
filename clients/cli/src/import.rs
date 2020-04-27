@@ -4,7 +4,7 @@ use lockbook_core::service::account_service::{AccountImportError, AccountService
 
 use lockbook_core::DefaultAccountService;
 
-use crate::connect_to_db;
+use crate::utils::connect_to_db;
 
 pub fn import() {
     let db = connect_to_db();

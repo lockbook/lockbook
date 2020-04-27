@@ -1,4 +1,4 @@
-use crate::{connect_to_db, get_account};
+use crate::utils::{connect_to_db, get_account};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{DefaultClock, DefaultFileMetadataRepo};
