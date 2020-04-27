@@ -34,7 +34,11 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         api_loc(),
         &CreateFileRequest {
             username: username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -46,7 +50,11 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         api_loc(),
         &GetUpdatesRequest {
             username: username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &username.clone(),
+            )
+            .unwrap(),
             since_version: 0,
         },
     )?;
