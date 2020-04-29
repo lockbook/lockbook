@@ -8,7 +8,7 @@ pub enum GetPublicKeyError {
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
     InvalidPublicKey,
-    Unspecified
+    Unspecified,
 }
 
 pub struct GetPublicKeyRequest {
@@ -26,9 +26,11 @@ pub fn get_public_key(
         .map_err(|err| GetPublicKeyError::SendFailed(err))?;
 
     match response.status().as_u16() {
-        200..=299 => Ok(response.json::<RSAPublicKey>().map_err(|err| GetPublicKeyError::ReceiveFailed(err))?),
+        200..=299 => Ok(response
+            .json::<RSAPublicKey>()
+            .map_err(|err| GetPublicKeyError::ReceiveFailed(err))?),
         404 => Err(GetPublicKeyError::UsernameNotFound),
         500 => Err(GetPublicKeyError::InvalidPublicKey),
-        _ => Err(GetPublicKeyError::Unspecified)
+        _ => Err(GetPublicKeyError::Unspecified),
     }
 }

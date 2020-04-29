@@ -42,7 +42,10 @@ pub fn change_file_content(
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            change_file.username, change_file.auth, &serde_json::to_string(&public_key).unwrap(), e
+            change_file.username,
+            change_file.auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }

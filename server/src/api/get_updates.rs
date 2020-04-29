@@ -30,7 +30,10 @@ pub fn get_updates(
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            username, auth, &serde_json::to_string(&public_key).unwrap(), e
+            username,
+            auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }

@@ -37,7 +37,10 @@ pub fn delete_file(server_state: State<ServerState>, delete_file: Form<DeleteFil
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            delete_file.username, delete_file.auth, &serde_json::to_string(&public_key).unwrap(), e
+            delete_file.username,
+            delete_file.auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
