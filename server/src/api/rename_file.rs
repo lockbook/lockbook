@@ -30,13 +30,13 @@ pub fn rename_file(server_state: State<ServerState>, rename_file: Form<RenameFil
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &rename_file.auth,
-        &serde_json::from_str(&public_key).unwrap(),
+        &public_key,
         &rename_file.username,
         config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            rename_file.username, rename_file.auth, public_key, e
+            rename_file.username, rename_file.auth, &serde_json::to_string(&public_key).unwrap(), e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }

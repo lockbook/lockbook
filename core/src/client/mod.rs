@@ -22,12 +22,13 @@ pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, New
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
 use crate::service::file_encryption_service::EncryptedFile;
 use crate::{API_LOC, BUCKET_LOC};
+use rsa::RSAPublicKey;
 
 pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError>;
     fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError>;
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
-    fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError>;
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<RSAPublicKey, GetPublicKeyError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
 }
@@ -46,7 +47,7 @@ impl Client for ClientImpl {
         get_file(BUCKET_LOC.to_string(), params)
     }
 
-    fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError> {
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<RSAPublicKey, GetPublicKeyError> {
         get_public_key(API_LOC.to_string(), params)
     }
 

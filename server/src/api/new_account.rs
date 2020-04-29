@@ -46,7 +46,7 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
             Err(e) => return Response::build().status(Status::NotFound).finalize(),
         };
 
-    if public_key != new_account.public_key {
+    if serde_json::to_string(&public_key).expect("Failed to json-serialize response!") != new_account.public_key {
         return Response::build().status(Status::Unauthorized).finalize();
     }
 

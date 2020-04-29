@@ -31,13 +31,13 @@ pub fn delete_file(server_state: State<ServerState>, delete_file: Form<DeleteFil
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &delete_file.auth,
-        &serde_json::from_str(&public_key).unwrap(),
+        &public_key,
         &delete_file.username,
         config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            delete_file.username, delete_file.auth, public_key, e
+            delete_file.username, delete_file.auth, &serde_json::to_string(&public_key).unwrap(), e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
