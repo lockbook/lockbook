@@ -36,7 +36,10 @@ pub fn rename_file(server_state: State<ServerState>, rename_file: Form<RenameFil
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            rename_file.username, rename_file.auth, &serde_json::to_string(&public_key).unwrap(), e
+            rename_file.username,
+            rename_file.auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
