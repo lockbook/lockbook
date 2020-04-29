@@ -10,10 +10,10 @@ use lockbook_core::client::{GetPublicKeyError, GetPublicKeyRequest, NewAccountRe
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use rsa::RSAPrivateKey;
+use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde_json::to_string;
 
-fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<String, TestError> {
+fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<RSAPublicKey, TestError> {
     client::new_account(
         api_loc(),
         &NewAccountRequest {
@@ -40,7 +40,7 @@ fn test_get_public_key() {
 
     let retrieved_key = get_public_key(account.username.clone(), account.keys.clone()).unwrap();
 
-    let true_key = serde_json::to_string(&account.keys.to_public_key()).unwrap();
+    let true_key = &account.keys.to_public_key();
     assert_matches!(retrieved_key, true_key);
 }
 

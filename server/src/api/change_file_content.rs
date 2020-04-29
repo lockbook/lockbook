@@ -36,13 +36,13 @@ pub fn change_file_content(
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &change_file.auth,
-        &serde_json::from_str(&public_key).unwrap(),
+        &public_key,
         &change_file.username,
         config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            change_file.username, change_file.auth, public_key, e
+            change_file.username, change_file.auth, &serde_json::to_string(&public_key).unwrap(), e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }

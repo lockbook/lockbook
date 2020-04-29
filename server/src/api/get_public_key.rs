@@ -1,11 +1,13 @@
 use crate::config::ServerState;
 use crate::index_db;
+use crate::index_db::get_public_key::Error;
 
 use rocket::http::Header;
 use rocket::http::Status;
 use rocket::{Response, State};
+use std::io::Cursor;
 
-#[get("/get-public-key/<username>")] // TODO: should I create a wrapper for data?
+#[get("/get-public-key/<username>")]
 pub fn get_public_key(server_state: State<ServerState>, username: String) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
@@ -14,8 +16,9 @@ pub fn get_public_key(server_state: State<ServerState>, username: String) -> Res
     match get_public_key_result {
         Ok(public_key) => Response::build()
             .status(Status::Ok)
-            .header(Header::new("public_key", public_key))
+            .sized_body(Cursor::new(serde_json::to_string(&public_key).expect("Failed to json-serialize response!")))
             .finalize(),
-        Err(e) => Response::build().status(Status::BadRequest).finalize(),
+        Err(Error::Postgres(_)) => Response::build().status(Status::NotFound).finalize(),
+        Err(Error::SerializationError(_)) => Response::build().status(Status::InternalServerError).finalize()
     }
 }

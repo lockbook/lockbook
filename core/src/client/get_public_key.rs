@@ -1,26 +1,14 @@
 use reqwest::Client;
 use reqwest::Error as ReqwestError;
-use std::option::NoneError;
-use std::string::FromUtf8Error;
+use rsa::RSAPublicKey;
 
 #[derive(Debug)]
 pub enum GetPublicKeyError {
     UsernameNotFound,
     SendFailed(ReqwestError),
-    ParseError(FromUtf8Error),
-    ReceiveFailed,
-}
-
-impl From<NoneError> for GetPublicKeyError {
-    fn from(_e: NoneError) -> GetPublicKeyError {
-        GetPublicKeyError::ReceiveFailed
-    }
-}
-
-impl From<FromUtf8Error> for GetPublicKeyError {
-    fn from(e: FromUtf8Error) -> GetPublicKeyError {
-        GetPublicKeyError::ParseError(e)
-    }
+    ReceiveFailed(ReqwestError),
+    InvalidPublicKey,
+    Unspecified
 }
 
 pub struct GetPublicKeyRequest {
@@ -30,17 +18,17 @@ pub struct GetPublicKeyRequest {
 pub fn get_public_key(
     api_location: String,
     params: &GetPublicKeyRequest,
-) -> Result<String, GetPublicKeyError> {
+) -> Result<RSAPublicKey, GetPublicKeyError> {
     let client = Client::new();
-    let response = client
+    let mut response = client
         .get(format!("{}/get-public-key/{}", api_location, params.username).as_str())
         .send()
         .map_err(|err| GetPublicKeyError::SendFailed(err))?;
 
     match response.status().as_u16() {
-        200..=299 => Ok(String::from_utf8(Vec::from(
-            response.headers().get("public_key")?.as_bytes(),
-        ))?),
-        _ => Err(GetPublicKeyError::UsernameNotFound),
+        200..=299 => Ok(response.json::<RSAPublicKey>().map_err(|err| GetPublicKeyError::ReceiveFailed(err))?),
+        404 => Err(GetPublicKeyError::UsernameNotFound),
+        500 => Err(GetPublicKeyError::InvalidPublicKey),
+        _ => Err(GetPublicKeyError::Unspecified)
     }
 }
