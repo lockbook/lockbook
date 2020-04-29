@@ -40,7 +40,10 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            create_file.username, create_file.auth, &serde_json::to_string(&public_key).unwrap(), e
+            create_file.username,
+            create_file.auth,
+            &serde_json::to_string(&public_key).unwrap(),
+            e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
