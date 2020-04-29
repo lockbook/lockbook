@@ -34,13 +34,13 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &create_file.auth,
-        &serde_json::from_str(&public_key).unwrap(),
+        &public_key,
         &create_file.username,
         config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            create_file.username, create_file.auth, public_key, e
+            create_file.username, create_file.auth, &serde_json::to_string(&public_key).unwrap(), e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
