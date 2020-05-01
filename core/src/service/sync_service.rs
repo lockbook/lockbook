@@ -16,6 +16,14 @@ use crate::service::logging_service::Logger;
 use crate::{client, error_enum};
 
 error_enum! {
+    enum CalculateWorkError {
+        AccountRetrievalError(repo::account_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::Error),
+        ApiError(client::GetUpdatesError),
+    }
+}
+
+error_enum! {
     enum Error {
         ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
@@ -33,8 +41,8 @@ error_enum! {
 }
 
 pub trait SyncService {
+    fn calculate_work(db: &Db) -> Result<Vec<FileMetadata>, CalculateWorkError>;
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error>;
-    // fn calculate_work()
 }
 
 pub struct FileSyncService<
@@ -52,13 +60,34 @@ pub struct FileSyncService<
 }
 
 impl<
-        Log: Logger,
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
+    Log: Logger,
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
 {
+    fn calculate_work(db: &Db) -> Result<Vec<FileMetadata>, CalculateWorkError> {
+        let account = AccountDb::get_account(&db)?;
+        let local_dirty_files =
+            FileMetadataDb::get_all(&db)?
+                .into_iter()
+                .filter(|f| f.status != Status::Synced)
+                .collect::<Vec<FileMetadata>>();
+        let last_updated = FileMetadataDb::last_updated(&db).unwrap_or(0);
+
+        let remote_dirty_files = ApiClient::get_updates(&GetUpdatesRequest{
+            username: account.username,
+            auth: "JUNK_AUTH".to_string(),
+            since_version: last_updated
+        })?;
+
+
+
+
+        unimplemented!()
+    }
+
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         // Load user's account
         let account = AccountDb::get_account(&db)?;
@@ -194,6 +223,7 @@ mod unit_tests {
     use crate::service::sync_service::{FileSyncService, SyncService};
 
     struct FileMetaRepoFake;
+
     impl FileMetadataRepo for FileMetaRepoFake {
         fn insert(
             _db: &Db,
@@ -259,6 +289,7 @@ mod unit_tests {
     }
 
     struct FileRepoFake;
+
     impl FileRepo for FileRepoFake {
         fn update(_db: &Db, _id: &String, _file: &EncryptedFile) -> Result<(), file_repo::Error> {
             Ok(())
@@ -274,6 +305,7 @@ mod unit_tests {
     }
 
     struct AccountRepoFake;
+
     impl AccountRepo for AccountRepoFake {
         fn insert_account(_db: &Db, _account: &Account) -> Result<(), account_repo::Error> {
             unimplemented!()
@@ -288,6 +320,7 @@ mod unit_tests {
     }
 
     struct ClientFake;
+
     impl Client for ClientFake {
         fn new_account(_params: &NewAccountRequest) -> Result<(), NewAccountError> {
             Ok(())
@@ -350,7 +383,7 @@ mod unit_tests {
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultFileMetadataService =
-        FileSyncService<VerboseStdOut, FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
+    FileSyncService<VerboseStdOut, FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
 
     #[test]
     fn test_sync() {

@@ -34,6 +34,7 @@ This is free and unencumbered software released into the public domain.
 
 # Index
 
-+ [Technical Documentation](overview.md)
++ [System Architecture](system-architecture.md)
++ [Data Model](data_model.md)
 + [Building](building.md)
 + [Installing](installing.md)
