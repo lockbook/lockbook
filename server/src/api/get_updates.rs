@@ -26,7 +26,7 @@ pub fn get_updates(
         &auth,
         &public_key,
         &username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",

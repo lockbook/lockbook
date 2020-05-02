@@ -14,7 +14,7 @@ use crate::config::{config, ServerState};
 use std::sync::Mutex;
 
 fn main() {
-    let config = config(); // write some code to try to use lockbook core
+    let config = config();
     let index_db_client = match index_db::connect(&config.index_db_config) {
         Ok(client) => client,
         Err(err) => panic!("{:?}", err),

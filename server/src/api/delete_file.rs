@@ -33,7 +33,7 @@ pub fn delete_file(server_state: State<ServerState>, delete_file: Form<DeleteFil
         &delete_file.auth,
         &public_key,
         &delete_file.username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
