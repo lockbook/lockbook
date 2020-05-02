@@ -42,7 +42,7 @@ fn connect_with_tls(postgres_config: &PostgresConfig, cert: &str) -> Result<Post
         Err(err) => return Err(Error::OpenSslFailed(err)),
     };
     match builder.set_ca_file(cert) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(err) => return Err(Error::OpenSslFailed(err)),
     };
     match postgres_config.connect(MakeTlsConnector::new(builder.build())) {

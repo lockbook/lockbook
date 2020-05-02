@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::client::{Client, NewAccountRequest};
 use crate::client;
+use crate::client::{Client, NewAccountRequest};
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
