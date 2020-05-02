@@ -32,13 +32,11 @@ error_enum! {
     }
 }
 
-pub trait FileMetadataService {
-    // TODO: split up error types
+pub trait SyncService {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error>;
-    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
 
-pub struct FileMetadataServiceImpl<
+pub struct FileSyncService<
     Log: Logger,
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
@@ -61,8 +59,8 @@ impl<
         AccountDb: AccountRepo,
         ApiClient: Client,
         FileCrypto: FileEncryptionService,
-    > FileMetadataService
-    for FileMetadataServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
+    > SyncService
+    for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
 {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         // Load user's account
@@ -171,14 +169,6 @@ impl<
         Log::error(format!("Remote Errors: {:?}", errors_remote));
         Ok(FileMetadataDb::get_all(&db)?)
     }
-
-    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error> {
-        let account = AccountDb::get_account(db)?;
-        let encrypted_file = FileCrypto::new_file(&account)?;
-        let meta = FileMetadataDb::insert(&db, &name, &path)?;
-        FileDb::update(db, &meta.id, &encrypted_file)?;
-        Ok(meta)
-    }
 }
 
 #[cfg(test)]
@@ -204,8 +194,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::{
         EncryptedFile, FileCreationError, FileEncryptionService, FileWriteError, UnableToReadFile,
     };
-    use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
     use crate::service::logging_service::{Logger, VerboseStdOut};
+    use crate::service::sync_service::{FileSyncService, SyncService};
     use sled::Db;
 
     struct FileMetaRepoFake;
@@ -390,7 +380,7 @@ mod unit_tests {
     }
 
     type DefaultDbProvider = TempBackedDB;
-    type DefaultFileMetadataService = FileMetadataServiceImpl<
+    type DefaultFileMetadataService = FileSyncService<
         VerboseStdOut,
         FileMetaRepoFake,
         FileRepoFake,
