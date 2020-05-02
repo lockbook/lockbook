@@ -1,4 +1,3 @@
-use crate::index_db::get_public_key::Error::Postgres;
 use postgres::Client as PostgresClient;
 use rsa::RSAPublicKey;
 use tokio_postgres;

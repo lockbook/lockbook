@@ -2,7 +2,6 @@ use crate::config::ServerState;
 use crate::index_db;
 use crate::index_db::get_public_key::Error;
 
-use rocket::http::Header;
 use rocket::http::Status;
 use rocket::{Response, State};
 use std::io::Cursor;

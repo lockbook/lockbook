@@ -1,13 +1,11 @@
 use std::marker::PhantomData;
 
-use crate::client;
 use crate::client::{Client, NewAccountRequest};
+use crate::client;
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
-use crate::service::auth_service::AuthGenError;
-use crate::service::auth_service::AuthService;
 use crate::service::auth_service::AuthGenError;
 use crate::service::auth_service::AuthService;
 use crate::service::crypto_service::PubKeyCryptoService;
@@ -20,7 +18,6 @@ error_enum! {
         PersistenceError(account_repo::Error),
         ApiError(client::NewAccountError),
         KeySerializationError(serde_json::error::Error),
-        AuthGenFailure(AuthGenError)
         AuthGenFailure(AuthGenError)
     }
 }
