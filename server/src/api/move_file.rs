@@ -32,7 +32,7 @@ pub fn move_file(server_state: State<ServerState>, move_file: Form<MoveFile>) ->
         &move_file.auth,
         &public_key,
         &move_file.username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",

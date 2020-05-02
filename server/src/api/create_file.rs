@@ -36,7 +36,7 @@ pub fn create_file(server_state: State<ServerState>, create_file: Form<CreateFil
         &create_file.auth,
         &public_key,
         &create_file.username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",

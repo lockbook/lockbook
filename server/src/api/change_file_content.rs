@@ -38,7 +38,7 @@ pub fn change_file_content(
         &change_file.auth,
         &public_key,
         &change_file.username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",

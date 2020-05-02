@@ -26,7 +26,7 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
         &new_account.auth,
         &serde_json::from_str(&new_account.public_key).unwrap(),
         &new_account.username,
-        config().auth_config.max_auth_delay.parse().unwrap(), //TODO: don't unwrap
+        config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",

@@ -9,20 +9,20 @@ pub struct IndexDbConfig {
     pub user: &'static str,
     pub pass: &'static str,
     pub host: &'static str,
-    pub port: &'static str,
+    pub port: u16,
     pub db: &'static str,
     pub cert: &'static str,
 }
 
 pub struct FilesDbConfig {
     pub bucket: &'static str,
-    pub region: &'static str,
+    pub region: s3::region::Region,
     pub access_key: &'static str,
     pub secret_key: &'static str,
 }
 
 pub struct AuthConfig {
-    pub max_auth_delay: &'static str,
+    pub max_auth_delay: u128,
 }
 
 pub struct Config {
@@ -37,18 +37,18 @@ pub fn config() -> Config {
             user: env!("INDEX_DB_CONFIG_USER"),
             pass: env!("INDEX_DB_CONFIG_PASS"),
             host: env!("INDEX_DB_CONFIG_HOST"),
-            port: env!("INDEX_DB_CONFIG_PORT"),
+            port: env!("INDEX_DB_CONFIG_PORT").parse().unwrap(),
             db: env!("INDEX_DB_CONFIG_DB"),
             cert: env!("INDEX_DB_CONFIG_CERT"),
         },
         files_db_config: FilesDbConfig {
             bucket: env!("FILES_DB_CONFIG_BUCKET"),
-            region: env!("FILES_DB_CONFIG_REGION"),
+            region: env!("FILES_DB_CONFIG_REGION").parse().unwrap(),
             access_key: env!("FILES_DB_CONFIG_ACCESS_KEY"),
             secret_key: env!("FILES_DB_CONFIG_SECRET_KEY"),
         },
         auth_config: AuthConfig {
-            max_auth_delay: env!("MAX_AUTH_DELAY"),
+            max_auth_delay: env!("MAX_AUTH_DELAY").parse().unwrap(),
         },
     }
 }
