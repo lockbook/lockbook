@@ -20,8 +20,6 @@ pub fn get_public_key(server_state: State<ServerState>, username: String) -> Res
             ))
             .finalize(),
         Err(Error::Postgres(_)) => Response::build().status(Status::NotFound).finalize(),
-        Err(Error::SerializationError(_)) => Response::build()
-            .status(Status::Conflict)
-            .finalize(),
+        Err(Error::SerializationError(_)) => Response::build().status(Status::Conflict).finalize(),
     }
 }
