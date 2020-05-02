@@ -1,6 +1,7 @@
 use crate::api::utils::make_response_generic;
 use crate::config::{config, ServerState};
 use crate::index_db;
+use crate::index_db::get_public_key::Error;
 use lockbook_core::client::NewAccountResponse;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
@@ -9,7 +10,6 @@ use rocket::http::Status;
 use rocket::request::Form;
 use rocket::Response;
 use rocket::State;
-use crate::index_db::get_public_key::Error;
 
 #[derive(FromForm, Debug)]
 pub struct NewAccount {
@@ -44,8 +44,14 @@ pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccoun
     let public_key =
         match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
             Ok(public_key) => public_key,
-            Err(Error::SerializationError(_)) => return Response::build().status(Status::InternalServerError).finalize(),
-            Err(Error::Postgres(_)) => return Response::build().status(Status::NotFound).finalize()
+            Err(Error::SerializationError(_)) => {
+                return Response::build()
+                    .status(Status::InternalServerError)
+                    .finalize()
+            }
+            Err(Error::Postgres(_)) => {
+                return Response::build().status(Status::NotFound).finalize()
+            }
         };
 
     if serde_json::to_string(&public_key).expect("Failed to json-serialize response!")
