@@ -117,3 +117,14 @@ Inputs:
 Outputs:
 + `200`: response contains list of file ids updated since `version`
 
+## Get Public Key
+
+`GET /get-public-key/<username>`
+
+Inputs:
++ `username`: SHA1-hashed username
+
+Outputs:
++ `200`: response contains `public_key`
++ `404 public_key_not_found`
++ `406 invalid_public_key`
