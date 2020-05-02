@@ -30,7 +30,7 @@ pub fn get_public_key(
             .json::<RSAPublicKey>()
             .map_err(|err| GetPublicKeyError::ReceiveFailed(err))?),
         404 => Err(GetPublicKeyError::UsernameNotFound),
-        500 => Err(GetPublicKeyError::InvalidPublicKey),
+        409 => Err(GetPublicKeyError::InvalidPublicKey),
         _ => Err(GetPublicKeyError::Unspecified),
     }
 }
