@@ -27,6 +27,19 @@ struct DebugView: View {
                 .foregroundColor(.green)
             }
             Button(action: {
+                if let username = self.debugger.lockbookApi.getAccount() {
+                    print("Username \(username)")
+                } else {
+                    print("Couldn't get username!")
+                }
+            }) {
+                HStack {
+                    Image(systemName: "person.circle")
+                    Text("Print Account")
+                    Image(systemName: "person.circle")
+                }
+            }
+            Button(action: {
                 print("Purging and syncing files in localdb...")
                 let _ = self.debugger.lockbookApi.purgeLocal()
                 self.coordinator.sync()
