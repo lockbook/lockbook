@@ -25,18 +25,7 @@ error_enum! {
 
 error_enum! {
     enum Error {
-        ConnectionFailure(db_provider::Error),
         RetrievalError(repo::account_repo::Error),
-        FileRepoError(repo::file_repo::Error),
-        MetadataRepoError(repo::file_metadata_repo::Error),
-        SerderError(serde_json::error::Error),
-        FileCreateError(file_encryption_service::FileCreationError),
-        // TODO: Handle errors
-        NewAccountError(client::NewAccountError),
-        GetUpdatesError(client::GetUpdatesError),
-        GetFileError(client::GetFileError),
-        CreateFileError(client::CreateFileError),
-        ChangeFileContentError(client::ChangeFileContentError),
     }
 }
 
