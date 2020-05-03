@@ -9,19 +9,13 @@
 import SwiftUI
 
 struct ImportAccountView: View {
-    @State private var username: String = ""
-    @State private var keyString: String = ""
+    @State private var accountString: String = ""
     @State private var showingAlert = false
     @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
-            TextField("username", text: $username)
-                .autocapitalization(.none)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 50)
-            TextField("key string", text: $keyString)
+            TextField("account string", text: $accountString)
                .autocapitalization(.none)
                .textFieldStyle(RoundedBorderTextFieldStyle())
                .multilineTextAlignment(.center)
@@ -30,7 +24,7 @@ struct ImportAccountView: View {
            
             MonokaiButton(text: "Load Account")
                 .onTapGesture {
-                    if (self.coordinator.importAccount(username: self.username, keyString: self.keyString)) {
+                    if (self.coordinator.importAccount(accountString: self.accountString)) {
                         self.coordinator.sync()
                         self.coordinator.currentView = .listView
                     } else {
