@@ -7,8 +7,8 @@ pub mod utils;
 use crate::utils::generate_account;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
-use utils::{api_loc, generate_username, TestError};
+use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, TestError};
 
 fn new_account() -> Result<(), TestError> {
     let account = generate_account();
