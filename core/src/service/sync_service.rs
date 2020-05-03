@@ -196,6 +196,7 @@ mod unit_tests {
     };
     use crate::service::logging_service::{Logger, VerboseStdOut};
     use crate::service::sync_service::{FileSyncService, SyncService};
+    use rsa::RSAPublicKey;
     use sled::Db;
 
     struct FileMetaRepoFake;
@@ -343,7 +344,9 @@ mod unit_tests {
             })
         }
 
-        fn get_public_key(params: &GetPublicKeyRequest) -> Result<String, GetPublicKeyError> {
+        fn get_public_key(
+            _params: &GetPublicKeyRequest,
+        ) -> Result<RSAPublicKey, GetPublicKeyError> {
             unimplemented!()
         }
 
