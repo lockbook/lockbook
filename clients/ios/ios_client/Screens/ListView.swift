@@ -59,7 +59,7 @@ struct PullDownView : UIViewRepresentable {
         let control = UIScrollView()
         control.refreshControl = UIRefreshControl()
         control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
-        let childView = UIHostingController(rootView: SwiftUIList())
+        let childView = UIHostingController(rootView: SwiftUIList().environmentObject(self.coordinator))
         childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
         
         control.addSubview(childView.view)
