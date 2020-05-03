@@ -98,17 +98,17 @@ We will convert various scenarios to a fixed number of actions that we can take 
 |       F      |      F     |      F     |       F       |           T           |      F      | `PullFileContent(new_metadata)`                                               |
 |       F      |      F     |      F     |       T       |           F           |      F      | `DeleteLocally(file_id)`                                                      |
 |       F      |      F     |      T     |       F       |           F           |      F      | `PushMetadata(file_id)`                                                       |
-|       F      |      T     |      F     |       F       |           F           |      F      | `PushLocalEdit(file_id)`                                                      |
+|       F      |      T     |      F     |       F       |           F           |      F      | `PullFileContent(file_id)`                                                    |
 |       T      |      F     |      F     |       F       |           F           |      F      | `PushDelete(file_id)`                                                         |
 |       T      |      T     |      F     |       F       |           F           |      F      | `PushDelete(file_id)`                                                         |
 |       T      |      F     |      T     |       F       |           F           |      F      | `PushDelete(file_id)`                                                         |
 |       T      |      F     |      F     |       T       |           F           |      F      | `DeleteLocally(file_id)`                                                      |
 |       T      |      F     |      F     |       F       |           T           |      F      | `PullFileContent(new_metadata)`                                               |
 |       T      |      F     |      F     |       F       |           F           |      T      | `PushDelete(file_id)`                                                         |
-|       F      |      T     |      T     |       F       |           F           |      F      | `PushLocalEdit(file_id)`, `PushMetadata(file_id)`                             |
-|       F      |      T     |      F     |       T       |           F           |      F      | `PushLocalEdit(file_id)`                                                      |
+|       F      |      T     |      T     |       F       |           F           |      F      | `PullFileContent(file_id)`, `PushMetadata(file_id)`                           |
+|       F      |      T     |      F     |       T       |           F           |      F      | `PullFileContent(file_id)`                                                    |
 |       F      |      T     |      F     |       F       |           T           |      F      | `PullMergePush(new_metadata)`                                                 |
-|       F      |      T     |      F     |       F       |           F           |      T      | `UpdateLocalMetadata(new_metadata)`, `PushLocalEdit(file_id)`                 |
+|       F      |      T     |      F     |       F       |           F           |      T      | `UpdateLocalMetadata(new_metadata)`, `PullFileContent(file_id)`               |
 |       F      |      F     |      T     |       T       |           F           |      F      | `DeleteLocally(file_id)`                                                      |
 |       F      |      F     |      T     |       F       |           T           |      F      | `PushMetadata(file_id)`, `PullFileContent(new_metadata)`                      |
 |       F      |      F     |      T     |       F       |           F           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`                                  |
@@ -127,9 +127,9 @@ We will convert various scenarios to a fixed number of actions that we can take 
 |       T      |      F     |      F     |       F       |           T           |      T      | `PullFileContent(new_metadata)`                                               |
 |       F      |      T     |      T     |       T       |           F           |      F      | `DeleteLocally(file_id)`                                                      |
 |       F      |      T     |      T     |       F       |           T           |      F      | `PullMergePush(new_metadata)`, `PushMetadata(file_id)`                        |
-|       F      |      T     |      T     |       F       |           F           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`, `PushLocalEdit(file_id)`        |
+|       F      |      T     |      T     |       F       |           F           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`, `PullFileContent(file_id)`      |
 |       F      |      T     |      F     |       T       |           T           |      F      | `DeleteLocally(file_id)`                                                      |
-|       F      |      T     |      F     |       T       |           F           |      T      | `UpdateLocalMetadata(new_metadata)`, `PushLocalEdit(file_id)`                 |
+|       F      |      T     |      F     |       T       |           F           |      T      | `UpdateLocalMetadata(new_metadata)`, `PullFileContent(file_id)`               |
 |       F      |      T     |      F     |       F       |           T           |      T      | `PullMergePush(new_metadata)`                                                 |
 |       F      |      F     |      T     |       T       |           T           |      F      | `DeleteLocally(file_id)`                                                      |
 |       F      |      F     |      T     |       T       |           F           |      T      | `DeleteLocally(file_id)`                                                      |
@@ -146,7 +146,7 @@ We will convert various scenarios to a fixed number of actions that we can take 
 |       T      |      F     |      T     |       F       |           T           |      T      | `PullFileContent(new_metadata)`                                               |
 |       T      |      F     |      F     |       T       |           T           |      T      | `DeleteLocally(file_id)`                                                      |
 |       F      |      T     |      T     |       T       |           T           |      F      | `PullMergePush(new_metadata)`, `PushMetadata(file_id)`                        |
-|       F      |      T     |      T     |       T       |           F           |      T      | `PushLocalEdit(file_id)`, `PushMetadata(file_id)`                             |
+|       F      |      T     |      T     |       T       |           F           |      T      | `PullFileContent(file_id)`, `PushMetadata(file_id)`                           |
 |       F      |      T     |      T     |       F       |           T           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`, `PullMergePush(new_metadata)`   |
 |       F      |      T     |      F     |       T       |           T           |      T      | `PullMergePush(new_metadata)`, `UpdateLocalMetadata(new_metadata)`            |
 |       F      |      F     |      T     |       T       |           T           |      T      | `DeleteLocally(file_id)`                                                      |
@@ -157,3 +157,21 @@ We will convert various scenarios to a fixed number of actions that we can take 
 |       T      |      F     |      T     |       T       |           T           |      T      | `DeleteLocally(file_id)`                                                      |
 |       F      |      T     |      T     |       T       |           T           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`, `PullMergePush(new_metadata)`   |
 |       T      |      T     |      T     |       T       |           T           |      T      | `DeleteLocally(file_id)`                                                      |
+
+This table could possibly be compressed by using `_`'s. For example in the situation that server deleted something and you deleted something, none of the other fields matter, you're going to delete that item locally.
+
+However I wanted to generate all the scenarios and think about each one independently, cutting a corner at this stage only to end up expanding out an `_` seemed painful.
+
+### Performing work involved for each sync
+
+There are many scenarios, but only a handful of actions we take.
+
++ `Nop` - we don't have to do anything for this file
++ `UpdateLocalMetadata(new_metadata)` - accept a server metadata change
++ `PullFileContent(new_metadata)` - goto s3 and grab the new contents of this file, update metadata if successful
++ `DeleteLocally(file_id)` - file and metadata is safe to delete locally now
++ `PushMetadata(file_id)` - inform the server of your metadata change
++ `PullFileContent(file_id)` - inform the server of a local file edit. If push fails attempt `PullMergePush` TODO we don't have a new metadata version or a new file content version without another `getUpdates` call
++ `PushDelete(file_id)` - inform the server of a file deletion. If successful, delete the file locally.
++ `PullMergePush(new_metadata)` - pull the new file, decrypt it, decrypt the file locally, merge them, and push the resulting file.
++ `MergeMetadataAndPushMetadata(new_metadata)` - Compare with local metadata, merge non-conflicting changes, send changes to server, if successful update metadata locally.
