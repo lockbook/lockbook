@@ -1,7 +1,7 @@
 use sled::Db;
 
 use crate::error_enum;
-use crate::model::file_metadata::{FileMetadata, Status};
+use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -44,7 +44,7 @@ error_enum! {
 }
 
 pub trait FileService {
-    fn create(db: &Db, name: &String, path: &String) -> Result<FileMetadata, NewFileError>;
+    fn create(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, NewFileError>;
     fn update(db: &Db, id: &String, content: &String) -> Result<EncryptedFile, UpdateFileError>;
     fn get(db: &Db, id: &String) -> Result<DecryptedValue, Error>;
 }
@@ -71,7 +71,7 @@ impl<
         FileCrypto: FileEncryptionService,
     > FileService for FileServiceImpl<Log, FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
-    fn create(db: &Db, name: &String, path: &String) -> Result<FileMetadata, NewFileError> {
+    fn create(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, NewFileError> {
         Log::info(format!(
             "Creating new file with name: {} at path {}",
             name, path
@@ -82,10 +82,10 @@ impl<
         let encrypted_file = FileCrypto::new_file(&account)?;
         Log::debug(format!("Encrypted file created: {:?}", encrypted_file));
 
-        let meta = FileMetadataDb::insert(&db, &name, &path)?;
+        let meta = FileMetadataDb::insert_new_file(&db, &name, &path)?;
         Log::debug(format!("Metadata for file: {:?}", meta));
 
-        FileDb::update(db, &meta.id, &encrypted_file)?;
+        FileDb::update(db, &meta.file_id, &encrypted_file)?;
         Log::info(format!("New file saved locally"));
         Ok(meta)
     }
@@ -120,17 +120,16 @@ impl<
         Log::debug(format!("New metadata: {:?}", &meta));
         FileMetadataDb::update(
             db,
-            &FileMetadata {
-                id: id.clone(),
-                name: meta.name,
-                path: meta.path,
-                updated_at: meta.updated_at,
-                version: meta.version,
-                status: if meta.status == Status::New {
-                    Status::New
-                } else {
-                    Status::Local
-                },
+            &ClientFileMetadata {
+                file_id: id.clone(),
+                file_name: meta.file_name,
+                file_path: meta.file_path,
+                file_content_version: meta.file_content_version,
+                file_metadata_version: meta.file_metadata_version,
+                new_file: meta.new_file,
+                content_edited_locally: true,
+                metadata_edited_locally: false,
+                deleted_locally: false
             },
         )?;
         Log::info(format!("Updated file {:?} contents {:?}", &id, &content));
