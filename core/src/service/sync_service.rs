@@ -60,30 +60,26 @@ pub struct FileSyncService<
 }
 
 impl<
-    Log: Logger,
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
+        Log: Logger,
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
 {
     fn calculate_work(db: &Db) -> Result<Vec<FileMetadata>, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
-        let local_dirty_files =
-            FileMetadataDb::get_all(&db)?
-                .into_iter()
-                .filter(|f| f.status != Status::Synced)
-                .collect::<Vec<FileMetadata>>();
+        let local_dirty_files = FileMetadataDb::get_all(&db)?
+            .into_iter()
+            .filter(|f| f.status != Status::Synced)
+            .collect::<Vec<FileMetadata>>();
         let last_updated = FileMetadataDb::last_updated(&db).unwrap_or(0);
 
-        let remote_dirty_files = ApiClient::get_updates(&GetUpdatesRequest{
+        let remote_dirty_files = ApiClient::get_updates(&GetUpdatesRequest {
             username: account.username,
             auth: "JUNK_AUTH".to_string(),
-            since_version: last_updated
+            since_version: last_updated,
         })?;
-
-
-
 
         unimplemented!()
     }
@@ -383,7 +379,7 @@ mod unit_tests {
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultFileMetadataService =
-    FileSyncService<VerboseStdOut, FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
+        FileSyncService<VerboseStdOut, FileMetaRepoFake, FileRepoFake, AccountRepoFake, ClientFake>;
 
     #[test]
     fn test_sync() {
