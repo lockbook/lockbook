@@ -2,16 +2,14 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::{
-    ChangeFileContentRequest, Client, CreateFileRequest, GetFileRequest, GetUpdatesRequest,
-};
+use crate::client::Client;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::db_provider;
+
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
-use crate::service::file_encryption_service;
+
 use crate::service::logging_service::Logger;
 use crate::{client, error_enum};
 
@@ -56,11 +54,11 @@ impl<
         ApiClient: Client,
     > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
 {
-    fn calculate_work(db: &Db) -> Result<Vec<ClientFileMetadata>, CalculateWorkError> {
+    fn calculate_work(_db: &Db) -> Result<Vec<ClientFileMetadata>, CalculateWorkError> {
         unimplemented!()
     }
 
-    fn sync(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
+    fn sync(_db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
         unimplemented!()
     }
 }
