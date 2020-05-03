@@ -46,10 +46,12 @@ final class Coordinator: ObservableObject {
         return false
     }
     
-    func importAccount(username: String, keyString: String) -> Bool {
-        if self.lockbookApi.importAccount(username: username, keyString: keyString) {
-            self.username = username
-            return true
+    func importAccount(accountString: String) -> Bool {
+        if self.lockbookApi.importAccount(accountString: accountString) {
+            if let username = self.lockbookApi.getAccount() {
+                self.username = username
+                return true
+            }
         }
         return false
     }
