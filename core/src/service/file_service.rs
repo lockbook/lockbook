@@ -129,7 +129,7 @@ impl<
                 new_file: meta.new_file,
                 content_edited_locally: true,
                 metadata_edited_locally: false,
-                deleted_locally: false
+                deleted_locally: false,
             },
         )?;
         Log::info(format!("Updated file {:?} contents {:?}", &id, &content));

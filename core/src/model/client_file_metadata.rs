@@ -45,7 +45,7 @@ impl ClientFileMetadata {
             new_file: true,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         }
     }
 }

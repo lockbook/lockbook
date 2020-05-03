@@ -27,7 +27,11 @@ pub trait FileMetadataRepo {
 pub struct FileMetadataRepoImpl;
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert_new_file(db: &Db, name: &String, _path: &String) -> Result<ClientFileMetadata, Error> {
+    fn insert_new_file(
+        db: &Db,
+        name: &String,
+        _path: &String,
+    ) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(b"file_metadata")?;
         let meta = ClientFileMetadata::new_file(&name);
         tree.insert(meta.file_id.as_bytes(), serde_json::to_vec(&meta)?)?;
@@ -36,7 +40,10 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(b"file_metadata")?;
-        tree.insert(file_metadata.file_id.as_bytes(), serde_json::to_vec(&file_metadata)?)?;
+        tree.insert(
+            file_metadata.file_id.as_bytes(),
+            serde_json::to_vec(&file_metadata)?,
+        )?;
         Ok(file_metadata.clone())
     }
 
@@ -60,7 +67,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let value = tree
             .iter()
             .map(|s| {
-                let meta: ClientFileMetadata = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
+                let meta: ClientFileMetadata =
+                    serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
                 meta
             })
             .collect::<Vec<ClientFileMetadata>>();
@@ -94,9 +102,12 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res =
-            FileMetadataRepoImpl::insert_new_file(&db, &test_file_metadata.file_name, &test_file_metadata.file_path)
-                .unwrap();
+        let meta_res = FileMetadataRepoImpl::insert_new_file(
+            &db,
+            &test_file_metadata.file_name,
+            &test_file_metadata.file_path,
+        )
+        .unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.file_id).unwrap();
         assert_eq!(test_file_metadata, db_file_metadata);
@@ -113,7 +124,7 @@ mod unit_tests {
             new_file: false,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         };
         let test_meta_updated = ClientFileMetadata {
             file_id: "".to_string(),
@@ -124,7 +135,7 @@ mod unit_tests {
             new_file: false,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         };
 
         let config = Config {
@@ -132,7 +143,9 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res = FileMetadataRepoImpl::insert_new_file(&db, &test_meta.file_name, &test_meta.file_path).unwrap();
+        let meta_res =
+            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.file_name, &test_meta.file_path)
+                .unwrap();
         assert_eq!(
             test_meta.file_content_version,
             FileMetadataRepoImpl::get(&db, &meta_res.file_id)
@@ -159,7 +172,7 @@ mod unit_tests {
             new_file: false,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         };
         let test_meta2 = ClientFileMetadata {
             file_id: Uuid::new_v4().to_string(),
@@ -170,7 +183,7 @@ mod unit_tests {
             new_file: false,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         };
         let test_meta3 = ClientFileMetadata {
             file_id: Uuid::new_v4().to_string(),
@@ -181,7 +194,7 @@ mod unit_tests {
             new_file: false,
             content_edited_locally: false,
             metadata_edited_locally: false,
-            deleted_locally: false
+            deleted_locally: false,
         };
 
         let config = Config {
@@ -189,9 +202,12 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        FileMetadataRepoImpl::insert_new_file(&db, &test_meta1.file_name, &test_meta1.file_path).unwrap();
-        FileMetadataRepoImpl::insert_new_file(&db, &test_meta2.file_name, &test_meta2.file_path).unwrap();
-        FileMetadataRepoImpl::insert_new_file(&db, &test_meta3.file_name, &test_meta3.file_path).unwrap();
+        FileMetadataRepoImpl::insert_new_file(&db, &test_meta1.file_name, &test_meta1.file_path)
+            .unwrap();
+        FileMetadataRepoImpl::insert_new_file(&db, &test_meta2.file_name, &test_meta2.file_path)
+            .unwrap();
+        FileMetadataRepoImpl::insert_new_file(&db, &test_meta3.file_name, &test_meta3.file_path)
+            .unwrap();
 
         let all_files = FileMetadataRepoImpl::get_all(&db).unwrap();
         assert_eq!(all_files.len(), 3);
