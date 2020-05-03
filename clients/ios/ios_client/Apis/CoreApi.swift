@@ -11,7 +11,7 @@ import Foundation
 protocol LockbookApi {
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
-    func importAccount(username: String, keyString: String) -> Bool
+    func importAccount(accountString: String) -> Bool
     func updateMetadata() -> [FileMetadata]
     func createFile(name: String) -> Optional<FileMetadata>
     func getFile(id: String) -> Optional<DecryptedValue>
@@ -47,8 +47,8 @@ struct CoreApi: LockbookApi {
         return false
     }
     
-    func importAccount(username: String, keyString: String) -> Bool {
-        let result = import_account(documentsDirectory, username, keyString)
+    func importAccount(accountString: String) -> Bool {
+        let result = import_account(documentsDirectory, accountString)
         if (result == 1) {
             return true
         }
@@ -126,7 +126,7 @@ struct FakeApi: LockbookApi {
         false
     }
     
-    func importAccount(username: String, keyString: String) -> Bool {
+    func importAccount(accountString: String) -> Bool {
         false
     }
     
