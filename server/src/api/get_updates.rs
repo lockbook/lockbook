@@ -17,27 +17,6 @@ pub fn get_updates(
 ) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
 
-    let public_key = match index_db::get_public_key(&mut locked_index_db_client, &username) {
-        Ok(public_key) => public_key,
-        Err(_) => return Response::build().status(Status::NotFound).finalize(),
-    };
-
-    if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
-        &auth,
-        &public_key,
-        &username,
-        config().auth_config.max_auth_delay,
-    ) {
-        println!(
-            "Auth failed for: {}, {}, {}, {:?}",
-            username,
-            auth,
-            &serde_json::to_string(&public_key).unwrap(),
-            e
-        );
-        return Response::build().status(Status::Unauthorized).finalize();
-    }
-
     let get_updates_result =
         index_db::get_updates(&mut locked_index_db_client, &username, &version);
     match get_updates_result {
