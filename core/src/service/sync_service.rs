@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::Client;
+use crate::client::{Client, GetUpdatesRequest};
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -54,7 +54,19 @@ impl<
         ApiClient: Client,
     > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
 {
-    fn calculate_work(_db: &Db) -> Result<Vec<ClientFileMetadata>, CalculateWorkError> {
+    fn calculate_work(db: &Db) -> Result<Vec<ClientFileMetadata>, CalculateWorkError> {
+        let account = AccountDb::get_account(&db)?;
+        let local_dirty_files = FileMetadataDb::get_all_dirty(&db)?;
+
+        let last_sync = FileMetadataDb::get_last_updated(&db)?;
+        let server_dirty_files = ApiClient::get_updates(&GetUpdatesRequest {
+            username: account.username,
+            auth: "junk auth :(".to_string(),
+            since_version: last_sync
+        })?;
+
+        let
+
         unimplemented!()
     }
 

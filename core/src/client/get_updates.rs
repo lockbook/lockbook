@@ -18,7 +18,7 @@ pub struct GetUpdatesRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct FileMetadata {
+pub struct ServerFileMetadata {
     pub file_id: String,
     pub file_name: String,
     pub file_path: String,
@@ -30,7 +30,7 @@ pub struct FileMetadata {
 pub fn get_updates(
     api_location: String,
     params: &GetUpdatesRequest,
-) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+) -> Result<Vec<ServerFileMetadata>, GetUpdatesError> {
     let client = Client::new();
     let mut response = client
         .get(
@@ -45,7 +45,7 @@ pub fn get_updates(
 
     match response.status().as_u16() {
         200..=299 => Ok(response
-            .json::<Vec<FileMetadata>>()
+            .json::<Vec<ServerFileMetadata>>()
             .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
         _ => Err(GetUpdatesError::Unspecified),
     }

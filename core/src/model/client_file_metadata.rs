@@ -33,13 +33,13 @@ pub struct ClientFileMetadata {
 }
 
 impl ClientFileMetadata {
-    pub fn new_file(name: &String) -> ClientFileMetadata {
+    pub fn new_file(name: &String, path: &String) -> ClientFileMetadata {
         let version = 0;
         let id = Uuid::new_v4().to_string();
         ClientFileMetadata {
             file_id: id.to_string(),
             file_name: name.clone(),
-            file_path: id.to_string(),
+            file_path: path.clone(),
             file_content_version: version.clone(),
             file_metadata_version: version.clone(),
             new_file: true,
