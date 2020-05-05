@@ -23,7 +23,6 @@ struct CoreApi: LockbookApi {
     let documentsDirectory: String
     
     private func isDbPresent() -> Bool {
-        print("Your Documents!!!!!! \(documentsDirectory)")
         if (is_db_present(documentsDirectory) == 1) {
             return true
         }
