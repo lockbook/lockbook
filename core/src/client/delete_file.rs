@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,7 @@ pub fn delete_file(
         ("auth", params.auth.as_str()),
         ("file_id", params.file_id.as_str()),
     ];
-    let mut response = client
+    let response = client
         .delete(format!("{}/delete-file", api_location).as_str())
         .form(&form_params)
         .send()

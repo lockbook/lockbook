@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -16,7 +16,8 @@
 		87BD616723E3B9CB00945B25 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616623E3B9CB00945B25 /* Assets.xcassets */; };
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
-		87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; };
+		EA04A6012460DC5C002E42CF /* liblockbook_core.mac.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EA04A6002460DC48002E42CF /* liblockbook_core.mac.a */; platformFilter = ios; };
+		EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; platformFilter = ios; };
 		EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* FileRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
@@ -24,6 +25,8 @@
 		EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */; };
 		EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEA244D0C580017A402 /* DebugView.swift */; };
 		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
+		EABB9A3E2460FD8100A67264 /* libtest1.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EABB9A3D2460FD7800A67264 /* libtest1.a */; platformFilter = maccatalyst; };
+		EABB9A402461004100A67264 /* janktest.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EABB9A3F2461003900A67264 /* janktest.a */; platformFilter = ios; };
 		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -45,6 +48,8 @@
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		87BD616E23E3B9CB00945B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
+		EA04A5FF2460D9DF002E42CF /* ios_client.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ios_client.entitlements; sourceTree = "<group>"; };
+		EA04A6002460DC48002E42CF /* liblockbook_core.mac.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.mac.a; path = libs/liblockbook_core.mac.a; sourceTree = "<group>"; };
 		EA6A0D6F2443652A0072E2B3 /* FileRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
@@ -52,6 +57,8 @@
 		EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Coordinator.swift; sourceTree = "<group>"; };
 		EA6CEBEA244D0C580017A402 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
 		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
+		EABB9A3D2460FD7800A67264 /* libtest1.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtest1.a; path = libs/libtest1.a; sourceTree = "<group>"; };
+		EABB9A3F2461003900A67264 /* janktest.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = janktest.a; path = libs/janktest.a; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
@@ -65,7 +72,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				87BD617623E3C35200945B25 /* liblockbook_core.a in Frameworks */,
+				EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */,
+				EABB9A402461004100A67264 /* janktest.a in Frameworks */,
+				EA04A6012460DC5C002E42CF /* liblockbook_core.mac.a in Frameworks */,
+				EABB9A3E2460FD8100A67264 /* libtest1.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +127,7 @@
 		87BD615F23E3B9CB00945B25 /* ios_client */ = {
 			isa = PBXGroup;
 			children = (
+				EA04A5FF2460D9DF002E42CF /* ios_client.entitlements */,
 				EAC93E762442896900FFC629 /* Apis */,
 				EAC93E712442810600FFC629 /* Models */,
 				8733C24023F0EA78000681E0 /* Screens */,
@@ -144,6 +155,9 @@
 		87BD617423E3C34600945B25 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				EABB9A3F2461003900A67264 /* janktest.a */,
+				EABB9A3D2460FD7800A67264 /* libtest1.a */,
+				EA04A6002460DC48002E42CF /* liblockbook_core.mac.a */,
 				87BD617523E3C34600945B25 /* liblockbook_core.a */,
 			);
 			name = Frameworks;
@@ -392,6 +406,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ios_client/ios_client.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = RQ7B84U9C2;
@@ -399,6 +414,7 @@
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -409,7 +425,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.raayanpillai.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/test1_rust.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -419,6 +436,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ios_client/ios_client.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"ios_client/Preview Content\"";
 				DEVELOPMENT_TEAM = RQ7B84U9C2;
@@ -426,6 +444,7 @@
 				ENABLE_PREVIEWS = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/include";
 				INFOPLIST_FILE = ios_client/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -436,7 +455,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.raayanpillai.lockbook-client";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/lockbook_core.h";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/include/test1_rust.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

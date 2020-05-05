@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,7 @@ pub fn create_file(
         .send()
         .map_err(|err| CreateFileError::SendFailed(err))?;
 
-    let response_body = response
+    let response_body = &response
         .json::<CreateFileResponse>()
         .map_err(|err| CreateFileError::ReceiveFailed(err))?;
 

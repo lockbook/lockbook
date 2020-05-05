@@ -30,32 +30,40 @@ struct CoreApi: LockbookApi {
     }
     
     func getAccount() -> Optional<String> {
+//        #if !targetEnvironment(macCatalyst)
         if (isDbPresent()) {
-            let result = get_account(documentsDirectory)
-            let resultString = String(cString: result!)
-            release_pointer(UnsafeMutablePointer(mutating: result))
-            return Optional.some(resultString)
+//            let result = get_account(documentsDirectory)
+//            let resultString = String(cString: result!)
+//            release_pointer(UnsafeMutablePointer(mutating: result))
+//            return Optional.some(resultString)
+            return Optional.none
         }
+//        #endif
         return Optional.none
     }
 
     func createAccount(username: String) -> Bool {
+        #if !targetEnvironment(macCatalyst)
         let result = create_account(documentsDirectory, username)
         if (result == 1) {
             return true
         }
+        #endif
         return false
     }
     
     func importAccount(accountString: String) -> Bool {
+        #if !targetEnvironment(macCatalyst)
         let result = import_account(documentsDirectory, accountString)
         if (result == 1) {
             return true
         }
+        #endif
         return false
     }
     
     func updateMetadata() -> [FileMetadata] {
+        #if !targetEnvironment(macCatalyst)
         if (isDbPresent()) {
             let result = sync_files(documentsDirectory)
             let resultString = String(cString: result!)
@@ -70,42 +78,53 @@ struct CoreApi: LockbookApi {
                 return [FileMetadata].init()
             }
         }
+        #endif
         return []
     }
     
     func createFile(name: String) -> Optional<FileMetadata> {
+        #if !targetEnvironment(macCatalyst)
         let result = create_file(documentsDirectory, name, "")
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
         let resultMeta: Optional<FileMetadata> = deserialize(jsonStr: resultString)
         return resultMeta
+        #else
+        return Optional.none
+        #endif
     }
     
     func getFile(id: String) -> Optional<DecryptedValue> {
+        #if !targetEnvironment(macCatalyst)
         let result = get_file(documentsDirectory, id)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
         let resultFile: Optional<DecryptedValue> = deserialize(jsonStr: resultString)
         return resultFile
+        #else
+        return Optional.none
+        #endif
     }
     
     func updateFile(id: String, content: String) -> Bool {
+        #if !targetEnvironment(macCatalyst)
         let result = update_file(documentsDirectory, id, content)
         if (result == 1) {
             return true
-        } else {
-            return false
         }
+        #endif
+        return false
     }
     
     func purgeLocal() -> Bool {
+        #if !targetEnvironment(macCatalyst)
         if(purge_files(documentsDirectory) == 1) {
             return true
-        } else {
-            return false
         }
+        #endif
+        return false
     }
 }
 

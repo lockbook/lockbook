@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +40,7 @@ pub fn change_file_content(
         ("old_file_version", &params.old_file_version.to_string()),
         ("new_file_content", params.new_file_content.as_str()),
     ];
-    let mut response = client
+    let response = client
         .put(format!("{}/change-file-content", api_location).as_str())
         .form(&form_params)
         .send()
