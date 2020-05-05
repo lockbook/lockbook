@@ -23,14 +23,12 @@ fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<RSAPublicKey,
         },
     )?;
 
-    let retrieved_key = client::get_public_key(
+    Ok(client::get_public_key(
         api_loc(),
         &GetPublicKeyRequest {
             username: username.clone(),
         },
-    )?;
-
-    Ok(retrieved_key)
+    )?)
 }
 
 #[test]
