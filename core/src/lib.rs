@@ -2,9 +2,8 @@
 extern crate reqwest;
 
 use std::ffi::{CStr, CString};
-// use std::os::raw::{c_char, c_int};
-use libc::{c_char, c_int};
-// use std::path::Path;
+use std::os::raw::{c_char, c_int};
+use std::path::Path;
 
 use serde_json::json;
 pub use sled::Db;
@@ -102,13 +101,13 @@ pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
 
     let db_path = path + "/" + DB_NAME;
     DefaultLogger::debug(format!("Checking if {:?} exists", db_path));
-    // if Path::new(db_path.as_str()).exists() {
-    DefaultLogger::debug(format!("DB Exists!"));
-    1
-    // } else {
-    //     DefaultLogger::error(format!("DB Does not exist!"));
-    //     0
-    // }
+    if Path::new(db_path.as_str()).exists() {
+        DefaultLogger::debug(format!("DB Exists!"));
+        1
+    } else {
+        DefaultLogger::error(format!("DB Does not exist!"));
+        0
+    }
 }
 
 #[no_mangle]

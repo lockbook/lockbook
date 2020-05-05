@@ -594,9 +594,6 @@ dependencies = [
  "aead",
  "aes-gcm",
  "base64",
- "foreign-types",
- "lazy_static",
- "libc",
  "rand",
  "reqwest",
  "rsa",
@@ -606,7 +603,6 @@ dependencies = [
  "sled",
  "tempfile",
  "termion",
- "twox-hash",
  "uuid",
 ]
 
@@ -1306,15 +1302,6 @@ name = "try-lock"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
-
-[[package]]
-name = "twox-hash"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
-dependencies = [
- "rand",
-]
 
 [[package]]
 name = "typenum"
