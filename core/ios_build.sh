@@ -11,6 +11,9 @@
 cbindgen src/lib.rs -l c > lockbook_core.h
 cargo lipo --release
 
+# build target for mac catalyst
+xargo build --target x86_64-apple-ios-macabi --release
+
 # moving files to the ios project
 inc=../clients/ios/include/
 libs=../clients/ios/libs/
@@ -23,3 +26,6 @@ mkdir ${libs}
 # copy artifacts to ios
 cp lockbook_core.h ${inc}
 cp target/universal/release/liblockbook_core.a ${libs}
+
+# copy catalyst artifact
+cp target/x86_64-apple-ios-macabi/release/liblockbook_core.a ${libs}liblockbook_core.mac.a
