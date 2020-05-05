@@ -1,0 +1,35 @@
+{
+  "abi-return-struct-as-int": true,
+  "arch": "x86_64",
+  "archive-format": "bsd",
+  "cpu": "core2",
+  "data-layout": "e-m:o-i64:64-f80:128-n8:16:32:64-S128",
+  "dll-suffix": ".dylib",
+  "eliminate-frame-pointer": false,
+  "emit-debug-gdb-scripts": false,
+  "env": "",
+  "executables": true,
+  "function-sections": false,
+  "has-rpath": true,
+  "is-like-osx": true,
+  "linker-flavor": "gcc",
+  "llvm-target": "x86_64-apple-ios13.0-macabi",
+  "max-atomic-width": 64,
+  "os": "ios",
+  "pre-link-args": {
+    "gcc": [
+      "-arch",
+      "x86_64",
+      "-isysroot",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
+      "-Wl,-syslibroot",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk"
+    ]
+  },
+  "stack-probes": true,
+  "target-c-int-width": "32",
+  "target-endian": "little",
+  "target-family": "unix",
+  "target-pointer-width": "64",
+  "vendor": "apple"
+}
