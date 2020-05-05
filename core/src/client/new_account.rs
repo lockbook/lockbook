@@ -33,20 +33,18 @@ pub fn new_account(
         ("auth", params.auth.as_str()),
         ("public_key", params.public_key.as_str()),
     ];
-    let mut response = client
+    let response = client
         .post(format!("{}/new-account", api_location).as_str())
         .form(&form_params)
         .send()
         .map_err(|err| NewAccountError::SendFailed(err))?;
 
+    let status = response.status().clone();
     let response_body = response
         .json::<NewAccountResponse>()
         .map_err(|err| NewAccountError::ReceiveFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response_body.error_code.as_str(),
-    ) {
+    match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(NewAccountError::InvalidAuth),
         (401, "expired_auth") => Err(NewAccountError::ExpiredAuth),

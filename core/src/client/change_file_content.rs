@@ -46,14 +46,12 @@ pub fn change_file_content(
         .send()
         .map_err(|err| ChangeFileContentError::SendFailed(err))?;
 
+    let status = response.status().clone();
     let response_body = response
         .json::<ChangeFileContentResponse>()
         .map_err(|err| ChangeFileContentError::ReceiveFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response_body.error_code.as_str(),
-    ) {
+    match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
         (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
