@@ -21,28 +21,29 @@ pub struct NewAccount {
 #[post("/new-account", data = "<new_account>")]
 pub fn new_account(server_state: State<ServerState>, new_account: Form<NewAccount>) -> Response {
     let mut locked_index_db_client = server_state.index_db_client.lock().unwrap();
+    let lower_case_username = new_account.username.to_ascii_lowercase();
 
     if let Err(e) = AuthServiceImpl::<ClockImpl, RsaImpl>::verify_auth(
         &new_account.auth,
         &serde_json::from_str(&new_account.public_key).unwrap(),
-        &new_account.username,
+        &lower_case_username,
         config().auth_config.max_auth_delay,
     ) {
         println!(
             "Auth failed for: {}, {}, {}, {:?}",
-            new_account.username, new_account.auth, new_account.public_key, e
+            lower_case_username, new_account.auth, new_account.public_key, e
         );
         return Response::build().status(Status::Unauthorized).finalize();
     }
 
     let new_account_result = index_db::new_account(
         &mut locked_index_db_client,
-        &new_account.username,
+        &lower_case_username,
         &new_account.public_key,
     );
 
     let public_key =
-        match index_db::get_public_key(&mut locked_index_db_client, &new_account.username) {
+        match index_db::get_public_key(&mut locked_index_db_client, &lower_case_username) {
             Ok(public_key) => public_key,
             Err(Error::SerializationError(_)) => {
                 return Response::build()
