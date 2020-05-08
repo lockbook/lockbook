@@ -11,7 +11,8 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::{client, debug, error, error_enum, info};
+use crate::service::logging_service::Logger;
+use crate::{client, error_enum};
 use sled::Db;
 
 error_enum! {
@@ -31,19 +32,19 @@ error_enum! {
     }
 }
 
-pub trait FileMetadataService {
-    // TODO: split up error types
+pub trait SyncService {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error>;
-    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error>;
 }
 
-pub struct FileMetadataServiceImpl<
+pub struct FileSyncService<
+    Log: Logger,
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
     FileCrypto: FileEncryptionService,
 > {
+    log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
@@ -52,13 +53,14 @@ pub struct FileMetadataServiceImpl<
 }
 
 impl<
+        Log: Logger,
         FileMetadataDb: FileMetadataRepo,
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
         FileCrypto: FileEncryptionService,
-    > FileMetadataService
-    for FileMetadataServiceImpl<FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
+    > SyncService
+    for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, FileCrypto>
 {
     fn sync(db: &Db) -> Result<Vec<FileMetadata>, Error> {
         // Load user's account
@@ -69,13 +71,13 @@ impl<
             Err(_) => 0,
         };
         // Get remote updates from the last synced file onwards
-        info(format!("Getting updates past {}", max_updated));
+        Log::info(format!("Getting updates past {}", max_updated));
         let updates_remote = ApiClient::get_updates(&GetUpdatesRequest {
             username: account.username.to_string(),
             auth: "JUNK_AUTH".to_string(),
             since_version: max_updated,
         })?;
-        debug(format!("Remote Updates {:?}", updates_remote));
+        Log::debug(format!("Remote Updates {:?}", updates_remote));
 
         // Create all the "new" files
         let new_files: Vec<FileMetadata> = FileMetadataDb::get_all(&db)?
@@ -108,7 +110,7 @@ impl<
             .into_iter()
             .filter_map(Result::err)
             .collect::<Vec<Error>>();
-        error(format!("New File Errors: {:?}", errors_new_files));
+        Log::error(format!("New File Errors: {:?}", errors_new_files));
         let updates_local: Vec<FileMetadata> = FileMetadataDb::get_all(db)?
             .into_iter()
             .filter(|meta| meta.status == Status::Local)
@@ -140,7 +142,7 @@ impl<
             .into_iter()
             .filter_map(Result::err)
             .collect::<Vec<Error>>();
-        error(format!("Local Errors: {:?}", errors_local));
+        Log::error(format!("Local Errors: {:?}", errors_local));
         let updates_remote_res = updates_remote
             .iter()
             .map(|meta| -> Result<FileMetadata, Error> {
@@ -164,16 +166,8 @@ impl<
             .into_iter()
             .filter_map(Result::err)
             .collect::<Vec<Error>>();
-        error(format!("Remote Errors: {:?}", errors_remote));
+        Log::error(format!("Remote Errors: {:?}", errors_remote));
         Ok(FileMetadataDb::get_all(&db)?)
-    }
-
-    fn create(db: &Db, name: String, path: String) -> Result<FileMetadata, Error> {
-        let account = AccountDb::get_account(db)?;
-        let encrypted_file = FileCrypto::new_file(&account)?;
-        let meta = FileMetadataDb::insert(&db, &name, &path)?;
-        FileDb::update(db, &meta.id, &encrypted_file)?;
-        Ok(meta)
     }
 }
 
@@ -184,7 +178,6 @@ mod unit_tests {
         CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
         GetUpdatesRequest, NewAccountError, NewAccountRequest,
     };
-    use crate::debug;
     use crate::model::account::Account;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
@@ -200,7 +193,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::{
         EncryptedFile, FileCreationError, FileEncryptionService, FileWriteError, UnableToReadFile,
     };
-    use crate::service::file_metadata_service::{FileMetadataService, FileMetadataServiceImpl};
+    use crate::service::logging_service::{Logger, VerboseStdOut};
+    use crate::service::sync_service::{FileSyncService, SyncService};
     use sled::Db;
 
     struct FileMetaRepoFake;
@@ -217,7 +211,7 @@ mod unit_tests {
             _db: &Db,
             file_metadata: &file_metadata::FileMetadata,
         ) -> Result<file_metadata::FileMetadata, file_metadata_repo::Error> {
-            debug(format!("Updating in DB {:?}", file_metadata));
+            VerboseStdOut::debug(format!("Updating in DB {:?}", file_metadata));
             Ok(file_metadata.clone())
         }
 
@@ -349,7 +343,7 @@ mod unit_tests {
         }
 
         fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
-            debug(format!("Uploading to server {:?}", params));
+            VerboseStdOut::debug(format!("Uploading to server {:?}", params));
             Ok(1)
         }
 
@@ -381,7 +375,8 @@ mod unit_tests {
     }
 
     type DefaultDbProvider = TempBackedDB;
-    type DefaultFileMetadataService = FileMetadataServiceImpl<
+    type DefaultFileMetadataService = FileSyncService<
+        VerboseStdOut,
         FileMetaRepoFake,
         FileRepoFake,
         AccountRepoFake,
