@@ -17,7 +17,7 @@ pub struct GetUpdatesRequest {
     pub since_version: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ServerFileMetadata {
     pub file_id: String,
     pub file_name: String,

@@ -86,7 +86,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(value)
     }
 
-    fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> { // TODO test
+    fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
+        // TODO test
         let tree = db.open_tree(b"file_metadata")?;
         let all_files = tree
             .iter()

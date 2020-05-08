@@ -5,7 +5,7 @@ use crate::utils::generate_account;
 use lockbook_core::client;
 use lockbook_core::client::{CreateFileRequest, NewAccountRequest};
 
-use lockbook_core::client::{ServerFileMetadata, GetUpdatesRequest};
+use lockbook_core::client::{GetUpdatesRequest, ServerFileMetadata};
 
 #[macro_use]
 pub mod utils;
@@ -16,7 +16,10 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
 use utils::{api_loc, generate_file_id, TestError};
 
-fn get_updates(account: &Account, file_id: String) -> Result<(Vec<ServerFileMetadata>, u64), TestError> {
+fn get_updates(
+    account: &Account,
+    file_id: String,
+) -> Result<(Vec<ServerFileMetadata>, u64), TestError> {
     client::new_account(
         api_loc(),
         &NewAccountRequest {
