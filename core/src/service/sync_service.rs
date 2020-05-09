@@ -305,7 +305,20 @@ impl<
                 Ok(())
             }
             PullMergePush(_) => Ok(()),
-            MergeMetadataAndPushMetadata(_) => Ok(()),
+            MergeMetadataAndPushMetadata(server_meta) => {
+                // TODO we can't tell who changed what so this just going to be an UpdateLocalMetadata for now:
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+
+                old_file_metadata.file_name = server_meta.file_name;
+                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_metadata_version = max(
+                    server_meta.file_metadata_version,
+                    old_file_metadata.file_metadata_version,
+                );
+
+                FileMetadataDb::update(&db, &old_file_metadata)?;
+                Ok(())
+            },
         }
     }
 
