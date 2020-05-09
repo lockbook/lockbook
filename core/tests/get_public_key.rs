@@ -18,8 +18,11 @@ fn get_public_key() -> Result<(), TestError> {
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account.keys, &account.username.clone())
-                .unwrap(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
@@ -36,10 +39,7 @@ fn get_public_key() -> Result<(), TestError> {
 
 #[test]
 fn test_get_public_key() {
-    assert_matches!(
-        get_public_key(),
-        Ok(_)
-    );
+    assert_matches!(get_public_key(), Ok(_));
 }
 
 fn get_public_key_invalid() -> Result<(), TestError> {
