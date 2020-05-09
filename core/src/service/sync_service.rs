@@ -2,10 +2,7 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::{
-    Client, CreateFileRequest, DeleteFileRequest, GetFileRequest, GetUpdatesRequest,
-    MoveFileRequest, RenameFileRequest, ServerFileMetadata,
-};
+use crate::client::{Client, CreateFileRequest, DeleteFileRequest, GetFileRequest, GetUpdatesRequest, MoveFileRequest, RenameFileRequest, ServerFileMetadata, ChangeFileContentRequest};
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -43,6 +40,7 @@ error_enum! {
         RenameFileError(client::RenameFileError),
         MoveFileError(client::MoveFileError),
         DeleteFileError(client::DeleteFileError),
+        ChangeFileContentError(client::ChangeFileContentError),
         AuthError(service::auth_service::AuthGenError),
         SerdeError(serde_json::Error),
     }
@@ -51,14 +49,14 @@ error_enum! {
 error_enum! {
     enum SyncError {
         AccountRetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::Error),
-        ApiError(client::GetUpdatesError),
+        CalculateWorkError(CalculateWorkError),
+        WorkExecutionError(WorkExecutionError),
     }
 }
 
 type FileId = String;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Clone)]
 pub enum WorkUnit {
     /// No action needs to be taken for this file
     Nop,
@@ -117,13 +115,13 @@ pub struct FileSyncService<
 }
 
 impl<
-        Log: Logger,
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+    Log: Logger,
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+    Auth: AuthService,
+> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -137,10 +135,10 @@ impl<
             auth: "junk auth :(".to_string(),
             since_version: last_sync,
         })?
-        .into_iter()
-        .for_each(|file| {
-            server_dirty_files.insert(file.file_id.clone(), file);
-        });
+            .into_iter()
+            .for_each(|file| {
+                server_dirty_files.insert(file.file_id.clone(), file);
+            });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -291,7 +289,26 @@ impl<
 
                 Ok(())
             }
-            PushFileContent(_) => Ok(()),
+            PushFileContent(file_id) => {
+                // TODO until we're diffing this is just going to spin on conflicts
+                let mut old_file_metadata = FileMetadataDb::get(&db, &file_id)?;
+                let file_content = FileDb::get(&db, &file_id)?;
+
+                let new_version = ApiClient::change_file(&ChangeFileContentRequest {
+                    username: account.username.clone(),
+                    auth: Auth::generate_auth(&account)?,
+                    file_id: file_id.clone(),
+                    old_file_version: old_file_metadata.file_content_version,
+                    new_file_content: serde_json::to_string(&file_content)?,
+                })?; // TODO the thing you're not handling is EditConflict!
+
+                old_file_metadata.file_content_version = new_version;
+                old_file_metadata.content_edited_locally = false;
+
+                FileMetadataDb::update(&db, &old_file_metadata)?;
+
+                Ok(())
+            }
             PushDelete(file_id) => {
                 ApiClient::delete_file(&DeleteFileRequest {
                     username: account.username.clone(),
@@ -304,7 +321,42 @@ impl<
 
                 Ok(())
             }
-            PullMergePush(_) => Ok(()),
+            PullMergePush(new_metadata) => {
+                // TODO until we're diffing, this is just going to be a pull file
+                let file = ApiClient::get_file(&GetFileRequest {
+                    file_id: new_metadata.file_id.clone(),
+                })?;
+
+                FileDb::update(&db, &new_metadata.file_id, &file)?;
+
+                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                    Ok(mut old_meta) => {
+                        old_meta.file_content_version = new_metadata.file_content_version;
+                        FileMetadataDb::update(&db, &old_meta)?;
+                    }
+                    Err(err) => match err {
+                        MetadataError::FileRowMissing(_) => {
+                            FileMetadataDb::update(
+                                &db,
+                                &ClientFileMetadata {
+                                    file_id: new_metadata.file_id.clone(),
+                                    file_name: new_metadata.file_name,
+                                    file_path: new_metadata.file_path,
+                                    file_content_version: new_metadata.file_content_version,
+                                    file_metadata_version: new_metadata.file_metadata_version,
+                                    new_file: false,
+                                    content_edited_locally: false,
+                                    metadata_edited_locally: false,
+                                    deleted_locally: false,
+                                },
+                            )?;
+                        }
+                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                    },
+                }
+
+                Ok(())
+            }
             MergeMetadataAndPushMetadata(server_meta) => {
                 // TODO we can't tell who changed what so this just going to be an UpdateLocalMetadata for now:
                 let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
@@ -318,12 +370,24 @@ impl<
 
                 FileMetadataDb::update(&db, &old_file_metadata)?;
                 Ok(())
-            },
+            }
         }
     }
 
-    fn sync(_db: &Db) -> Result<(), SyncError> {
-        unimplemented!()
+    fn sync(db: &Db) -> Result<(), SyncError> {
+        let account = AccountDb::get_account(&db)?;
+        let work_units = Self::calculate_work(&db)?;
+
+        work_units
+            .into_iter()
+            .for_each(|wu| {
+                match Self::execute_work(&db, &account, wu.clone()) {
+                    Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
+                    Err(err) => Log::error(format!("{:?} FAILED: {:?}", wu, err)),
+                }
+            });
+
+        Ok(())
     }
 }
 
