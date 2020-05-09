@@ -887,6 +887,7 @@ dependencies = [
  "postgres 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "postgres-openssl 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rocket 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rsa 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-s3 0.18.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",

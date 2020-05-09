@@ -117,11 +117,11 @@ mod unit_tests {
     use std::mem::discriminant;
 
     use rand::rngs::OsRng;
-    use rsa::{RSAPrivateKey, RSAPublicKey};
+    use rsa::RSAPrivateKey;
 
     use crate::service::auth_service::{AuthService, AuthServiceImpl, VerificationError};
     use crate::service::clock_service::Clock;
-    use crate::service::crypto_service::{RsaImpl, SignedValue};
+    use crate::service::crypto_service::RsaImpl;
 
     struct EarlyClock;
 
