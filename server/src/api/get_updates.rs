@@ -1,8 +1,5 @@
-use crate::config::{config, ServerState};
+use crate::config::ServerState;
 use crate::index_db;
-use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
-use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::RsaImpl;
 use rocket::http::Status;
 use rocket::Response;
 use rocket::State;
