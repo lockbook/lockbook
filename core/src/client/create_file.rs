@@ -16,11 +16,11 @@ pub enum CreateFileError {
 #[derive(Debug)]
 pub struct CreateFileRequest {
     pub username: String,
-    pub auth: String,
-    pub file_id: String,
+    pub auth: String,    // SignedValue
+    pub file_id: String, // UUID
     pub file_name: String,
     pub file_path: String,
-    pub file_content: String,
+    pub file_content: String, // EncryptedValue
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

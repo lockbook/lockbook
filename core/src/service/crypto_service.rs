@@ -25,7 +25,7 @@ pub struct DecryptedValue {
     pub secret: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SignedValue {
     pub content: String,
     pub signature: String,

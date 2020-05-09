@@ -5,5 +5,6 @@ else
 	cargo fmt -- --check -l
 	echo "Run cargo fmt" 
 	cargo test --all --no-fail-fast
+
 	exit 1
 fi

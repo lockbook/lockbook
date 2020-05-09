@@ -1,10 +1,11 @@
 use std::num::ParseIntError;
 use std::option::NoneError;
 
-use rsa::{RSAPrivateKey, RSAPublicKey};
+use rsa::RSAPublicKey;
 use serde::export::PhantomData;
 
 use crate::error_enum;
+use crate::model::account::Account;
 use crate::service::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
     TimeStampOutOfBounds, TimeStampParseFailure,
@@ -62,10 +63,7 @@ pub trait AuthService {
         username: &String,
         max_auth_delay: u128,
     ) -> Result<(), VerificationError>;
-    fn generate_auth(
-        private_key: &RSAPrivateKey,
-        username: &String,
-    ) -> Result<String, AuthGenError>;
+    fn generate_auth(account: &Account) -> Result<String, AuthGenError>;
 }
 
 pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
@@ -99,14 +97,11 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         Ok(())
     }
 
-    fn generate_auth(
-        private_key: &RSAPrivateKey,
-        username: &String,
-    ) -> Result<String, AuthGenError> {
-        let to_sign = format!("{},{}", username, Time::get_time().to_string());
+    fn generate_auth(account: &Account) -> Result<String, AuthGenError> {
+        let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
 
         Ok(serde_json::to_string(&Crypto::sign(
-            &private_key,
+            &account.keys,
             to_sign,
         )?)?)
     }
@@ -119,6 +114,7 @@ mod unit_tests {
     use rand::rngs::OsRng;
     use rsa::RSAPrivateKey;
 
+    use crate::model::account::Account;
     use crate::service::auth_service::{AuthService, AuthServiceImpl, VerificationError};
     use crate::service::clock_service::Clock;
     use crate::service::crypto_service::RsaImpl;
@@ -145,8 +141,12 @@ mod unit_tests {
         let public_key = private_key.to_public_key();
 
         let username = String::from("Smail");
-        let auth =
-            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username).unwrap();
+
+        let account = Account {
+            username: username.clone(),
+            keys: private_key,
+        };
+        let auth = AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&account).unwrap();
         AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(&auth, &public_key, &username, 100)
             .unwrap()
     }
@@ -157,8 +157,12 @@ mod unit_tests {
         let public_key = private_key.to_public_key();
 
         let username = String::from("Smail");
-        let auth =
-            AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&private_key, &username).unwrap();
+        let account = Account {
+            username,
+            keys: private_key,
+        };
+
+        let auth = AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&account).unwrap();
 
         let result = discriminant(
             &AuthServiceImpl::<LateClock, RsaImpl>::verify_auth(

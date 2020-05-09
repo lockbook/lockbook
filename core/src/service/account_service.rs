@@ -67,7 +67,7 @@ impl<
             keys: keys.clone(),
         };
         let username = account.username.clone();
-        let auth = Auth::generate_auth(&keys, &username)?;
+        let auth = Auth::generate_auth(&account)?;
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
         Log::info(format!("Saving account locally"));

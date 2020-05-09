@@ -15,7 +15,9 @@ This is the simplest of components to talk about. API nodes write to an S3 CRUD 
 
 It should be reasonably trivial to allow people to publish unencrypted content from Lockbook (think medium style markdown blogs), and allow their content to be link addressable, but this is not on the timeline for now.
 
-Clients will maintain a local content store which is an unencrypted version of this content store. 
+Clients will maintain a local content store which is an unencrypted version of this content store.
+
+Some details regarding configuration can be found [here](file_storage.md).
 
 ### File Index
 
@@ -41,6 +43,8 @@ The db will also store a `UserInfo` table which associates `Username` (hashed), 
 File Index integrity is maintained by API nodes. This basically ensures that if a client's updates a file, the Index reflects this, and when that client opens their laptop they are served the most recent version of the file. If there's a strange race condition the API nodes will reject requests that may cause data corruption (detailed below).
 
 Clients will have keypairs on their device;, all side-effecting operations require a signature. API nodes will verify these signatures against the user's public key. API nodes use these signatures to ensure that these file operations are being made by the owners of the file.
+
+The endpoints are documented [here](api_endpoints.md).
 
 ### Clients
 
