@@ -32,8 +32,8 @@ fn get_updates(
     let file_version = client::create_file(
         api_loc(),
         &CreateFileRequest {
-            username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            username: username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),

@@ -29,7 +29,11 @@ fn create_file() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -62,7 +66,11 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -74,7 +82,11 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path_2".to_string(),
@@ -109,7 +121,11 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
@@ -121,7 +137,11 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
-            auth: "test_auth".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(
+                &account.keys,
+                &account.username.clone(),
+            )
+            .unwrap(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),

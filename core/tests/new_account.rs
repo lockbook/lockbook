@@ -12,7 +12,7 @@ use utils::{api_loc, TestError};
 
 fn new_account() -> Result<(), TestError> {
     let account = generate_account();
-
+    println!("USERNAME BEFORE: {}", account.username);
     client::new_account(
         api_loc(),
         &NewAccountRequest {
