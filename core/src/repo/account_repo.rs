@@ -59,7 +59,6 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let res = DefaultAccountRepo::get_account(&db);
-        println!("{:?}", res);
         assert!(res.is_err());
 
         DefaultAccountRepo::insert_account(&db, &test_account).unwrap();
