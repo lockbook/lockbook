@@ -10,35 +10,35 @@ use lockbook_core::client::{GetPublicKeyError, GetPublicKeyRequest, NewAccountRe
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use rsa::{RSAPrivateKey, RSAPublicKey};
 
-fn get_public_key(username: String, keys: RSAPrivateKey) -> Result<RSAPublicKey, TestError> {
+fn get_public_key() -> Result<(), TestError> {
+    let account = generate_account();
+
     client::new_account(
         api_loc(),
         &NewAccountRequest {
-            username: username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&keys, &username.clone())
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account.keys, &account.username.clone())
                 .unwrap(),
-            public_key: serde_json::to_string(&keys.to_public_key()).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
 
-    Ok(client::get_public_key(
+    client::get_public_key(
         api_loc(),
         &GetPublicKeyRequest {
-            username: username.clone(),
+            username: account.username.clone(),
         },
-    )?)
+    )?;
+
+    Ok(())
 }
 
 #[test]
 fn test_get_public_key() {
-    let account = generate_account();
-    let true_key = &account.keys.to_public_key();
-
     assert_matches!(
-        get_public_key(account.username.clone(), account.keys.clone()).unwrap(),
-        true_key
+        get_public_key(),
+        Ok(_)
     );
 }
 
