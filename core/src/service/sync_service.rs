@@ -195,55 +195,6 @@ impl<
 
     // TODO consider operating off the db instead of functional arguments here
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
-        fn update_local_metadata(meta_s: ServerFileMetadata) -> Result<(), WorkExecutionError> {
-            let mut old_file_metadata = FileMetadataDb::get(&db, &meta_s.file_id)?;
-
-            old_file_metadata.file_name = server_meta.file_name;
-            old_file_metadata.file_path = server_meta.file_path;
-            old_file_metadata.file_metadata_version = max(
-                server_meta.file_metadata_version,
-                old_file_metadata.file_metadata_version,
-            );
-
-            FileMetadataDb::update(&db, &old_file_metadata)?;
-            Ok(())
-        }
-        // TODO unmethodize until we properly handle PullMergePush
-        fn pull_new_file(meta_s: ServerFileMetadata) -> Result<(), WorkExecutionError> {
-            let file = ApiClient::get_file(&GetFileRequest {
-                file_id: meta_s.file_id.clone(),
-            })?;
-
-            FileDb::update(&db, &meta_s.file_id, &file)?;
-
-            match FileMetadataDb::get(&db, &meta_s.file_id) {
-                Ok(mut old_meta) => {
-                    old_meta.file_content_version = meta_s.file_content_version;
-                    FileMetadataDb::update(&db, &old_meta)?;
-                }
-                Err(err) => match err {
-                    MetadataError::FileRowMissing(_) => {
-                        FileMetadataDb::update(
-                            &db,
-                            &ClientFileMetadata {
-                                file_id: meta_s.file_id.clone(),
-                                file_name: meta_s.file_name,
-                                file_path: meta_s.file_path,
-                                file_content_version: meta_s.file_content_version,
-                                file_metadata_version: meta_s.file_metadata_version,
-                                new_file: false,
-                                content_edited_locally: false,
-                                metadata_edited_locally: false,
-                                deleted_locally: false,
-                            },
-                        )?;
-                    }
-                    _ => return Err(WorkExecutionError::FileRetievalError(err)),
-                },
-            }
-
-            Ok(())
-        }
         match work {
             Nop => Ok(()),
             PushNewFile(id) => {
@@ -266,8 +217,54 @@ impl<
                 FileMetadataDb::update(&db, &file_metadata)?;
                 Ok(())
             }
-            UpdateLocalMetadata(server_meta) => update_local_metadata(server_meta),
-            PullFileContent(new_metadata) => pull_new_file(new_metadata),
+            UpdateLocalMetadata(server_meta) => {
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+
+                old_file_metadata.file_name = server_meta.file_name;
+                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_metadata_version = max(
+                    server_meta.file_metadata_version,
+                    old_file_metadata.file_metadata_version,
+                );
+
+                FileMetadataDb::update(&db, &old_file_metadata)?;
+                Ok(())
+            }
+            PullFileContent(new_metadata) => {
+                let file = ApiClient::get_file(&GetFileRequest {
+                    file_id: new_metadata.file_id.clone(),
+                })?;
+
+                FileDb::update(&db, &new_metadata.file_id, &file)?;
+
+                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                    Ok(mut old_meta) => {
+                        old_meta.file_content_version = new_metadata.file_content_version;
+                        FileMetadataDb::update(&db, &old_meta)?;
+                    }
+                    Err(err) => match err {
+                        MetadataError::FileRowMissing(_) => {
+                            FileMetadataDb::update(
+                                &db,
+                                &ClientFileMetadata {
+                                    file_id: new_metadata.file_id.clone(),
+                                    file_name: new_metadata.file_name,
+                                    file_path: new_metadata.file_path,
+                                    file_content_version: new_metadata.file_content_version,
+                                    file_metadata_version: new_metadata.file_metadata_version,
+                                    new_file: false,
+                                    content_edited_locally: false,
+                                    metadata_edited_locally: false,
+                                    deleted_locally: false,
+                                },
+                            )?;
+                        }
+                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                    },
+                }
+
+                Ok(())
+            }
             DeleteLocally(file_id) => {
                 FileMetadataDb::delete(&db, &file_id)?;
                 FileDb::delete(&db, &file_id)?;
@@ -329,11 +326,53 @@ impl<
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                pull_new_file(new_metadata)
+                let file = ApiClient::get_file(&GetFileRequest {
+                    file_id: new_metadata.file_id.clone(),
+                })?;
+
+                FileDb::update(&db, &new_metadata.file_id, &file)?;
+
+                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                    Ok(mut old_meta) => {
+                        old_meta.file_content_version = new_metadata.file_content_version;
+                        FileMetadataDb::update(&db, &old_meta)?;
+                    }
+                    Err(err) => match err {
+                        MetadataError::FileRowMissing(_) => {
+                            FileMetadataDb::update(
+                                &db,
+                                &ClientFileMetadata {
+                                    file_id: new_metadata.file_id.clone(),
+                                    file_name: new_metadata.file_name,
+                                    file_path: new_metadata.file_path,
+                                    file_content_version: new_metadata.file_content_version,
+                                    file_metadata_version: new_metadata.file_metadata_version,
+                                    new_file: false,
+                                    content_edited_locally: false,
+                                    metadata_edited_locally: false,
+                                    deleted_locally: false,
+                                },
+                            )?;
+                        }
+                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                    },
+                }
+
+                Ok(())
             }
             MergeMetadataAndPushMetadata(server_meta) => {
                 // TODO we can't tell who changed what so this just going to be an UpdateLocalMetadata for now:
-                update_local_metadata(server_meta)
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+
+                old_file_metadata.file_name = server_meta.file_name;
+                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_metadata_version = max(
+                    server_meta.file_metadata_version,
+                    old_file_metadata.file_metadata_version,
+                );
+
+                FileMetadataDb::update(&db, &old_file_metadata)?;
+                Ok(())
             }
         }
     }
