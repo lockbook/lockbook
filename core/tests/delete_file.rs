@@ -1,24 +1,23 @@
 extern crate lockbook_core;
 
-use crate::utils::generate_account;
-
 use lockbook_core::client;
-use lockbook_core::client::CreateFileRequest;
-use lockbook_core::client::NewAccountRequest;
-use lockbook_core::client::{DeleteFileError, DeleteFileRequest};
+use lockbook_core::client::delete_file;
+use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::NewAccountRequest;
+use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest};
 
 #[macro_use]
-pub mod utils;
+mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use utils::{api_loc, generate_file_id, generate_username, TestError};
+use utils::{api_loc, generate_account, generate_file_id, TestError};
 
 fn delete_file() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -31,7 +30,7 @@ fn delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -47,7 +46,7 @@ fn delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -71,7 +70,7 @@ fn test_delete_file() {
 fn delete_file_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -84,7 +83,7 @@ fn delete_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -104,7 +103,9 @@ fn delete_file_file_not_found() -> Result<(), TestError> {
 fn test_delete_file_file_not_found() {
     assert_matches!(
         delete_file_file_not_found(),
-        Err(TestError::DeleteFileError(DeleteFileError::FileNotFound))
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::FileNotFound
+        )))
     );
 }
 
@@ -112,7 +113,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -125,7 +126,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -141,7 +142,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -154,7 +155,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -174,6 +175,8 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 fn test_delete_file_file_deleted() {
     assert_matches!(
         delete_file_file_deleted(),
-        Err(TestError::DeleteFileError(DeleteFileError::FileDeleted))
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::FileDeleted
+        )))
     );
 }

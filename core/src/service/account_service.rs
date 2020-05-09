@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::client;
-use crate::client::{Client, NewAccountRequest};
+use crate::client::Client;
 use crate::error_enum;
 use crate::model::account::Account;
 use crate::repo::account_repo;
@@ -16,7 +16,7 @@ error_enum! {
     enum AccountCreationError {
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
-        ApiError(client::NewAccountError),
+        ApiError(client::new_account::Error),
         KeySerializationError(serde_json::error::Error),
         AuthGenFailure(AuthGenError)
     }
@@ -73,14 +73,8 @@ impl<
         Log::info(format!("Saving account locally"));
         AccountDb::insert_account(db, &account)?;
 
-        let new_account_request = NewAccountRequest {
-            username,
-            auth,
-            public_key,
-        };
-
         Log::info(format!("Sending username & public key to server"));
-        ApiClient::new_account(&new_account_request)?;
+        ApiClient::new_account(username, auth, public_key)?;
         Log::info(format!("Account creation success!"));
 
         Log::debug(format!("{}", serde_json::to_string(&account).unwrap()));

@@ -1,8 +1,8 @@
+use crate::index_db::get_file_metadata::to_file_metadata;
 use lockbook_core::client::FileMetadata;
 use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
-use crate::index_db::get_file_metadata::to_file_metadata;
 
 #[derive(Debug)]
 pub enum Error {

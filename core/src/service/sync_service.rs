@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::client::{
-    ChangeFileContentRequest, Client, CreateFileRequest, GetFileRequest, GetUpdatesRequest,
-};
+use crate::client::Client;
 use crate::model::file_metadata::{FileMetadata, Status};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -24,11 +22,11 @@ error_enum! {
         SerderError(serde_json::error::Error),
         FileCreateError(file_encryption_service::FileCreationError),
         // TODO: Handle errors
-        NewAccountError(client::NewAccountError),
-        GetUpdatesError(client::GetUpdatesError),
-        GetFileError(client::GetFileError),
-        CreateFileError(client::CreateFileError),
-        ChangeFileContentError(client::ChangeFileContentError),
+        NewAccountError(client::new_account::Error),
+        GetUpdatesError(client::get_updates::Error),
+        GetFileError(client::get_file::Error),
+        CreateFileError(client::create_file::Error),
+        ChangeFileContentError(client::change_file_content::Error),
     }
 }
 
@@ -72,11 +70,11 @@ impl<
         };
         // Get remote updates from the last synced file onwards
         Log::info(format!("Getting updates past {}", max_updated));
-        let updates_remote = ApiClient::get_updates(&GetUpdatesRequest {
-            username: account.username.to_string(),
-            auth: "JUNK_AUTH".to_string(),
-            since_version: max_updated,
-        })?;
+        let updates_remote = ApiClient::get_updates(
+            account.username.to_string(),
+            "JUNK_AUTH".to_string(),
+            max_updated,
+        )?;
         Log::debug(format!("Remote Updates {:?}", updates_remote));
 
         // Create all the "new" files
@@ -85,14 +83,14 @@ impl<
             .filter(|file| file.status == Status::New)
             .collect();
         let new_files_res = new_files.iter().map(|meta| -> Result<FileMetadata, Error> {
-            let version = ApiClient::create_file(&CreateFileRequest {
-                username: account.username.to_string(),
-                auth: "JUNK_AUTH".to_string(),
-                file_id: meta.id.to_string(),
-                file_name: meta.name.to_string(),
-                file_path: meta.path.to_string(),
-                file_content: "".to_string(),
-            })?;
+            let version = ApiClient::create_file(
+                account.username.to_string(),
+                "JUNK_AUTH".to_string(),
+                meta.id.to_string(),
+                meta.name.to_string(),
+                meta.path.to_string(),
+                "".to_string(),
+            )?;
             // Mark as "local" on success
             Ok(FileMetadataDb::update(
                 db,
@@ -119,13 +117,13 @@ impl<
             .iter()
             .map(|file| -> Result<FileMetadata, Error> {
                 let content = serde_json::to_string(&FileDb::get(db, &file.id)?)?;
-                let new_version = ApiClient::change_file(&ChangeFileContentRequest {
-                    username: account.username.to_string(),
-                    auth: "JUNK_AUTH".to_string(),
-                    file_id: file.id.to_string(),
-                    old_file_version: file.version,
-                    new_file_content: content,
-                })?;
+                let new_version = ApiClient::change_file_content(
+                    account.username.to_string(),
+                    "JUNK_AUTH".to_string(),
+                    file.id.to_string(),
+                    file.version,
+                    content,
+                )?;
                 Ok(FileMetadataDb::update(
                     db,
                     &FileMetadata {
@@ -146,9 +144,7 @@ impl<
         let updates_remote_res = updates_remote
             .iter()
             .map(|meta| -> Result<FileMetadata, Error> {
-                let content = ApiClient::get_file(&GetFileRequest {
-                    file_id: meta.file_id.to_string(),
-                })?;
+                let content = ApiClient::get_file(meta.file_id.to_string())?;
                 FileDb::update(db, &meta.file_id, &content)?;
                 Ok(FileMetadataDb::update(
                     db,
@@ -173,12 +169,17 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{
-        ChangeFileContentError, ChangeFileContentRequest, Client, CreateFileError,
-        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
-        GetUpdatesRequest, NewAccountError, NewAccountRequest,
-    };
+    use crate::client::change_file_content;
+    use crate::client::create_file;
+    use crate::client::delete_file;
+    use crate::client::get_file;
+    use crate::client::get_updates;
+    use crate::client::move_file;
+    use crate::client::new_account;
+    use crate::client::rename_file;
+    use crate::client::Client;
     use crate::model::account::Account;
+    use crate::model::api;
     use crate::model::file_metadata;
     use crate::model::file_metadata::Status;
     use crate::model::state::Config;
@@ -293,13 +294,40 @@ mod unit_tests {
 
     struct ClientFake;
     impl Client for ClientFake {
-        fn new_account(_params: &NewAccountRequest) -> Result<(), NewAccountError> {
-            Ok(())
+        fn change_file_content(
+            username: String,
+            auth: String,
+            file_id: String,
+            old_file_version: u64,
+            new_file_content: String,
+        ) -> Result<u64, change_file_content::Error> {
+            unimplemented!()
         }
-
-        fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+        fn create_file(
+            username: String,
+            auth: String,
+            file_id: String,
+            file_name: String,
+            file_path: String,
+            file_content: String,
+        ) -> Result<u64, create_file::Error> {
+            VerboseStdOut::debug(format!("Uploading to server. username={}, auth={}, file_id={}, file_name={}, file_path={}, file_content={}", username, auth, file_id, file_name, file_path, file_content));
+            Ok(1)
+        }
+        fn delete_file(
+            username: String,
+            auth: String,
+            file_id: String,
+        ) -> Result<(), delete_file::Error> {
+            unimplemented!()
+        }
+        fn get_updates(
+            username: String,
+            auth: String,
+            since_version: u64,
+        ) -> Result<Vec<api::FileMetadata>, get_updates::Error> {
             let mut metas = vec![
-                FileMetadata {
+                api::FileMetadata {
                     file_id: "some_uuid_1".to_string(),
                     file_name: "First File".to_string(),
                     file_path: "/first".to_string(),
@@ -307,7 +335,7 @@ mod unit_tests {
                     file_metadata_version: 50,
                     deleted: false,
                 },
-                FileMetadata {
+                api::FileMetadata {
                     file_id: "some_uuid_2".to_string(),
                     file_name: "Second File".to_string(),
                     file_path: "/second".to_string(),
@@ -315,7 +343,7 @@ mod unit_tests {
                     file_metadata_version: 100,
                     deleted: false,
                 },
-                FileMetadata {
+                api::FileMetadata {
                     file_id: "some_uuid_4".to_string(),
                     file_name: "Fourth File".to_string(),
                     file_path: "/fourth".to_string(),
@@ -324,11 +352,33 @@ mod unit_tests {
                     deleted: false,
                 },
             ];
-            metas.retain(|meta| meta.file_metadata_version > params.since_version);
+            metas.retain(|meta| meta.file_metadata_version > since_version);
             Ok(metas)
         }
-
-        fn get_file(_params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
+        fn move_file(
+            username: String,
+            auth: String,
+            file_id: String,
+            new_file_path: String,
+        ) -> Result<(), move_file::Error> {
+            unimplemented!()
+        }
+        fn new_account(
+            username: String,
+            auth: String,
+            public_key: String,
+        ) -> Result<(), new_account::Error> {
+            Ok(())
+        }
+        fn rename_file(
+            username: String,
+            auth: String,
+            file_id: String,
+            new_file_name: String,
+        ) -> Result<(), rename_file::Error> {
+            unimplemented!()
+        }
+        fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error> {
             Ok(EncryptedFile {
                 access_keys: Default::default(),
                 content: EncryptedValueWithNonce {
@@ -340,15 +390,6 @@ mod unit_tests {
                     signature: "".to_string(),
                 },
             })
-        }
-
-        fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
-            VerboseStdOut::debug(format!("Uploading to server {:?}", params));
-            Ok(1)
-        }
-
-        fn change_file(_params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError> {
-            unimplemented!()
         }
     }
 

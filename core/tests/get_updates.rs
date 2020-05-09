@@ -3,9 +3,9 @@ extern crate lockbook_core;
 use crate::utils::generate_account;
 
 use lockbook_core::client;
-use lockbook_core::client::CreateFileRequest;
-use lockbook_core::client::NewAccountRequest;
-use lockbook_core::client::{FileMetadata, GetUpdatesRequest};
+use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::NewAccountRequest;
+use lockbook_core::model::api::{FileMetadata, GetUpdatesRequest};
 
 #[macro_use]
 pub mod utils;
@@ -17,7 +17,7 @@ use utils::{api_loc, generate_file_id, generate_username, TestError};
 fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: username.clone(),
@@ -30,7 +30,7 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
         },
     )?;
 
-    let file_version = client::create_file(
+    let file_version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: username.clone(),
@@ -40,16 +40,18 @@ fn get_updates(username: String, file_id: String) -> Result<(Vec<FileMetadata>, 
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?;
+    )?
+    .current_version;
 
-    let updates_metadata = client::get_updates(
+    let updates_metadata = client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
             username: username.clone(),
             auth: "test_auth".to_string(),
             since_version: 0,
         },
-    )?;
+    )?
+    .file_metadata;
 
     Ok((updates_metadata, file_version))
 }
