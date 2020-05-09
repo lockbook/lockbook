@@ -57,7 +57,7 @@ pub type DefaultSyncService = FileSyncService<
     DefaultFileRepo,
     DefaultAccountRepo,
     DefaultClient,
-    DefaultAuthService
+    DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultLogger,
