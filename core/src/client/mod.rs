@@ -27,6 +27,9 @@ pub trait Client {
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
+    fn rename_file(params: &RenameFileRequest) -> Result<(), RenameFileError>;
+    fn move_file(params: &MoveFileRequest) -> Result<(), MoveFileError>;
+    fn delete_file(params: &DeleteFileRequest) -> Result<(), DeleteFileError>;
 }
 
 pub struct ClientImpl;
@@ -42,10 +45,24 @@ impl Client for ClientImpl {
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
         get_file(BUCKET_LOC.to_string(), params)
     }
+
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
         create_file(API_LOC.to_string(), params)
     }
+
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError> {
         change_file_content(API_LOC.to_string(), params)
+    }
+
+    fn rename_file(params: &RenameFileRequest) -> Result<(), RenameFileError> {
+        rename_file(API_LOC.to_string(), params)
+    }
+
+    fn move_file(params: &MoveFileRequest) -> Result<(), MoveFileError> {
+        move_file(API_LOC.to_string(), params)
+    }
+
+    fn delete_file(params: &DeleteFileRequest) -> Result<(), DeleteFileError> {
+        delete_file(API_LOC.to_string(), params)
     }
 }

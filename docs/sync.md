@@ -129,7 +129,7 @@ We will convert various scenarios to a fixed number of actions that we can take 
 |        F       |       F      |      T     |      T     |       T       |           F           |      F      | `DeleteLocally(file_id)`                                                      |
 |        F       |       F      |      T     |      T     |       F       |           T           |      F      | `PullMergePush(new_metadata)`, `PushMetadata(file_id)`                        |
 |        F       |       F      |      T     |      T     |       F       |           F           |      T      | `MergeMetadataAndPushMetadata(new_metadata)`, `PushFileContent(file_id)`      |
-|        F       |       F      |      T     |      F     |       T       |           T           |      F      | `DeleteLocally(file_id)`                                                      |
+|        F       |       F      |      T     |      F     |       T       |           T           |      F      | `PushFileContent(file_id)`                                                      |
 |        F       |       F      |      T     |      F     |       T       |           F           |      T      | `UpdateLocalMetadata(new_metadata)`, `PushFileContent(file_id)`               |
 |        F       |       F      |      T     |      F     |       F       |           T           |      T      | `PullMergePush(new_metadata)`                                                 |
 |        F       |       F      |      F     |      T     |       T       |           T           |      F      | `DeleteLocally(file_id)`                                                      |

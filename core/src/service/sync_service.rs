@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::{Client, GetUpdatesRequest, ServerFileMetadata};
+use crate::client::{Client, GetUpdatesRequest, ServerFileMetadata, CreateFileRequest, GetFileRequest, RenameFileRequest, MoveFileRequest, DeleteFileRequest};
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
+use crate::service;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::Error as MetadataError;
 
@@ -15,7 +16,10 @@ use crate::service::logging_service::Logger;
 use crate::service::sync_service::WorkUnit::*;
 use crate::{client, error_enum};
 use serde::Serialize;
+use std::cmp::max;
 use std::collections::HashMap;
+use crate::model::account::Account;
+use crate::service::auth_service::AuthService;
 
 error_enum! {
     enum CalculateWorkError {
@@ -26,10 +30,29 @@ error_enum! {
 }
 
 error_enum! {
-    enum Error {
+    enum WorkExecutionError {
         RetrievalError(repo::account_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::Error),
+        FileContentError(repo::file_repo::Error),
+        GetUpdatesError(client::GetUpdatesError),
+        CreateFileError(client::CreateFileError),
+        GetFileError(client::GetFileError),
+        RenameFileError(client::RenameFileError),
+        MoveFileError(client::MoveFileError),
+        DeleteFileError(client::DeleteFileError),
+        AuthError(service::auth_service::AuthGenError),
+        SerdeError(serde_json::Error),
     }
 }
+
+error_enum! {
+    enum SyncError {
+        AccountRetrievalError(repo::account_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::Error),
+        ApiError(client::GetUpdatesError),
+    }
+}
+
 type FileId = String;
 
 #[derive(Serialize)]
@@ -70,7 +93,8 @@ pub enum WorkUnit {
 
 pub trait SyncService {
     fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError>;
-    fn sync(db: &Db) -> Result<Vec<WorkUnit>, Error>;
+    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
+    fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
 pub struct FileSyncService<
@@ -79,21 +103,24 @@ pub struct FileSyncService<
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
+    Auth: AuthService
 > {
     log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
+    auth: PhantomData<Auth>,
 }
 
 impl<
-        Log: Logger,
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient>
+    Log: Logger,
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+    Auth: AuthService,
+> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -107,10 +134,10 @@ impl<
             auth: "junk auth :(".to_string(),
             since_version: last_sync,
         })?
-        .into_iter()
-        .for_each(|file| {
-            server_dirty_files.insert(file.file_id.clone(), file);
-        });
+            .into_iter()
+            .for_each(|file| {
+                server_dirty_files.insert(file.file_id.clone(), file);
+            });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -162,7 +189,123 @@ impl<
         Ok(work_units)
     }
 
-    fn sync(_db: &Db) -> Result<Vec<WorkUnit>, Error> {
+    // TODO consider operating off the db instead of functional arguments here
+    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
+        match work {
+            Nop => Ok(()),
+            PushNewFile(id) => {
+                let mut file_metadata = FileMetadataDb::get(&db, &id)?;
+                let file_content = FileDb::get(&db, &id)?;
+
+                let new_version = ApiClient::create_file(&CreateFileRequest {
+                    username: account.username.to_string(),
+                    auth: Auth::generate_auth(&account)?,
+                    file_id: file_metadata.file_id.clone(),
+                    file_name: file_metadata.file_name.clone(),
+                    file_path: file_metadata.file_path.clone(),
+                    file_content: serde_json::to_string(&file_content)?,
+                })?;
+
+                file_metadata.file_content_version = new_version;
+                file_metadata.new_file = false;
+                file_metadata.content_edited_locally = false;
+
+                FileMetadataDb::update(&db, &file_metadata)?;
+                Ok(())
+            }
+            UpdateLocalMetadata(server_meta) => {
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+
+                old_file_metadata.file_name = server_meta.file_name;
+                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_metadata_version = max(
+                    server_meta.file_metadata_version,
+                    old_file_metadata.file_metadata_version,
+                );
+
+                FileMetadataDb::update(&db, &old_file_metadata)?;
+                Ok(())
+            }
+            PullFileContent(new_metadata) => {
+                let file = ApiClient::get_file(&GetFileRequest {
+                    file_id: new_metadata.file_id.clone()
+                })?;
+
+                FileDb::update(&db, &new_metadata.file_id, &file)?;
+
+                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                    Ok(mut old_meta) => {
+                        old_meta.file_content_version = new_metadata.file_content_version;
+                        FileMetadataDb::update(&db, &old_meta)?;
+                    }
+                    Err(err) => match err {
+                        MetadataError::FileRowMissing(_) =>
+                            {
+                                FileMetadataDb::update(&db, &ClientFileMetadata {
+                                    file_id: new_metadata.file_id.clone(),
+                                    file_name: new_metadata.file_name,
+                                    file_path: new_metadata.file_path,
+                                    file_content_version: new_metadata.file_content_version,
+                                    file_metadata_version: new_metadata.file_metadata_version,
+                                    new_file: false,
+                                    content_edited_locally: false,
+                                    metadata_edited_locally: false,
+                                    deleted_locally: false,
+                                })?;
+                            }
+                        _ => return Err(WorkExecutionError::FileRetievalError(err))
+                    },
+                }
+
+
+                Ok(())
+            }
+            DeleteLocally(file_id) => {
+                FileMetadataDb::delete(&db, &file_id)?;
+                FileDb::delete(&db, &file_id)?;
+                Ok(())
+            }
+            PushMetadata(file_id) => {
+                let mut metadata = FileMetadataDb::get(&db, &file_id)?;
+                // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
+                ApiClient::rename_file(&RenameFileRequest{
+                    username: account.username.clone(),
+                    auth: Auth::generate_auth(&account)?,
+                    file_id: file_id.clone(),
+                    new_file_name: metadata.file_name.clone()
+                })?;
+
+                ApiClient::move_file(&MoveFileRequest{
+                    username: account.username.clone(),
+                    auth: Auth::generate_auth(&account)?,
+                    file_id: file_id.clone(),
+                    new_file_path: metadata.file_path.clone()
+                })?;
+
+                metadata.metadata_edited_locally = false;
+                FileMetadataDb::update(&db, &metadata)?;
+
+                Ok(())
+            },
+            PushFileContent(_) => Ok(()),
+            PushDelete(file_id) => {
+                ApiClient::delete_file(&DeleteFileRequest{
+                    username: account.username.clone(),
+                    auth: Auth::generate_auth(&account)?,
+                    file_id: file_id.clone()
+                })?;
+
+                FileMetadataDb::delete(&db, &file_id)?;
+                FileDb::delete(&db, &file_id)?;
+
+                Ok(())
+            },
+            PullMergePush(_) => Ok(()),
+            MergeMetadataAndPushMetadata(_) => Ok(()),
+        }
+    }
+
+    fn sync(_db: &Db) -> Result<(), SyncError> {
         unimplemented!()
     }
 }
@@ -252,7 +395,7 @@ fn calculate_work_across_server_and_client(
             MergeMetadataAndPushMetadata(server),
             PushFileContent(client.file_id),
         ],
-        (false, true, false, true, true, false) => vec![DeleteLocally(client.file_id)],
+        (false, true, false, true, true, false) => vec![PushFileContent(client.file_id)],
         (false, true, false, true, false, true) => {
             vec![UpdateLocalMetadata(server), PushFileContent(client.file_id)]
         }
