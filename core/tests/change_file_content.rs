@@ -12,8 +12,8 @@ use lockbook_core::client::{ChangeFileContentError, ChangeFileContentRequest};
 pub mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
-use utils::{api_loc, generate_file_id, generate_username, TestError};
+use lockbook_core::service::crypto_service::RsaImpl;
+use utils::{api_loc, generate_file_id, TestError};
 
 fn change_file_content() -> Result<(), TestError> {
     let account = generate_account();

@@ -175,8 +175,9 @@ impl<
 mod unit_tests {
     use crate::client::{
         ChangeFileContentError, ChangeFileContentRequest, Client, CreateFileError,
-        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetUpdatesError,
-        GetUpdatesRequest, NewAccountError, NewAccountRequest,
+        CreateFileRequest, FileMetadata, GetFileError, GetFileRequest, GetPublicKeyError,
+        GetPublicKeyRequest, GetUpdatesError, GetUpdatesRequest, NewAccountError,
+        NewAccountRequest,
     };
     use crate::model::account::Account;
     use crate::model::file_metadata;
@@ -195,6 +196,7 @@ mod unit_tests {
     };
     use crate::service::logging_service::{Logger, VerboseStdOut};
     use crate::service::sync_service::{FileSyncService, SyncService};
+    use rsa::RSAPublicKey;
     use sled::Db;
 
     struct FileMetaRepoFake;
@@ -340,6 +342,12 @@ mod unit_tests {
                     signature: "".to_string(),
                 },
             })
+        }
+
+        fn get_public_key(
+            _params: &GetPublicKeyRequest,
+        ) -> Result<RSAPublicKey, GetPublicKeyError> {
+            unimplemented!()
         }
 
         fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
