@@ -2,7 +2,10 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::{Client, CreateFileRequest, DeleteFileRequest, GetFileRequest, GetUpdatesRequest, MoveFileRequest, RenameFileRequest, ServerFileMetadata, ChangeFileContentRequest};
+use crate::client::{
+    ChangeFileContentRequest, Client, CreateFileRequest, DeleteFileRequest, GetFileRequest,
+    GetUpdatesRequest, MoveFileRequest, RenameFileRequest, ServerFileMetadata,
+};
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -115,13 +118,13 @@ pub struct FileSyncService<
 }
 
 impl<
-    Log: Logger,
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+        Log: Logger,
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -135,10 +138,10 @@ impl<
             auth: "junk auth :(".to_string(),
             since_version: last_sync,
         })?
-            .into_iter()
-            .for_each(|file| {
-                server_dirty_files.insert(file.file_id.clone(), file);
-            });
+        .into_iter()
+        .for_each(|file| {
+            server_dirty_files.insert(file.file_id.clone(), file);
+        });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -380,11 +383,9 @@ impl<
 
         work_units
             .into_iter()
-            .for_each(|wu| {
-                match Self::execute_work(&db, &account, wu.clone()) {
-                    Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
-                    Err(err) => Log::error(format!("{:?} FAILED: {:?}", wu, err)),
-                }
+            .for_each(|wu| match Self::execute_work(&db, &account, wu.clone()) {
+                Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
+                Err(err) => Log::error(format!("{:?} FAILED: {:?}", wu, err)),
             });
 
         Ok(())
