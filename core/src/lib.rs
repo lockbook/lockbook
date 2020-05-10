@@ -69,9 +69,7 @@ pub type DefaultFileService = FileServiceImpl<
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
-
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
-
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {

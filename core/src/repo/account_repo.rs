@@ -24,12 +24,14 @@ pub struct AccountRepoImpl;
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
-        db.insert(b"0", serde_json::to_vec(account)?)?;
+        let tree = db.open_tree("account")?;
+        tree.insert("you", serde_json::to_vec(account)?)?;
         Ok(())
     }
 
     fn get_account(db: &Db) -> Result<Account, Error> {
-        let maybe_value = db.get(b"0")?;
+        let tree = db.open_tree("account")?;
+        let maybe_value = tree.get("you")?;
         let val = maybe_value?;
         let account: Account = serde_json::from_slice(val.as_ref())?;
         Ok(account)
