@@ -15,5 +15,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build
       run: |
-        cd clients/ios
+        cd core
+        ./build_for_xcode.sh
+        cd ../clients/ios
         xcodebuild -project ios_client.xcodeproj -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO
