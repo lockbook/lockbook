@@ -16,4 +16,4 @@ jobs:
     - name: Build
       run: |
         cd clients/ios
-        xcodebuild -project ios_client.xcodeproj
+        xcodebuild -project ios_client.xcodeproj -allowProvisioningUpdates
