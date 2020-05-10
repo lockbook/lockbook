@@ -1159,6 +1159,7 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 [[package]]
 name = "sled"
 version = "0.31.0"
+source = "git+https://github.com/spacejam/sled#6c45ffc2fc188375878d9d4a8e671578fe57fd73"
 dependencies = [
  "crc32fast",
  "crossbeam-epoch",
