@@ -31,9 +31,9 @@ do
     esac
 done
 
-[ $BUILD_FAT == 1 ] && { command -v cargo || { echo "Yain't got cargo"; exit 1; } }
+[ $BUILD_FAT == 1 ] && { command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 
-[ $BUILD_CATALYST == 1 ] && { command -v xargo || { echo "Yain't got xargo"; exit 1; } }
+[ $BUILD_CATALYST == 1 ] && { command -v xargo || { echo "Y'ain't got xargo"; exit 1; } }
 
 echo "Creating header"
 cbindgen src/lib.rs -l c > lockbook_core.h
