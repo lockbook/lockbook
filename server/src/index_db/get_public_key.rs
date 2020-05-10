@@ -15,7 +15,7 @@ pub fn get_public_key(
 ) -> Result<RSAPublicKey, Error> {
     match client.query_one(
         "SELECT public_key FROM users WHERE username = $1;",
-        &[&username],
+        &[&username.to_lowercase()],
     ) {
         Ok(row) => Ok(serde_json::from_str(row.get("public_key"))
             .map_err(|err| Error::SerializationError(err))?),
