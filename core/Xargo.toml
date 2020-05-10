@@ -1,4 +1,4 @@
-std = {features = ["jemalloc"]}
+std = { features = ["jemalloc"] }
 
 [dependencies]
 std = {}
