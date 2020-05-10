@@ -20,7 +20,7 @@ use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
-use crate::service::logging_service::{Logger, VerboseStdOut};
+use crate::service::logging_service::{ConditionalStdOut, Logger};
 use crate::service::sync_service::{FileSyncService, SyncService};
 
 pub mod client;
@@ -33,7 +33,7 @@ pub static API_LOC: &str = "http://lockbook.app:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
-pub type DefaultLogger = VerboseStdOut;
+pub type DefaultLogger = ConditionalStdOut;
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
 pub type DefaultDbProvider = DiskBackedDB<DefaultLogger>;
