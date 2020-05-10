@@ -14,9 +14,9 @@ pub fn list() {
     DefaultFileMetadataRepo::get_all(&db)
         .expect("Failed to retrieve content from FileMetadataRepo")
         .into_iter()
-        .for_each(|metadata| println!("{}: {:?}", metadata.name.trim(), metadata.status));
+        .for_each(|metadata| println!("{}", metadata.file_name.trim()));
 
-    let last_updated = DefaultFileMetadataRepo::last_updated(&db)
+    let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
         .expect("Failed to retrieve content from FileMetadataRepo");
 
     let duration = if last_updated != 0 {
