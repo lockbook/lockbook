@@ -2,6 +2,7 @@ mod change_file_content;
 mod create_file;
 mod delete_file;
 mod get_file;
+mod get_public_key;
 mod get_updates;
 mod move_file;
 mod new_account;
@@ -14,19 +15,25 @@ pub use self::change_file_content::{
 pub use self::create_file::{create_file, CreateFileError, CreateFileRequest, CreateFileResponse};
 pub use self::delete_file::{delete_file, DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 pub use self::get_file::{get_file, GetFileError, GetFileRequest};
-pub use self::get_updates::{get_updates, FileMetadata, GetUpdatesError, GetUpdatesRequest};
+pub use self::get_public_key::{get_public_key, GetPublicKeyError, GetPublicKeyRequest};
+pub use self::get_updates::{get_updates, GetUpdatesError, GetUpdatesRequest, ServerFileMetadata};
 pub use self::move_file::{move_file, MoveFileError, MoveFileRequest, MoveFileResponse};
 pub use self::new_account::{new_account, NewAccountError, NewAccountRequest, NewAccountResponse};
 pub use self::rename_file::{rename_file, RenameFileError, RenameFileRequest, RenameFileResponse};
 use crate::service::file_encryption_service::EncryptedFile;
 use crate::{API_LOC, BUCKET_LOC};
+use rsa::RSAPublicKey;
 
 pub trait Client {
     fn new_account(params: &NewAccountRequest) -> Result<(), NewAccountError>;
-    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError>;
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<ServerFileMetadata>, GetUpdatesError>;
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError>;
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<RSAPublicKey, GetPublicKeyError>;
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError>;
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError>;
+    fn rename_file(params: &RenameFileRequest) -> Result<(), RenameFileError>;
+    fn move_file(params: &MoveFileRequest) -> Result<(), MoveFileError>;
+    fn delete_file(params: &DeleteFileRequest) -> Result<(), DeleteFileError>;
 }
 
 pub struct ClientImpl;
@@ -35,17 +42,35 @@ impl Client for ClientImpl {
         new_account(API_LOC.to_string(), params)
     }
 
-    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+    fn get_updates(params: &GetUpdatesRequest) -> Result<Vec<ServerFileMetadata>, GetUpdatesError> {
         get_updates(API_LOC.to_string(), params)
     }
 
     fn get_file(params: &GetFileRequest) -> Result<EncryptedFile, GetFileError> {
         get_file(BUCKET_LOC.to_string(), params)
     }
+
+    fn get_public_key(params: &GetPublicKeyRequest) -> Result<RSAPublicKey, GetPublicKeyError> {
+        get_public_key(API_LOC.to_string(), params)
+    }
+
     fn create_file(params: &CreateFileRequest) -> Result<u64, CreateFileError> {
         create_file(API_LOC.to_string(), params)
     }
+
     fn change_file(params: &ChangeFileContentRequest) -> Result<u64, ChangeFileContentError> {
         change_file_content(API_LOC.to_string(), params)
+    }
+
+    fn rename_file(params: &RenameFileRequest) -> Result<(), RenameFileError> {
+        rename_file(API_LOC.to_string(), params)
+    }
+
+    fn move_file(params: &MoveFileRequest) -> Result<(), MoveFileError> {
+        move_file(API_LOC.to_string(), params)
+    }
+
+    fn delete_file(params: &DeleteFileRequest) -> Result<(), DeleteFileError> {
+        delete_file(API_LOC.to_string(), params)
     }
 }

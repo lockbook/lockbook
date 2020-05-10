@@ -4,7 +4,7 @@ use s3::bucket::Bucket as S3Client;
 use s3::credentials::Credentials;
 
 pub fn connect(config: &FilesDbConfig) -> Result<S3Client, categorized_s3_error::Error> {
-    let region = config.region.parse::<s3::region::Region>()?;
+    let region = config.region.clone();
     let credentials = Credentials::new(
         Some(config.access_key.to_string()),
         Some(config.secret_key.to_string()),
