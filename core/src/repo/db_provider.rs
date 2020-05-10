@@ -32,10 +32,7 @@ impl<Log: Logger> DbProvider for DiskBackedDB<Log> {
     fn connect_to_db(config: &Config) -> Result<Db, Error> {
         let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
         Log::debug(format!("DB Location: {}", db_path));
-        Ok(sled::Config::default()
-            .use_compression(false)
-            .create_new(true)
-            .open()?)
+        Ok(sled::open(db_path.as_str())?)
     }
 }
 
