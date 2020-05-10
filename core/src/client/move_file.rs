@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -34,20 +34,18 @@ pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), M
         ("file_id", params.file_id.as_str()),
         ("new_file_path", params.new_file_path.as_str()),
     ];
-    let mut response = client
+    let response = client
         .put(format!("{}/move-file", api_location).as_str())
         .form(&form_params)
         .send()
         .map_err(|err| MoveFileError::SendFailed(err))?;
 
+    let status = response.status().clone();
     let response_body = response
         .json::<MoveFileResponse>()
         .map_err(|err| MoveFileError::ReceiveFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response_body.error_code.as_str(),
-    ) {
+    match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(MoveFileError::InvalidAuth),
         (401, "expired_auth") => Err(MoveFileError::ExpiredAuth),
