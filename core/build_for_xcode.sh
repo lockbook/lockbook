@@ -11,7 +11,7 @@ do
         BUILD_FAT=1
         BUILD_CATALYST=0
         echo "Only building the fatty"
-        shift # Remove --initialize from processing
+        shift # Remove param from processing
         ;;
         -c|--catalyst)
         BUILD_FAT=0
@@ -30,6 +30,10 @@ do
         ;;
     esac
 done
+
+[ $BUILD_FAT == 1 ] && { command -v cargo || { echo "Yain't got cargo"; exit 1; } }
+
+[ $BUILD_CATALYST == 1 ] && { command -v xargo || { echo "Yain't got xargo"; exit 1; } }
 
 echo "Creating header"
 cbindgen src/lib.rs -l c > lockbook_core.h
