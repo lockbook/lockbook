@@ -5,10 +5,10 @@ use crate::utils::{api_loc, TestError};
 
 use lockbook_core::client;
 use lockbook_core::client::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_core::model::account::Account;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{RsaImpl, PubKeyCryptoService};
-use lockbook_core::model::account::Account;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 #[macro_use]
 pub mod utils;
@@ -16,7 +16,7 @@ pub mod utils;
 fn check_case_insensitive() -> Result<(), TestError> {
     let account = Account {
         username: "SMAIL".to_string(),
-        keys: RsaImpl::generate_key().unwrap()
+        keys: RsaImpl::generate_key().unwrap(),
     };
 
     client::new_account(
@@ -27,7 +27,7 @@ fn check_case_insensitive() -> Result<(), TestError> {
                 &account.keys,
                 &account.username.clone(),
             )
-                .unwrap(),
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
