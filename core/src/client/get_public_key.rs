@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use rsa::RSAPublicKey;
 
@@ -20,7 +20,7 @@ pub fn get_public_key(
     params: &GetPublicKeyRequest,
 ) -> Result<RSAPublicKey, GetPublicKeyError> {
     let client = Client::new();
-    let mut response = client
+    let response = client
         .get(format!("{}/get-public-key/{}", api_location, params.username).as_str())
         .send()
         .map_err(|err| GetPublicKeyError::SendFailed(err))?;

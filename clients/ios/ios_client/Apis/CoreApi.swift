@@ -95,17 +95,15 @@ struct CoreApi: LockbookApi {
         let result = update_file(documentsDirectory, id, content)
         if (result == 1) {
             return true
-        } else {
-            return false
         }
+        return false
     }
     
     func purgeLocal() -> Bool {
         if(purge_files(documentsDirectory) == 1) {
             return true
-        } else {
-            return false
         }
+        return false
     }
 }
 
