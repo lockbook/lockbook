@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 base64 = "0.11.0"
-rocket = "0.4.2"
 postgres = "0.17.0"
 postgres-openssl = "0.3.0"
 openssl = { version = "0.10", features = ["vendored"] }

@@ -3,7 +3,20 @@ use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
-pub fn create_file(
+pub struct Service;
+
+impl crate::endpoint::EndpointService<CreateFileRequest, CreateFileResponse, CreateFileError>
+    for Service
+{
+    fn handle(
+        server_state: &mut ServerState,
+        request: CreateFileRequest,
+    ) -> Result<CreateFileResponse, CreateFileError> {
+        handle(server_state, request)
+    }
+}
+
+fn handle(
     server_state: &mut ServerState,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
