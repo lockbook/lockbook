@@ -1,8 +1,22 @@
 use crate::index_db;
 use crate::ServerState;
+use crate::endpoint::EndpointService;
 use lockbook_core::model::api::{RenameFileError, RenameFileRequest, RenameFileResponse};
 
-pub fn rename_file(
+pub struct Service;
+
+impl EndpointService<RenameFileRequest, RenameFileResponse, RenameFileError>
+    for Service
+{
+    fn handle(
+        server_state: &mut ServerState,
+        request: RenameFileRequest,
+    ) -> Result<RenameFileResponse, RenameFileError> {
+        handle(server_state, request)
+    }
+}
+
+fn handle(
     server_state: &mut ServerState,
     request: RenameFileRequest,
 ) -> Result<RenameFileResponse, RenameFileError> {

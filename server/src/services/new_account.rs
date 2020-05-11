@@ -1,8 +1,22 @@
 use crate::index_db;
 use crate::ServerState;
+use crate::endpoint::EndpointService;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
 
-pub fn new_account(
+pub struct Service;
+
+impl EndpointService<NewAccountRequest, NewAccountResponse, NewAccountError>
+    for Service
+{
+    fn handle(
+        server_state: &mut ServerState,
+        request: NewAccountRequest,
+    ) -> Result<NewAccountResponse, NewAccountError> {
+        handle(server_state, request)
+    }
+}
+
+fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {

@@ -8,7 +8,7 @@ pub trait EndpointService<Request, Response, Error> {
     fn handle(server_state: &mut ServerState, request: Request) -> Result<Response, Error>;
 }
 
-pub async fn handle<
+pub fn handle<
     Request: DeserializeOwned,
     Response: Serialize,
     Error: Serialize,
@@ -18,7 +18,12 @@ pub async fn handle<
     req: hyper::Request<Body>,
 ) -> hyper::Response<Body> {
     // TODO: log successes and errors
-    match handle_impl::<Request, Response, Error, Endpoint>(server_state, req).await {
+    match server_state
+        .lock()
+        .map_err(|e| HandleError::MutexLock(e))
+        .and_then(|mut locked_server_state| {
+            handle_impl::<Request, Response, Error, Endpoint>(&mut locked_server_state, req)
+        }) {
         Ok(response) => response,
         Err(err) => {
             let mut response = hyper::Response::default();
@@ -57,24 +62,28 @@ impl<'a> From<std::sync::PoisonError<std::sync::MutexGuard<'a, ServerState>>> fo
     }
 }
 
-async fn handle_impl<
+fn handle_impl<
     'a,
     Request: DeserializeOwned,
     Response: Serialize,
     Error: Serialize,
     Endpoint: EndpointService<Request, Response, Error>,
 >(
-    server_state: Arc<Mutex<ServerState>>,
+    server_state: &mut ServerState,
     req: hyper::Request<Body>,
 ) -> Result<hyper::Response<Body>, HandleError<'a>> {
-    let body_bytes = body::to_bytes(req.into_body()).await?;
+    let body_bytes = body_to_bytes(req)?;
     let body_string = String::from_utf8(body_bytes.to_vec())?;
     let request =
         serde_json::from_str(&body_string).map_err(|e| HandleError::JsonDeserialize(e))?;
-    let mut locked_server_state = server_state.lock()?;
-    let response = Endpoint::handle(&mut locked_server_state, request);
+    let response = Endpoint::handle(server_state, request);
     let response_body =
         serde_json::to_string(&response).map_err(|e| HandleError::JsonSerialize(e))?;
 
     Ok(hyper::Response::new(response_body.into()))
+}
+
+#[tokio::main]
+async fn body_to_bytes(req: hyper::Request<Body>) -> Result<hyper::body::Bytes, hyper::Error> {
+    body::to_bytes(req.into_body()).await
 }

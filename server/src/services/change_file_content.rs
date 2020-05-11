@@ -1,11 +1,25 @@
 use crate::files_db;
 use crate::index_db;
 use crate::ServerState;
+use crate::endpoint::EndpointService;
 use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
 };
 
-pub fn change_file_content(
+pub struct Service;
+
+impl EndpointService<ChangeFileContentRequest, ChangeFileContentResponse, ChangeFileContentError>
+    for Service
+{
+    fn handle(
+        server_state: &mut ServerState,
+        request: ChangeFileContentRequest,
+    ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
+        handle(server_state, request)
+    }
+}
+
+fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {

@@ -1,11 +1,12 @@
 use crate::files_db;
 use crate::index_db;
 use crate::ServerState;
+use crate::endpoint::EndpointService;
 use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
 pub struct Service;
 
-impl crate::endpoint::EndpointService<CreateFileRequest, CreateFileResponse, CreateFileError>
+impl EndpointService<CreateFileRequest, CreateFileResponse, CreateFileError>
     for Service
 {
     fn handle(

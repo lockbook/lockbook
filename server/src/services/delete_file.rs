@@ -1,9 +1,23 @@
 use crate::files_db;
 use crate::index_db;
 use crate::ServerState;
+use crate::endpoint::EndpointService;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
-pub fn delete_file(
+pub struct Service;
+
+impl EndpointService<DeleteFileRequest, DeleteFileResponse, DeleteFileError>
+    for Service
+{
+    fn handle(
+        server_state: &mut ServerState,
+        request: DeleteFileRequest,
+    ) -> Result<DeleteFileResponse, DeleteFileError> {
+        handle(server_state, request)
+    }
+}
+
+fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {

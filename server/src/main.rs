@@ -12,9 +12,17 @@ pub mod services;
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
+use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
+use lockbook_core::model::api::{
+    ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
+};
+use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
+use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
+use lockbook_core::model::api::{MoveFileError, MoveFileRequest, MoveFileResponse};
+use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
+use lockbook_core::model::api::{RenameFileError, RenameFileRequest, RenameFileResponse};
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
-use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
 pub struct ServerState {
     pub index_db_client: postgres::Client,
@@ -43,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         async move {
             Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
                 let server_state = server_state.clone();
-                async move { Ok::<_, Infallible>(handle(server_state, req).await) }
+                async move { Ok::<_, Infallible>(handle(server_state, req)) }
             }))
         }
     });
@@ -52,15 +60,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn handle(server_state: Arc<Mutex<ServerState>>, req: Request<Body>) -> Response<Body> {
+fn handle(server_state: Arc<Mutex<ServerState>>, req: Request<Body>) -> Response<Body> {
     match (req.method(), req.uri().path()) {
-        (&Method::POST, "/new-account") => Response::default(),
-        (&Method::POST, "/create-file") => endpoint::handle::<CreateFileRequest, CreateFileResponse, CreateFileError, services::create_file::Service>(server_state, req).await,
-        (&Method::PUT, "/change-file-content") => Response::default(),
-        (&Method::PUT, "/rename-file") => Response::default(),
-        (&Method::PUT, "/move-file") => Response::default(),
-        (&Method::DELETE, "/delete-file") => Response::default(),
-        (&Method::GET, "/get-updates") => Response::default(),
+        (&Method::PUT, "/change-file-content") => endpoint::handle::<
+            ChangeFileContentRequest,
+            ChangeFileContentResponse,
+            ChangeFileContentError,
+            services::change_file_content::Service,
+        >(server_state, req),
+        (&Method::POST, "/create-file") => endpoint::handle::<
+            CreateFileRequest,
+            CreateFileResponse,
+            CreateFileError,
+            services::create_file::Service,
+        >(server_state, req),
+        (&Method::DELETE, "/delete-file") => endpoint::handle::<
+            DeleteFileRequest,
+            DeleteFileResponse,
+            DeleteFileError,
+            services::delete_file::Service,
+        >(server_state, req),
+        (&Method::GET, "/get-updates") => endpoint::handle::<
+            GetUpdatesRequest,
+            GetUpdatesResponse,
+            GetUpdatesError,
+            services::get_updates::Service,
+        >(server_state, req),
+        (&Method::PUT, "/move-file") => endpoint::handle::<
+            MoveFileRequest,
+            MoveFileResponse,
+            MoveFileError,
+            services::move_file::Service,
+        >(server_state, req),
+        (&Method::POST, "/new-account") => endpoint::handle::<
+            NewAccountRequest,
+            NewAccountResponse,
+            NewAccountError,
+            services::new_account::Service,
+        >(server_state, req),
+        (&Method::PUT, "/rename-file") => endpoint::handle::<
+            RenameFileRequest,
+            RenameFileResponse,
+            RenameFileError,
+            services::rename_file::Service,
+        >(server_state, req),
         _ => {
             let mut response = Response::default();
             *response.status_mut() = StatusCode::NOT_FOUND;
