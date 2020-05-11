@@ -1,16 +1,16 @@
 use crate::files_db;
 use crate::index_db;
+use crate::ServerState;
 use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
 };
 
 pub fn change_file_content(
-    index_db_client: &mut postgres::Client,
-    files_db_client: &s3::bucket::Bucket,
+    server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
     let update_file_version_result = index_db::update_file_version(
-        index_db_client,
+        &mut server_state.index_db_client,
         &request.file_id,
         &(request.old_file_version as i64),
     );
@@ -36,7 +36,7 @@ pub fn change_file_content(
     };
 
     let create_file_result = files_db::create_file(
-        &files_db_client,
+        &server_state.files_db_client,
         &request.file_id,
         &request.new_file_content,
     );

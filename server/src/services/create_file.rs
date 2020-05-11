@@ -1,13 +1,14 @@
 use crate::files_db;
 use crate::index_db;
+use crate::ServerState;
 use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
 pub fn create_file(
-    index_db_client: &mut postgres::Client,
-    files_db_client: &s3::bucket::Bucket,
+    server_state: &mut ServerState,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
-    let get_file_details_result = files_db::get_file_details(&files_db_client, &request.file_id);
+    let get_file_details_result =
+        files_db::get_file_details(&server_state.files_db_client, &request.file_id);
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(_) => {
@@ -18,7 +19,7 @@ pub fn create_file(
     };
 
     let index_db_create_file_result = index_db::create_file(
-        index_db_client,
+        &mut server_state.index_db_client,
         &request.file_id,
         &request.username,
         &request.file_name,
@@ -40,8 +41,11 @@ pub fn create_file(
         }
     };
 
-    let files_db_create_file_result =
-        files_db::create_file(&files_db_client, &request.file_id, &request.file_content);
+    let files_db_create_file_result = files_db::create_file(
+        &server_state.files_db_client,
+        &request.file_id,
+        &request.file_content,
+    );
     match files_db_create_file_result {
         Ok(()) => Ok(CreateFileResponse {
             current_version: new_version as u64,

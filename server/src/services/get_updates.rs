@@ -1,12 +1,13 @@
 use crate::index_db;
+use crate::ServerState;
 use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
 
 pub fn get_updates(
-    index_db_client: &mut postgres::Client,
+    server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
     let get_updates_result = index_db::get_updates(
-        index_db_client,
+        &mut server_state.index_db_client,
         &request.username,
         &(request.since_version as i64),
     );

@@ -1,12 +1,16 @@
 use crate::index_db;
+use crate::ServerState;
 use lockbook_core::model::api::{MoveFileError, MoveFileRequest, MoveFileResponse};
 
 pub fn move_file(
-    index_db_client: &mut postgres::Client,
+    server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {
-    let move_file_result =
-        index_db::move_file(index_db_client, &request.file_id, &request.new_file_path);
+    let move_file_result = index_db::move_file(
+        &mut server_state.index_db_client,
+        &request.file_id,
+        &request.new_file_path,
+    );
     match move_file_result {
         Ok(_) => Ok(MoveFileResponse {}),
         Err(index_db::move_file::Error::FileDoesNotExist) => Err(MoveFileError::FileNotFound),

@@ -1,13 +1,14 @@
 use crate::files_db;
 use crate::index_db;
+use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
 pub fn delete_file(
-    index_db_client: &mut postgres::Client,
-    files_db_client: &s3::bucket::Bucket,
+    server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
-    let index_db_delete_file_result = index_db::delete_file(index_db_client, &request.file_id);
+    let index_db_delete_file_result =
+        index_db::delete_file(&mut server_state.index_db_client, &request.file_id);
     match index_db_delete_file_result {
         Ok(_) => {}
         Err(index_db::delete_file::Error::FileDoesNotExist) => {
@@ -24,7 +25,8 @@ pub fn delete_file(
         }
     };
 
-    let filed_db_delete_file_result = files_db::delete_file(&files_db_client, &request.file_id);
+    let filed_db_delete_file_result =
+        files_db::delete_file(&server_state.files_db_client, &request.file_id);
     match filed_db_delete_file_result {
         Ok(()) => Ok(DeleteFileResponse {}),
         Err(_) => {

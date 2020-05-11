@@ -16,8 +16,7 @@ use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 
 pub struct ServerState {
-    // index_db_client operations require mutable access for some reason...
-    pub index_db_client: Mutex<postgres::Client>,
+    pub index_db_client: postgres::Client,
     pub files_db_client: s3::bucket::Bucket,
 }
 
@@ -32,10 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(x) => x,
         Err(err) => panic!("{:?}", err),
     };
-    let server_state = Arc::new(ServerState {
-        index_db_client: Mutex::new(index_db_client),
+    let server_state = Arc::new(Mutex::new(ServerState {
+        index_db_client: index_db_client,
         files_db_client: files_db_client,
-    });
+    }));
     let addr = "0.0.0.0:3000".parse()?;
 
     let make_service = make_service_fn(move |_| {
@@ -52,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-fn handle(server_state: Arc<ServerState>, req: Request<Body>) -> Response<Body> {
+fn handle(server_state: Arc<Mutex<ServerState>>, req: Request<Body>) -> Response<Body> {
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/new-account") => api::new_account::handle(server_state, req),
         (&Method::POST, "/create-file") => api::create_file::handle(server_state, req),
