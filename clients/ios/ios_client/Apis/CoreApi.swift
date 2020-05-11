@@ -111,9 +111,9 @@ struct CoreApi: LockbookApi {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, version: 0, status: .Synced),
-        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, version: 1000, status: .Synced),
-        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, version: 1500, status: .Local),
+        FileMetadata(fileId: "aaaa", fileName: "first_file", filePath: "/", fileContentVersion: 0, fileMetadataVersion: 0, newFile: true, contentEditedLocally: false, metadataEditedLocally: false, deletedLocally: false),
+        FileMetadata(fileId: "bbbb", fileName: "another_file.md", filePath: "/", fileContentVersion: 1000, fileMetadataVersion: 1000, newFile: true, contentEditedLocally: false, metadataEditedLocally: false, deletedLocally: false),
+        FileMetadata(fileId: "cccc", fileName: "third_file.md", filePath: "/", fileContentVersion: 1500, fileMetadataVersion: 1500, newFile: true, contentEditedLocally: false, metadataEditedLocally: false, deletedLocally: false),
     ]
     
     func getAccount() -> Optional<String> {
@@ -136,7 +136,7 @@ struct FakeApi: LockbookApi {
     func createFile(name: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
 
-        return Optional.some(FileMetadata(id: "new", name: name, path: "", updatedAt: Int(now), version: Int(now), status: .Local))
+        return Optional.some(FileMetadata(fileId: "new", fileName: name, filePath: "", fileContentVersion: Int(now), fileMetadataVersion: Int(now), newFile: true, contentEditedLocally: false, metadataEditedLocally: false, deletedLocally: false))
     }
     
     func getFile(id: String) -> Optional<DecryptedValue> {

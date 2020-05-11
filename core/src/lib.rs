@@ -29,10 +29,6 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-pub static API_LOC: &str = "http://lockbook.app:8000";
-pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
-static DB_NAME: &str = "lockbook.sled";
-
 pub type DefaultLogger = ConditionalStdOut;
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
@@ -67,6 +63,9 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
+pub static API_LOC: &str = "http://lockbook.app:8000";
+pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
+static DB_NAME: &str = "lockbook.sled";
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
@@ -158,7 +157,13 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
     };
 
     match DefaultSyncService::sync(&db) {
-        Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+        Ok(_) => match DefaultFileMetadataRepo::get_all(&db) {
+            Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+            Err(err) => {
+                DefaultLogger::error(format!("Metadata retrieval failed: {:?}", err));
+                CString::new(json!([]).to_string()).unwrap().into_raw()
+            }
+        },
         Err(err) => {
             DefaultLogger::error(format!("Update metadata failed with error: {:?}", err));
             CString::new(json!([]).to_string()).unwrap().into_raw()
@@ -177,9 +182,9 @@ pub unsafe extern "C" fn create_file(
         Some(db) => db,
     };
     let file_name = string_from_ptr(c_file_name);
-    let file_path = string_from_ptr(c_file_path);
+    let _ = string_from_ptr(c_file_path);
 
-    match DefaultFileService::create(&db, &file_name, &file_path) {
+    match DefaultFileService::create(&db, &file_name, &file_name) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to create file metadata! Error: {:?}", err));

@@ -18,11 +18,10 @@ struct EditorView: View {
         VStack {
             TextView(text: self.$content)
             VStack(alignment: .leading) {
-                Text("id: \(metadata.id)")
-                Text("path: \(metadata.path)")
-                Text("updatedAt: \(intEpochToString(micros: metadata.updatedAt))")
-                Text("version: \(intEpochToString(micros: metadata.version))")
-                Text("status: \(metadata.status.rawValue)")
+                Text("file_id: \(metadata.fileId)")
+                Text("path: \(metadata.filePath)")
+                Text("metadata_version: \(intEpochToString(micros: metadata.fileMetadataVersion))")
+                Text("content_version: \(intEpochToString(micros: metadata.fileContentVersion))")
             }
         }
         .alert(isPresented: $showingAlert) {

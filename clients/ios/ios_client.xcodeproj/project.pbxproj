@@ -54,11 +54,11 @@
 		EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Coordinator.swift; sourceTree = "<group>"; };
 		EA6CEBEA244D0C580017A402 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
 		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
-		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios_client.entitlements; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
 		EAC93E7724428E6800FFC629 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		EAED67ED2468F79C0090D2C7 /* ios_client.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ios_client.entitlements; sourceTree = "<group>"; };
 		EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
 		EAF7E1882446887600E4C8AC /* File.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = File.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -121,7 +121,7 @@
 		87BD615F23E3B9CB00945B25 /* ios_client */ = {
 			isa = PBXGroup;
 			children = (
-				EAAAAD4C24619A1D001856B2 /* ios_client.entitlements */,
+				EAED67ED2468F79C0090D2C7 /* ios_client.entitlements */,
 				EAC93E762442896900FFC629 /* Apis */,
 				EAC93E712442810600FFC629 /* Models */,
 				8733C24023F0EA78000681E0 /* Screens */,
@@ -275,14 +275,6 @@
 				87BD616C23E3B9CB00945B25 /* Base */,
 			);
 			name = LaunchScreen.storyboard;
-			sourceTree = "<group>";
-		};
-		EAAAAD4C24619A1D001856B2 /* ios_client.entitlements */ = {
-			isa = PBXVariantGroup;
-			children = (
-				EAAAAD4B24619A1D001856B2 /* en */,
-			);
-			name = ios_client.entitlements;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
