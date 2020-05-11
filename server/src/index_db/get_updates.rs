@@ -1,5 +1,5 @@
 use crate::index_db::get_file_metadata::to_file_metadata;
-use lockbook_core::client::FileMetadata;
+use lockbook_core::model::api::FileMetadata;
 use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;

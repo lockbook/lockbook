@@ -1,36 +1,13 @@
-use crate::config::ServerState;
 use crate::files_db;
 use crate::index_db;
-use lockbook_core::client::CreateFileResponse;
-
-pub struct CreateFileRequest {
-    pub username: String,
-    pub auth: String,
-    pub file_id: String,
-    pub file_name: String,
-    pub file_path: String,
-    pub file_content: String,
-}
-
-pub enum CreateFileError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
-    NotPermissioned,
-    UserNotFound,
-    FileIdTaken,
-    FilePathTaken,
-}
+use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
 pub fn create_file(
-    server: ServerState,
+    index_db_client: &mut postgres::Client,
+    files_db_client: &s3::bucket::Bucket,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
-    let mut locked_index_db_client = server.index_db_client.lock().unwrap();
-    let locked_files_db_client = server.files_db_client.lock().unwrap();
-
-    let get_file_details_result =
-        files_db::get_file_details(&locked_files_db_client, &request.file_id);
+    let get_file_details_result = files_db::get_file_details(&files_db_client, &request.file_id);
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(_) => {
@@ -41,7 +18,7 @@ pub fn create_file(
     };
 
     let index_db_create_file_result = index_db::create_file(
-        &mut locked_index_db_client,
+        index_db_client,
         &request.file_id,
         &request.username,
         &request.file_name,
@@ -63,15 +40,11 @@ pub fn create_file(
         }
     };
 
-    let files_db_create_file_result = files_db::create_file(
-        &locked_files_db_client,
-        &request.file_id,
-        &request.file_content,
-    );
+    let files_db_create_file_result =
+        files_db::create_file(&files_db_client, &request.file_id, &request.file_content);
     match files_db_create_file_result {
         Ok(()) => Ok(CreateFileResponse {
             current_version: new_version as u64,
-            error_code: String::default(),
         }),
         Err(_) => {
             println!("Internal server error! {:?}", files_db_create_file_result);

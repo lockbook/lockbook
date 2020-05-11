@@ -1,39 +1,18 @@
-use crate::config::ServerState;
 use crate::index_db;
-use lockbook_core::client::FileMetadata;
-
-pub struct GetUpdatesResponse {
-    pub updated_metadata: Vec<FileMetadata>,
-}
-
-pub struct GetUpdatesRequest {
-    pub username: String,
-    pub auth: String,
-    pub version: i64,
-}
-
-pub enum GetUpdatesError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
-    NotPermissioned,
-    UserNotFound,
-}
+use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
 
 pub fn get_updates(
-    server: ServerState,
+    index_db_client: &mut postgres::Client,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
-    let mut locked_index_db_client = server.index_db_client.lock().unwrap();
-
     let get_updates_result = index_db::get_updates(
-        &mut locked_index_db_client,
+        index_db_client,
         &request.username,
-        &request.version,
+        &(request.since_version as i64),
     );
     match get_updates_result {
         Ok(updates) => Ok(GetUpdatesResponse {
-            updated_metadata: updates,
+            file_metadata: updates,
         }),
         Err(_) => {
             println!("Internal server error! {:?}", get_updates_result);
