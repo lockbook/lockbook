@@ -16,6 +16,7 @@ jobs:
     - name: Build
       run: |
         cd core
+        cargo install cargo-lipo
         ./build_for_xcode.sh -f
         cd ../clients/ios
         xcodebuild -project ios_client.xcodeproj -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO
