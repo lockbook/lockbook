@@ -1,12 +1,12 @@
-use crate::index_db;
-use crate::ServerState;
 use crate::endpoint::EndpointService;
+use crate::index_db;
+use crate::server::ServerState;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
 
-pub struct Service;
+pub struct EndpointServiceImpl;
 
 impl EndpointService<NewAccountRequest, NewAccountResponse, NewAccountError>
-    for Service
+    for EndpointServiceImpl
 {
     fn handle(
         server_state: &mut ServerState,
