@@ -1,6 +1,6 @@
 [package]
 name = "lockbook_core"
-version = "3.3.6"
+version = "0.1.0"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
@@ -8,15 +8,16 @@ license = "BSD-3-Clause"
 
 [lib]
 name = "lockbook_core"
-crate-type = ["lib", "staticlib", "cdylib"]
+crate-type = ["lib", "staticlib"]
 
 [dependencies]
-reqwest = "0.9.24"
+reqwest = { version = "0.10.4", features = ["blocking", "json"] }
 base64 = "0.11.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 uuid = { version = "0.8.1", features = ["v4"] }
-sled = { version = "0.31.0" }
+# TODO: set this to the version when @spacejam/sled bumps the version
+sled = { git = "https://github.com/spacejam/sled", branch = "master" }
 tempfile = { version = "3.1.0" }
 rsa = { version = "^0.2", features = ["serde1"] }
 rand = "0.7"
@@ -24,3 +25,7 @@ sha2 = "0.8.0"
 aead = "0.2.0"
 aes-gcm = "0.5.0"
 termion = "1.5.5"
+
+# Needed for catalyst (we're building xargo targets with --release)
+[profile.release]
+panic = "abort"
