@@ -1,7 +1,7 @@
 extern crate lockbook_core;
 extern crate serde_json;
 
-use crate::utils::{api_loc, TestError, generate_account, generate_username};
+use crate::utils::{api_loc, generate_account, generate_username, TestError};
 
 use lockbook_core::client;
 use lockbook_core::client::{GetPublicKeyRequest, NewAccountRequest};
@@ -26,7 +26,7 @@ fn check_case_insensitive() -> Result<(), TestError> {
                 &account.keys,
                 &account.username.clone(),
             )
-                .unwrap(),
+            .unwrap(),
             public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
         },
     )?;
