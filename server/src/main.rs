@@ -63,14 +63,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-#[derive(Debug)]
-enum Error {
-    HyperBodyToBytes(hyper::Error),
-    HyperBodyBytesToString(std::string::FromUtf8Error),
-    JsonDeserialize(serde_json::error::Error),
-    JsonSerialize(serde_json::error::Error),
-}
-
 async fn handle(
     server_state: Arc<Mutex<ServerState>>,
     request: Request<Body>,
@@ -141,6 +133,14 @@ async fn handle(
                 .body(hyper::Body::empty())
         }
     }
+}
+
+#[derive(Debug)]
+enum Error {
+    HyperBodyToBytes(hyper::Error),
+    HyperBodyBytesToString(std::string::FromUtf8Error),
+    JsonDeserialize(serde_json::error::Error),
+    JsonSerialize(serde_json::error::Error),
 }
 
 async fn deserialize<Request: DeserializeOwned>(
