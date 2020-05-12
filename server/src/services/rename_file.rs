@@ -5,9 +5,7 @@ use lockbook_core::model::api::{RenameFileError, RenameFileRequest, RenameFileRe
 
 pub struct EndpointImpl;
 
-impl Endpoint<RenameFileRequest, RenameFileResponse, RenameFileError>
-    for EndpointImpl
-{
+impl Endpoint<RenameFileRequest, RenameFileResponse, RenameFileError> for EndpointImpl {
     fn handle(
         server_state: &mut ServerState,
         request: RenameFileRequest,

@@ -5,9 +5,7 @@ use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountRe
 
 pub struct EndpointImpl;
 
-impl Endpoint<NewAccountRequest, NewAccountResponse, NewAccountError>
-    for EndpointImpl
-{
+impl Endpoint<NewAccountRequest, NewAccountResponse, NewAccountError> for EndpointImpl {
     fn handle(
         server_state: &mut ServerState,
         request: NewAccountRequest,

@@ -5,9 +5,7 @@ use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesRe
 
 pub struct EndpointImpl;
 
-impl Endpoint<GetUpdatesRequest, GetUpdatesResponse, GetUpdatesError>
-    for EndpointImpl
-{
+impl Endpoint<GetUpdatesRequest, GetUpdatesResponse, GetUpdatesError> for EndpointImpl {
     fn handle(
         server_state: &mut ServerState,
         request: GetUpdatesRequest,

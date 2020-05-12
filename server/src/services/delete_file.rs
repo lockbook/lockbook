@@ -6,9 +6,7 @@ use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileRe
 
 pub struct EndpointImpl;
 
-impl Endpoint<DeleteFileRequest, DeleteFileResponse, DeleteFileError>
-    for EndpointImpl
-{
+impl Endpoint<DeleteFileRequest, DeleteFileResponse, DeleteFileError> for EndpointImpl {
     fn handle(
         server_state: &mut ServerState,
         request: DeleteFileRequest,

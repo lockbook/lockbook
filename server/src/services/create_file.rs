@@ -6,9 +6,7 @@ use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileRe
 
 pub struct EndpointImpl;
 
-impl Endpoint<CreateFileRequest, CreateFileResponse, CreateFileError>
-    for EndpointImpl
-{
+impl Endpoint<CreateFileRequest, CreateFileResponse, CreateFileError> for EndpointImpl {
     fn handle(
         server_state: &mut ServerState,
         request: CreateFileRequest,
