@@ -51,7 +51,7 @@ pub fn create_file(
     client.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
-", &[file_id, file_name, file_path, &username.to_lowercase(), &version, &version, &false])?;
+", &[file_id, file_name, file_path, &username, &version, &version, &false])?;
 
     Ok(version)
 }
