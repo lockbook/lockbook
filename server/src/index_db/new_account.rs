@@ -25,7 +25,7 @@ pub fn new_account(
 ) -> Result<(), Error> {
     client.execute(
         "INSERT INTO users (username, public_key) VALUES ($1, $2);",
-        &[&username, &public_key],
+        &[&username.to_lowercase(), &public_key],
     )?;
     Ok(())
 }
