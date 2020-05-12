@@ -1,12 +1,12 @@
-use crate::endpoint::EndpointService;
 use crate::index_db;
-use crate::server::ServerState;
+use crate::Endpoint;
+use crate::ServerState;
 use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
 
-pub struct EndpointServiceImpl;
+pub struct EndpointImpl;
 
-impl EndpointService<GetUpdatesRequest, GetUpdatesResponse, GetUpdatesError>
-    for EndpointServiceImpl
+impl Endpoint<GetUpdatesRequest, GetUpdatesResponse, GetUpdatesError>
+    for EndpointImpl
 {
     fn handle(
         server_state: &mut ServerState,

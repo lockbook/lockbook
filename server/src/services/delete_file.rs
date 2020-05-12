@@ -1,13 +1,13 @@
-use crate::endpoint::EndpointService;
 use crate::files_db;
 use crate::index_db;
-use crate::server::ServerState;
+use crate::Endpoint;
+use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
-pub struct EndpointServiceImpl;
+pub struct EndpointImpl;
 
-impl EndpointService<DeleteFileRequest, DeleteFileResponse, DeleteFileError>
-    for EndpointServiceImpl
+impl Endpoint<DeleteFileRequest, DeleteFileResponse, DeleteFileError>
+    for EndpointImpl
 {
     fn handle(
         server_state: &mut ServerState,
