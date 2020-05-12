@@ -10,7 +10,8 @@ Lockbook is a document editor that is:
 ## Delightful
 
 + Minimal, clear, snappy user interfaces. 
-+ Available on every platform. 
++ Available on every platform.
++ Total support for offline use,  
 + Connected to a reliable and scalable backend.
 + Well thought out user experiences for markdown, collaboration, and task management.
 + Ergonomic for personal and commercial use. 
@@ -34,6 +35,7 @@ This is free and unencumbered software released into the public domain.
 
 # Index
 
-+ [Technical Documentation](overview.md)
++ [System Architecture](system-architecture.md)
++ [Data Model](data_model.md)
 + [Building](building.md)
 + [Installing](installing.md)
