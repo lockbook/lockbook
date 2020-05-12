@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -36,20 +36,18 @@ pub fn rename_file(
         ("file_id", params.file_id.as_str()),
         ("new_file_name", params.new_file_name.as_str()),
     ];
-    let mut response = client
+    let response = client
         .put(format!("{}/rename-file", api_location).as_str())
         .form(&form_params)
         .send()
         .map_err(|err| RenameFileError::SendFailed(err))?;
 
+    let status = response.status().clone();
     let response_body = response
         .json::<RenameFileResponse>()
         .map_err(|err| RenameFileError::ReceiveFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response_body.error_code.as_str(),
-    ) {
+    match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),
         (401, "invalid_auth") => Err(RenameFileError::InvalidAuth),
         (401, "expired_auth") => Err(RenameFileError::ExpiredAuth),
