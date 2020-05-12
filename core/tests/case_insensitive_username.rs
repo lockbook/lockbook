@@ -15,7 +15,7 @@ pub mod utils;
 
 fn check_case_insensitive() -> Result<(), TestError> {
     let account = Account {
-        username: "SMAIL".to_string(),
+        username: "BARKOUCH".to_string(),
         keys: RsaImpl::generate_key().unwrap(),
     };
 
