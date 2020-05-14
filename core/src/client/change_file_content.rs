@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -40,20 +40,18 @@ pub fn change_file_content(
         ("old_file_version", &params.old_file_version.to_string()),
         ("new_file_content", params.new_file_content.as_str()),
     ];
-    let mut response = client
+    let response = client
         .put(format!("{}/change-file-content", api_location).as_str())
         .form(&form_params)
         .send()
         .map_err(|err| ChangeFileContentError::SendFailed(err))?;
 
+    let status = response.status().clone();
     let response_body = response
         .json::<ChangeFileContentResponse>()
         .map_err(|err| ChangeFileContentError::ReceiveFailed(err))?;
 
-    match (
-        response.status().as_u16(),
-        response_body.error_code.as_str(),
-    ) {
+    match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(response_body.current_version),
         (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
         (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
