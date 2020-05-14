@@ -1,4 +1,4 @@
-use crate::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
+use crate::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 
@@ -8,17 +8,17 @@ pub enum Error {
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
     Deserialize(serde_json::error::Error),
-    API(CreateFileError),
+    API(GetPublicKeyError),
 }
 
 pub fn send(
     api_location: String,
-    request: &CreateFileRequest,
-) -> Result<CreateFileResponse, Error> {
+    request: &GetPublicKeyRequest,
+) -> Result<GetPublicKeyResponse, Error> {
     let client = Client::new();
     let serialized_request = serde_json::to_string(&request).map_err(|e| Error::Serialize(e))?;
     let serialized_response = client
-        .post(format!("{}/create-file", api_location).as_str())
+        .get(format!("{}/get-public-key", api_location).as_str())
         .body(serialized_request)
         .send()
         .map_err(|e| Error::SendFailed(e))?

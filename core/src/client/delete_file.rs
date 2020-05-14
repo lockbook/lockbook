@@ -1,5 +1,5 @@
 use crate::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 
 #[derive(Debug)]

@@ -6,14 +6,15 @@ pub mod get_updates;
 pub mod move_file;
 pub mod new_account;
 pub mod rename_file;
+pub mod get_public_key;
 
 use crate::model::api::{
-    ChangeFileContentRequest, CreateFileRequest, DeleteFileRequest, FileMetadata,
+    ChangeFileContentRequest, CreateFileRequest, DeleteFileRequest, FileMetadata, GetPublicKeyRequest,
     GetUpdatesRequest, MoveFileRequest, NewAccountRequest, RenameFileRequest,
 };
-
 use crate::service::file_encryption_service::EncryptedFile;
 use crate::{API_LOC, BUCKET_LOC};
+use rsa::RSAPublicKey;
 
 pub trait Client {
     fn change_file_content(
@@ -59,6 +60,7 @@ pub trait Client {
         new_file_name: String,
     ) -> Result<(), rename_file::Error>;
     fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error>;
+    fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error>;
 }
 
 pub struct ClientImpl;
@@ -117,6 +119,17 @@ impl Client for ClientImpl {
             },
         )?;
         Ok(())
+    }
+    fn get_public_key(
+        username: String,
+    ) -> Result<RSAPublicKey, get_public_key::Error> {
+        Ok(get_public_key::send(
+            String::from(API_LOC),
+            &GetPublicKeyRequest {
+                username: username,
+            },
+        )?
+        .key)
     }
     fn get_updates(
         username: String,

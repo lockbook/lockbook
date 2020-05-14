@@ -2,7 +2,6 @@ use crate::config::IndexDbConfig;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
-use std::num::ParseIntError;
 use tokio_postgres;
 use tokio_postgres::config::Config as PostgresConfig;
 use tokio_postgres::error::Error as PostgresError;
@@ -13,7 +12,6 @@ use tokio_postgres::NoTls;
 pub enum Error {
     OpenSslFailed(OpenSslError),
     PostgresConnectionFailed(PostgresError),
-    PostgresPortNotU16(ParseIntError),
 }
 
 pub async fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {

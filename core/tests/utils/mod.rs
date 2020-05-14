@@ -102,3 +102,9 @@ impl From<get_updates::Error> for TestError {
         TestError::GetUpdatesError(e)
     }
 }
+
+impl From<GetPublicKeyError> for TestError {
+    fn from(e: GetPublicKeyError) -> TestError {
+        TestError::GetPublicKeyError(e)
+    }
+}

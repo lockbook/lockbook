@@ -1,7 +1,7 @@
 use crate::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
 };
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 
 #[derive(Debug)]

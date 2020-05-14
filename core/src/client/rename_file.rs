@@ -1,5 +1,5 @@
 use crate::model::api::{RenameFileError, RenameFileRequest, RenameFileResponse};
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 
 #[derive(Debug)]

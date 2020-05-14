@@ -51,13 +51,13 @@ pub type DefaultAccountService = AccountServiceImpl<
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultFileMetadataService = FileSyncService<
+pub type DefaultSyncService = FileSyncService<
     DefaultLogger,
     DefaultFileMetadataRepo,
     DefaultFileRepo,
     DefaultAccountRepo,
     DefaultClient,
-    DefaultFileEncryptionService,
+    DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultLogger,
@@ -69,9 +69,7 @@ pub type DefaultFileService = FileServiceImpl<
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
-
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
-
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
@@ -159,7 +157,7 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
         Some(db) => db,
     };
 
-    match DefaultFileMetadataService::sync(&db) {
+    match DefaultSyncService::sync(&db) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Update metadata failed with error: {:?}", err));
@@ -181,7 +179,7 @@ pub unsafe extern "C" fn create_file(
     let file_name = string_from_ptr(c_file_name);
     let file_path = string_from_ptr(c_file_path);
 
-    match DefaultFileService::create(&db, file_name, file_path) {
+    match DefaultFileService::create(&db, &file_name, &file_path) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to create file metadata! Error: {:?}", err));
@@ -198,7 +196,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, file_id) {
+    match DefaultFileService::get(&db, &file_id) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             DefaultLogger::error(format!("Failed to get file! Error: {:?}", err));
@@ -220,7 +218,7 @@ pub unsafe extern "C" fn update_file(
     let file_id = string_from_ptr(c_file_id);
     let file_content = string_from_ptr(c_file_content);
 
-    match DefaultFileService::update(&db, file_id, file_content) {
+    match DefaultFileService::update(&db, &file_id, &file_content) {
         Ok(_) => 1,
         Err(err) => {
             DefaultLogger::error(format!("Failed to update file! Error: {:?}", err));
@@ -237,8 +235,8 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     };
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
-            DefaultFileMetadataRepo::delete(&db, &meta.id).unwrap();
-            DefaultFileRepo::delete(&db, &meta.id).unwrap();
+            DefaultFileMetadataRepo::delete(&db, &meta.file_id).unwrap();
+            DefaultFileRepo::delete(&db, &meta.file_id).unwrap();
             ()
         }),
         Err(err) => DefaultLogger::error(format!("Failed to delete file! Error: {:?}", err)),

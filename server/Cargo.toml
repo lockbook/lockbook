@@ -15,3 +15,4 @@ serde_json = "1.0.44"
 lockbook_core = { path = "../core" }
 hyper = "0.13.5"
 tokio = { version = "0.2.18", features = ["full"] }
+rsa = { version = "^0.2", features = ["serde1"] }

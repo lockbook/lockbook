@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rsa::RSAPublicKey;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ChangeFileContentRequest {
@@ -71,6 +72,22 @@ pub enum DeleteFileError {
     UserNotFound,
     FileNotFound,
     FileDeleted,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct GetPublicKeyRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct GetPublicKeyResponse {
+    pub key: RSAPublicKey,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub enum GetPublicKeyError {
+    InternalError,
+    UserNotFound,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
