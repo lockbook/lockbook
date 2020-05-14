@@ -21,7 +21,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-type Log = lockbook_core::service::logging_service::ConditionalStdOut;
+type Log = lockbook_core::service::logging_service::VerboseStdOut;
 
 pub struct ServerState {
     pub index_db_client: tokio_postgres::Client,
@@ -30,16 +30,19 @@ pub struct ServerState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    Log::info(String::from("Starting server on port 8000"));
+
     let config = config();
-    let index_db_client =
-        index_db::connect(&config.index_db_config).await.expect("Failed to connect to index_db");
+    let index_db_client = index_db::connect(&config.index_db_config)
+        .await
+        .expect("Failed to connect to index_db");
     let files_db_client =
         files_db::connect(&config.files_db_config).expect("Failed to connect to files_db");
     let server_state = Arc::new(Mutex::new(ServerState {
         index_db_client: index_db_client,
         files_db_client: files_db_client,
     }));
-    let addr = "0.0.0.0:3000".parse()?;
+    let addr = "0.0.0.0:8000".parse()?;
 
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
@@ -67,49 +70,49 @@ async fn handle(
                 Ok(req) => Ok(change_file_content::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::POST, "/create-file") => {
             Log::info(String::from("Request matched POST /create-file"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(create_file::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::DELETE, "/delete-file") => {
             Log::info(String::from("Request matched DELETE /delete-file"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(delete_file::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::GET, "/get-updates") => {
             Log::info(String::from("Request matched GET /get-updates"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(get_updates::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::PUT, "/move-file") => {
             Log::info(String::from("Request matched PUT /move-file"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(move_file::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::POST, "/new-account") => {
             Log::info(String::from("Request matched POST /new-account"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(new_account::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         (&Method::PUT, "/rename-file") => {
             Log::info(String::from("Request matched PUT /rename-file"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(rename_file::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
-        },
+        }
         _ => {
             Log::warn(String::from("Request matched no endpoints"));
             hyper::Response::builder()
@@ -154,7 +157,7 @@ fn serialize<'a, Response: Serialize, ResponseError: Serialize>(
         Err(err) => {
             Log::warn(String::from(format!("Response: {:?}", err)));
             hyper::Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .status(StatusCode::BAD_REQUEST)
                 .body(hyper::Body::empty())
         }
     }

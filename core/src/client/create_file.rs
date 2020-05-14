@@ -4,28 +4,27 @@ use reqwest::Error as ReqwestError;
 
 #[derive(Debug)]
 pub enum Error {
+    Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
+    Deserialize(serde_json::error::Error),
     API(CreateFileError),
 }
 
-pub fn send(api_location: String, params: &CreateFileRequest) -> Result<CreateFileResponse, Error> {
+pub fn send(
+    api_location: String,
+    request: &CreateFileRequest,
+) -> Result<CreateFileResponse, Error> {
     let client = Client::new();
-    let form_params = [
-        ("username", params.username.as_str()),
-        ("auth", params.auth.as_str()),
-        ("file_id", params.file_id.as_str()),
-        ("file_name", params.file_name.as_str()),
-        ("file_path", params.file_path.as_str()),
-        ("file_content", params.file_content.as_str()),
-    ];
-    let response = client
+    let serialized_request = serde_json::to_string(&request).map_err(|e| Error::Serialize(e))?;
+    let serialized_response = client
         .post(format!("{}/create-file", api_location).as_str())
-        .form(&form_params)
+        .body(serialized_request)
         .send()
-        .map_err(|err| Error::SendFailed(err))?
-        .json::<Result<CreateFileResponse, CreateFileError>>()
-        .map_err(|err| Error::ReceiveFailed(err))?;
+        .map_err(|e| Error::SendFailed(e))?
+        .text()
+        .map_err(|e| Error::ReceiveFailed(e))?;
+    let response = serde_json::from_str(&serialized_response).map_err(|e| Error::Deserialize(e))?;
 
     match response {
         Ok(r) => Ok(r),
