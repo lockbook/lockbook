@@ -9,7 +9,7 @@ pub enum Error {
     Postgres(PostgresError),
 }
 
-pub fn get_updates(
+pub async fn get_updates(
     client: &mut PostgresClient,
     username: &String,
     metadata_version: &i64,
@@ -18,7 +18,7 @@ pub fn get_updates(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_metadata_version > $2",
         &[&username, &metadata_version],
-    ) {
+    ).await {
         Ok(rows) => Ok(rows.iter().map(to_file_metadata).collect()),
         Err(err) => Err(Error::Postgres(err)),
     }

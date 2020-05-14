@@ -5,7 +5,7 @@ use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
 };
 
-pub fn handle(
+pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
@@ -13,7 +13,8 @@ pub fn handle(
         &mut server_state.index_db_client,
         &request.file_id,
         &(request.old_file_version as i64),
-    );
+    )
+    .await;
     let new_version = match update_file_version_result {
         Ok(new_version) => new_version,
         Err(index_db::update_file_version::Error::Uninterpreted(_)) => {

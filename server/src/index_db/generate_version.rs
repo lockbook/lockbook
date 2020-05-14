@@ -13,12 +13,13 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub fn generate_version(client: &mut PostgresClient) -> Result<i64, Error> {
+pub async fn generate_version(client: &mut PostgresClient) -> Result<i64, Error> {
     let version = client
         .query_one(
             "SELECT CAST(EXTRACT(EPOCH FROM NOW()) * 1000000 AS BIGINT);",
             &[],
-        )?
+        )
+        .await?
         .try_get(0)?;
     Ok(version)
 }

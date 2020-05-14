@@ -3,7 +3,7 @@ use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::{CreateFileError, CreateFileRequest, CreateFileResponse};
 
-pub fn handle(
+pub async fn handle(
     server_state: &mut ServerState,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
@@ -24,7 +24,8 @@ pub fn handle(
         &request.username,
         &request.file_name,
         &request.file_path,
-    );
+    )
+    .await;
     let new_version = match index_db_create_file_result {
         Ok(version) => version,
         Err(index_db::create_file::Error::FileIdTaken) => return Err(CreateFileError::FileIdTaken),

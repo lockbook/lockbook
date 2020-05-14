@@ -2,7 +2,7 @@ use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
 
-pub fn handle(
+pub async fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
@@ -10,7 +10,8 @@ pub fn handle(
         &mut server_state.index_db_client,
         &request.username,
         &request.public_key,
-    );
+    )
+    .await;
     match new_account_result {
         Ok(()) => Ok(NewAccountResponse {}),
         Err(index_db::new_account::Error::UsernameTaken) => Err(NewAccountError::UsernameTaken),

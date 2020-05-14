@@ -24,17 +24,20 @@ impl From<VersionGenerationError> for Error {
     }
 }
 
-pub fn delete_file(client: &mut PostgresClient, file_id: &String) -> Result<i64, Error> {
-    let new_version = generate_version(client)?;
+pub async fn delete_file(client: &mut PostgresClient, file_id: &String) -> Result<i64, Error> {
+    let new_version = generate_version(client).await?;
 
-    let mut transaction = client.transaction()?;
-    let row_vec =
-        transaction.query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])?;
-    let num_affected = transaction.execute(
-        "UPDATE files SET deleted = TRUE WHERE file_id = $1;",
-        &[&file_id],
-    )?;
-    transaction.commit()?;
+    let mut transaction = client.transaction().await?;
+    let row_vec = transaction
+        .query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])
+        .await?;
+    let num_affected = transaction
+        .execute(
+            "UPDATE files SET deleted = TRUE WHERE file_id = $1;",
+            &[&file_id],
+        )
+        .await?;
+    transaction.commit().await?;
 
     match num_affected {
         0 => Err(Error::FileDoesNotExist),

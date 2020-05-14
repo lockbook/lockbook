@@ -3,12 +3,12 @@ use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
-pub fn handle(
+pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
     let index_db_delete_file_result =
-        index_db::delete_file(&mut server_state.index_db_client, &request.file_id);
+        index_db::delete_file(&mut server_state.index_db_client, &request.file_id).await;
     match index_db_delete_file_result {
         Ok(_) => {}
         Err(index_db::delete_file::Error::FileDoesNotExist) => {

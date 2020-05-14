@@ -18,14 +18,16 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub fn new_account(
+pub async fn new_account(
     client: &mut PostgresClient,
     username: &String,
     public_key: &String,
 ) -> Result<(), Error> {
-    client.execute(
-        "INSERT INTO users (username, public_key) VALUES ($1, $2);",
-        &[&username, &public_key],
-    )?;
+    client
+        .execute(
+            "INSERT INTO users (username, public_key) VALUES ($1, $2);",
+            &[&username, &public_key],
+        )
+        .await?;
     Ok(())
 }

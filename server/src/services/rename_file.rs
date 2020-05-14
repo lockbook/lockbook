@@ -2,7 +2,7 @@ use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::{RenameFileError, RenameFileRequest, RenameFileResponse};
 
-pub fn handle(
+pub async fn handle(
     server_state: &mut ServerState,
     request: RenameFileRequest,
 ) -> Result<RenameFileResponse, RenameFileError> {
@@ -10,7 +10,8 @@ pub fn handle(
         &mut server_state.index_db_client,
         &request.file_id,
         &request.new_file_name,
-    );
+    )
+    .await;
     match rename_file_result {
         Ok(_) => Ok(RenameFileResponse {}),
         Err(index_db::rename_file::Error::FileDoesNotExist) => Err(RenameFileError::FileNotFound),

@@ -20,7 +20,7 @@ pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
     }
 }
 
-pub fn get_file_metadata(
+pub async fn get_file_metadata(
     client: &mut PostgresClient,
     username: &String,
     file_id: &String,
@@ -29,7 +29,7 @@ pub fn get_file_metadata(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_id = $2;",
         &[&username, &file_id],
-    ) {
+    ).await {
         Ok(row) => Ok(to_file_metadata(&row)),
         Err(err) => Err(Error::Postgres(err)),
     }

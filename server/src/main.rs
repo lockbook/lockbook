@@ -32,7 +32,7 @@ pub struct ServerState {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config();
     let index_db_client =
-        index_db::connect(&config.index_db_config).expect("Failed to connect to index_db");
+        index_db::connect(&config.index_db_config).await.expect("Failed to connect to index_db");
     let files_db_client =
         files_db::connect(&config.files_db_config).expect("Failed to connect to files_db");
     let server_state = Arc::new(Mutex::new(ServerState {
@@ -63,60 +63,53 @@ async fn handle(
     match (request.method(), request.uri().path()) {
         (&Method::PUT, "/change-file-content") => {
             Log::info(String::from("Request matched PUT /change-file-content"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| change_file_content::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(change_file_content::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::POST, "/create-file") => {
             Log::info(String::from("Request matched POST /create-file"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| create_file::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(create_file::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::DELETE, "/delete-file") => {
             Log::info(String::from("Request matched DELETE /delete-file"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| delete_file::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(delete_file::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::GET, "/get-updates") => {
             Log::info(String::from("Request matched GET /get-updates"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| get_updates::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(get_updates::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::PUT, "/move-file") => {
             Log::info(String::from("Request matched PUT /move-file"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| move_file::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(move_file::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::POST, "/new-account") => {
             Log::info(String::from("Request matched POST /new-account"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| new_account::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(new_account::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         (&Method::PUT, "/rename-file") => {
             Log::info(String::from("Request matched PUT /rename-file"));
-            serialize(
-                deserialize(request)
-                    .await
-                    .map(|r| rename_file::handle(&mut s, r)),
-            )
-        }
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(rename_file::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        },
         _ => {
             Log::warn(String::from("Request matched no endpoints"));
             hyper::Response::builder()
