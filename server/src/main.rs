@@ -15,7 +15,8 @@ use lockbook_core::service::logging_service::Logger;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use services::{
-    change_file_content, create_file, delete_file, get_updates, move_file, new_account, rename_file,
+    change_file_content, create_file, delete_file, get_public_key, get_updates, move_file,
+    new_account, rename_file,
 };
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -82,6 +83,13 @@ async fn handle(
             Log::info(String::from("Request matched DELETE /delete-file"));
             serialize(match deserialize(request).await {
                 Ok(req) => Ok(delete_file::handle(&mut s, req).await),
+                Err(err) => Err(err),
+            })
+        }
+        (&Method::GET, "/get-public-key") => {
+            Log::info(String::from("Request matched GET /get-public-key"));
+            serialize(match deserialize(request).await {
+                Ok(req) => Ok(get_public_key::handle(&mut s, req).await),
                 Err(err) => Err(err),
             })
         }
