@@ -41,7 +41,7 @@ pub async fn move_file(
 ) -> Result<i64, Error> {
     let new_version = generate_version(client).await?;
 
-    let mut transaction = client.transaction().await?;
+    let transaction = client.transaction().await?;
     let num_affected = transaction
         .execute(
             "UPDATE files SET file_path = $1 WHERE file_id = $2;",

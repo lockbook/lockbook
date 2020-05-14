@@ -27,7 +27,7 @@ impl From<VersionGenerationError> for Error {
 pub async fn delete_file(client: &mut PostgresClient, file_id: &String) -> Result<i64, Error> {
     let new_version = generate_version(client).await?;
 
-    let mut transaction = client.transaction().await?;
+    let transaction = client.transaction().await?;
     let row_vec = transaction
         .query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])
         .await?;

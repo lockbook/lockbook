@@ -32,7 +32,7 @@ pub async fn update_file_version(
 ) -> Result<i64, Error> {
     let new_version = generate_version(client).await?;
 
-    let mut transaction = client.transaction().await?;
+    let transaction = client.transaction().await?;
     let num_affected = transaction.execute(
         "UPDATE files SET file_content_version = $1 WHERE file_id = $2 AND file_content_version = $3;",
         &[&new_version, &file_id, &old_version]
