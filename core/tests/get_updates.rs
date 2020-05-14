@@ -16,6 +16,7 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
 use utils::{api_loc, generate_file_id, TestError};
 
+fn get_updates(account: &Account, file_id: String) -> Result<(Vec<FileMetadata>, u64), TestError> {
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
@@ -61,7 +62,7 @@ fn test_get_updates() {
     let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
     assert_eq!(
         updates_metadata[..],
-        [ServerFileMetadata {
+        [FileMetadata {
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),

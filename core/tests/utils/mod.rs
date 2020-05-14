@@ -7,6 +7,7 @@ use uuid::Uuid;
 use lockbook_core::client::change_file_content;
 use lockbook_core::client::create_file;
 use lockbook_core::client::delete_file;
+use lockbook_core::client::get_public_key;
 use lockbook_core::client::get_updates;
 use lockbook_core::client::move_file;
 use lockbook_core::client::new_account;
@@ -59,6 +60,7 @@ pub enum TestError {
     MoveFileError(move_file::Error),
     DeleteFileError(delete_file::Error),
     GetUpdatesError(get_updates::Error),
+    GetPublicKeyError(get_public_key::Error),
 }
 
 impl From<new_account::Error> for TestError {
@@ -103,8 +105,8 @@ impl From<get_updates::Error> for TestError {
     }
 }
 
-impl From<GetPublicKeyError> for TestError {
-    fn from(e: GetPublicKeyError) -> TestError {
+impl From<get_public_key::Error> for TestError {
+    fn from(e: get_public_key::Error) -> TestError {
         TestError::GetPublicKeyError(e)
     }
 }
