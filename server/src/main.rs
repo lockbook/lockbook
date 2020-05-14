@@ -14,26 +14,18 @@ use hyper::{body, Body, Method, Request, Response, StatusCode};
 use lockbook_core::service::logging_service::Logger;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use services::{
+    change_file_content, create_file, delete_file, get_updates, move_file, new_account, rename_file,
+};
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 type Log = lockbook_core::service::logging_service::ConditionalStdOut;
-type ChangeFileContent = services::change_file_content::EndpointImpl;
-type CreateFile = services::create_file::EndpointImpl;
-type DeleteFile = services::delete_file::EndpointImpl;
-type GetUpdates = services::get_updates::EndpointImpl;
-type MoveFile = services::move_file::EndpointImpl;
-type NewAccount = services::new_account::EndpointImpl;
-type RenameFile = services::rename_file::EndpointImpl;
 
 pub struct ServerState {
-    pub index_db_client: postgres::Client,
+    pub index_db_client: tokio_postgres::Client,
     pub files_db_client: s3::bucket::Bucket,
-}
-
-pub trait Endpoint<Request, Response, Error> {
-    fn handle(server_state: &mut ServerState, request: Request) -> Result<Response, Error>;
 }
 
 #[tokio::main]
@@ -67,7 +59,6 @@ async fn handle(
     server_state: Arc<Mutex<ServerState>>,
     request: Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
-    // TODO: logging
     let mut s = server_state.lock().await;
     match (request.method(), request.uri().path()) {
         (&Method::PUT, "/change-file-content") => {
@@ -75,7 +66,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| ChangeFileContent::handle(&mut s, r)),
+                    .map(|r| change_file_content::handle(&mut s, r)),
             )
         }
         (&Method::POST, "/create-file") => {
@@ -83,7 +74,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| CreateFile::handle(&mut s, r)),
+                    .map(|r| create_file::handle(&mut s, r)),
             )
         }
         (&Method::DELETE, "/delete-file") => {
@@ -91,7 +82,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| DeleteFile::handle(&mut s, r)),
+                    .map(|r| delete_file::handle(&mut s, r)),
             )
         }
         (&Method::GET, "/get-updates") => {
@@ -99,7 +90,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| GetUpdates::handle(&mut s, r)),
+                    .map(|r| get_updates::handle(&mut s, r)),
             )
         }
         (&Method::PUT, "/move-file") => {
@@ -107,7 +98,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| MoveFile::handle(&mut s, r)),
+                    .map(|r| move_file::handle(&mut s, r)),
             )
         }
         (&Method::POST, "/new-account") => {
@@ -115,7 +106,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| NewAccount::handle(&mut s, r)),
+                    .map(|r| new_account::handle(&mut s, r)),
             )
         }
         (&Method::PUT, "/rename-file") => {
@@ -123,7 +114,7 @@ async fn handle(
             serialize(
                 deserialize(request)
                     .await
-                    .map(|r| RenameFile::handle(&mut s, r)),
+                    .map(|r| rename_file::handle(&mut s, r)),
             )
         }
         _ => {

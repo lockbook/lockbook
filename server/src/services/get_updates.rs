@@ -1,20 +1,8 @@
 use crate::index_db;
-use crate::Endpoint;
 use crate::ServerState;
 use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
 
-pub struct EndpointImpl;
-
-impl Endpoint<GetUpdatesRequest, GetUpdatesResponse, GetUpdatesError> for EndpointImpl {
-    fn handle(
-        server_state: &mut ServerState,
-        request: GetUpdatesRequest,
-    ) -> Result<GetUpdatesResponse, GetUpdatesError> {
-        handle(server_state, request)
-    }
-}
-
-fn handle(
+pub fn handle(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {

@@ -1,8 +1,8 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
-use postgres::Client as PostgresClient;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
+use tokio_postgres::Client as PostgresClient;
 
 #[derive(Debug)]
 pub enum Error {

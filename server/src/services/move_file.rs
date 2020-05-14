@@ -1,20 +1,8 @@
 use crate::index_db;
-use crate::Endpoint;
 use crate::ServerState;
 use lockbook_core::model::api::{MoveFileError, MoveFileRequest, MoveFileResponse};
 
-pub struct EndpointImpl;
-
-impl Endpoint<MoveFileRequest, MoveFileResponse, MoveFileError> for EndpointImpl {
-    fn handle(
-        server_state: &mut ServerState,
-        request: MoveFileRequest,
-    ) -> Result<MoveFileResponse, MoveFileError> {
-        handle(server_state, request)
-    }
-}
-
-fn handle(
+pub fn handle(
     server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {

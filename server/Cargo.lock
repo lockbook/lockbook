@@ -956,7 +956,6 @@ dependencies = [
  "hyper 0.13.5",
  "lockbook_core",
  "openssl",
- "postgres",
  "postgres-openssl",
  "rust-s3",
  "serde",
@@ -1390,20 +1389,6 @@ checksum = "7ec3341498978de3bfd12d1b22f1af1de22818f5473a11e8a6ef997989e3a212"
 dependencies = [
  "cfg-if",
  "universal-hash",
-]
-
-[[package]]
-name = "postgres"
-version = "0.17.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a08e48317fe57088aa1ff4a84a88a8401aee565f4ae5c201aa18d11c573ce350"
-dependencies = [
- "bytes 0.5.4",
- "fallible-iterator",
- "futures 0.3.4",
- "log",
- "tokio 0.2.20",
- "tokio-postgres",
 ]
 
 [[package]]
