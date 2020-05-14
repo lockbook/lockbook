@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,7 @@ pub fn get_updates(
     params: &GetUpdatesRequest,
 ) -> Result<Vec<ServerFileMetadata>, GetUpdatesError> {
     let client = Client::new();
-    let mut response = client
+    let response = client
         .get(
             format!(
                 "{}/get-updates/{}/{}/{}",
@@ -43,7 +43,8 @@ pub fn get_updates(
         .send()
         .map_err(|err| GetUpdatesError::SendFailed(err))?;
 
-    match response.status().as_u16() {
+    let status = response.status().clone();
+    match status.as_u16() {
         200..=299 => Ok(response
             .json::<Vec<ServerFileMetadata>>()
             .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
