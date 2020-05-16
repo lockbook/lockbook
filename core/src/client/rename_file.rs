@@ -40,12 +40,12 @@ pub fn rename_file(
         .put(format!("{}/rename-file", api_location).as_str())
         .form(&form_params)
         .send()
-        .map_err(|err| RenameFileError::SendFailed(err))?;
+        .map_err(RenameFileError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .json::<RenameFileResponse>()
-        .map_err(|err| RenameFileError::ReceiveFailed(err))?;
+        .map_err(RenameFileError::ReceiveFailed)?;
 
     match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),

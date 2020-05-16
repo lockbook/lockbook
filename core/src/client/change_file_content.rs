@@ -44,12 +44,12 @@ pub fn change_file_content(
         .put(format!("{}/change-file-content", api_location).as_str())
         .form(&form_params)
         .send()
-        .map_err(|err| ChangeFileContentError::SendFailed(err))?;
+        .map_err(ChangeFileContentError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .json::<ChangeFileContentResponse>()
-        .map_err(|err| ChangeFileContentError::ReceiveFailed(err))?;
+        .map_err(ChangeFileContentError::ReceiveFailed)?;
 
     match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(response_body.current_version),

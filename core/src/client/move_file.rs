@@ -38,12 +38,12 @@ pub fn move_file(api_location: String, params: &MoveFileRequest) -> Result<(), M
         .put(format!("{}/move-file", api_location).as_str())
         .form(&form_params)
         .send()
-        .map_err(|err| MoveFileError::SendFailed(err))?;
+        .map_err(MoveFileError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .json::<MoveFileResponse>()
-        .map_err(|err| MoveFileError::ReceiveFailed(err))?;
+        .map_err(MoveFileError::ReceiveFailed)?;
 
     match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),

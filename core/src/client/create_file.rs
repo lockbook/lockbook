@@ -46,12 +46,12 @@ pub fn create_file(
         .post(format!("{}/create-file", api_location).as_str())
         .form(&form_params)
         .send()
-        .map_err(|err| CreateFileError::SendFailed(err))?;
+        .map_err(CreateFileError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .json::<CreateFileResponse>()
-        .map_err(|err| CreateFileError::ReceiveFailed(err))?;
+        .map_err(CreateFileError::ReceiveFailed)?;
 
     match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(response_body.current_version),
