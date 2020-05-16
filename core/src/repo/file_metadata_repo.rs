@@ -1,8 +1,5 @@
 use std::option::NoneError;
 
-use serde_json;
-use sled;
-
 use crate::error_enum;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use sled::Db;

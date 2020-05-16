@@ -23,14 +23,14 @@ pub fn get_file(
     let response = client
         .get(resource.as_str())
         .send()
-        .map_err(|err| GetFileError::SendFailed(err))?;
+        .map_err(GetFileError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .text()
-        .map_err(|err| GetFileError::ReceiveFailed(err))?;
+        .map_err(GetFileError::ReceiveFailed)?;
     let encrypted_file: EncryptedFile = serde_json::from_str(response_body.as_str())
-        .map_err(|err| GetFileError::SerdeError(err))?;
+        .map_err(GetFileError::SerdeError)?;
     match status.as_u16() {
         200..=299 => Ok(encrypted_file),
         _ => Err(GetFileError::Unspecified),
