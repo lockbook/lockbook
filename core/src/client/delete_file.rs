@@ -38,12 +38,12 @@ pub fn delete_file(
         .delete(format!("{}/delete-file", api_location).as_str())
         .form(&form_params)
         .send()
-        .map_err(|err| DeleteFileError::SendFailed(err))?;
+        .map_err(DeleteFileError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     let response_body = response
         .json::<DeleteFileResponse>()
-        .map_err(|err| DeleteFileError::ReceiveFailed(err))?;
+        .map_err(DeleteFileError::ReceiveFailed)?;
 
     match (status.as_u16(), response_body.error_code.as_str()) {
         (200..=299, _) => Ok(()),

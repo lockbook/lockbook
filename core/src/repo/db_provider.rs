@@ -7,7 +7,6 @@ use crate::service::logging_service::Logger;
 use crate::DB_NAME;
 use sled::Db;
 use std::marker::PhantomData;
-use tempfile;
 use tempfile::tempdir;
 
 error_enum! {

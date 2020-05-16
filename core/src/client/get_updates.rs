@@ -41,13 +41,13 @@ pub fn get_updates(
             .as_str(),
         )
         .send()
-        .map_err(|err| GetUpdatesError::SendFailed(err))?;
+        .map_err(GetUpdatesError::SendFailed)?;
 
-    let status = response.status().clone();
+    let status = response.status();
     match status.as_u16() {
         200..=299 => Ok(response
             .json::<Vec<ServerFileMetadata>>()
-            .map_err(|err| GetUpdatesError::ReceiveFailed(err))?),
+            .map_err(GetUpdatesError::ReceiveFailed)?),
         _ => Err(GetUpdatesError::Unspecified),
     }
 }
