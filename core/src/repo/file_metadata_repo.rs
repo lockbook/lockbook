@@ -156,7 +156,7 @@ mod unit_tests {
             &test_file_metadata.file_name,
             &test_file_metadata.file_path,
         )
-            .unwrap();
+        .unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.file_id).unwrap();
         assert_eq!(test_file_metadata.file_name, db_file_metadata.file_name);
