@@ -9,7 +9,6 @@ use crate::repo::account_repo::AccountRepo;
 use crate::service::auth_service::AuthGenError;
 use crate::service::auth_service::AuthService;
 use crate::service::crypto_service::PubKeyCryptoService;
-use crate::service::logging_service::Logger;
 use sled::Db;
 
 error_enum! {
@@ -35,31 +34,24 @@ pub trait AccountService {
 }
 
 pub struct AccountServiceImpl<
-    Log: Logger,
     Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
 > {
-    log: PhantomData<Log>,
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
     auth: PhantomData<Auth>,
 }
 
-impl<
-        Log: Logger,
-        Crypto: PubKeyCryptoService,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > AccountService for AccountServiceImpl<Log, Crypto, AccountDb, ApiClient, Auth>
+impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService>
+    AccountService for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
 {
     fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError> {
-        Log::info(format!("Creating new account for {}", username));
+        info!("Creating new account for {}", username);
 
-        Log::info(format!("Generating Key..."));
+        info!("Generating Key...");
         let keys = Crypto::generate_key()?;
 
         let account = Account {
@@ -70,7 +62,7 @@ impl<
         let auth = Auth::generate_auth(&account)?;
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
-        Log::info(format!("Saving account locally"));
+        info!("Saving account locally");
         AccountDb::insert_account(db, &account)?;
 
         let new_account_request = NewAccountRequest {
@@ -79,11 +71,11 @@ impl<
             public_key,
         };
 
-        Log::info(format!("Sending username & public key to server"));
+        info!("Sending username & public key to server");
         ApiClient::new_account(&new_account_request)?;
-        Log::info(format!("Account creation success!"));
+        info!("Account creation success!");
 
-        Log::debug(format!("{}", serde_json::to_string(&account).unwrap()));
+        info!("{}", serde_json::to_string(&account).unwrap());
         Ok(account)
     }
 
@@ -91,7 +83,7 @@ impl<
         let account = serde_json::from_str(account_string.as_str())?;
 
         AccountDb::insert_account(db, &account)?;
-        Log::info(format!("Account imported successfully"));
+        info!("Account imported successfully");
         Ok(account)
     }
 }
