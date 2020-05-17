@@ -17,7 +17,6 @@ use crate::repo::file_repo::FileRepo;
 
 use crate::model::account::Account;
 use crate::service::auth_service::AuthService;
-use crate::service::logging_service::Logger;
 use crate::service::sync_service::WorkUnit::*;
 use crate::{client, error_enum};
 use serde::Serialize;
@@ -102,14 +101,12 @@ pub trait SyncService {
 }
 
 pub struct FileSyncService<
-    Log: Logger,
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
 > {
-    log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
@@ -118,13 +115,12 @@ pub struct FileSyncService<
 }
 
 impl<
-        Log: Logger,
         FileMetadataDb: FileMetadataRepo,
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
         Auth: AuthService,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+    > SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -178,12 +174,8 @@ impl<
                     work_units.extend(calculate_work_across_server_and_client(server, client))
                 }
                 Err(err) => match err {
-                    MetadataError::SledError(_) => {
-                        Log::error(format!("Unexpected sled error! {:?}", err))
-                    }
-                    MetadataError::SerdeError(_) => {
-                        Log::error(format!("Unexpected sled error! {:?}", err))
-                    }
+                    MetadataError::SledError(_) => error!("Unexpected sled error! {:?}", err),
+                    MetadataError::SerdeError(_) => error!("Unexpected sled error! {:?}", err),
                     MetadataError::FileRowMissing(_) => {
                         work_units.extend(vec![PullFileContent(server)])
                     }
@@ -384,8 +376,8 @@ impl<
         work_units
             .into_iter()
             .for_each(|wu| match Self::execute_work(&db, &account, wu.clone()) {
-                Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
-                Err(err) => Log::error(format!("{:?} FAILED: {:?}", wu, err)),
+                Ok(_) => debug!("{:?} executed successfully", wu),
+                Err(err) => error!("{:?} FAILED: {:?}", wu, err),
             });
 
         Ok(())
