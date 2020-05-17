@@ -16,13 +16,16 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
 
 use crate::model::account::Account;
+use crate::model::work_unit::WorkUnit;
+use crate::model::work_unit::WorkUnit::{
+    DeleteLocally, MergeMetadataAndPushMetadata, Nop, PullFileContent, PullMergePush, PushDelete,
+    PushFileContent, PushMetadata, PushNewFile, UpdateLocalMetadata,
+};
 use crate::service::auth_service::AuthService;
 use crate::service::logging_service::Logger;
 use crate::{client, error_enum};
 use std::cmp::max;
 use std::collections::HashMap;
-use crate::model::work_unit::WorkUnit::{PullFileContent, PushNewFile, UpdateLocalMetadata, DeleteLocally, PushMetadata, PushFileContent, PushDelete, PullMergePush, MergeMetadataAndPushMetadata, Nop};
-use crate::model::work_unit::WorkUnit;
 
 error_enum! {
     enum CalculateWorkError {
@@ -86,13 +89,13 @@ pub struct FileSyncService<
 }
 
 impl<
-    Log: Logger,
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+        Log: Logger,
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -107,13 +110,13 @@ impl<
             auth: "junk auth :(".to_string(),
             since_version: last_sync,
         })?
-            .into_iter()
-            .for_each(|file| {
-                server_dirty_files.insert(file.clone().file_id, file.clone());
-                if file.file_metadata_version > most_recent_update_from_server {
-                    most_recent_update_from_server = file.file_metadata_version;
-                }
-            });
+        .into_iter()
+        .for_each(|file| {
+            server_dirty_files.insert(file.clone().file_id, file.clone());
+            if file.file_metadata_version > most_recent_update_from_server {
+                most_recent_update_from_server = file.file_metadata_version;
+            }
+        });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -148,17 +151,17 @@ impl<
             .for_each(|(id, server)| match FileMetadataDb::maybe_get(&db, &id) {
                 Ok(maybe_value) => match maybe_value {
                     None => work_units.extend(vec![PullFileContent(server)]),
-                    Some(client) => work_units.extend(calculate_work_across_server_and_client(server, client))
+                    Some(client) => {
+                        work_units.extend(calculate_work_across_server_and_client(server, client))
+                    }
                 },
-                Err(err) => Log::error(format!("Unexpected sled error! {:?}", err))
+                Err(err) => Log::error(format!("Unexpected sled error! {:?}", err)),
             });
 
-        Ok(
-            WorkCalculated {
-                work_units,
-                most_recent_update_from_server,
-            }
-        )
+        Ok(WorkCalculated {
+            work_units,
+            most_recent_update_from_server,
+        })
     }
 
     // TODO consider operating off the db instead of functional arguments here
@@ -351,16 +354,15 @@ impl<
         let work_calculated = Self::calculate_work(&db)?;
 
         let mut no_errors_during_sync = true;
-        work_calculated
-            .work_units
-            .into_iter()
-            .for_each(|wu| match Self::execute_work(&db, &account, wu.clone()) {
+        work_calculated.work_units.into_iter().for_each(|wu| {
+            match Self::execute_work(&db, &account, wu.clone()) {
                 Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
                 Err(err) => {
                     no_errors_during_sync = false;
                     Log::error(format!("{:?} FAILED: {:?}", wu, err))
                 }
-            });
+            }
+        });
 
         if no_errors_during_sync {
             FileMetadataDb::set_last_updated(&db, &work_calculated.most_recent_update_from_server)?;
@@ -380,10 +382,7 @@ fn calculate_work_for_local_changes(client: ClientFileMetadata) -> Vec<WorkUnit>
         (true, _, _, _) => vec![PushNewFile(client)],
         (_, _, true, false) => vec![PushFileContent(client)],
         (_, _, false, true) => vec![PushMetadata(client)],
-        (_, _, true, true) => vec![
-            PushFileContent(client.clone()),
-            PushMetadata(client),
-        ],
+        (_, _, true, true) => vec![PushFileContent(client.clone()), PushMetadata(client)],
         (false, false, false, false) => vec![Nop],
     }
 }
@@ -420,10 +419,9 @@ fn calculate_work_across_server_and_client(
         (true, false, false, true, false, false) => vec![DeleteLocally(client)],
         (true, false, false, false, true, false) => vec![PullFileContent(server)],
         (true, false, false, false, false, true) => vec![PushDelete(client)],
-        (false, true, true, false, false, false) => vec![
-            PushFileContent(client.clone()),
-            PushMetadata(client),
-        ],
+        (false, true, true, false, false, false) => {
+            vec![PushFileContent(client.clone()), PushMetadata(client)]
+        }
         (false, true, false, true, false, false) => vec![PushFileContent(client)],
         (false, true, false, false, true, false) => vec![PullMergePush(server)],
         (false, true, false, false, false, true) => {
@@ -477,9 +475,7 @@ fn calculate_work_across_server_and_client(
         (true, false, true, true, false, true) => vec![DeleteLocally(client)],
         (true, false, true, false, true, true) => vec![PullFileContent(server)],
         (true, false, false, true, true, true) => vec![DeleteLocally(client)],
-        (false, true, true, true, true, false) => {
-            vec![PullMergePush(server), PushMetadata(client)]
-        }
+        (false, true, true, true, true, false) => vec![PullMergePush(server), PushMetadata(client)],
         (false, true, true, true, false, true) => vec![PushFileContent(client)],
         (false, true, true, false, true, true) => vec![
             MergeMetadataAndPushMetadata(server.clone()),
