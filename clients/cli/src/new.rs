@@ -13,8 +13,11 @@ use lockbook_core::model::client_file_metadata::ClientFileMetadata;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::auth_service::AuthService;
 use lockbook_core::service::file_service::{FileService, NewFileError, UpdateFileError};
-use lockbook_core::{DefaultAuthService, DefaultClient, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
 use lockbook_core::service::sync_service::SyncService;
+use lockbook_core::{
+    DefaultAuthService, DefaultClient, DefaultFileMetadataRepo, DefaultFileService,
+    DefaultSyncService,
+};
 
 pub fn new() {
     let db = connect_to_db();
@@ -77,24 +80,24 @@ pub fn new() {
         let file_content =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        let encrypted_file = match DefaultFileService::update(&db, &file_metadata.file_id, &file_content)
-        {
-            Ok(file) => file,
-            Err(err) => match err {
-                UpdateFileError::AccountRetrievalError(_) => panic!(
-                    "No account found, run init, import, or help, aborting without cleaning up"
-                ),
-                UpdateFileError::FileRetrievalError(_) => {
-                    panic!("Failed to get file being edited, aborting without cleaning up")
-                }
-                UpdateFileError::EncryptedWriteError(_) => {
-                    panic!("Failed to perform encryption!, aborting without cleaning up")
-                }
-                UpdateFileError::MetadataDbError(_) => {
-                    panic!("Failed to update file metadata, aborting without cleaning up")
-                }
-            },
-        };
+        let encrypted_file =
+            match DefaultFileService::update(&db, &file_metadata.file_id, &file_content) {
+                Ok(file) => file,
+                Err(err) => match err {
+                    UpdateFileError::AccountRetrievalError(_) => panic!(
+                        "No account found, run init, import, or help, aborting without cleaning up"
+                    ),
+                    UpdateFileError::FileRetrievalError(_) => {
+                        panic!("Failed to get file being edited, aborting without cleaning up")
+                    }
+                    UpdateFileError::EncryptedWriteError(_) => {
+                        panic!("Failed to perform encryption!, aborting without cleaning up")
+                    }
+                    UpdateFileError::MetadataDbError(_) => {
+                        panic!("Failed to update file metadata, aborting without cleaning up")
+                    }
+                },
+            };
 
         // Once sync service is good we should do the following and remove 103 onwards
         // DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
@@ -121,7 +124,7 @@ pub fn new() {
                         new_file: false,
                         content_edited_locally: false,
                         metadata_edited_locally: false,
-                        deleted_locally: false
+                        deleted_locally: false,
                     },
                 )
                 .expect("Failed to update metadata repo");
