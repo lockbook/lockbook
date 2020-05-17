@@ -18,11 +18,11 @@ use crate::repo::file_repo::FileRepo;
 use crate::model::account::Account;
 use crate::service::auth_service::AuthService;
 use crate::service::logging_service::Logger;
-use crate::service::sync_service::WorkUnit::*;
 use crate::{client, error_enum};
-use serde::Serialize;
 use std::cmp::max;
 use std::collections::HashMap;
+use crate::model::work_unit::WorkUnit::{PullFileContent, PushNewFile, UpdateLocalMetadata, DeleteLocally, PushMetadata, PushFileContent, PushDelete, PullMergePush, MergeMetadataAndPushMetadata, Nop};
+use crate::model::work_unit::WorkUnit;
 
 error_enum! {
     enum CalculateWorkError {
@@ -54,51 +54,19 @@ error_enum! {
         AccountRetrievalError(repo::account_repo::Error),
         CalculateWorkError(CalculateWorkError),
         WorkExecutionError(WorkExecutionError),
+        MetadataUpdateError(repo::file_metadata_repo::Error),
     }
 }
 
-type FileId = String;
-
-#[derive(Serialize, Debug, Clone)]
-pub enum WorkUnit {
-    /// No action needs to be taken for this file
-    Nop,
-
-    /// File was created locally and doesn't exist anywhere else, push this file to the server
-    PushNewFile(FileId),
-
-    /// Server has changed metadata, lookup the corresponding ClientMetadata and apply Server's
-    /// metadata transformations.
-    UpdateLocalMetadata(ServerFileMetadata),
-
-    /// Goto s3 and grab the new contents of this file, update metadata if successful
-    PullFileContent(ServerFileMetadata),
-
-    /// File and metadata is safe to delete locally now
-    DeleteLocally(FileId),
-
-    /// Inform the server of your metadata change
-    PushMetadata(FileId),
-
-    /// Inform the server of a local file edit. If push fails due to a conflict, attempt PullMergePush
-    /// TODO we don't have a new metadata version or a new file content version without another getUpdates call
-    PushFileContent(FileId),
-
-    /// Inform the server of a file deletion. If successful, delete the file locally.
-    PushDelete(FileId),
-
-    /// Pull the new file, decrypt it, decrypt the file locally, merge them, and push the resulting file.
-    PullMergePush(ServerFileMetadata),
-
-    /// Compare with local metadata, merge non-conflicting changes, send changes to server,
-    /// if successful update metadata locally.
-    MergeMetadataAndPushMetadata(ServerFileMetadata),
-}
-
 pub trait SyncService {
-    fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError>;
+    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
     fn sync(db: &Db) -> Result<(), SyncError>;
+}
+
+pub struct WorkCalculated {
+    pub work_units: Vec<WorkUnit>,
+    pub most_recent_update_from_server: u64,
 }
 
 pub struct FileSyncService<
@@ -118,19 +86,20 @@ pub struct FileSyncService<
 }
 
 impl<
-        Log: Logger,
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+    Log: Logger,
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+    Auth: AuthService,
+> SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
-    fn calculate_work(db: &Db) -> Result<Vec<WorkUnit>, CalculateWorkError> {
+    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
         let local_dirty_files = FileMetadataDb::get_all_dirty(&db)?;
 
         let last_sync = FileMetadataDb::get_last_updated(&db)?;
+        let mut most_recent_update_from_server: u64 = 0;
 
         let mut server_dirty_files = HashMap::new();
         ApiClient::get_updates(&GetUpdatesRequest {
@@ -138,10 +107,13 @@ impl<
             auth: "junk auth :(".to_string(),
             since_version: last_sync,
         })?
-        .into_iter()
-        .for_each(|file| {
-            server_dirty_files.insert(file.file_id.clone(), file);
-        });
+            .into_iter()
+            .for_each(|file| {
+                server_dirty_files.insert(file.clone().file_id, file.clone());
+                if file.file_metadata_version > most_recent_update_from_server {
+                    most_recent_update_from_server = file.file_metadata_version;
+                }
+            });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -173,48 +145,45 @@ impl<
         server_dirty_files
             .into_iter()
             .filter(|(id, _)| !local_dirty_files_keys.contains(id))
-            .for_each(|(id, server)| match FileMetadataDb::get(&db, &id) {
-                Ok(client) => {
-                    work_units.extend(calculate_work_across_server_and_client(server, client))
-                }
-                Err(err) => match err {
-                    MetadataError::SledError(_) => {
-                        Log::error(format!("Unexpected sled error! {:?}", err))
-                    }
-                    MetadataError::SerdeError(_) => {
-                        Log::error(format!("Unexpected sled error! {:?}", err))
-                    }
-                    MetadataError::FileRowMissing(_) => {
-                        work_units.extend(vec![PullFileContent(server)])
-                    }
+            .for_each(|(id, server)| match FileMetadataDb::maybe_get(&db, &id) {
+                Ok(maybe_value) => match maybe_value {
+                    None => work_units.extend(vec![PullFileContent(server)]),
+                    Some(client) => work_units.extend(calculate_work_across_server_and_client(server, client))
                 },
+                Err(err) => Log::error(format!("Unexpected sled error! {:?}", err))
             });
 
-        Ok(work_units)
+        Ok(
+            WorkCalculated {
+                work_units,
+                most_recent_update_from_server,
+            }
+        )
     }
 
     // TODO consider operating off the db instead of functional arguments here
+    // Doing this off the DB would also allow you to automatically update the last_synced
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
         match work {
             Nop => Ok(()),
-            PushNewFile(id) => {
-                let mut file_metadata = FileMetadataDb::get(&db, &id)?;
-                let file_content = FileDb::get(&db, &id)?;
+            PushNewFile(client) => {
+                let mut client = client.clone();
+                let file_content = FileDb::get(&db, &client.file_id)?;
 
                 let new_version = ApiClient::create_file(&CreateFileRequest {
                     username: account.username.to_string(),
                     auth: Auth::generate_auth(&account)?,
-                    file_id: file_metadata.file_id.clone(),
-                    file_name: file_metadata.file_name.clone(),
-                    file_path: file_metadata.file_path.clone(),
+                    file_id: client.file_id.clone(),
+                    file_name: client.file_name.clone(),
+                    file_path: client.file_path.clone(),
                     file_content: serde_json::to_string(&file_content)?,
                 })?;
 
-                file_metadata.file_content_version = new_version;
-                file_metadata.new_file = false;
-                file_metadata.content_edited_locally = false;
+                client.file_content_version = new_version;
+                client.new_file = false;
+                client.content_edited_locally = false;
 
-                FileMetadataDb::update(&db, &file_metadata)?;
+                FileMetadataDb::update(&db, &client)?;
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
@@ -265,25 +234,25 @@ impl<
 
                 Ok(())
             }
-            DeleteLocally(file_id) => {
-                FileMetadataDb::delete(&db, &file_id)?;
-                FileDb::delete(&db, &file_id)?;
+            DeleteLocally(client) => {
+                FileMetadataDb::delete(&db, &client.file_id)?;
+                FileDb::delete(&db, &client.file_id)?;
                 Ok(())
             }
-            PushMetadata(file_id) => {
-                let mut metadata = FileMetadataDb::get(&db, &file_id)?;
+            PushMetadata(client) => {
+                let mut metadata = client.clone();
                 // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
                 ApiClient::rename_file(&RenameFileRequest {
                     username: account.username.clone(),
                     auth: Auth::generate_auth(&account)?,
-                    file_id: file_id.clone(),
+                    file_id: client.clone().file_id,
                     new_file_name: metadata.file_name.clone(),
                 })?;
 
                 ApiClient::move_file(&MoveFileRequest {
                     username: account.username.clone(),
                     auth: Auth::generate_auth(&account)?,
-                    file_id: file_id.clone(),
+                    file_id: client.clone().file_id,
                     new_file_path: metadata.file_path.clone(),
                 })?;
 
@@ -292,15 +261,15 @@ impl<
 
                 Ok(())
             }
-            PushFileContent(file_id) => {
+            PushFileContent(client) => {
                 // TODO until we're diffing this is just going to spin on conflicts
-                let mut old_file_metadata = FileMetadataDb::get(&db, &file_id)?;
-                let file_content = FileDb::get(&db, &file_id)?;
+                let mut old_file_metadata = client.clone();
+                let file_content = FileDb::get(&db, &client.file_id)?;
 
                 let new_version = ApiClient::change_file(&ChangeFileContentRequest {
                     username: account.username.clone(),
                     auth: Auth::generate_auth(&account)?,
-                    file_id: file_id.clone(),
+                    file_id: client.clone().file_id,
                     old_file_version: old_file_metadata.file_content_version,
                     new_file_content: serde_json::to_string(&file_content)?,
                 })?; // TODO the thing you're not handling is EditConflict!
@@ -312,15 +281,15 @@ impl<
 
                 Ok(())
             }
-            PushDelete(file_id) => {
+            PushDelete(client) => {
                 ApiClient::delete_file(&DeleteFileRequest {
                     username: account.username.clone(),
                     auth: Auth::generate_auth(&account)?,
-                    file_id: file_id.clone(),
+                    file_id: client.clone().file_id,
                 })?;
 
-                FileMetadataDb::delete(&db, &file_id)?;
-                FileDb::delete(&db, &file_id)?;
+                FileMetadataDb::delete(&db, &client.file_id)?;
+                FileDb::delete(&db, &client.file_id)?;
 
                 Ok(())
             }
@@ -379,15 +348,23 @@ impl<
 
     fn sync(db: &Db) -> Result<(), SyncError> {
         let account = AccountDb::get_account(&db)?;
-        let work_units = Self::calculate_work(&db)?;
+        let work_calculated = Self::calculate_work(&db)?;
 
-        work_units
+        let mut no_errors_during_sync = true;
+        work_calculated
+            .work_units
             .into_iter()
             .for_each(|wu| match Self::execute_work(&db, &account, wu.clone()) {
                 Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
-                Err(err) => Log::error(format!("{:?} FAILED: {:?}", wu, err)),
+                Err(err) => {
+                    no_errors_during_sync = false;
+                    Log::error(format!("{:?} FAILED: {:?}", wu, err))
+                }
             });
 
+        if no_errors_during_sync {
+            FileMetadataDb::set_last_updated(&db, &work_calculated.most_recent_update_from_server)?;
+        }
         Ok(())
     }
 }
@@ -399,13 +376,13 @@ fn calculate_work_for_local_changes(client: ClientFileMetadata) -> Vec<WorkUnit>
         client.content_edited_locally,
         client.metadata_edited_locally,
     ) {
-        (_, true, _, _) => vec![DeleteLocally(client.file_id)],
-        (true, _, _, _) => vec![PushNewFile(client.file_id)],
-        (_, _, true, false) => vec![PushFileContent(client.file_id)],
-        (_, _, false, true) => vec![PushMetadata(client.file_id)],
+        (_, true, _, _) => vec![DeleteLocally(client)],
+        (true, _, _, _) => vec![PushNewFile(client)],
+        (_, _, true, false) => vec![PushFileContent(client)],
+        (_, _, false, true) => vec![PushMetadata(client)],
         (_, _, true, true) => vec![
-            PushFileContent(client.file_id.clone()),
-            PushMetadata(client.file_id),
+            PushFileContent(client.clone()),
+            PushMetadata(client),
         ],
         (false, false, false, false) => vec![Nop],
     }
@@ -420,6 +397,7 @@ fn calculate_work_across_server_and_client(
     let local_move = client.metadata_edited_locally;
     let server_delete = server.deleted;
     let server_content_change = server.file_content_version != client.file_content_version;
+    // We could consider diffing across name & path instead of doing this
     let server_move = server.file_metadata_version != client.file_metadata_version;
 
     match (
@@ -433,76 +411,76 @@ fn calculate_work_across_server_and_client(
         (false, false, false, false, false, false) => vec![Nop],
         (false, false, false, false, false, true) => vec![UpdateLocalMetadata(server)],
         (false, false, false, false, true, false) => vec![PullFileContent(server)],
-        (false, false, false, true, false, false) => vec![DeleteLocally(client.file_id)],
-        (false, false, true, false, false, false) => vec![PushMetadata(client.file_id)],
-        (false, true, false, false, false, false) => vec![PushFileContent(client.file_id)],
-        (true, false, false, false, false, false) => vec![PushDelete(client.file_id)],
-        (true, true, false, false, false, false) => vec![PushDelete(client.file_id)],
-        (true, false, true, false, false, false) => vec![PushDelete(client.file_id)],
-        (true, false, false, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (false, false, false, true, false, false) => vec![DeleteLocally(client)],
+        (false, false, true, false, false, false) => vec![PushMetadata(client)],
+        (false, true, false, false, false, false) => vec![PushFileContent(client)],
+        (true, false, false, false, false, false) => vec![PushDelete(client)],
+        (true, true, false, false, false, false) => vec![PushDelete(client)],
+        (true, false, true, false, false, false) => vec![PushDelete(client)],
+        (true, false, false, true, false, false) => vec![DeleteLocally(client)],
         (true, false, false, false, true, false) => vec![PullFileContent(server)],
-        (true, false, false, false, false, true) => vec![PushDelete(client.file_id)],
+        (true, false, false, false, false, true) => vec![PushDelete(client)],
         (false, true, true, false, false, false) => vec![
-            PushFileContent(client.file_id.clone()),
-            PushMetadata(client.file_id),
+            PushFileContent(client.clone()),
+            PushMetadata(client),
         ],
-        (false, true, false, true, false, false) => vec![PushFileContent(client.file_id)],
+        (false, true, false, true, false, false) => vec![PushFileContent(client)],
         (false, true, false, false, true, false) => vec![PullMergePush(server)],
         (false, true, false, false, false, true) => {
-            vec![UpdateLocalMetadata(server), PushFileContent(client.file_id)]
+            vec![UpdateLocalMetadata(server), PushFileContent(client)]
         }
-        (false, false, true, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (false, false, true, true, false, false) => vec![DeleteLocally(client)],
         (false, false, true, false, true, false) => {
-            vec![PushMetadata(client.file_id), PullFileContent(server)]
+            vec![PushMetadata(client), PullFileContent(server)]
         }
         (false, false, true, false, false, true) => vec![MergeMetadataAndPushMetadata(server)],
-        (false, false, false, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (false, false, false, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (false, false, false, true, true, false) => vec![DeleteLocally(client)],
+        (false, false, false, true, false, true) => vec![DeleteLocally(client)],
         (false, false, false, false, true, true) => vec![PullFileContent(server)],
-        (true, true, true, false, false, false) => vec![PushDelete(client.file_id)],
-        (true, true, false, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (true, true, true, false, false, false) => vec![PushDelete(client)],
+        (true, true, false, true, false, false) => vec![DeleteLocally(client)],
         (true, true, false, false, true, false) => vec![PullFileContent(server)],
-        (true, true, false, false, false, true) => vec![PushDelete(client.file_id)],
-        (true, false, true, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (true, true, false, false, false, true) => vec![PushDelete(client)],
+        (true, false, true, true, false, false) => vec![DeleteLocally(client)],
         (true, false, true, false, true, false) => vec![PullFileContent(server)],
-        (true, false, true, false, false, true) => vec![PushDelete(client.file_id)],
-        (true, false, false, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (true, false, false, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (true, false, true, false, false, true) => vec![PushDelete(client)],
+        (true, false, false, true, true, false) => vec![DeleteLocally(client)],
+        (true, false, false, true, false, true) => vec![DeleteLocally(client)],
         (true, false, false, false, true, true) => vec![PullFileContent(server)],
-        (false, true, true, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (false, true, true, true, false, false) => vec![DeleteLocally(client)],
         (false, true, true, false, true, false) => {
-            vec![PullMergePush(server), PushMetadata(client.file_id)]
+            vec![PullMergePush(server), PushMetadata(client)]
         }
         (false, true, true, false, false, true) => vec![
             MergeMetadataAndPushMetadata(server),
-            PushFileContent(client.file_id),
+            PushFileContent(client),
         ],
-        (false, true, false, true, true, false) => vec![PushFileContent(client.file_id)],
+        (false, true, false, true, true, false) => vec![PushFileContent(client)],
         (false, true, false, true, false, true) => {
-            vec![UpdateLocalMetadata(server), PushFileContent(client.file_id)]
+            vec![UpdateLocalMetadata(server), PushFileContent(client)]
         }
         (false, true, false, false, true, true) => vec![PullMergePush(server)],
-        (false, false, true, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (false, false, true, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (false, false, true, true, true, false) => vec![DeleteLocally(client)],
+        (false, false, true, true, false, true) => vec![DeleteLocally(client)],
         (false, false, true, false, true, true) => vec![
             PullFileContent(server.clone()),
             MergeMetadataAndPushMetadata(server.clone()),
         ],
-        (false, false, false, true, true, true) => vec![DeleteLocally(client.file_id)],
-        (true, true, true, true, false, false) => vec![DeleteLocally(client.file_id)],
+        (false, false, false, true, true, true) => vec![DeleteLocally(client)],
+        (true, true, true, true, false, false) => vec![DeleteLocally(client)],
         (true, true, true, false, true, false) => vec![PullFileContent(server)],
-        (true, true, true, false, false, true) => vec![PushDelete(client.file_id)],
-        (true, true, false, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (true, true, false, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (true, true, true, false, false, true) => vec![PushDelete(client)],
+        (true, true, false, true, true, false) => vec![DeleteLocally(client)],
+        (true, true, false, true, false, true) => vec![DeleteLocally(client)],
         (true, true, false, false, true, true) => vec![PullFileContent(server)],
-        (true, false, true, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (true, false, true, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (true, false, true, true, true, false) => vec![DeleteLocally(client)],
+        (true, false, true, true, false, true) => vec![DeleteLocally(client)],
         (true, false, true, false, true, true) => vec![PullFileContent(server)],
-        (true, false, false, true, true, true) => vec![DeleteLocally(client.file_id)],
+        (true, false, false, true, true, true) => vec![DeleteLocally(client)],
         (false, true, true, true, true, false) => {
-            vec![PullMergePush(server), PushMetadata(client.file_id)]
+            vec![PullMergePush(server), PushMetadata(client)]
         }
-        (false, true, true, true, false, true) => vec![PushFileContent(client.file_id)],
+        (false, true, true, true, false, true) => vec![PushFileContent(client)],
         (false, true, true, false, true, true) => vec![
             MergeMetadataAndPushMetadata(server.clone()),
             PullMergePush(server.clone()),
@@ -511,16 +489,16 @@ fn calculate_work_across_server_and_client(
             PullMergePush(server.clone()),
             UpdateLocalMetadata(server.clone()),
         ],
-        (false, false, true, true, true, true) => vec![DeleteLocally(client.file_id)],
-        (true, true, true, true, true, false) => vec![DeleteLocally(client.file_id)],
-        (true, true, true, true, false, true) => vec![DeleteLocally(client.file_id)],
+        (false, false, true, true, true, true) => vec![DeleteLocally(client)],
+        (true, true, true, true, true, false) => vec![DeleteLocally(client)],
+        (true, true, true, true, false, true) => vec![DeleteLocally(client)],
         (true, true, true, false, true, true) => vec![PullFileContent(server)],
-        (true, true, false, true, true, true) => vec![DeleteLocally(client.file_id)],
-        (true, false, true, true, true, true) => vec![DeleteLocally(client.file_id)],
+        (true, true, false, true, true, true) => vec![DeleteLocally(client)],
+        (true, false, true, true, true, true) => vec![DeleteLocally(client)],
         (false, true, true, true, true, true) => vec![
             MergeMetadataAndPushMetadata(server.clone()),
             PullMergePush(server.clone()),
         ],
-        (true, true, true, true, true, true) => vec![DeleteLocally(client.file_id)],
+        (true, true, true, true, true, true) => vec![DeleteLocally(client)],
     }
 }
