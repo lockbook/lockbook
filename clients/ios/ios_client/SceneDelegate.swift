@@ -24,6 +24,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         // Create the Lockbook Core Api with the path all our business happens
         print(documentsDirectory)
+        init_logger()
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
         let coordinator = Coordinator(lockbookApi: lockbookApi)
         let debugger = Debugger(lockbookApi: lockbookApi)
