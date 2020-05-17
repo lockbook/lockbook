@@ -16,6 +16,8 @@ base64 = "0.11.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 uuid = { version = "0.8.1", features = ["v4"] }
+env_logger = "0.7.1"
+log = "0.4.8"
 # TODO: set this to the version when @spacejam/sled bumps the version
 sled = { git = "https://github.com/spacejam/sled", branch = "tyler_exclude_ios_from_unix_parallel_io" }
 tempfile = { version = "3.1.0" }
