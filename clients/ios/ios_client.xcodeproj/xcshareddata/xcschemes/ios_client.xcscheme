@@ -58,7 +58,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "RUST_LOG"
-            value = "debug"
+            value = "lockbook_core=debug"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

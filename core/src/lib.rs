@@ -65,6 +65,9 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
+// FIXME: Obviously a _temporary_ joke
+const JUNK: &str =
+    "/Users/raayanpillai/Library/Containers/com.raayanpillai.lockbook-client/Data/Documents/junk";
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
@@ -96,6 +99,7 @@ pub unsafe extern "C" fn init_logger() {
 #[no_mangle]
 pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
     let path = string_from_ptr(c_path);
+    debug!("Junk Path: {}", JUNK);
 
     let db_path = path + "/" + DB_NAME;
     debug!("Checking if {:?} exists", db_path);

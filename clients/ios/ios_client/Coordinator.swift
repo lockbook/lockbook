@@ -29,9 +29,9 @@ final class Coordinator: ObservableObject {
         if let username = lockbookApi.getAccount() {
             self.username = username
         }
-        self.timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
-            self.files = lockbookApi.updateMetadata()
-        })
+//        self.timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
+//            self.files = lockbookApi.updateMetadata()
+//        })
     }
     
     func sync() -> Void {
