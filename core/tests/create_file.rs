@@ -1,22 +1,22 @@
 extern crate lockbook_core;
 
-use crate::utils::generate_account;
-
 use lockbook_core::client;
-use lockbook_core::client::NewAccountRequest;
-use lockbook_core::client::{CreateFileError, CreateFileRequest};
+use lockbook_core::client::create_file;
+use lockbook_core::model::api::CreateFileError;
+use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::NewAccountRequest;
 
 #[macro_use]
-pub mod utils;
+mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use utils::{api_loc, generate_file_id, TestError};
+use utils::{api_loc, generate_account, generate_file_id, TestError};
 
 fn create_file() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -25,7 +25,7 @@ fn create_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -49,7 +49,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -58,7 +58,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -70,7 +70,7 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -89,14 +89,16 @@ fn create_file_duplicate_file_id() -> Result<(), TestError> {
 fn test_create_file_duplicate_file_id() {
     assert_matches!(
         create_file_duplicate_file_id(),
-        Err(TestError::CreateFileError(CreateFileError::FileIdTaken))
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::FileIdTaken
+        )))
     );
 }
 
 fn create_file_duplicate_file_path() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -105,7 +107,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -117,7 +119,7 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -136,6 +138,8 @@ fn create_file_duplicate_file_path() -> Result<(), TestError> {
 fn test_create_file_duplicate_file_path() {
     assert_matches!(
         create_file_duplicate_file_path(),
-        Err(TestError::CreateFileError(CreateFileError::FilePathTaken))
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::FilePathTaken
+        )))
     );
 }
