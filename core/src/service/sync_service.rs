@@ -60,9 +60,14 @@ error_enum! {
 }
 
 pub trait SyncService {
-    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
-    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
-    fn sync(db: &Db) -> Result<(), SyncError>;
+    fn calculate_work(&self, db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
+    fn execute_work(
+        &self,
+        db: &Db,
+        account: &Account,
+        work: WorkUnit,
+    ) -> Result<(), WorkExecutionError>;
+    fn sync(&self, db: &Db) -> Result<(), SyncError>;
 }
 
 pub struct WorkCalculated {
@@ -73,27 +78,21 @@ pub struct WorkCalculated {
 pub struct FileSyncService<
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
-    AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
 > {
-    metadatas: PhantomData<FileMetadataDb>,
-    files: PhantomData<FileDb>,
-    accounts: PhantomData<AccountDb>,
-    client: PhantomData<ApiClient>,
-    auth: PhantomData<Auth>,
+    pub(crate) metadatas: PhantomData<FileMetadataDb>,
+    pub(crate) files: PhantomData<FileDb>,
+    pub(crate) client: PhantomData<ApiClient>,
+    pub(crate) auth: PhantomData<Auth>,
+    pub(crate) accountsRepo: AccountRepo,
 }
 
-impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+impl<FileMetadataDb: FileMetadataRepo, FileDb: FileRepo, ApiClient: Client, Auth: AuthService>
+    SyncService for FileSyncService<FileMetadataDb, FileDb, ApiClient, Auth>
 {
-    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
-        let account = AccountDb::get_account(&db)?;
+    fn calculate_work(&self, db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
+        let account = self.accountsRepo.get_account()?;
         let local_dirty_files = FileMetadataDb::get_all_dirty(&db)?;
 
         let last_sync = FileMetadataDb::get_last_updated(&db)?;
@@ -157,7 +156,12 @@ impl<
 
     // TODO consider operating off the db instead of functional arguments here
     // Doing this off the DB would also allow you to automatically update the last_synced
-    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
+    fn execute_work(
+        &self,
+        db: &Db,
+        account: &Account,
+        work: WorkUnit,
+    ) -> Result<(), WorkExecutionError> {
         match work {
             Nop => Ok(()),
             PushNewFile(client) => {
@@ -336,13 +340,13 @@ impl<
         }
     }
 
-    fn sync(db: &Db) -> Result<(), SyncError> {
-        let account = AccountDb::get_account(&db)?;
-        let work_calculated = Self::calculate_work(&db)?;
+    fn sync(&self, db: &Db) -> Result<(), SyncError> {
+        let account = &self.accountsRepo.get_account()?;
+        let work_calculated = Self::calculate_work(&self, &db)?;
 
         let mut no_errors_during_sync = true;
         work_calculated.work_units.into_iter().for_each(|wu| {
-            match Self::execute_work(&db, &account, wu.clone()) {
+            match Self::execute_work(&self, &db, &account, wu.clone()) {
                 Ok(_) => debug!("{:?} executed successfully", wu),
                 Err(err) => {
                     no_errors_during_sync = false;

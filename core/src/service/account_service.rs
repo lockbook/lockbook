@@ -29,26 +29,25 @@ error_enum! {
 }
 
 pub trait AccountService {
-    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError>;
-    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError>;
+    fn create_account(&self, db: &Db, username: &String) -> Result<Account, AccountCreationError>;
+    fn import_account(
+        &self,
+        db: &Db,
+        account_string: &String,
+    ) -> Result<Account, AccountImportError>;
 }
 
-pub struct AccountServiceImpl<
-    Crypto: PubKeyCryptoService,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-> {
-    encryption: PhantomData<Crypto>,
-    accounts: PhantomData<AccountDb>,
-    client: PhantomData<ApiClient>,
-    auth: PhantomData<Auth>,
+pub struct AccountServiceImpl<Crypto: PubKeyCryptoService, ApiClient: Client, Auth: AuthService> {
+    pub(crate) encryption: PhantomData<Crypto>,
+    pub(crate) client: PhantomData<ApiClient>,
+    pub(crate) auth: PhantomData<Auth>,
+    pub(crate) accountRepo: AccountRepo,
 }
 
-impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService>
-    AccountService for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
+impl<Crypto: PubKeyCryptoService, ApiClient: Client, Auth: AuthService> AccountService
+    for AccountServiceImpl<Crypto, ApiClient, Auth>
 {
-    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError> {
+    fn create_account(&self, db: &Db, username: &String) -> Result<Account, AccountCreationError> {
         info!("Creating new account for {}", username);
 
         info!("Generating Key...");
@@ -63,7 +62,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
         let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
         info!("Saving account locally");
-        AccountDb::insert_account(db, &account)?;
+        &self.accountRepo.insert_account(&account)?;
 
         info!("Sending username & public key to server");
         ApiClient::new_account(username, auth, public_key)?;
@@ -73,10 +72,14 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
         Ok(account)
     }
 
-    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError> {
+    fn import_account(
+        &self,
+        db: &Db,
+        account_string: &String,
+    ) -> Result<Account, AccountImportError> {
         let account = serde_json::from_str(account_string.as_str())?;
 
-        AccountDb::insert_account(db, &account)?;
+        &self.accountRepo.insert_account(&account)?;
         info!("Account imported successfully");
         Ok(account)
     }

@@ -13,10 +13,11 @@ pub use sled::Db;
 
 use crate::client::ClientImpl;
 use crate::model::state::Config;
-use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
+use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::repo::file_repo::{FileRepo, FileRepoImpl};
+use crate::repo::store::FsStore;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
@@ -24,6 +25,7 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
+use std::marker::PhantomData;
 
 pub mod client;
 pub mod error_enum;
@@ -39,27 +41,17 @@ pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
 pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultClient = ClientImpl;
-pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 pub type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+    AccountServiceImpl<DefaultCrypto, DefaultClient, DefaultAuthService>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultSyncService = FileSyncService<
-    DefaultFileMetadataRepo,
-    DefaultFileRepo,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultAuthService,
->;
-pub type DefaultFileService = FileServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultFileRepo,
-    DefaultAccountRepo,
-    DefaultFileEncryptionService,
->;
+pub type DefaultSyncService =
+    FileSyncService<DefaultFileMetadataRepo, DefaultFileRepo, DefaultClient, DefaultAuthService>;
+pub type DefaultFileService =
+    FileServiceImpl<DefaultFileMetadataRepo, DefaultFileRepo, DefaultFileEncryptionService>;
 
 static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
@@ -76,16 +68,47 @@ unsafe fn string_from_ptr(c_path: *const c_char) -> String {
         .to_string()
 }
 
-unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
+unsafe fn connect_db(
+    c_path: *const c_char,
+) -> (
+    Option<Db>,
+    Option<DefaultAccountService>,
+    Option<DefaultSyncService>,
+) {
     let path = string_from_ptr(c_path);
+    let account_service = DefaultAccountService {
+        encryption: PhantomData,
+        client: PhantomData,
+        auth: PhantomData,
+        accountRepo: AccountRepo {
+            store: Box::new(FsStore {
+                config: Config {
+                    writeable_path: path.clone(),
+                },
+            }),
+        },
+    };
+    let sync_service = DefaultSyncService {
+        metadatas: PhantomData,
+        files: PhantomData,
+        client: PhantomData,
+        auth: PhantomData,
+        accountsRepo: AccountRepo {
+            store: Box::new(FsStore {
+                config: Config {
+                    writeable_path: path.clone(),
+                },
+            }),
+        },
+    };
     let config = Config {
-        writeable_path: path,
+        writeable_path: path.clone(),
     };
     match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => Some(db),
+        Ok(db) => (Some(db), Some(account_service), Some(sync_service)),
         Err(err) => {
             error!("DB connection failed! Error: {:?}", err);
-            None
+            (None, None, None)
         }
     }
 }
@@ -122,12 +145,12 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 
 #[no_mangle]
 pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
-    let db = match connect_db(c_path) {
-        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return CString::new(FAILURE_DB).unwrap().into_raw(),
     };
 
-    match DefaultAccountRepo::get_account(&db) {
+    match acs.accountRepo.get_account() {
         Ok(account) => CString::new(account.username).unwrap().into_raw(),
         Err(err) => {
             error!("Account retrieval failed with error: {:?}", err);
@@ -138,14 +161,14 @@ pub unsafe extern "C" fn get_account(c_path: *const c_char) -> *mut c_char {
 
 #[no_mangle]
 pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *const c_char) -> c_int {
-    let db = match connect_db(c_path) {
-        None => return 0,
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return 0,
     };
 
     let username = string_from_ptr(c_username);
 
-    match DefaultAccountService::create_account(&db, &username) {
+    match acs.create_account(&db, &username) {
         Ok(_) => 1,
         Err(err) => {
             error!("Account creation failed with error: {:?}", err);
@@ -156,12 +179,12 @@ pub unsafe extern "C" fn create_account(c_path: *const c_char, c_username: *cons
 
 #[no_mangle]
 pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
-    let db = match connect_db(c_path) {
-        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return CString::new(FAILURE_DB).unwrap().into_raw(),
     };
 
-    match DefaultSyncService::sync(&db) {
+    match ss.sync(&db) {
         Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Update metadata failed with error: {:?}", err);
@@ -177,36 +200,38 @@ pub unsafe extern "C" fn create_file(
     c_file_path: *const c_char,
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
-        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
-        Some(db) => db,
+        (Some(db), _, _) => db,
+        _ => return CString::new(FAILURE_DB).unwrap().into_raw(),
     };
     let file_name = string_from_ptr(c_file_name);
     let file_path = string_from_ptr(c_file_path);
 
-    match DefaultFileService::create(&db, &file_name, &file_path) {
-        Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
-        Err(err) => {
-            error!("Failed to create file metadata! Error: {:?}", err);
-            CString::new(FAILURE_META_CREATE).unwrap().into_raw()
-        }
-    }
+    // match DefaultFileService::create(&db, &file_name, &file_path) {
+    //     Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
+    //     Err(err) => {
+    //         error!("Failed to create file metadata! Error: {:?}", err);
+    //         CString::new(FAILURE_META_CREATE).unwrap().into_raw()
+    //     }
+    // }
+    CString::new("yeet").unwrap().into_raw()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_char) -> *mut c_char {
-    let db = match connect_db(c_path) {
-        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return CString::new(FAILURE_DB).unwrap().into_raw(),
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, &file_id) {
-        Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
-        Err(err) => {
-            error!("Failed to get file! Error: {:?}", err);
-            CString::new(FAILURE_FILE_GET).unwrap().into_raw()
-        }
-    }
+    // match DefaultFileService::get(&db, &file_id) {
+    //     Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
+    //     Err(err) => {
+    //         error!("Failed to get file! Error: {:?}", err);
+    //         CString::new(FAILURE_FILE_GET).unwrap().into_raw()
+    //     }
+    // }
+    CString::new("yeet").unwrap().into_raw()
 }
 
 #[no_mangle]
@@ -215,28 +240,30 @@ pub unsafe extern "C" fn update_file(
     c_file_id: *const c_char,
     c_file_content: *const c_char,
 ) -> c_int {
-    let db = match connect_db(c_path) {
-        None => return 0,
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return 0,
     };
     let file_id = string_from_ptr(c_file_id);
     let file_content = string_from_ptr(c_file_content);
 
-    match DefaultFileService::update(&db, &file_id, &file_content) {
-        Ok(_) => 1,
-        Err(err) => {
-            error!("Failed to update file! Error: {:?}", err);
-            0
-        }
-    }
+    // match DefaultFileService::update(&db, &file_id, &file_content) {
+    //     Ok(_) => 1,
+    //     Err(err) => {
+    //         error!("Failed to update file! Error: {:?}", err);
+    //         0
+    //     }
+    // }
+    1
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
-    let db = match connect_db(c_path) {
-        None => return 0,
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return 0,
     };
+
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
             DefaultFileMetadataRepo::delete(&db, &meta.file_id).unwrap();
@@ -250,12 +277,13 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
 
 #[no_mangle]
 pub unsafe extern "C" fn import_account(c_path: *const c_char, c_account: *const c_char) -> c_int {
-    let db = match connect_db(c_path) {
-        None => return 0,
-        Some(db) => db,
+    let (db, acs, ss) = match connect_db(c_path) {
+        (Some(db), Some(acs), Some(ss)) => (db, acs, ss),
+        _ => return 0,
     };
+
     let account_string = string_from_ptr(c_account);
-    match DefaultAccountService::import_account(&db, &account_string) {
+    match acs.import_account(&db, &account_string) {
         Ok(acc) => {
             debug!("Loaded account: {:?}", acc);
             1

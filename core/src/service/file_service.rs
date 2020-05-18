@@ -43,33 +43,43 @@ error_enum! {
 }
 
 pub trait FileService {
-    fn create(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, NewFileError>;
-    fn update(db: &Db, id: &String, content: &String) -> Result<EncryptedFile, UpdateFileError>;
-    fn get(db: &Db, id: &String) -> Result<DecryptedValue, Error>;
+    fn create(
+        &self,
+        db: &Db,
+        name: &String,
+        path: &String,
+    ) -> Result<ClientFileMetadata, NewFileError>;
+    fn update(
+        &self,
+        db: &Db,
+        id: &String,
+        content: &String,
+    ) -> Result<EncryptedFile, UpdateFileError>;
+    fn get(&self, db: &Db, id: &String) -> Result<DecryptedValue, Error>;
 }
 
 pub struct FileServiceImpl<
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
-    AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
-    account: PhantomData<AccountDb>,
     file_crypto: PhantomData<FileCrypto>,
+    accountRepo: AccountRepo,
 }
 
-impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+impl<FileMetadataDb: FileMetadataRepo, FileDb: FileRepo, FileCrypto: FileEncryptionService>
+    FileService for FileServiceImpl<FileMetadataDb, FileDb, FileCrypto>
 {
-    fn create(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, NewFileError> {
+    fn create(
+        &self,
+        db: &Db,
+        name: &String,
+        path: &String,
+    ) -> Result<ClientFileMetadata, NewFileError> {
         info!("Creating new file with name: {} at path {}", name, path);
-        let account = AccountDb::get_account(db)?;
+        let account = &self.accountRepo.get_account()?;
         debug!("Account retrieved: {:?}", account);
 
         let encrypted_file = FileCrypto::new_file(&account)?;
@@ -83,10 +93,15 @@ impl<
         Ok(meta)
     }
 
-    fn update(db: &Db, id: &String, content: &String) -> Result<EncryptedFile, UpdateFileError> {
+    fn update(
+        &self,
+        db: &Db,
+        id: &String,
+        content: &String,
+    ) -> Result<EncryptedFile, UpdateFileError> {
         info!("Replacing file id: {} contents with: {}", &id, &content);
 
-        let account = AccountDb::get_account(db)?;
+        let account = &self.accountRepo.get_account()?;
         debug!("Account retrieved: {:?}", account);
 
         let encrypted_file = FileDb::get(db, &id)?;
@@ -123,9 +138,9 @@ impl<
         Ok(updated_enc_file)
     }
 
-    fn get(db: &Db, id: &String) -> Result<DecryptedValue, Error> {
+    fn get(&self, db: &Db, id: &String) -> Result<DecryptedValue, Error> {
         info!("Getting file contents {:?}", &id);
-        let account = AccountDb::get_account(db)?;
+        let account = &self.accountRepo.get_account()?;
         let encrypted_file = FileDb::get(db, &id)?;
         let decrypted_file = FileCrypto::read_file(&account, &encrypted_file)?;
         Ok(decrypted_file)
