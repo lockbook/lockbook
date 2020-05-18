@@ -28,6 +28,9 @@ aead = "0.2.0"
 aes-gcm = "0.5.0"
 termion = "1.5.5"
 
-# Needed for catalyst (we're building xargo targets with --release)
+# Needed for catalyst since we're building xargo targets with --release, with the flag XCode complains with
+# ld: in repo_root/clients/ios/libs/liblockbook_core.mac.a(state.o),
+# building for Mac Catalyst, but linking in object file built for iOS Simulator, for architecture x86_64
+# also for some reason iterative builds with --release are faster (not what the docs say...)
 [profile.release]
 panic = "abort"

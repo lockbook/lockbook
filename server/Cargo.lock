@@ -2105,7 +2105,7 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 [[package]]
 name = "sled"
 version = "0.31.0"
-source = "git+https://github.com/spacejam/sled#cc21f3220371b9815d3afbb8aaccd1454165039f"
+source = "git+https://github.com/spacejam/sled?branch=tyler_exclude_ios_from_unix_parallel_io#32b2ebbddcdfd8f78004ded8aabbe0626ca8d03e"
 dependencies = [
  "crc32fast",
  "crossbeam-epoch",
