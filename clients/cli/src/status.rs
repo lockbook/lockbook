@@ -31,7 +31,7 @@ pub fn status() {
                 println!("{} has been moved locally", client.file_name)
             }
             WorkUnit::PushFileContent(client) => println!(
-                "{} has local edits that need to be pushed",
+                "{} has local changes that need to be pushed",
                 client.file_name
             ),
             WorkUnit::PushDelete(client) => {
