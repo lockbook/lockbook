@@ -6,17 +6,16 @@ use std::{fs, io};
 
 use uuid::Uuid;
 
-use lockbook_core::client::{Client, CreateFileError, CreateFileRequest};
-
 use crate::utils::{connect_to_db, get_account, get_editor};
 use lockbook_core::model::client_file_metadata::ClientFileMetadata;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::auth_service::AuthService;
 use lockbook_core::service::file_service::{FileService, NewFileError, UpdateFileError};
-use lockbook_core::service::sync_service::SyncService;
+
+use lockbook_core::client::create_file::Error;
+use lockbook_core::client::Client;
 use lockbook_core::{
     DefaultAuthService, DefaultClient, DefaultFileMetadataRepo, DefaultFileService,
-    DefaultSyncService,
 };
 
 pub fn new() {
@@ -103,15 +102,14 @@ pub fn new() {
         // DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
         // DefaultSyncService::sync(&db).expect("Failed to sync");
 
-        match DefaultClient::create_file(&CreateFileRequest {
-            username: account.username.clone(),
-            auth: DefaultAuthService::generate_auth(&account).expect("Failed to sign message"),
-            file_id: file_metadata.file_id.clone(),
-            file_name: file_metadata.file_name.clone(),
-            file_path: file_location.clone(),
-            file_content: serde_json::to_string(&encrypted_file)
-                .expect("Failed to serialize encrypted file"),
-        }) {
+        match DefaultClient::create_file(
+            account.username.clone(),
+            DefaultAuthService::generate_auth(&account).expect("Failed to sign message"),
+            file_metadata.file_id.clone(),
+            file_metadata.file_name.clone(),
+            file_location.clone(),
+            serde_json::to_string(&encrypted_file).expect("Failed to serialize encrypted file"),
+        ) {
             Ok(version) => {
                 DefaultFileMetadataRepo::update(
                     &db,
@@ -131,10 +129,8 @@ pub fn new() {
                 println!("File saved locally and synced!")
             }
             Err(err) => match err {
-                CreateFileError::SendFailed(_) => {
-                    eprintln!("Network error occurred, file will be sent next sync")
-                }
-                _ => eprint!("Unknown error occurred sending file, file exists locally."),
+                Error::SendFailed(_) => eprintln!("Network error occurred"),
+                _ => eprintln!("Unknown error occured: {:?}", err),
             },
         }
     } else {

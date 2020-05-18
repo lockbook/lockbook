@@ -21,7 +21,6 @@ use crate::model::work_unit::WorkUnit::{
     PushFileContent, PushMetadata, PushNewFile, UpdateLocalMetadata,
 };
 use crate::service::auth_service::AuthService;
-use crate::service::logging_service::Logger;
 use crate::{client, error_enum};
 use std::cmp::max;
 use std::collections::HashMap;
@@ -72,14 +71,12 @@ pub struct WorkCalculated {
 }
 
 pub struct FileSyncService<
-    Log: Logger,
     FileMetadataDb: FileMetadataRepo,
     FileDb: FileRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
 > {
-    log: PhantomData<Log>,
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
     accounts: PhantomData<AccountDb>,
@@ -88,13 +85,12 @@ pub struct FileSyncService<
 }
 
 impl<
-        Log: Logger,
         FileMetadataDb: FileMetadataRepo,
         FileDb: FileRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
         Auth: AuthService,
-    > SyncService for FileSyncService<Log, FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+    > SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         let account = AccountDb::get_account(&db)?;
@@ -150,7 +146,7 @@ impl<
                         work_units.extend(calculate_work_across_server_and_client(server, client))
                     }
                 },
-                Err(err) => Log::error(format!("Unexpected sled error! {:?}", err)),
+                Err(err) => error!("Unexpected sled error! {:?}", err),
             });
 
         Ok(WorkCalculated {
@@ -347,10 +343,10 @@ impl<
         let mut no_errors_during_sync = true;
         work_calculated.work_units.into_iter().for_each(|wu| {
             match Self::execute_work(&db, &account, wu.clone()) {
-                Ok(_) => Log::debug(format!("{:?} executed successfully", wu)),
+                Ok(_) => debug!("{:?} executed successfully", wu),
                 Err(err) => {
                     no_errors_during_sync = false;
-                    Log::error(format!("{:?} FAILED: {:?}", wu, err))
+                    error!("{:?} FAILED: {:?}", wu, err)
                 }
             }
         });
