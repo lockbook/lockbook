@@ -2,11 +2,11 @@ use std::io::Write;
 
 use std::io;
 
-use lockbook_core::client::NewAccountError;
-
 use lockbook_core::service::account_service::{AccountCreationError, AccountService};
 
 use crate::utils::connect_to_db;
+use lockbook_core::client::new_account::Error;
+use lockbook_core::model::api::NewAccountError;
 use lockbook_core::DefaultAccountService;
 
 pub fn init() {
@@ -33,11 +33,18 @@ pub fn init() {
             }
 
             AccountCreationError::ApiError(api_err) => match api_err {
-                NewAccountError::SendFailed(err) => eprintln!("Network Error Occurred: {}", err),
-                NewAccountError::UsernameTaken => {
-                    eprintln!("Username {} not available!", &username)
-                }
-                _ => eprintln!("Unknown Error Occurred: {:?}!", api_err),
+                Error::SendFailed(_) => eprintln!("Network error: {:?}", api_err),
+                Error::API(api) => match api.clone() {
+                    NewAccountError::UsernameTaken => eprintln!("Username Taken!"),
+                    _ => eprintln!(
+                        "Unexpected error occurred while creating new account: {:?}",
+                        api
+                    ),
+                },
+                _ => eprintln!(
+                    "Unexpected error occurred while creating new account: {:?}",
+                    api_err
+                ),
             },
 
             AccountCreationError::AuthGenFailure(err) => {
