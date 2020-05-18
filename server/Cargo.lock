@@ -1033,8 +1033,10 @@ name = "lockbook-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
+ "env_logger",
  "hyper 0.13.5",
  "lockbook_core",
+ "log",
  "openssl",
  "postgres-openssl",
  "rsa",
