@@ -69,7 +69,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
         ApiClient::new_account(username, auth, public_key)?;
         info!("Account creation success!");
 
-        info!("{}", serde_json::to_string(&account).unwrap());
+        debug!("{}", serde_json::to_string(&account).unwrap());
         Ok(account)
     }
 
