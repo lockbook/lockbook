@@ -75,11 +75,11 @@ impl Client for ClientImpl {
         Ok(change_file_content::send(
             String::from(API_LOC),
             &ChangeFileContentRequest {
-                username: username,
-                auth: auth,
-                file_id: file_id,
-                old_file_version: old_file_version,
-                new_file_content: new_file_content,
+                username,
+                auth,
+                file_id,
+                old_file_version,
+                new_file_content,
             },
         )?
         .current_version)
@@ -95,12 +95,12 @@ impl Client for ClientImpl {
         Ok(create_file::send(
             String::from(API_LOC),
             &CreateFileRequest {
-                username: username,
-                auth: auth,
-                file_id: file_id,
-                file_name: file_name,
-                file_path: file_path,
-                file_content: file_content,
+                username,
+                auth,
+                file_id,
+                file_name,
+                file_path,
+                file_content,
             },
         )?
         .current_version)
@@ -113,19 +113,12 @@ impl Client for ClientImpl {
         delete_file::send(
             String::from(API_LOC),
             &DeleteFileRequest {
-                username: username,
-                auth: auth,
-                file_id: file_id,
+                username,
+                auth,
+                file_id,
             },
         )?;
         Ok(())
-    }
-    fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error> {
-        Ok(get_public_key::send(
-            String::from(API_LOC),
-            &GetPublicKeyRequest { username: username },
-        )?
-        .key)
     }
     fn get_updates(
         username: String,
@@ -135,9 +128,9 @@ impl Client for ClientImpl {
         Ok(get_updates::send(
             String::from(API_LOC),
             &GetUpdatesRequest {
-                username: username,
-                auth: auth,
-                since_version: since_version,
+                username,
+                auth,
+                since_version,
             },
         )?
         .file_metadata)
@@ -151,10 +144,10 @@ impl Client for ClientImpl {
         move_file::send(
             String::from(API_LOC),
             &MoveFileRequest {
-                username: username,
-                auth: auth,
-                file_id: file_id,
-                new_file_path: new_file_path,
+                username,
+                auth,
+                file_id,
+                new_file_path,
             },
         )?;
         Ok(())
@@ -167,9 +160,9 @@ impl Client for ClientImpl {
         new_account::send(
             String::from(API_LOC),
             &NewAccountRequest {
-                username: username,
-                auth: auth,
-                public_key: public_key,
+                username,
+                auth,
+                public_key,
             },
         )?;
         Ok(())
@@ -183,15 +176,18 @@ impl Client for ClientImpl {
         rename_file::send(
             String::from(API_LOC),
             &RenameFileRequest {
-                username: username,
-                auth: auth,
-                file_id: file_id,
-                new_file_name: new_file_name,
+                username,
+                auth,
+                file_id,
+                new_file_name,
             },
         )?;
         Ok(())
     }
     fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error> {
         get_file::send(String::from(BUCKET_LOC), file_id)
+    }
+    fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error> {
+        Ok(get_public_key::send(String::from(API_LOC), &GetPublicKeyRequest { username })?.key)
     }
 }
