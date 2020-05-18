@@ -1,12 +1,14 @@
 extern crate lockbook_core;
+
 use lockbook_core::client;
-use lockbook_core::client::CreateFileRequest;
-use lockbook_core::client::DeleteFileRequest;
-use lockbook_core::client::NewAccountRequest;
-use lockbook_core::client::{RenameFileError, RenameFileRequest};
+use lockbook_core::client::rename_file;
+use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::DeleteFileRequest;
+use lockbook_core::model::api::NewAccountRequest;
+use lockbook_core::model::api::{RenameFileError, RenameFileRequest};
 
 #[macro_use]
-pub mod utils;
+mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
@@ -16,7 +18,7 @@ fn rename_file() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -25,7 +27,7 @@ fn rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -37,7 +39,7 @@ fn rename_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::rename_file(
+    client::rename_file::send(
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
@@ -58,7 +60,7 @@ fn test_rename_file() {
 fn rename_file_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -67,7 +69,7 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    client::rename_file(
+    client::rename_file::send(
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
@@ -84,7 +86,9 @@ fn rename_file_file_not_found() -> Result<(), TestError> {
 fn test_rename_file_file_not_found() {
     assert_matches!(
         rename_file_file_not_found(),
-        Err(TestError::RenameFileError(RenameFileError::FileNotFound))
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::FileNotFound
+        )))
     );
 }
 
@@ -92,7 +96,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -101,7 +105,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -113,7 +117,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -122,7 +126,7 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::rename_file(
+    client::rename_file::send(
         api_loc(),
         &RenameFileRequest {
             username: account.username.clone(),
@@ -139,6 +143,8 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
 fn test_rename_file_file_deleted() {
     assert_matches!(
         rename_file_file_deleted(),
-        Err(TestError::RenameFileError(RenameFileError::FileDeleted))
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::FileDeleted
+        )))
     );
 }

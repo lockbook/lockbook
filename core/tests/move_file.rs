@@ -1,25 +1,24 @@
 extern crate lockbook_core;
 
-use crate::utils::generate_account;
-
 use lockbook_core::client;
-use lockbook_core::client::CreateFileRequest;
-use lockbook_core::client::DeleteFileRequest;
-use lockbook_core::client::NewAccountRequest;
-use lockbook_core::client::{MoveFileError, MoveFileRequest};
+use lockbook_core::client::move_file;
+use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::DeleteFileRequest;
+use lockbook_core::model::api::NewAccountRequest;
+use lockbook_core::model::api::{MoveFileError, MoveFileRequest};
 
 #[macro_use]
-pub mod utils;
+mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
-use utils::{api_loc, generate_file_id, TestError};
+use utils::{api_loc, generate_account, generate_file_id, TestError};
 
 fn move_file() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -28,7 +27,7 @@ fn move_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -40,7 +39,7 @@ fn move_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::move_file(
+    client::move_file::send(
         api_loc(),
         &MoveFileRequest {
             username: account.username.clone(),
@@ -61,7 +60,7 @@ fn test_move_file() {
 fn move_file_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -70,7 +69,7 @@ fn move_file_file_not_found() -> Result<(), TestError> {
         },
     )?;
 
-    client::move_file(
+    client::move_file::send(
         api_loc(),
         &MoveFileRequest {
             username: account.username.clone(),
@@ -87,7 +86,9 @@ fn move_file_file_not_found() -> Result<(), TestError> {
 fn test_move_file_file_not_found() {
     assert_matches!(
         move_file_file_not_found(),
-        Err(TestError::MoveFileError(MoveFileError::FileNotFound))
+        Err(TestError::MoveFileError(move_file::Error::API(
+            MoveFileError::FileNotFound
+        )))
     );
 }
 
@@ -95,7 +96,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -104,7 +105,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -116,7 +117,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::delete_file(
+    client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
@@ -125,7 +126,7 @@ fn move_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::move_file(
+    client::move_file::send(
         api_loc(),
         &MoveFileRequest {
             username: account.username.clone(),
@@ -142,7 +143,9 @@ fn move_file_file_deleted() -> Result<(), TestError> {
 fn test_move_file_file_deleted() {
     assert_matches!(
         move_file_file_deleted(),
-        Err(TestError::MoveFileError(MoveFileError::FileDeleted))
+        Err(TestError::MoveFileError(move_file::Error::API(
+            MoveFileError::FileDeleted
+        )))
     );
 }
 
@@ -151,7 +154,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
     let file_id_a = generate_file_id();
     let file_id_b = generate_file_id();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -160,7 +163,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -172,7 +175,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -184,7 +187,7 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
         },
     )?;
 
-    client::move_file(
+    client::move_file::send(
         api_loc(),
         &MoveFileRequest {
             username: account.username.clone(),
@@ -201,6 +204,8 @@ fn move_file_file_path_taken() -> Result<(), TestError> {
 fn test_move_file_file_path_taken() {
     assert_matches!(
         move_file_file_path_taken(),
-        Err(TestError::MoveFileError(MoveFileError::FilePathTaken))
+        Err(TestError::MoveFileError(move_file::Error::API(
+            MoveFileError::FilePathTaken
+        )))
     );
 }

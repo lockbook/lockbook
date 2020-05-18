@@ -1,12 +1,12 @@
 use crate::config::IndexDbConfig;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
-use postgres::config::Config as PostgresConfig;
-use postgres::Client as PostgresClient;
-use postgres::NoTls;
 use postgres_openssl::MakeTlsConnector;
 use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
+use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Config as PostgresConfig;
+use tokio_postgres::NoTls;
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,7 +14,7 @@ pub enum Error {
     PostgresConnectionFailed(PostgresError),
 }
 
-pub fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
+pub async fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
     let mut postgres_config = PostgresConfig::new();
     postgres_config
         .user(config.user)
@@ -24,29 +24,48 @@ pub fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
         .dbname(config.db);
 
     match config.cert {
-        "" => connect_no_tls(&postgres_config),
-        cert => connect_with_tls(&postgres_config, &cert),
+        "" => connect_no_tls(&postgres_config).await,
+        cert => connect_with_tls(&postgres_config, &cert).await,
     }
 }
 
-fn connect_no_tls(postgres_config: &PostgresConfig) -> Result<PostgresClient, Error> {
-    match postgres_config.connect(NoTls) {
-        Ok(connection) => Ok(connection),
+async fn connect_no_tls(postgres_config: &PostgresConfig) -> Result<PostgresClient, Error> {
+    match postgres_config.connect(NoTls).await {
+        Ok((client, connection)) => {
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    panic!("connection error: {}", e);
+                }
+            });
+            Ok(client)
+        }
         Err(err) => Err(Error::PostgresConnectionFailed(err)),
     }
 }
 
-fn connect_with_tls(postgres_config: &PostgresConfig, cert: &str) -> Result<PostgresClient, Error> {
+async fn connect_with_tls(
+    postgres_config: &PostgresConfig,
+    cert: &str,
+) -> Result<PostgresClient, Error> {
     let mut builder = match SslConnector::builder(SslMethod::tls()) {
         Ok(builder) => builder,
         Err(err) => return Err(Error::OpenSslFailed(err)),
     };
-    match builder.set_ca_file(cert) {
-        Ok(()) => {}
-        Err(err) => return Err(Error::OpenSslFailed(err)),
-    };
-    match postgres_config.connect(MakeTlsConnector::new(builder.build())) {
-        Ok(connection) => Ok(connection),
+    builder
+        .set_ca_file(cert)
+        .map_err(|e| Error::OpenSslFailed(e))?;
+    match postgres_config
+        .connect(MakeTlsConnector::new(builder.build()))
+        .await
+    {
+        Ok((client, connection)) => {
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    panic!("connection error: {}", e);
+                }
+            });
+            Ok(client)
+        }
         Err(err) => Err(Error::PostgresConnectionFailed(err)),
     }
 }
