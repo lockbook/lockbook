@@ -108,9 +108,9 @@ impl<
             .into_iter()
             .for_each(|file| {
                 server_dirty_files.insert(file.clone().file_id, file.clone());
-            if file.file_metadata_version > most_recent_update_from_server {
-                most_recent_update_from_server = file.file_metadata_version;
-            }
+                if file.file_metadata_version > most_recent_update_from_server {
+                    most_recent_update_from_server = file.file_metadata_version;
+                }
             });
 
         let mut work_units: Vec<WorkUnit> = vec![];
