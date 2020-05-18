@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::client::{
-    ChangeFileContentRequest, Client, CreateFileRequest, DeleteFileRequest, GetFileRequest,
-    GetUpdatesRequest, MoveFileRequest, RenameFileRequest, ServerFileMetadata,
-};
+use crate::client::Client;
+use crate::model::api::FileMetadata as ServerFileMetadata;
+
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
@@ -31,7 +30,7 @@ error_enum! {
     enum CalculateWorkError {
         AccountRetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::Error),
-        ApiError(client::GetUpdatesError),
+        ApiError(client::get_updates::Error),
     }
 }
 
@@ -40,13 +39,13 @@ error_enum! {
         RetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::Error),
         FileContentError(repo::file_repo::Error),
-        GetUpdatesError(client::GetUpdatesError),
-        CreateFileError(client::CreateFileError),
-        GetFileError(client::GetFileError),
-        RenameFileError(client::RenameFileError),
-        MoveFileError(client::MoveFileError),
-        DeleteFileError(client::DeleteFileError),
-        ChangeFileContentError(client::ChangeFileContentError),
+        GetUpdatesError(client::get_updates::Error),
+        CreateFileError(client::create_file::Error),
+        GetFileError(client::get_file::Error),
+        RenameFileError(client::rename_file::Error),
+        MoveFileError(client::move_file::Error),
+        DeleteFileError(client::delete_file::Error),
+        ChangeFileContentError(client::change_file_content::Error),
         AuthError(service::auth_service::AuthGenError),
         SerdeError(serde_json::Error),
     }
@@ -105,18 +104,14 @@ impl<
         let mut most_recent_update_from_server: u64 = 0;
 
         let mut server_dirty_files = HashMap::new();
-        ApiClient::get_updates(&GetUpdatesRequest {
-            username: account.username,
-            auth: "junk auth :(".to_string(),
-            since_version: last_sync,
-        })?
-        .into_iter()
-        .for_each(|file| {
-            server_dirty_files.insert(file.clone().file_id, file.clone());
+        ApiClient::get_updates(account.username, "junk auth :(".to_string(), last_sync)?
+            .into_iter()
+            .for_each(|file| {
+                server_dirty_files.insert(file.clone().file_id, file.clone());
             if file.file_metadata_version > most_recent_update_from_server {
                 most_recent_update_from_server = file.file_metadata_version;
             }
-        });
+            });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -173,14 +168,14 @@ impl<
                 let mut client = client.clone();
                 let file_content = FileDb::get(&db, &client.file_id)?;
 
-                let new_version = ApiClient::create_file(&CreateFileRequest {
-                    username: account.username.to_string(),
-                    auth: Auth::generate_auth(&account)?,
-                    file_id: client.file_id.clone(),
-                    file_name: client.file_name.clone(),
-                    file_path: client.file_path.clone(),
-                    file_content: serde_json::to_string(&file_content)?,
-                })?;
+                let new_version = ApiClient::create_file(
+                    account.username.to_string(),
+                    Auth::generate_auth(&account)?,
+                    client.file_id.clone(),
+                    client.file_name.clone(),
+                    client.file_path.clone(),
+                    serde_json::to_string(&file_content)?,
+                )?;
 
                 client.file_content_version = new_version;
                 client.new_file = false;
@@ -203,9 +198,7 @@ impl<
                 Ok(())
             }
             PullFileContent(new_metadata) => {
-                let file = ApiClient::get_file(&GetFileRequest {
-                    file_id: new_metadata.file_id.clone(),
-                })?;
+                let file = ApiClient::get_file(new_metadata.file_id.clone())?;
 
                 FileDb::update(&db, &new_metadata.file_id, &file)?;
 
@@ -245,19 +238,19 @@ impl<
             PushMetadata(client) => {
                 let mut metadata = client.clone();
                 // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
-                ApiClient::rename_file(&RenameFileRequest {
-                    username: account.username.clone(),
-                    auth: Auth::generate_auth(&account)?,
-                    file_id: client.clone().file_id,
-                    new_file_name: metadata.file_name.clone(),
-                })?;
+                ApiClient::rename_file(
+                    account.username.clone(),
+                    Auth::generate_auth(&account)?,
+                    client.clone().file_id,
+                    metadata.file_name.clone(),
+                )?;
 
-                ApiClient::move_file(&MoveFileRequest {
-                    username: account.username.clone(),
-                    auth: Auth::generate_auth(&account)?,
-                    file_id: client.clone().file_id,
-                    new_file_path: metadata.file_path.clone(),
-                })?;
+                ApiClient::move_file(
+                    account.username.clone(),
+                    Auth::generate_auth(&account)?,
+                    metadata.file_id.clone(),
+                    metadata.file_path.clone(),
+                )?;
 
                 metadata.metadata_edited_locally = false;
                 FileMetadataDb::update(&db, &metadata)?;
@@ -269,13 +262,13 @@ impl<
                 let mut old_file_metadata = client.clone();
                 let file_content = FileDb::get(&db, &client.file_id)?;
 
-                let new_version = ApiClient::change_file(&ChangeFileContentRequest {
-                    username: account.username.clone(),
-                    auth: Auth::generate_auth(&account)?,
-                    file_id: client.clone().file_id,
-                    old_file_version: old_file_metadata.file_content_version,
-                    new_file_content: serde_json::to_string(&file_content)?,
-                })?; // TODO the thing you're not handling is EditConflict!
+                let new_version = ApiClient::change_file_content(
+                    account.username.clone(),
+                    Auth::generate_auth(&account)?,
+                    client.file_id.clone(),
+                    client.file_content_version,
+                    serde_json::to_string(&file_content)?,
+                )?; // TODO the thing you're not handling is EditConflict!
 
                 old_file_metadata.file_content_version = new_version;
                 old_file_metadata.content_edited_locally = false;
@@ -285,11 +278,11 @@ impl<
                 Ok(())
             }
             PushDelete(client) => {
-                ApiClient::delete_file(&DeleteFileRequest {
-                    username: account.username.clone(),
-                    auth: Auth::generate_auth(&account)?,
-                    file_id: client.clone().file_id,
-                })?;
+                ApiClient::delete_file(
+                    account.username.clone(),
+                    Auth::generate_auth(&account)?,
+                    client.clone().file_id,
+                )?;
 
                 FileMetadataDb::delete(&db, &client.file_id)?;
                 FileDb::delete(&db, &client.file_id)?;
@@ -298,9 +291,7 @@ impl<
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                let file = ApiClient::get_file(&GetFileRequest {
-                    file_id: new_metadata.file_id.clone(),
-                })?;
+                let file = ApiClient::get_file(new_metadata.file_id.clone())?;
 
                 FileDb::update(&db, &new_metadata.file_id, &file)?;
 
