@@ -9,7 +9,6 @@ use crate::repo::account_repo::AccountRepo;
 use crate::service::auth_service::AuthGenError;
 use crate::service::auth_service::AuthService;
 use crate::service::crypto_service::PubKeyCryptoService;
-use crate::service::logging_service::Logger;
 use sled::Db;
 
 error_enum! {

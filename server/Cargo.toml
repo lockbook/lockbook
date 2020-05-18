@@ -16,3 +16,5 @@ lockbook_core = { path = "../core" }
 hyper = "0.13.5"
 tokio = { version = "0.2.18", features = ["full"] }
 rsa = { version = "^0.2", features = ["serde1"] }
+env_logger = "0.7.1"
+log = "0.4.8"
