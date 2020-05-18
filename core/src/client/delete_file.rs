@@ -1,56 +1,33 @@
+use crate::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
-pub enum DeleteFileError {
+pub enum Error {
+    Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
-    InvalidAuth,
-    ExpiredAuth,
-    FileNotFound,
-    FileDeleted,
-    Unspecified,
+    Deserialize(serde_json::error::Error),
+    API(DeleteFileError),
 }
 
-pub struct DeleteFileRequest {
-    pub username: String,
-    pub auth: String,
-    pub file_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct DeleteFileResponse {
-    pub error_code: String,
-}
-
-pub fn delete_file(
+pub fn send(
     api_location: String,
-    params: &DeleteFileRequest,
-) -> Result<(), DeleteFileError> {
+    request: &DeleteFileRequest,
+) -> Result<DeleteFileResponse, Error> {
     let client = Client::new();
-    let form_params = [
-        ("username", params.username.as_str()),
-        ("auth", params.auth.as_str()),
-        ("file_id", params.file_id.as_str()),
-    ];
-    let response = client
+    let serialized_request = serde_json::to_string(&request).map_err(|e| Error::Serialize(e))?;
+    let serialized_response = client
         .delete(format!("{}/delete-file", api_location).as_str())
-        .form(&form_params)
+        .body(serialized_request)
         .send()
-        .map_err(|err| DeleteFileError::SendFailed(err))?;
+        .map_err(|e| Error::SendFailed(e))?
+        .text()
+        .map_err(|e| Error::ReceiveFailed(e))?;
+    let response = serde_json::from_str(&serialized_response).map_err(|e| Error::Deserialize(e))?;
 
-    let status = response.status().clone();
-    let response_body = response
-        .json::<DeleteFileResponse>()
-        .map_err(|err| DeleteFileError::ReceiveFailed(err))?;
-
-    match (status.as_u16(), response_body.error_code.as_str()) {
-        (200..=299, _) => Ok(()),
-        (401, "invalid_auth") => Err(DeleteFileError::InvalidAuth),
-        (401, "expired_auth") => Err(DeleteFileError::ExpiredAuth),
-        (404, "file_not_found") => Err(DeleteFileError::FileNotFound),
-        (410, "file_deleted") => Err(DeleteFileError::FileDeleted),
-        _ => Err(DeleteFileError::Unspecified),
+    match response {
+        Ok(r) => Ok(r),
+        Err(e) => Err(Error::API(e)),
     }
 }
