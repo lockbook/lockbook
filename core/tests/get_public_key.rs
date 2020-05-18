@@ -6,7 +6,8 @@ use crate::utils::{api_loc, generate_account, TestError};
 #[macro_use]
 pub mod utils;
 use lockbook_core::client;
-use lockbook_core::client::{GetPublicKeyError, GetPublicKeyRequest, NewAccountRequest};
+use lockbook_core::client::get_public_key;
+use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, NewAccountRequest};
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;
@@ -14,7 +15,7 @@ use lockbook_core::service::crypto_service::RsaImpl;
 fn get_public_key() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account(
+    client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
@@ -23,7 +24,7 @@ fn get_public_key() -> Result<(), TestError> {
         },
     )?;
 
-    client::get_public_key(
+    client::get_public_key::send(
         api_loc(),
         &GetPublicKeyRequest {
             username: account.username.clone(),
@@ -41,7 +42,7 @@ fn test_get_public_key() {
 fn get_public_key_invalid() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::get_public_key(
+    client::get_public_key::send(
         api_loc(),
         &GetPublicKeyRequest {
             username: account.username.clone(),
@@ -55,8 +56,8 @@ fn get_public_key_invalid() -> Result<(), TestError> {
 fn test_get_public_key_invalid() {
     assert_matches!(
         get_public_key_invalid(),
-        Err(TestError::GetPublicKeyError(
-            GetPublicKeyError::UsernameNotFound
-        ))
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::UserNotFound
+        )))
     );
 }

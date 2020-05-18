@@ -1,4 +1,4 @@
-use crate::client::ServerFileMetadata;
+use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use serde::Serialize;
 

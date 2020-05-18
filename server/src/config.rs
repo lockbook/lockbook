@@ -1,10 +1,3 @@
-use std::sync::Mutex;
-
-pub struct ServerState {
-    pub index_db_client: Mutex<postgres::Client>,
-    pub files_db_client: Mutex<s3::bucket::Bucket>,
-}
-
 pub struct IndexDbConfig {
     pub user: &'static str,
     pub pass: &'static str,
