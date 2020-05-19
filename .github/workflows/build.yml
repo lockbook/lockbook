@@ -111,13 +111,13 @@ jobs:
       with:
         toolchain: nightly
         command: build
-        args: --manifest-path {{ working-directory ~ "/Cargo.toml" }}
+        args: --manifest-path clients/cli/Cargo.toml
     - name: Test
       uses: actions-rs/cargo@v1.0.1
       with:
         toolchain: nightly
         command: test
-        args: --manifest-path {{ working-directory ~ "/Cargo.toml" }} --verbose
+        args: --manifest-path clients/cli/Cargo.toml --verbose
     - name: Slack Notification
       uses: 8398a7/action-slack@v3
       with:
