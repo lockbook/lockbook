@@ -2,17 +2,22 @@ FROM rust
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install nightly-2020-05-15
 RUN rustup override set nightly
-WORKDIR core
+WORKDIR cli
 
+# CLI depends on core via a relative import
+COPY core ../core
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
-COPY containers/dummy.rs src/lib.rs
-COPY core/Cargo.toml .
-COPY core/Cargo.lock .
+COPY containers/dummy.rs src/main.rs
+COPY clients/cli/Cargo.toml .
+COPY clients/cli/Cargo.lock .
 RUN cargo build
 
 # Build our source
-COPY core .
+COPY clients/cli .
 # Cargo thinks this file hasn't changed on the filesystem
-RUN touch src/lib.rs
+RUN touch src/main.rs
+
+# Compile time env vars TODO make these runtime env vars
 RUN cargo build
+RUN ./target/debug/lockbook
