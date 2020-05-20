@@ -8,4 +8,4 @@ RUN cargo build
 
 COPY . .
 RUN cat src/lib.rs > src/lib.rs
-RUN cargo build --color auto
+RUN cargo build
