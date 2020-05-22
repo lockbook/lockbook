@@ -4,8 +4,9 @@ mod import;
 mod init;
 mod list;
 mod new;
-mod utils;
 mod status;
+mod sync;
+mod utils;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -58,7 +59,7 @@ fn main() {
     let args: Lockbook = Lockbook::from_args();
     match args {
         Lockbook::New => new::new(),
-        Lockbook::Sync => unimplemented!(),
+        Lockbook::Sync => sync::sync(),
         Lockbook::Edit => unimplemented!(),
         Lockbook::Browse => unimplemented!(),
         Lockbook::Remove => unimplemented!(),
