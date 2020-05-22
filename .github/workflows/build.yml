@@ -18,7 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Hydrate Cache
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN && docker pull docker.pkg.github.com/lockbook/lockbook/core
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN && docker pull docker.pkg.github.com/lockbook/lockbook/core:3388bca
     - name: Compile
       run: make core
     - name: Test
