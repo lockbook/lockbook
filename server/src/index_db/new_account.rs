@@ -1,7 +1,6 @@
-use postgres::Client as PostgresClient;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
+use tokio_postgres::Client as PostgresClient;
 
 #[derive(Debug)]
 pub enum Error {
@@ -18,14 +17,16 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub fn new_account(
+pub async fn new_account(
     client: &mut PostgresClient,
     username: &String,
     public_key: &String,
 ) -> Result<(), Error> {
-    client.execute(
-        "INSERT INTO users (username, public_key) VALUES ($1, $2);",
-        &[&username, &public_key],
-    )?;
+    client
+        .execute(
+            "INSERT INTO users (username, public_key) VALUES ($1, $2);",
+            &[&username, &public_key],
+        )
+        .await?;
     Ok(())
 }

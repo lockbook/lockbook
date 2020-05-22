@@ -1,65 +1,35 @@
+use crate::model::api::{
+    ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
+};
 use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
-pub enum ChangeFileContentError {
+pub enum Error {
+    Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
-    InvalidAuth,
-    ExpiredAuth,
-    FileNotFound,
-    EditConflict(u64),
-    FileDeleted,
-    Unspecified,
+    Deserialize(serde_json::error::Error),
+    API(ChangeFileContentError),
 }
 
-pub struct ChangeFileContentRequest {
-    pub username: String,
-    pub auth: String,
-    pub file_id: String,
-    pub old_file_version: u64,
-    pub new_file_content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub struct ChangeFileContentResponse {
-    pub error_code: String,
-    pub current_version: u64,
-}
-
-pub fn change_file_content(
+pub fn send(
     api_location: String,
-    params: &ChangeFileContentRequest,
-) -> Result<u64, ChangeFileContentError> {
+    request: &ChangeFileContentRequest,
+) -> Result<ChangeFileContentResponse, Error> {
     let client = Client::new();
-    let form_params = [
-        ("username", params.username.as_str()),
-        ("auth", params.auth.as_str()),
-        ("file_id", params.file_id.as_str()),
-        ("old_file_version", &params.old_file_version.to_string()),
-        ("new_file_content", params.new_file_content.as_str()),
-    ];
-    let response = client
+    let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
+    let serialized_response = client
         .put(format!("{}/change-file-content", api_location).as_str())
-        .form(&form_params)
+        .body(serialized_request)
         .send()
-        .map_err(ChangeFileContentError::SendFailed)?;
+        .map_err(Error::SendFailed)?
+        .text()
+        .map_err(Error::ReceiveFailed)?;
+    let response = serde_json::from_str(&serialized_response).map_err(Error::Deserialize)?;
 
-    let status = response.status();
-    let response_body = response
-        .json::<ChangeFileContentResponse>()
-        .map_err(ChangeFileContentError::ReceiveFailed)?;
-
-    match (status.as_u16(), response_body.error_code.as_str()) {
-        (200..=299, _) => Ok(response_body.current_version),
-        (401, "invalid_auth") => Err(ChangeFileContentError::InvalidAuth),
-        (401, "expired_auth") => Err(ChangeFileContentError::ExpiredAuth),
-        (404, "file_not_found") => Err(ChangeFileContentError::FileNotFound),
-        (409, "edit_conflict") => Err(ChangeFileContentError::EditConflict(
-            response_body.current_version,
-        )),
-        (410, "file_deleted") => Err(ChangeFileContentError::FileDeleted),
-        _ => Err(ChangeFileContentError::Unspecified),
+    match response {
+        Ok(r) => Ok(r),
+        Err(e) => Err(Error::API(e)),
     }
 }

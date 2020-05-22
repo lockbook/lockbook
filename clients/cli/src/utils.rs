@@ -4,9 +4,15 @@ use lockbook_core::model::state::Config;
 
 use lockbook_core::repo::db_provider::DbProvider;
 
+use chrono::Duration;
+use chrono_human_duration::ChronoHumanDuration;
 use lockbook_core::model::account::Account;
 use lockbook_core::repo::account_repo::{AccountRepo, Error};
-use lockbook_core::{Db, DefaultAccountRepo, DefaultDbProvider};
+use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+use lockbook_core::service::clock_service::Clock;
+use lockbook_core::{
+    Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
+};
 
 pub fn connect_to_db() -> Db {
     // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
@@ -30,11 +36,30 @@ pub fn get_account(db: &Db) -> Account {
                 panic!("No account found, run init, import or help. Error: {}", err)
             }
             Error::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            Error::AccountMissing(err) => panic!("No account found, run init, import or help. Error: {:?}", err),
+            Error::AccountMissing(err) => panic!(
+                "No account found, run init, import or help. Error: {:?}",
+                err
+            ),
         },
     }
 }
 
 pub fn get_editor() -> String {
     env::var("VISUAL").unwrap_or(env::var("EDITOR").unwrap_or("vi".to_string()))
+}
+
+pub fn print_last_successful_sync(db: &Db) {
+    let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
+        .expect("Failed to retrieve content from FileMetadataRepo");
+
+    let duration = if last_updated != 0 {
+        let duration = Duration::milliseconds(
+            (DefaultClock::get_time() as u64 - (last_updated / 1000)) as i64,
+        );
+        duration.format_human().to_string()
+    } else {
+        "never".to_string()
+    };
+
+    println!("Last successful sync: {}", duration);
 }

@@ -4,14 +4,14 @@ use std::env;
 
 use uuid::Uuid;
 
-use lockbook_core::client::ChangeFileContentError;
-use lockbook_core::client::CreateFileError;
-use lockbook_core::client::DeleteFileError;
-use lockbook_core::client::GetPublicKeyError;
-use lockbook_core::client::GetUpdatesError;
-use lockbook_core::client::MoveFileError;
-use lockbook_core::client::NewAccountError;
-use lockbook_core::client::RenameFileError;
+use lockbook_core::client::change_file_content;
+use lockbook_core::client::create_file;
+use lockbook_core::client::delete_file;
+use lockbook_core::client::get_public_key;
+use lockbook_core::client::get_updates;
+use lockbook_core::client::move_file;
+use lockbook_core::client::new_account;
+use lockbook_core::client::rename_file;
 use lockbook_core::model::account::Account;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
@@ -53,60 +53,60 @@ macro_rules! assert_matches (
 
 #[derive(Debug)]
 pub enum TestError {
-    NewAccountError(NewAccountError),
-    CreateFileError(CreateFileError),
-    ChangeFileContentError(ChangeFileContentError),
-    RenameFileError(RenameFileError),
-    MoveFileError(MoveFileError),
-    DeleteFileError(DeleteFileError),
-    GetUpdatesError(GetUpdatesError),
-    GetPublicKeyError(GetPublicKeyError),
+    NewAccountError(new_account::Error),
+    CreateFileError(create_file::Error),
+    ChangeFileContentError(change_file_content::Error),
+    RenameFileError(rename_file::Error),
+    MoveFileError(move_file::Error),
+    DeleteFileError(delete_file::Error),
+    GetUpdatesError(get_updates::Error),
+    GetPublicKeyError(get_public_key::Error),
 }
 
-impl From<NewAccountError> for TestError {
-    fn from(e: NewAccountError) -> TestError {
+impl From<new_account::Error> for TestError {
+    fn from(e: new_account::Error) -> TestError {
         TestError::NewAccountError(e)
     }
 }
 
-impl From<CreateFileError> for TestError {
-    fn from(e: CreateFileError) -> TestError {
+impl From<create_file::Error> for TestError {
+    fn from(e: create_file::Error) -> TestError {
         TestError::CreateFileError(e)
     }
 }
 
-impl From<ChangeFileContentError> for TestError {
-    fn from(e: ChangeFileContentError) -> TestError {
+impl From<change_file_content::Error> for TestError {
+    fn from(e: change_file_content::Error) -> TestError {
         TestError::ChangeFileContentError(e)
     }
 }
 
-impl From<RenameFileError> for TestError {
-    fn from(e: RenameFileError) -> TestError {
+impl From<rename_file::Error> for TestError {
+    fn from(e: rename_file::Error) -> TestError {
         TestError::RenameFileError(e)
     }
 }
 
-impl From<MoveFileError> for TestError {
-    fn from(e: MoveFileError) -> TestError {
+impl From<move_file::Error> for TestError {
+    fn from(e: move_file::Error) -> TestError {
         TestError::MoveFileError(e)
     }
 }
 
-impl From<DeleteFileError> for TestError {
-    fn from(e: DeleteFileError) -> TestError {
+impl From<delete_file::Error> for TestError {
+    fn from(e: delete_file::Error) -> TestError {
         TestError::DeleteFileError(e)
     }
 }
 
-impl From<GetUpdatesError> for TestError {
-    fn from(e: GetUpdatesError) -> TestError {
+impl From<get_updates::Error> for TestError {
+    fn from(e: get_updates::Error) -> TestError {
         TestError::GetUpdatesError(e)
     }
 }
 
-impl From<GetPublicKeyError> for TestError {
-    fn from(e: GetPublicKeyError) -> TestError {
+impl From<get_public_key::Error> for TestError {
+    fn from(e: get_public_key::Error) -> TestError {
         TestError::GetPublicKeyError(e)
     }
 }
