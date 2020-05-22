@@ -1,36 +1,33 @@
+use crate::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use reqwest::blocking::Client;
 use reqwest::Error as ReqwestError;
-use rsa::RSAPublicKey;
 
 #[derive(Debug)]
-pub enum GetPublicKeyError {
-    UsernameNotFound,
+pub enum Error {
+    Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
-    InvalidPublicKey,
-    Unspecified,
+    Deserialize(serde_json::error::Error),
+    API(GetPublicKeyError),
 }
 
-pub struct GetPublicKeyRequest {
-    pub username: String,
-}
-
-pub fn get_public_key(
+pub fn send(
     api_location: String,
-    params: &GetPublicKeyRequest,
-) -> Result<RSAPublicKey, GetPublicKeyError> {
+    request: &GetPublicKeyRequest,
+) -> Result<GetPublicKeyResponse, Error> {
     let client = Client::new();
-    let response = client
-        .get(format!("{}/get-public-key/{}", api_location, params.username).as_str())
+    let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
+    let serialized_response = client
+        .get(format!("{}/get-public-key", api_location).as_str())
+        .body(serialized_request)
         .send()
-        .map_err(GetPublicKeyError::SendFailed)?;
+        .map_err(Error::SendFailed)?
+        .text()
+        .map_err(Error::ReceiveFailed)?;
+    let response = serde_json::from_str(&serialized_response).map_err(Error::Deserialize)?;
 
-    match response.status().as_u16() {
-        200..=299 => Ok(response
-            .json::<RSAPublicKey>()
-            .map_err(GetPublicKeyError::ReceiveFailed)?),
-        404 => Err(GetPublicKeyError::UsernameNotFound),
-        409 => Err(GetPublicKeyError::InvalidPublicKey),
-        _ => Err(GetPublicKeyError::Unspecified),
+    match response {
+        Ok(r) => Ok(r),
+        Err(e) => Err(Error::API(e)),
     }
 }
