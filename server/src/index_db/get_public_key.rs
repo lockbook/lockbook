@@ -16,7 +16,7 @@ pub async fn get_public_key(
     match client
         .query_one(
             "SELECT public_key FROM users WHERE username = $1;",
-            &[&username],
+            &[&username.to_lowercase()],
         )
         .await
     {

@@ -28,7 +28,7 @@ pub async fn get_file_metadata(
     match client.query_one(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_id = $2;",
-        &[&username, &file_id],
+        &[&username.to_lowercase(), &file_id],
     ).await {
         Ok(row) => Ok(to_file_metadata(&row)),
         Err(err) => Err(Error::Postgres(err)),

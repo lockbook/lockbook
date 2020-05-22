@@ -17,7 +17,7 @@ pub async fn get_updates(
     match client.query(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_metadata_version > $2",
-        &[&username, &metadata_version],
+        &[&username.to_lowercase(), &metadata_version],
     ).await {
         Ok(rows) => Ok(rows.iter().map(to_file_metadata).collect()),
         Err(err) => Err(Error::Postgres(err)),
