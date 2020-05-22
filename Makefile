@@ -1,6 +1,6 @@
 .PHONY: core
 core: is_docker_running
-	@docker build -f containers/Dockerfile.core . --tag core:$(hash) 
+	@echo hi
 
 .PHONY: cargo_fmt
 core_fmt:
