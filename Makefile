@@ -25,3 +25,4 @@ is_docker_running:
 	
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
+
