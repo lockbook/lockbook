@@ -19,8 +19,9 @@ pub async fn get_public_key(
         )
         .await
     {
-        Ok(row) => Ok(serde_json::from_str(row.get("public_key"))
-            .map_err(Error::SerializationError)?),
+        Ok(row) => {
+            Ok(serde_json::from_str(row.get("public_key")).map_err(Error::SerializationError)?)
+        }
         Err(e) => Err(Error::Postgres(e)),
     }
 }
