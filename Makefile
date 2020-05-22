@@ -2,13 +2,16 @@
 core: is_docker_running
 	@docker build -f containers/Dockerfile.core . --tag core:$(hash) 
 
+.PHONY: cargo_fmt
 core_fmt: core
 	@echo The following files need formatting:
 	@docker run core:$(hash) cargo +stable fmt -- --check -l
 
+.PHONY: cargo_test
 core_test: core
 	@docker run core:$(hash) cargo test --lib
 
+.PHONY: cargo_push
 core_push: core
 	@docker tag core:$(hash) docker.pkg.github.com/lockbook/lockbook/core:$(hash)
 	@docker push docker.pkg.github.com/lockbook/lockbook/core:$(hash)
