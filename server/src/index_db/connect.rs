@@ -50,9 +50,7 @@ async fn connect_with_tls(
         Ok(builder) => builder,
         Err(err) => return Err(Error::OpenSslFailed(err)),
     };
-    builder
-        .set_ca_file(cert)
-        .map_err(Error::OpenSslFailed)?;
+    builder.set_ca_file(cert).map_err(Error::OpenSslFailed)?;
     match postgres_config
         .connect(MakeTlsConnector::new(builder.build()))
         .await

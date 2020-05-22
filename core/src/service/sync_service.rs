@@ -468,10 +468,9 @@ fn calculate_work_across_server_and_client(
             MergeMetadataAndPushMetadata(server.clone()),
             PullMergePush(server),
         ],
-        (false, true, false, true, true, true) => vec![
-            PullMergePush(server.clone()),
-            UpdateLocalMetadata(server),
-        ],
+        (false, true, false, true, true, true) => {
+            vec![PullMergePush(server.clone()), UpdateLocalMetadata(server)]
+        }
         (false, false, true, true, true, true) => vec![DeleteLocally(client)],
         (true, true, true, true, true, false) => vec![DeleteLocally(client)],
         (true, true, true, true, false, true) => vec![DeleteLocally(client)],
