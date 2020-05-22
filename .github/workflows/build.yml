@@ -16,15 +16,8 @@ jobs:
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
     steps:
     - uses: actions/checkout@v2
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: nightly
-
-          override: true
-    - name: Lint
-      run: cargo +stable fmt -- --check -l
-      working-directory: ${{env.working-directory}}
+    - name: Build Container
+      run: make core
     - name: Build
       uses: actions-rs/cargo@v1.0.1
       with:
