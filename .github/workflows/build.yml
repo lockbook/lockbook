@@ -18,18 +18,12 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build Container
       run: make core
-    - name: Build
-      uses: actions-rs/cargo@v1.0.1
-      with:
-        toolchain: nightly
-        command: build
-        args: --manifest-path core/Cargo.toml
     - name: Test
-      uses: actions-rs/cargo@v1.0.1
-      with:
-        toolchain: nightly
-        command: test
-        args: --manifest-path core/Cargo.toml --verbose --all --no-fail-fast
+      run: make core_test
+    - name: Check formatting
+      run: make core_fmt
+    - name: Push Container
+      run: make core_push
     - name: Slack Notification
       uses: 8398a7/action-slack@v3
       with:
