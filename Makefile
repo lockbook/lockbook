@@ -1,6 +1,6 @@
 .PHONY: core
 core: is_docker_running
-	@docker build -f containers/Dockerfile.core . --tag core:$(hash) 
+	@docker build --cache-from core:3388bca -f containers/Dockerfile.core . --tag core:$(hash) 
 
 .PHONY: cargo_fmt
 core_fmt: core
