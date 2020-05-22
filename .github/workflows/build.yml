@@ -14,6 +14,7 @@ jobs:
     env:
       working-directory: ./core
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
     steps:
     - uses: actions/checkout@v2
     - name: Login
@@ -24,7 +25,8 @@ jobs:
     - name: Lint
       run: make core_fmt
     - name: Push
-      run: docker login docker.pkg.github.com -u Github_Actions -p ${{ secrets.GITHUB_TOKEN}} && make core_push
+      uses: 
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN && make core_push
     - name: Notify
       uses: 8398a7/action-slack@v3
       with:
