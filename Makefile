@@ -1,18 +1,18 @@
 .PHONY: core
 core: is_docker_running
-	@docker build --cache-from core:3388bca -f containers/Dockerfile.core . --tag core:$(hash) 
+	@docker build -f containers/Dockerfile.core . --tag core:$(hash) 
 
 .PHONY: cargo_fmt
-core_fmt: core
+core_fmt:
 	@echo The following files need formatting:
 	@docker run core:$(hash) cargo +stable fmt -- --check -l
 
 .PHONY: cargo_test
-core_test: core
+core_test:
 	@docker run core:$(hash) cargo test --lib
 
 .PHONY: cargo_push
-core_push: core
+core_push:
 	@docker tag core:$(hash) docker.pkg.github.com/lockbook/lockbook/core:$(hash)
 	@docker push docker.pkg.github.com/lockbook/lockbook/core:$(hash)
 
