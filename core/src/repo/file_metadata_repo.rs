@@ -5,6 +5,13 @@ use crate::model::client_file_metadata::ClientFileMetadata;
 use sled::Db;
 
 error_enum! {
+    enum DbError {
+        SledError(sled::Error),
+        SerdeError(serde_json::Error),
+    }
+}
+
+error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
@@ -15,8 +22,9 @@ error_enum! {
 pub trait FileMetadataRepo {
     fn insert_new_file(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, Error>;
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error>;
+    fn maybe_get(db: &Db, id: &String) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error>;
-    fn set_last_updated(db: &Db, last_updated: &u64) -> Result<(), Error>;
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
@@ -45,6 +53,18 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata.clone())
     }
 
+    fn maybe_get(db: &Db, id: &String) -> Result<Option<ClientFileMetadata>, DbError> {
+        let tree = db.open_tree(FILE_METADATA)?;
+        let maybe_value = tree.get(id.as_bytes())?;
+        match maybe_value {
+            None => Ok(None),
+            Some(value) => {
+                let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref())?;
+                Ok(Some(file_metadata))
+            }
+        }
+    }
+
     fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         let maybe_value = tree.get(id.as_bytes())?;
@@ -54,7 +74,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata)
     }
 
-    fn set_last_updated(db: &Db, last_updated: &u64) -> Result<(), Error> {
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
         let tree = db.open_tree(LAST_UPDATED)?;
         tree.insert(LAST_UPDATED, serde_json::to_vec(&last_updated)?)?;
         Ok(())
