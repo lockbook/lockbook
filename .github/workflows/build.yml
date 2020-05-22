@@ -24,7 +24,7 @@ jobs:
       run: make core_test
     - name: Lint
       run: make core_fmt
-    - name: Login
+    - name: Push
       run: make core_push
     - name: Notify
       uses: 8398a7/action-slack@v3
