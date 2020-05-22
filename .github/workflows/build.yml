@@ -25,7 +25,7 @@ jobs:
     - name: Lint
       run: make core_fmt
     - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+      run: docker login docker.pkg.github.com -u Github_Actions -p test
     - name: Notify
       uses: 8398a7/action-slack@v3
       with:
