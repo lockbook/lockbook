@@ -92,12 +92,6 @@ jobs:
         if: always()
   CLI:
     runs-on: ubuntu-latest
-    env:
-      working-directory: 
-      LOCKBOOK_CLI_LOCATION: ${{ secrets.LOCKBOOK_CLI_LOCATION }}
-      HOME: ${{ secrets.HOME }}
-      VISUAL: ${{ secrets.VISUAL }}
-      EDITOR: ${{ secrets.EDITOR }}
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
