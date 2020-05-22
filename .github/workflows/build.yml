@@ -93,7 +93,7 @@ jobs:
   CLI:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./clients/cli
+      working-directory: ./clients/cli/
     steps:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
@@ -101,7 +101,7 @@ jobs:
           toolchain: nightly
           override: true
       - name: Lint
-        run: cargo +stable fmt --quiet -- --check
+        run: cargo +stable fmt -- --check
         working-directory: ${{env.working-directory}}
       - name: Build
         uses: actions-rs/cargo@v1.0.1
