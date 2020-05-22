@@ -32,7 +32,7 @@ jobs:
         command: build
         args: --manifest-path core/Cargo.toml
     - name: Clippy
-    - uses: actions-rs/clippy-check@v1
+    - uses: actions-rs/clippy-check@v1.0.5
       with:
         args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
       working-directory: ${{env.working-directory}}
@@ -83,7 +83,7 @@ jobs:
           command: build
           args: --manifest-path server/Cargo.toml
       - name: Clippy
-      - uses: actions-rs/clippy-check@v1
+      - uses: actions-rs/clippy-check@v1.0.5
         with:
           args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
         working-directory: ${{env.working-directory}}
