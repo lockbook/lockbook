@@ -25,7 +25,7 @@ jobs:
     - name: Lint
       run: make core_fmt
     - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p test
+      run: make core_push
     - name: Notify
       uses: 8398a7/action-slack@v3
       with:
