@@ -16,15 +16,16 @@ jobs:
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
     steps:
     - uses: actions/checkout@v2
-    - name: Build Container
+    - name: Login
+    - name: Compile
       run: make core
     - name: Test
       run: make core_test
-    - name: Check formatting
+    - name: Lint
       run: make core_fmt
-    - name: Push Container
-      run: make core_push
-    - name: Slack Notification
+    - name: Push
+      run: docker login docker.pkg.github.com -u Github_Actions -p ${{ secrets.GITHUB_TOKEN}} && make core_push
+    - name: Notify
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
