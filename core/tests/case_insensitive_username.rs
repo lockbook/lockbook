@@ -1,10 +1,10 @@
-use crate::utils::{TestError, generate_username, api_loc};
-use lockbook_core::model::account::Account;
-use lockbook_core::service::crypto_service::{RsaImpl, PubKeyCryptoService};
+use crate::utils::{api_loc, generate_username, TestError};
 use lockbook_core::client;
-use lockbook_core::model::api::{NewAccountRequest, GetPublicKeyRequest};
-use lockbook_core::service::auth_service::{AuthServiceImpl, AuthService};
+use lockbook_core::model::account::Account;
+use lockbook_core::model::api::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 #[macro_use]
 pub mod utils;
