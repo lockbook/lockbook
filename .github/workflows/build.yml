@@ -92,6 +92,8 @@ jobs:
         if: always()
   CLI:
     runs-on: ubuntu-latest
+    env:
+      working-directory: ./clients/cli
     steps:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
