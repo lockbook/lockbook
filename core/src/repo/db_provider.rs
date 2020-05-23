@@ -5,7 +5,6 @@ use crate::error_enum;
 use crate::model::state::Config;
 use crate::DB_NAME;
 use sled::Db;
-use tempfile;
 use tempfile::tempdir;
 
 error_enum! {
