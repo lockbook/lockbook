@@ -82,10 +82,10 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let all = FileMetadataRepoImpl::get_all(&db)?;
         for file in all {
             if &file.file_name == name {
-                return Ok(Some(file))
+                return Ok(Some(file));
             }
         }
-        return Ok(None)
+        return Ok(None);
     }
 
     fn set_last_updated(db: &Db, last_updated: &u64) -> Result<(), Error> {
