@@ -161,7 +161,7 @@ impl<
         match work {
             Nop => Ok(()),
             PushNewFile(client) => {
-                let mut client = client.clone();
+                let mut client = client;
                 let file_content = FileDb::get(&db, &client.file_id)?;
 
                 let new_version = ApiClient::create_file(
@@ -237,7 +237,7 @@ impl<
                 ApiClient::rename_file(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
-                    client.clone().file_id,
+                    client.file_id,
                     metadata.file_name.clone(),
                 )?;
 
@@ -352,7 +352,7 @@ impl<
         });
 
         if no_errors_during_sync {
-            FileMetadataDb::set_last_updated(&db, &work_calculated.most_recent_update_from_server)?;
+            FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)?;
         }
         Ok(())
     }
@@ -449,7 +449,7 @@ fn calculate_work_across_server_and_client(
         (false, false, true, true, false, true) => vec![DeleteLocally(client)],
         (false, false, true, false, true, true) => vec![
             PullFileContent(server.clone()),
-            MergeMetadataAndPushMetadata(server.clone()),
+            MergeMetadataAndPushMetadata(server),
         ],
         (false, false, false, true, true, true) => vec![DeleteLocally(client)],
         (true, true, true, true, false, false) => vec![DeleteLocally(client)],
@@ -466,12 +466,11 @@ fn calculate_work_across_server_and_client(
         (false, true, true, true, false, true) => vec![PushFileContent(client)],
         (false, true, true, false, true, true) => vec![
             MergeMetadataAndPushMetadata(server.clone()),
-            PullMergePush(server.clone()),
+            PullMergePush(server),
         ],
-        (false, true, false, true, true, true) => vec![
-            PullMergePush(server.clone()),
-            UpdateLocalMetadata(server.clone()),
-        ],
+        (false, true, false, true, true, true) => {
+            vec![PullMergePush(server.clone()), UpdateLocalMetadata(server)]
+        }
         (false, false, true, true, true, true) => vec![DeleteLocally(client)],
         (true, true, true, true, true, false) => vec![DeleteLocally(client)],
         (true, true, true, true, false, true) => vec![DeleteLocally(client)],
@@ -480,7 +479,7 @@ fn calculate_work_across_server_and_client(
         (true, false, true, true, true, true) => vec![DeleteLocally(client)],
         (false, true, true, true, true, true) => vec![
             MergeMetadataAndPushMetadata(server.clone()),
-            PullMergePush(server.clone()),
+            PullMergePush(server),
         ],
         (true, true, true, true, true, true) => vec![DeleteLocally(client)],
     }
