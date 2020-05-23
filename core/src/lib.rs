@@ -43,7 +43,7 @@ pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 pub type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
@@ -87,10 +87,14 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn init_logger() {
+pub fn init_logger_safely() {
     env_logger::init();
     info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn init_logger() {
+    init_logger_safely()
 }
 
 #[no_mangle]
