@@ -34,4 +34,4 @@ test:
 	
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
-branch := $(if ${GITHUB_REF},$(shell echo $${GITHUB_REF##*/}),$(shell git rev-parse --abbrev-ref HEAD))
+branch := $(if ${GITHUB_REF},$(shell /bin/bash -c "echo $${GITHUB_REF##*/}"),$(shell git rev-parse --abbrev-ref HEAD))
