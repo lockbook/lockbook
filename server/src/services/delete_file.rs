@@ -31,7 +31,7 @@ pub async fn handle(
         Ok(()) => Ok(DeleteFileResponse {}),
         Err(_) => {
             println!("Internal server error! {:?}", filed_db_delete_file_result);
-            return Err(DeleteFileError::InternalError);
+            Err(DeleteFileError::InternalError)
         }
     }
 }

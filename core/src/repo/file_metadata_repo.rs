@@ -1,8 +1,5 @@
 use std::option::NoneError;
 
-use serde_json;
-use sled;
-
 use crate::error_enum;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use sled::Db;
@@ -27,7 +24,7 @@ pub trait FileMetadataRepo {
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error>;
     fn maybe_get(db: &Db, id: &String) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error>;
-    fn set_last_updated(db: &Db, last_updated: &u64) -> Result<(), Error>;
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
@@ -77,7 +74,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata)
     }
 
-    fn set_last_updated(db: &Db, last_updated: &u64) -> Result<(), Error> {
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
         let tree = db.open_tree(LAST_UPDATED)?;
         tree.insert(LAST_UPDATED, serde_json::to_vec(&last_updated)?)?;
         Ok(())
