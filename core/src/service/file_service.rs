@@ -35,7 +35,6 @@ error_enum! {
 error_enum! {
     enum Error {
         FileRepo(file_repo::Error),
-        MetaRepo(file_metadata_repo::Error),
         AccountRepo(account_repo::Error),
         EncryptionServiceWrite(file_encryption_service::FileWriteError),
         EncryptionServiceRead(file_encryption_service::UnableToReadFile),
