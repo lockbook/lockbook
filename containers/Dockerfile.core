@@ -18,5 +18,3 @@ COPY core .
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
 RUN cargo build
-# Compile the tests but don't run them
-RUN cargo test --no-run
