@@ -1,8 +1,6 @@
-SHELL := /bin/bash
-
 .PHONY: core
 core: is_docker_running core_pull
-	@docker build --cache-from docker.pkg.github.com/lockbook/lockbook/core:$(branch) -f containers/Dockerfile.core . --tag core:$(branch) 
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/core:$(branch) -f containers/Dockerfile.core . --tag core:$(branch) 
 
 .PHONY: core_pull
 core_pull:
