@@ -17,8 +17,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
     steps:
     - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN 
     - name: Hydrate Cache
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN && docker pull docker.pkg.github.com/lockbook/lockbook/core:3388bca
+      run: make core_pull
     - name: Compile
       run: make core
     - name: Test
