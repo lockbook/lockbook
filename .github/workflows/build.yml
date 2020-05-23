@@ -20,17 +20,17 @@ jobs:
     - uses: actions/checkout@v2
     - name: Login
       run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN 
-    - name: Hydrate Cache
+    - name: Pull older image for cache
       run: make core_pull
-    - name: Compile
+    - name: Build container
       run: make core_cached
-    - name: Test
+    - name: Compile and run tests
       run: make core_test
     - name: Lint
       run: make core_fmt
-    - name: Push
+    - name: Publish container
       run: make core_push
-    - name: Notify
+    - name: Notify Slack
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
