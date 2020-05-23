@@ -32,4 +32,4 @@ test:
 	
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
-branch := $(shell ./containers/get_branch.sh)
+branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
