@@ -22,7 +22,7 @@ jobs:
           toolchain: nightly
 
           override: true
-    - name: Lint
+    - name: Check Formatting
       run: cargo +stable fmt -- --check -l
       working-directory: ${{env.working-directory}}
     - name: Build
@@ -66,8 +66,9 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          components: clippy
           override: true
-      - name: Lint
+      - name: Check Formatting
         run: cargo +stable fmt --quiet -- --check
         working-directory: ${{env.working-directory}}
       - name: Build
