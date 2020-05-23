@@ -348,7 +348,7 @@ impl<
         if work_calculated.work_units.is_empty() {
             info!("Done syncing");
             FileMetadataDb::set_last_updated(&db, &work_calculated.most_recent_update_from_server)?;
-            return Ok(())
+            return Ok(());
         }
 
         for work_unit in work_calculated.work_units {
