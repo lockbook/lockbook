@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 .PHONY: core
 core: is_docker_running core_pull
 	@docker build --cache-from docker.pkg.github.com/lockbook/lockbook/core:$(branch) -f containers/Dockerfile.core . --tag core:$(branch) 
@@ -32,4 +34,4 @@ test:
 	
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
-branch := $(if ${GITHUB_REFk,${GITHUB_REF##*/},$(shell git rev-parse --abbrev-ref HEAD))
+branch := $(if ${GITHUB_REF},$(shell echo $${GITHUB_REF##*/}),$(shell git rev-parse --abbrev-ref HEAD))
