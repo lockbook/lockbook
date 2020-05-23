@@ -35,7 +35,7 @@ jobs:
       uses: actions-rs/clippy-check@v1.0.5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
+        args: -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
     - name: Test
       uses: actions-rs/cargo@v1.0.1
       with:
@@ -86,7 +86,7 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
+          args: -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
       - name: Test
         uses: actions-rs/cargo@v1.0.1
         with:
