@@ -23,7 +23,7 @@ jobs:
     - name: Hydrate Cache
       run: make core_pull
     - name: Compile
-      run: make core
+      run: make core_cached
     - name: Test
       run: make core_test
     - name: Lint

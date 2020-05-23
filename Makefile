@@ -4,7 +4,7 @@ core_cached: is_docker_running core_pull
 
 .PHONY: core_pull
 core_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/core:master || echo "Failed to pull, NBD"
+	docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/core:master || echo "Failed to pull, ERROR IGNORED"
 
 .PHONY: core
 core:
