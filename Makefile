@@ -43,7 +43,7 @@ server_fmt:
 
 .PHONY: server_test
 server_test:
-	docker run server:$(branch) cargo test --lib
+	docker run server:$(branch) cargo test
 
 .PHONY: server_push
 server_push:
@@ -56,7 +56,6 @@ is_docker_running:
 	@echo "Checking if docker is running"
 	@docker ps -q
 	@echo "Docker is running"
-
 
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
