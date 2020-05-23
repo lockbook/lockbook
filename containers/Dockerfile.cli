@@ -17,7 +17,4 @@ RUN cargo build
 COPY clients/cli .
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/main.rs
-
-# Compile time env vars TODO make these runtime env vars
 RUN cargo build
-RUN ./target/debug/lockbook

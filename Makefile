@@ -10,16 +10,16 @@ core_pull:
 core:
 	docker build -f containers/Dockerfile.core . --tag core:$(branch)
 
-.PHONY: cargo_fmt
+.PHONY: core_fmt
 core_fmt:
 	@echo The following files need formatting:
 	docker run core:$(branch) cargo +stable fmt -- --check -l
 
-.PHONY: cargo_test
+.PHONY: core_test
 core_test:
 	docker run core:$(branch) cargo test --lib
 
-.PHONY: cargo_push
+.PHONY: core_push
 core_push:
 	docker tag core:$(branch) docker.pkg.github.com/lockbook/lockbook/core:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/core:$(branch)
