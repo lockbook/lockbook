@@ -31,11 +31,6 @@ jobs:
         toolchain: nightly
         command: build
         args: --manifest-path core/Cargo.toml
-    - name: Lint
-      uses: actions-rs/clippy-check@v1.0.5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        args: -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
     - name: Test
       uses: actions-rs/cargo@v1.0.1
       with:
@@ -82,11 +77,6 @@ jobs:
           toolchain: nightly
           command: build
           args: --manifest-path server/Cargo.toml
-      - name: Lint
-        uses: actions-rs/clippy-check@v1.0.5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
       - name: Test
         uses: actions-rs/cargo@v1.0.1
         with:
