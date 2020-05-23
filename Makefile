@@ -27,6 +27,8 @@ is_docker_running:
 	@docker ps -q
 	@echo "Docker is running"
 	
+test:
+	echo $(branch)
 # For docker tags
 hash := $(shell git rev-parse --short HEAD) 
-branch := $(shell git rev-parse --abbrev-ref HEAD)
+branch := $(if ${GITHUB_REF##*/},${GITHUB_REF##*/},$(shell git rev-parse --abbrev-ref HEAD))
