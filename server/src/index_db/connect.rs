@@ -17,13 +17,13 @@ pub enum Error {
 pub async fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
     let mut postgres_config = PostgresConfig::new();
     postgres_config
-        .user(config.user)
-        .host(config.host)
-        .password(config.pass)
+        .user(&config.user)
+        .host(&config.host)
+        .password(&config.pass)
         .port(config.port)
-        .dbname(config.db);
+        .dbname(&config.db);
 
-    match config.cert {
+    match config.cert.as_str() {
         "" => connect_no_tls(&postgres_config).await,
         cert => connect_with_tls(&postgres_config, &cert).await,
     }
