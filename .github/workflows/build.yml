@@ -22,7 +22,7 @@ jobs:
           toolchain: nightly
           components: clippy
           override: true
-    - name: Lint
+    - name: Check Formatting
       run: cargo +stable fmt -- --check -l
       working-directory: ${{env.working-directory}}
     - name: Build
@@ -31,8 +31,8 @@ jobs:
         toolchain: nightly
         command: build
         args: --manifest-path core/Cargo.toml
-    - name: Clippy
-    - uses: actions-rs/clippy-check@v1.0.5
+    - name: Lint
+      uses: actions-rs/clippy-check@v1.0.5
       with:
         args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
       working-directory: ${{env.working-directory}}
@@ -73,7 +73,7 @@ jobs:
           toolchain: nightly
           components: clippy
           override: true
-      - name: Lint
+      - name: Check Formatting
         run: cargo +stable fmt --quiet -- --check
         working-directory: ${{env.working-directory}}
       - name: Build
@@ -82,8 +82,8 @@ jobs:
           toolchain: nightly
           command: build
           args: --manifest-path server/Cargo.toml
-      - name: Clippy
-      - uses: actions-rs/clippy-check@v1.0.5
+      - name: Lint
+        uses: actions-rs/clippy-check@v1.0.5
         with:
           args: -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc
         working-directory: ${{env.working-directory}}
