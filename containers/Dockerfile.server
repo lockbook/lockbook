@@ -17,6 +17,4 @@ RUN cargo build
 COPY server .
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/main.rs
-
-# Compile time env vars TODO make these runtime env vars
-RUN /bin/bash -c "source qa_secrets.sh && cargo build"
+RUN cargo build
