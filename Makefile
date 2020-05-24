@@ -77,12 +77,12 @@ test_test:
 	-docker rm --force filesdbconfig
 	-docker rm --force filesdb
 	# Start Minio
-	docker run -itdP --name=filesdb --net=host minio/minio:RELEASE.2020-05-16T01-33-21Z server /data
+	docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=universe minio/minio:RELEASE.2020-05-16T01-33-21Z server /data
 	# Configure Minio
 	docker run -it --name=filesdbconfig --net=host --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c "\
 		while ! nc -z localhost 9000; do echo 'Waiting for Minio to start...' && sleep 0.2; done; \
 		mc config host add filesdb http://localhost:9000 minioadmin minioadmin && \
-		mc mb filesdb/testbucket && \
+		mc mb --region=universe filesdb/testbucket && \
 		mc policy set public filesdb/testbucket \
 	"
 	# Start Postgres
@@ -93,9 +93,9 @@ test_test:
 		psql -h localhost -p 5432 -U postgres -w --db postgres -q -f /index_db/create_db.sql \
 	"
 	# Start Lockbook Server
-	docker run -itdP --name=lockbook --net=host --env-file=containers/test.env -e RUST_LOG=info server:$(branch) cargo run
+	docker run -itdP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
 	# Run tests
-	docker run -it --name=test --net=host --env-file=containers/test.env -e RUST_LOG=info -e LOCKBOOK_API_LOCATION=http://localhost:8000 test:$(branch) cargo test
+	docker run -it --name=test --net=host --env-file=containers/test.env -e LOCKBOOK_API_LOCATION=http://localhost:8000 test:$(branch) cargo test
 	# Remove containers
 	-docker rm --force test
 	-docker rm --force lockbook
