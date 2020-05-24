@@ -1,5 +1,3 @@
-extern crate lockbook_core;
-
 use std::env;
 
 use uuid::Uuid;
