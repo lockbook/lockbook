@@ -10,8 +10,10 @@ pub struct IndexDbConfig {
 }
 
 pub struct FilesDbConfig {
+    pub host: String,
+    pub port: u16,
+    pub region: String,
     pub bucket: String,
-    pub region: s3::region::Region,
     pub access_key: String,
     pub secret_key: String,
 }
@@ -29,21 +31,27 @@ pub struct Config {
 pub fn config() -> Config {
     Config {
         index_db_config: IndexDbConfig {
-            user: env::var("INDEX_DB_CONFIG_USER").unwrap(),
-            pass: env::var("INDEX_DB_CONFIG_PASS").unwrap(),
-            host: env::var("INDEX_DB_CONFIG_HOST").unwrap(),
-            port: env::var("INDEX_DB_CONFIG_PORT").unwrap().parse().unwrap(),
-            db: env::var("INDEX_DB_CONFIG_DB").unwrap(),
-            cert: env::var("INDEX_DB_CONFIG_CERT").unwrap(),
+            host: env_or_panic("INDEX_DB_HOST"),
+            port: env_or_panic("INDEX_DB_PORT").parse().unwrap(),
+            db: env_or_panic("INDEX_DB_DB"),
+            user: env_or_panic("INDEX_DB_USER"),
+            pass: env_or_panic("INDEX_DB_PASS"),
+            cert: env_or_panic("INDEX_DB_CERT"),
         },
         files_db_config: FilesDbConfig {
-            bucket: env::var("FILES_DB_CONFIG_BUCKET").unwrap(),
-            region: env::var("FILES_DB_CONFIG_REGION").unwrap().parse().unwrap(),
-            access_key: env::var("FILES_DB_CONFIG_ACCESS_KEY").unwrap(),
-            secret_key: env::var("FILES_DB_CONFIG_SECRET_KEY").unwrap(),
+            host: env_or_panic("FILES_DB_HOST"),
+            port: env_or_panic("FILES_DB_PORT").parse().unwrap(),
+            region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
+            bucket: env_or_panic("FILES_DB_BUCKET"),
+            access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
+            secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
         },
         auth_config: AuthConfig {
-            max_auth_delay: env::var("MAX_AUTH_DELAY").unwrap().parse().unwrap(),
+            max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
         },
     }
+}
+
+fn env_or_panic(var_name: &str) -> String {
+    env::var(var_name).expect(&format!("Missing environment variable {}", var_name))
 }

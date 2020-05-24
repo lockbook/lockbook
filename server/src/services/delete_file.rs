@@ -26,7 +26,7 @@ pub async fn handle(
     };
 
     let filed_db_delete_file_result =
-        files_db::delete_file(&server_state.files_db_client, &request.file_id);
+        files_db::delete_file(&server_state.files_db_client, &request.file_id).await;
     match filed_db_delete_file_result {
         Ok(()) => Ok(DeleteFileResponse {}),
         Err(_) => {

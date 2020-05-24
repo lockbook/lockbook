@@ -1,7 +1,9 @@
-use s3::error::S3Error;
+use s3::creds::AwsCredsError;
+use s3::S3Error;
 
 #[derive(Debug)]
 pub enum Error {
+    Credentials(AwsCredsError),
     ErrorTryingToConnect(String),
     InvalidAccessKeyId(String),
     NoSuchKey(String),
@@ -45,5 +47,11 @@ impl From<S3Error> for Error {
             }
             None => Error::Unknown(None),
         }
+    }
+}
+
+impl From<AwsCredsError> for Error {
+    fn from(err: AwsCredsError) -> Error {
+        Error::Credentials(err)
     }
 }

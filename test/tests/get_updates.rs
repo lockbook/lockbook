@@ -1,5 +1,3 @@
-extern crate lockbook_core;
-
 use crate::utils::generate_account;
 
 use lockbook_core::client;
