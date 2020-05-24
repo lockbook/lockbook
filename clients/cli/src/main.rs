@@ -1,5 +1,7 @@
+use lockbook_core::init_logger_safely;
 use structopt::StructOpt;
 
+mod edit;
 mod import;
 mod init;
 mod list;
@@ -56,11 +58,12 @@ enum Lockbook {
 }
 
 fn main() {
+    init_logger_safely();
     let args: Lockbook = Lockbook::from_args();
     match args {
         Lockbook::New => new::new(),
         Lockbook::Sync => sync::sync(),
-        Lockbook::Edit => unimplemented!(),
+        Lockbook::Edit => edit::edit(),
         Lockbook::Browse => unimplemented!(),
         Lockbook::Remove => unimplemented!(),
         Lockbook::Move => unimplemented!(),
