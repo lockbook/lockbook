@@ -1,11 +1,9 @@
-extern crate lockbook_core;
-
 use lockbook_core::client;
 use lockbook_core::client::new_account;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest};
 
 #[macro_use]
-mod utils;
+pub mod utils;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::RsaImpl;

@@ -31,14 +31,21 @@ pub struct ServerState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    info!("Starting server on port 8000");
-
+    env_logger::init();
     let config = config();
+
+    info!("Connecting to index_db...");
     let index_db_client = index_db::connect(&config.index_db_config)
         .await
         .expect("Failed to connect to index_db");
-    let files_db_client =
-        files_db::connect(&config.files_db_config).expect("Failed to connect to files_db");
+    info!("Connected to index_db");
+
+    info!("Connecting to files_db...");
+    let files_db_client = files_db::connect(&config.files_db_config)
+        .await
+        .expect("Failed to connect to files_db");
+    info!("Connected to files_db");
+    
     let server_state = Arc::new(Mutex::new(ServerState {
         index_db_client: index_db_client,
         files_db_client: files_db_client,
@@ -55,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    info!("Serving on port 8000");
     hyper::Server::bind(&addr).serve(make_service).await?;
     Ok(())
 }
