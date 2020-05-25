@@ -1,6 +1,5 @@
 use crate::index_db::get_file_metadata::to_file_metadata;
 use lockbook_core::model::api::FileMetadata;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 
@@ -12,7 +11,7 @@ pub enum Error {
 pub async fn get_updates(
     client: &mut PostgresClient,
     username: &String,
-    metadata_version: &i64,
+    metadata_version: i64,
 ) -> Result<Vec<FileMetadata>, Error> {
     match client.query(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted

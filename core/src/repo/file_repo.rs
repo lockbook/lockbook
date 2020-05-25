@@ -2,8 +2,6 @@ use std::option::NoneError;
 
 use crate::error_enum;
 use crate::service::file_encryption_service::EncryptedFile;
-use serde_json;
-use sled;
 use sled::Db;
 
 error_enum! {
