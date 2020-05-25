@@ -13,9 +13,13 @@ pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, categorized_s3_
         None,
     )
     .await?;
-    let client = S3Client::new(&config.bucket, Region::Custom {
-        endpoint: format!("{}:{}", config.host, config.port),
-        region: config.region.clone(),
-    }, credentials)?;
+    let client = S3Client::new(
+        &config.bucket,
+        Region::Custom {
+            endpoint: format!("{}:{}", config.host, config.port),
+            region: config.region.clone(),
+        },
+        credentials,
+    )?;
     Ok(client)
 }
