@@ -56,7 +56,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
 
         let account = Account {
             username: username.clone(),
-            keys: keys.clone(),
+            keys: keys,
         };
         let username = account.username.clone();
         let auth = Auth::generate_auth(&account)?;

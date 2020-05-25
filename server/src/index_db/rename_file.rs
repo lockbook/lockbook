@@ -1,6 +1,5 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 
@@ -48,9 +47,10 @@ pub async fn rename_file(
         _ => {
             let deleted = row_vec[0].try_get(0)?;
 
-            match deleted {
-                false => Ok(new_version),
-                true => Err(Error::FileDeleted),
+            if deleted {
+                Err(Error::FileDeleted)
+            } else {
+                Ok(new_version)
             }
         }
     }
