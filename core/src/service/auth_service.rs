@@ -81,7 +81,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
         Crypto::verify(&public_key, &signed_val)?;
 
-        let mut auth_comp = signed_val.content.split(",");
+        let mut auth_comp = signed_val.content.split(',');
 
         if &String::from(auth_comp.next()?) != username {
             return Err(InvalidUsername);

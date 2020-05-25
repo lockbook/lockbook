@@ -12,7 +12,7 @@ pub async fn handle(
     let update_file_version_result = index_db::update_file_version(
         &mut server_state.index_db_client,
         &request.file_id,
-        &(request.old_file_version as i64),
+        request.old_file_version as i64,
     )
     .await;
     let new_version = match update_file_version_result {
@@ -48,7 +48,7 @@ pub async fn handle(
         }),
         Err(_) => {
             println!("Internal server error! {:?}", create_file_result);
-            return Err(ChangeFileContentError::InternalError);
+            Err(ChangeFileContentError::InternalError)
         }
     }
 }
