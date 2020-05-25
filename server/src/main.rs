@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await
         .expect("Failed to connect to files_db");
     info!("Connected to files_db");
-    
+
     let server_state = Arc::new(Mutex::new(ServerState {
         index_db_client: index_db_client,
         files_db_client: files_db_client,
