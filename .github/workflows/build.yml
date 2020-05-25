@@ -24,9 +24,11 @@ jobs:
       run: make core_pull
     - name: Build container
       run: make core_cached
+    - name: Lint
+      run: make core_lint
     - name: Compile and run tests
       run: make core_test
-    - name: Lint
+    - name: Check Formatting
       run: make core_fmt
     - name: Publish container
       run: make core_push
