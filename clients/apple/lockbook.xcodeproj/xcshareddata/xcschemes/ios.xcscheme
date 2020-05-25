@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1130"
+   LastUpgradeVersion = "1150"
    version = "1.3">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
-               BuildableName = "ios_client.app"
-               BlueprintName = "ios_client"
-               ReferencedContainer = "container:ios_client.xcodeproj">
+               BuildableName = "Lockbook.app"
+               BlueprintName = "ios"
+               ReferencedContainer = "container:lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
-            BuildableName = "ios_client.app"
-            BlueprintName = "ios_client"
-            ReferencedContainer = "container:ios_client.xcodeproj">
+            BuildableName = "Lockbook.app"
+            BlueprintName = "ios"
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
@@ -59,7 +59,7 @@
          <EnvironmentVariable
             key = "RUST_LOG"
             value = "debug"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
@@ -74,9 +74,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
-            BuildableName = "ios_client.app"
-            BlueprintName = "ios_client"
-            ReferencedContainer = "container:ios_client.xcodeproj">
+            BuildableName = "Lockbook.app"
+            BlueprintName = "ios"
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
