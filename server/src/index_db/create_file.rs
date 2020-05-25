@@ -1,6 +1,5 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::Client as PostgresClient;

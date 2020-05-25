@@ -15,6 +15,10 @@ core_fmt:
 	@echo The following files need formatting:
 	docker run core:$(branch) cargo +stable fmt -- --check -l
 
+.PHONY: core_lint
+core_lint:
+	docker run core:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+
 .PHONY: core_test
 core_test:
 	docker run core:$(branch) cargo test --lib
@@ -40,6 +44,10 @@ server:
 server_fmt:
 	@echo The following files need formatting:
 	docker run server:$(branch) cargo +stable fmt -- --check -l
+
+.PHONY: server_lint
+server_lint:
+	docker run server:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: server_test
 server_test:

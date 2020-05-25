@@ -16,12 +16,12 @@ pub fn send(bucket_location: String, file_id: String) -> Result<EncryptedFile, E
     let response = client
         .get(resource.as_str())
         .send()
-        .map_err(|err| Error::SendFailed(err))?;
+        .map_err(Error::SendFailed)?;
 
     let status_code = response.status().as_u16();
-    let response_body = response.text().map_err(|err| Error::ReceiveFailed(err))?;
+    let response_body = response.text().map_err(Error::ReceiveFailed)?;
     let encrypted_file: EncryptedFile =
-        serde_json::from_str(response_body.as_str()).map_err(|err| Error::SerdeError(err))?;
+        serde_json::from_str(response_body.as_str()).map_err(Error::SerdeError)?;
     match status_code {
         200..=299 => Ok(encrypted_file),
         _ => Err(Error::Unspecified),
