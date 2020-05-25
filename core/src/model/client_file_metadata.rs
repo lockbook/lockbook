@@ -37,11 +37,11 @@ impl ClientFileMetadata {
         let version = 0;
         let id = Uuid::new_v4().to_string();
         ClientFileMetadata {
-            file_id: id.to_string(),
+            file_id: id,
             file_name: name.clone(),
             file_path: path.clone(),
-            file_content_version: version.clone(),
-            file_metadata_version: version.clone(),
+            file_content_version: version,
+            file_metadata_version: version,
             new_file: true,
             content_edited_locally: false,
             metadata_edited_locally: false,

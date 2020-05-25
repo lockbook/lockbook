@@ -19,12 +19,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN 
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
     - name: Pull older image for cache
       run: make core_pull
     - name: Build container
       run: make core_cached
-    - name: Lint
+    - name: Check Formatting
       run: make core_lint
     - name: Compile and run tests
       run: make core_test
@@ -61,8 +61,9 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          components: clippy
           override: true
-      - name: Lint
+      - name: Check Formatting
         run: cargo +stable fmt --quiet -- --check
         working-directory: ${{env.working-directory}}
       - name: Build
