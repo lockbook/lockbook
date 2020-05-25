@@ -24,7 +24,7 @@ jobs:
       run: make core_pull
     - name: Build container
       run: make core_cached
-    - name: Check Formatting
+    - name: Lint
       run: make core_lint
     - name: Compile and run tests
       run: make core_test
