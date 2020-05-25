@@ -10,6 +10,7 @@ pub struct IndexDbConfig {
 }
 
 pub struct FilesDbConfig {
+    pub scheme: String,
     pub host: String,
     pub port: u16,
     pub region: String,
@@ -39,6 +40,7 @@ pub fn config() -> Config {
             cert: env_or_panic("INDEX_DB_CERT"),
         },
         files_db_config: FilesDbConfig {
+            scheme: env_or_panic("FILES_DB_SCHEME"),
             host: env_or_panic("FILES_DB_HOST"),
             port: env_or_panic("FILES_DB_PORT").parse().unwrap(),
             region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
