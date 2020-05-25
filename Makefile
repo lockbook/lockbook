@@ -77,25 +77,25 @@ test_test:
 	-docker rm --force filesdbconfig
 	-docker rm --force filesdb
 	# Start Minio
-	docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=universe minio/minio:RELEASE.2020-05-16T01-33-21Z server /data
+	(set -a && source containers/test.env && docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
 	# Configure Minio
-	docker run -it --name=filesdbconfig --net=host --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c "\
-		while ! nc -z localhost 9000; do echo 'Waiting for Minio to start...' && sleep 0.2; done; \
-		mc config host add filesdb http://localhost:9000 minioadmin minioadmin && \
-		mc mb --region=universe filesdb/testbucket && \
+	docker run -it --name=filesdbconfig --net=host --env-file=containers/test.env --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c '\
+		while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "Waiting for Minio to start..." && sleep 0.2; done; \
+		mc config host add filesdb $$FILES_DB_SCHEME://$$FILES_DB_HOST:$$FILES_DB_PORT $$FILES_DB_ACCESS_KEY $$FILES_DB_SECRET_KEY && \
+		mc mb --region=$$FILES_DB_REGION filesdb/$$FILES_DB_BUCKET && \
 		mc policy set public filesdb/testbucket \
-	"
+	'
 	# Start Postgres
 	docker run -itdP --name=indexdb --net=host -e POSTGRES_HOST_AUTH_METHOD=trust postgres:12.3
 	# Configure Postgres
-	docker run -it --name=indexdbconfig --net=host --entrypoint=sh -v `pwd`/index_db:/index_db postgres:12.3 -c "\
-		while ! pg_isready -U postgres -h localhost -p 5432; do echo 'Waiting for Postgres to start...' && sleep 0.2; done; \
-		psql -h localhost -p 5432 -U postgres -w --db postgres -q -f /index_db/create_db.sql \
-	"
+	docker run -it --name=indexdbconfig --net=host --env-file=containers/test.env --entrypoint=sh -v `pwd`/index_db:/index_db postgres:12.3 -c '\
+		while ! pg_isready -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER; do echo "Waiting for Postgres to start..." && sleep 0.2; done; \
+		psql -wq -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER --db $$INDEX_DB_DB -f /index_db/create_db.sql \
+	'
 	# Start Lockbook Server
 	docker run -itdP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
 	# Run tests
-	docker run -it --name=test --net=host --env-file=containers/test.env -e LOCKBOOK_API_LOCATION=http://localhost:8000 test:$(branch) cargo test
+	docker run -it --name=test --net=host --env-file=containers/test.env test:$(branch) cargo test
 	# Remove containers
 	-docker rm --force test
 	-docker rm --force lockbook
