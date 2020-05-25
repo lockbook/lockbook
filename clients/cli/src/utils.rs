@@ -13,6 +13,7 @@ use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
 };
+use std::process::Command;
 
 pub fn connect_to_db() -> Db {
     // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
@@ -46,6 +47,30 @@ pub fn get_account(db: &Db) -> Account {
 
 pub fn get_editor() -> String {
     env::var("VISUAL").unwrap_or(env::var("EDITOR").unwrap_or("vi".to_string()))
+}
+
+pub fn edit_file_with_editor(file_location: &String) -> bool {
+    Command::new(get_editor())
+        .arg(&file_location)
+        .spawn()
+        .expect(
+            format!(
+                "Failed to spawn: {}, content location: {}",
+                get_editor(),
+                &file_location
+            )
+            .as_str(),
+        )
+        .wait()
+        .expect(
+            format!(
+                "Failed to wait for spawned process: {}, content location: {}",
+                get_editor(),
+                &file_location
+            )
+            .as_str(),
+        )
+        .success()
 }
 
 pub fn print_last_successful_sync(db: &Db) {
