@@ -100,7 +100,7 @@ cli_push:
 	docker push docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 
 .PHONY: integration_tests_cached
-integration_tests_cached: is_docker_running test_pull
+integration_tests_cached: is_docker_running integration_tests_pull
 	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch) 
 
 .PHONY: integration_tests_pull
