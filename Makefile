@@ -58,6 +58,36 @@ server_push:
 	docker tag server:$(branch) docker.pkg.github.com/lockbook/lockbook/server:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/server:$(branch)
 
+.PHONY: cli_cached
+cli_cached: is_docker_running cli_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch) -f containers/Dockerfile.cli . --tag cli:$(branch) 
+
+.PHONY: cli_pull
+cli_pull:
+	docker pull docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/clients/cli:master || echo "Failed to pull, ERROR IGNORED"
+
+.PHONY: cli
+cli:
+	docker build -f containers/Dockerfile.cli . --tag cli:$(branch)
+
+.PHONY: cli_fmt
+cli_fmt:
+	@echo The following files need formatting:
+	docker run cli:$(branch) cargo +stable fmt -- --check -l
+
+.PHONY: cli_lint
+cli_lint:
+	docker run cli:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+
+.PHONY: cli_test
+cli_test:
+	docker run cli:$(branch) cargo test
+
+.PHONY: cli_push
+cli_push:
+	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch)
+	docker push docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch)
+
 .PHONY: test_cached
 test_cached: is_docker_running test_pull
 	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/test:$(branch) -f containers/Dockerfile.test . --tag test:$(branch) 
