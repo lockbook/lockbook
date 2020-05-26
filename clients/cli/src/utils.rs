@@ -46,7 +46,7 @@ pub fn get_account(db: &Db) -> Account {
 }
 
 pub fn get_editor() -> String {
-    env::var("VISUAL").unwrap_or(env::var("EDITOR").unwrap_or("vi".to_string()))
+    env::var("VISUAL").unwrap_or_else(|_|env::var("EDITOR").unwrap_or_else(|_|"vi".to_string()))
 }
 
 pub fn edit_file_with_editor(file_location: &String) -> bool {
