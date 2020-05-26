@@ -130,7 +130,7 @@ test_test:
 	-docker rm --force filesdbconfig
 	-docker rm --force filesdb
 	# Start Minio
-	(set -a && source containers/test.env && docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
+	(set -a && . containers/test.env && docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
 	# Configure Minio
 	docker run -it --name=filesdbconfig --net=host --env-file=containers/test.env --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c '\
 		while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "Waiting for Minio to start..." && sleep 0.2; done; \
