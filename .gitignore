@@ -75,8 +75,8 @@ fastlane/test_output
 
 iOSInjectionProject/
 .DS_Store 
-clients/ios/include/
-clients/ios/libs/
+clients/apple/include/
+clients/apple/libs/
 
 core/target/
 clients/cli/target/
