@@ -60,11 +60,11 @@ server_push:
 
 .PHONY: cli_cached
 cli_cached: is_docker_running cli_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch) -f containers/Dockerfile.cli . --tag cli:$(branch) 
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/cli:$(branch) -f containers/Dockerfile.cli . --tag cli:$(branch) 
 
 .PHONY: cli_pull
 cli_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/clients/cli:master || echo "Failed to pull, ERROR IGNORED"
+	docker pull docker.pkg.github.com/lockbook/lockbook/cli:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/cli:master || echo "Failed to pull, ERROR IGNORED"
 
 .PHONY: cli
 cli:
@@ -85,8 +85,8 @@ cli_test:
 
 .PHONY: cli_push
 cli_push:
-	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch)
-	docker push docker.pkg.github.com/lockbook/lockbook/clients/cli:$(branch)
+	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
+	docker push docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 
 .PHONY: test_cached
 test_cached: is_docker_running test_pull
