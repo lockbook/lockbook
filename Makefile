@@ -162,12 +162,13 @@ is_docker_running:
 hash := $(shell git rev-parse --short HEAD) 
 branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
 
+# TL;DR: run make x before running make x_fmt, make x_lint, or make x_test
 # Github actions doesn't support layers, so we use --cache-from and try to grab the
 # closest image we can (this branch, otherwise master, otherwise nothing)
 # When you do this every docker build is rebuilt from this cache point. Maybe buildkit
 # will improve this situation, at the moment I do not have the desire to look into it.
 # In an ideal case core_fmt depends on core so you just have oneliners. However github
 # actions will rebuild core each time, which takes about 1m. As the purpose of this
-# Makefile is primarily portable automataed build instructions && debugging when there
+# Makefile is primarily portable automated build instructions && debugging when there
 # are build failures, this dependency is not expressed and the user unfortunately has to
 # make core && make core_test to replicate issues locally.
