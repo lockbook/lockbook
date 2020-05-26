@@ -12,7 +12,6 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./core
       LOCKBOOK_API_LOCATION: http://lockbook.app:8000
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
       BRANCH: ${{ github.head_ref }}
@@ -43,7 +42,6 @@ jobs:
   Server:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./server
       INDEX_DB_CONFIG_USER: ${{ secrets.INDEX_DB_CONFIG_USER }}
       INDEX_DB_CONFIG_PASS: ${{ secrets.INDEX_DB_CONFIG_PASS }}
       INDEX_DB_CONFIG_HOST: ${{ secrets.INDEX_DB_CONFIG_HOST }}
@@ -81,4 +79,32 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
-      
+  Cli:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older image for cache
+      run: make cli_pull
+    - name: Build container
+      run: make cli_cached
+    - name: Lint
+      run: make cli_lint
+    - name: Compile and run tests
+      run: make cli_test
+    - name: Check Formatting
+      run: make cli_fmt
+    - name: Publish container
+      run: make cli_push
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Build Cli - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
