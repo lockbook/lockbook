@@ -34,7 +34,7 @@ pub fn init() {
 
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::SendFailed(_) => eprintln!("Network error: {:?}", api_err),
-                Error::API(api) => match api.clone() {
+                Error::API(api) => match api {
                     NewAccountError::UsernameTaken => eprintln!("Username Taken!"),
                     _ => eprintln!(
                         "Unexpected error occurred while creating new account: {:?}",
