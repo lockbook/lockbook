@@ -96,3 +96,32 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
+  Test:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older image for cache
+      run: make test_pull
+    - name: Build container
+      run: make test_cached
+    - name: Lint
+      run: make test_lint
+    - name: Compile and run tests
+      run: make test_test
+    - name: Check Formatting
+      run: make test_fmt
+    - name: Publish container
+      run: make test_push
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Test - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()

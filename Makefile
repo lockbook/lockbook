@@ -105,6 +105,10 @@ test_fmt:
 	@echo The following files need formatting:
 	docker run test:$(branch) cargo +stable fmt -- --check -l
 
+.PHONY: test_lint
+test_lint:
+	docker run test:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+
 .PHONY: test_test
 test_test:
 	# Remove containers in case they weren't cleaned up last time
