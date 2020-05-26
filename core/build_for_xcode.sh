@@ -13,12 +13,6 @@ do
         echo "Only building the fatty"
         shift # Remove param from processing
         ;;
-        -c|--catalyst)
-        BUILD_FAT=0
-        BUILD_CATALYST=1
-        echo "Only building for catalyst"
-        shift
-        ;;
         -n|--nocopy)
         DO_COPY=0
         echo "Not copying to client directory"
@@ -33,8 +27,6 @@ done
 
 [ $BUILD_FAT == 1 ] && { command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 
-[ $BUILD_CATALYST == 1 ] && { command -v xargo || { echo "Y'ain't got xargo"; exit 1; } }
-
 echo "Creating header"
 cbindgen src/lib.rs -l c > lockbook_core.h
 
@@ -44,16 +36,10 @@ then
   cargo lipo --release
 fi
 
-if [ $BUILD_CATALYST == 1 ]
-then
-echo "Building for catalyst"
-xargo build --target x86_64-apple-ios-macabi --release
-fi
-
 if [ $DO_COPY == 1 ]
 then
-  inc=../clients/ios/include/
-  libs=../clients/ios/libs/
+  inc=../clients/apple/include/
+  libs=../clients/apple/libs/
 
   echo "Purge/create library folders"
   rm -rf ${inc} ${libs}
@@ -67,11 +53,5 @@ then
   then
     echo "Copying fat library"
     cp target/universal/release/liblockbook_core.a ${libs}
-  fi
-
-  if [ $BUILD_CATALYST == 1 ]
-  then
-    echo "Copying catalyst specific library"
-    cp target/x86_64-apple-ios-macabi/release/liblockbook_core.a ${libs}liblockbook_core.mac.a
   fi
 fi
