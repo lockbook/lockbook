@@ -118,7 +118,7 @@ jobs:
     - name: Lint
       run: make integration_tests_lint
     - name: Compile and run tests
-      run: make integration_tests_test
+      run: make integration_tests_run
     - name: Check Formatting
       run: make integration_tests_fmt
     - name: Notify Slack
