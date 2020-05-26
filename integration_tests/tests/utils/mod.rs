@@ -14,7 +14,11 @@ use lockbook_core::model::account::Account;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 pub fn api_loc() -> String {
-    format!("http://{}:{}", env_or_panic("SERVER_HOST"), env_or_panic("SERVER_PORT"))
+    format!(
+        "http://{}:{}",
+        env_or_panic("SERVER_HOST"),
+        env_or_panic("SERVER_PORT")
+    )
 }
 
 fn env_or_panic(var_name: &str) -> String {

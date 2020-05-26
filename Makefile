@@ -99,29 +99,29 @@ cli_push:
 	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 
-.PHONY: test_cached
-test_cached: is_docker_running test_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/test:$(branch) -f containers/Dockerfile.test . --tag test:$(branch) 
+.PHONY: integration_tests_cached
+integration_tests_cached: is_docker_running test_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch) 
 
-.PHONY: test_pull
-test_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/test:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/test:master || echo "Failed to pull, ERROR IGNORED"
+.PHONY: integration_tests_pull
+integration_tests_pull:
+	docker pull docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/test:master || echo "Failed to pull, ERROR IGNORED"
 
-.PHONY: test
-test:
-	docker build -f containers/Dockerfile.test . --tag test:$(branch)
+.PHONY: integration_tests
+integration_tests:
+	docker build -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch)
 
-.PHONY: test_fmt
-test_fmt:
+.PHONY: integration_tests_fmt
+integration_tests_fmt:
 	@echo The following files need formatting:
-	docker run test:$(branch) cargo +stable fmt -- --check -l
+	docker run integration_tests:$(branch) cargo +stable fmt -- --check -l
 
-.PHONY: test_lint
-test_lint:
-	docker run test:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+.PHONY: integration_tests_lint
+integration_tests_lint:
+	docker run integration_tests:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
-.PHONY: test_test
-test_test:
+.PHONY: integration_tests_run
+integration_tests_run:
 	# Remove containers in case they weren't cleaned up last time
 	-docker rm --force test
 	-docker rm --force lockbook
@@ -148,7 +148,7 @@ test_test:
 	# Start Lockbook Server
 	docker run -dP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
 	# Run tests
-	docker run --name=test --net=host --env-file=containers/test.env test:$(branch) cargo test
+	docker run --name=test --net=host --env-file=containers/test.env integration_tests:$(branch) cargo test
 	# Remove containers
 	-docker rm --force test
 	-docker rm --force lockbook
@@ -157,10 +157,10 @@ test_test:
 	-docker rm --force filesdbconfig
 	-docker rm --force filesdb
 
-.PHONY: test_push
-test_push:
-	docker tag test:$(branch) docker.pkg.github.com/lockbook/lockbook/test:$(branch)
-	docker push docker.pkg.github.com/lockbook/lockbook/test:$(branch)
+.PHONY: integration_tests_push
+integration_tests_push:
+	docker tag integration_tests:$(branch) docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)
+	docker push docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)
 
 # Helpers
 .PHONY: is_docker_running

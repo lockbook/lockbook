@@ -90,5 +90,5 @@ core/qa_secrets.sh
 server/ca-certificate.crt
 .idea/
 *.iml
-test/target/
+integration_tests/target/
 containers/qa.env
