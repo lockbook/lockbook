@@ -130,25 +130,25 @@ test_test:
 	-docker rm --force filesdbconfig
 	-docker rm --force filesdb
 	# Start Minio
-	(set -a && . containers/test.env && docker run -itdP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
+	(set -a && . containers/test.env && docker run -dP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
 	# Configure Minio
-	docker run -it --name=filesdbconfig --net=host --env-file=containers/test.env --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c '\
+	docker run --name=filesdbconfig --net=host --env-file=containers/test.env --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c '\
 		while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "Waiting for Minio to start..." && sleep 0.2; done; \
 		mc config host add filesdb $$FILES_DB_SCHEME://$$FILES_DB_HOST:$$FILES_DB_PORT $$FILES_DB_ACCESS_KEY $$FILES_DB_SECRET_KEY && \
 		mc mb --region=$$FILES_DB_REGION filesdb/$$FILES_DB_BUCKET && \
 		mc policy set public filesdb/testbucket \
 	'
 	# Start Postgres
-	docker run -itdP --name=indexdb --net=host -e POSTGRES_HOST_AUTH_METHOD=trust postgres:12.3
+	docker run -dP --name=indexdb --net=host -e POSTGRES_HOST_AUTH_METHOD=trust postgres:12.3
 	# Configure Postgres
-	docker run -it --name=indexdbconfig --net=host --env-file=containers/test.env --entrypoint=sh -v `pwd`/index_db:/index_db postgres:12.3 -c '\
+	docker run --name=indexdbconfig --net=host --env-file=containers/test.env --entrypoint=sh -v `pwd`/index_db:/index_db postgres:12.3 -c '\
 		while ! pg_isready -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER; do echo "Waiting for Postgres to start..." && sleep 0.2; done; \
 		psql -wq -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER --db $$INDEX_DB_DB -f /index_db/create_db.sql \
 	'
 	# Start Lockbook Server
-	docker run -itdP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
+	docker run -dP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
 	# Run tests
-	docker run -it --name=test --net=host --env-file=containers/test.env test:$(branch) cargo test
+	docker run --name=test --net=host --env-file=containers/test.env test:$(branch) cargo test
 	# Remove containers
 	-docker rm --force test
 	-docker rm --force lockbook
