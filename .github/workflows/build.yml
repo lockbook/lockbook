@@ -96,7 +96,7 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
-  Test:
+  Integration-Tests:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
@@ -110,17 +110,17 @@ jobs:
     - name: Build server container
       run: make server_cached
     - name: Pull older test image for cache
-      run: make test_pull
+      run: make integration_tests_pull
     - name: Build test container
-      run: make test_cached
+      run: make integration_tests_cached
     - name: Publish container
-      run: make test_push
+      run: make integration_tests_push
     - name: Lint
-      run: make test_lint
+      run: make integration_tests_lint
     - name: Compile and run tests
-      run: make test_test
+      run: make integration_tests_test
     - name: Check Formatting
-      run: make test_fmt
+      run: make integration_tests_fmt
     - name: Notify Slack
       uses: 8398a7/action-slack@v3
       with:
