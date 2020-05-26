@@ -105,9 +105,13 @@ jobs:
     - uses: actions/checkout@v2
     - name: Login
       run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-    - name: Pull older image for cache
+    - name: Pull older server image for cache
+      run: make server_pull
+    - name: Build server container
+      run: make server_cached
+    - name: Pull older test image for cache
       run: make test_pull
-    - name: Build container
+    - name: Build test container
       run: make test_cached
     - name: Lint
       run: make test_lint
