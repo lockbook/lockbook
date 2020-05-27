@@ -145,7 +145,8 @@ integration_tests_lint:
 
 .PHONY: integration_tests_run
 integration_tests_run:
-	docker-compose up
+	BRANCH=$(branch) docker-compose down
+	BRANCH=$(branch) docker-compose up
 
 .PHONY: integration_tests_push
 integration_tests_push:
