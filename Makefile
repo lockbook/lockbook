@@ -27,14 +27,18 @@ all: core server cli integration_tests
 	$(MAKE) integration_tests_lint
 	$(MAKE) integration_tests_run
 
-	- $(MAKE) core_push
-	- $(MAKE) server_push
-	- $(MAKE) cli_push
-	- $(MAKE) integration_tests_push
+	-$(MAKE) core_push
+	-$(MAKE) server_push
+	-$(MAKE) cli_push
+	-$(MAKE) integration_tests_push
+.PHONY: clean
+clean:
+	-docker rm -f $$(docker ps -a -q)
+	-docker rmi -f $$(docker images -q)
 
 .PHONY: core_pull
 core_pull:
-	- docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch)
+	-docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch)
 
 .PHONY: core_cached
 core_cached: core_pull
@@ -64,7 +68,7 @@ core_push:
 
 .PHONY: server_pull
 server_pull:
-	- docker pull docker.pkg.github.com/lockbook/lockbook/server:$(branch)
+	-docker pull docker.pkg.github.com/lockbook/lockbook/server:$(branch)
 
 .PHONY: server_cached
 server_cached: server_pull
@@ -94,7 +98,7 @@ server_push:
 
 .PHONY: cli_pull
 cli_pull:
-	- docker pull docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
+	-docker pull docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 
 .PHONY: cli_cached
 cli_cached: cli_pull
@@ -124,7 +128,7 @@ cli_push:
 
 .PHONY: integration_tests_pull
 integration_tests_pull:
-	- docker pull docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)
+	-docker pull docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)
 
 .PHONY: integration_tests_cached
 integration_tests_cached: integration_tests_pull
