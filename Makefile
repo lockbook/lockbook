@@ -9,16 +9,39 @@
 # are build failures, this dependency is not expressed and the user unfortunately has to
 # make core && make core_test to replicate issues locally.
 
-.PHONY: core_cached
-core_cached: is_docker_running core_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/core:$(branch) -f containers/Dockerfile.core . --tag core:$(branch) 
+.PHONY: all
+all: core server cli integration_tests
+	$(MAKE) core_fmt
+	$(MAKE) core_lint
+	$(MAKE) core_test
+
+	$(MAKE) server_fmt
+	$(MAKE) server_lint
+	$(MAKE) server_test
+
+	$(MAKE) cli_fmt
+	$(MAKE) cli_lint
+	$(MAKE) cli_test
+
+	$(MAKE) integration_tests_fmt
+	$(MAKE) integration_tests_lint
+	$(MAKE) integration_tests_run
+
+	- $(MAKE) core_push
+	- $(MAKE) server_push
+	- $(MAKE) cli_push
+	- $(MAKE) integration_tests_push
 
 .PHONY: core_pull
 core_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/core:master || echo "Failed to pull, ERROR IGNORED"
+	- docker pull docker.pkg.github.com/lockbook/lockbook/core:$(branch)
+
+.PHONY: core_cached
+core_cached: core_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/core:$(branch) -f containers/Dockerfile.core . --tag core:$(branch)
 
 .PHONY: core
-core:
+core: is_docker_running
 	docker build -f containers/Dockerfile.core . --tag core:$(branch)
 
 .PHONY: core_fmt
@@ -39,16 +62,16 @@ core_push:
 	docker tag core:$(branch) docker.pkg.github.com/lockbook/lockbook/core:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/core:$(branch)
 
-.PHONY: server_cached
-server_cached: is_docker_running server_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/server:$(branch) -f containers/Dockerfile.server . --tag server:$(branch) 
-
 .PHONY: server_pull
 server_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/server:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/server:master || echo "Failed to pull, ERROR IGNORED"
+	- docker pull docker.pkg.github.com/lockbook/lockbook/server:$(branch)
+
+.PHONY: server_cached
+server_cached: server_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/server:$(branch) -f containers/Dockerfile.server . --tag server:$(branch)
 
 .PHONY: server
-server:
+server: is_docker_running
 	docker build -f containers/Dockerfile.server . --tag server:$(branch)
 
 .PHONY: server_fmt
@@ -69,16 +92,16 @@ server_push:
 	docker tag server:$(branch) docker.pkg.github.com/lockbook/lockbook/server:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/server:$(branch)
 
-.PHONY: cli_cached
-cli_cached: is_docker_running cli_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/cli:$(branch) -f containers/Dockerfile.cli . --tag cli:$(branch) 
-
 .PHONY: cli_pull
 cli_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/cli:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/cli:master || echo "Failed to pull, ERROR IGNORED"
+	- docker pull docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
+
+.PHONY: cli_cached
+cli_cached: cli_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/cli:$(branch) -f containers/Dockerfile.cli . --tag cli:$(branch)
 
 .PHONY: cli
-cli:
+cli: is_docker_running
 	docker build -f containers/Dockerfile.cli . --tag cli:$(branch)
 
 .PHONY: cli_fmt
@@ -99,16 +122,16 @@ cli_push:
 	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/cli:$(branch)
 
-.PHONY: integration_tests_cached
-integration_tests_cached: is_docker_running integration_tests_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch) 
-
 .PHONY: integration_tests_pull
 integration_tests_pull:
-	docker pull docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) || docker pull docker.pkg.github.com/lockbook/lockbook/test:master || echo "Failed to pull, ERROR IGNORED"
+	- docker pull docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)
+
+.PHONY: integration_tests_cached
+integration_tests_cached: integration_tests_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch) -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch)
 
 .PHONY: integration_tests
-integration_tests:
+integration_tests: is_docker_running
 	docker build -f containers/Dockerfile.integration_tests . --tag integration_tests:$(branch)
 
 .PHONY: integration_tests_fmt
@@ -122,22 +145,7 @@ integration_tests_lint:
 
 .PHONY: integration_tests_run
 integration_tests_run:
-	# Remove containers in case they weren't cleaned up last time
-	-docker rm --force test
-	-docker rm --force lockbook
-	-docker rm --force indexdbconfig
-	-docker rm --force indexdb
-	-docker rm --force filesdbconfig
-	-docker rm --force filesdb
-	# Start Minio
-	(set -a && . containers/test.env && docker run -dP --name=filesdb --net=host -e MINIO_REGION_NAME=$$FILES_DB_REGION minio/minio:RELEASE.2020-05-16T01-33-21Z server /data)
-	# Configure Minio
-	docker run --name=filesdbconfig --net=host --env-file=containers/test.env --entrypoint=sh minio/mc:RELEASE.2020-05-16T01-44-37Z -c '\
-		while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "Waiting for Minio to start..." && sleep 0.2; done; \
-		mc config host add filesdb $$FILES_DB_SCHEME://$$FILES_DB_HOST:$$FILES_DB_PORT $$FILES_DB_ACCESS_KEY $$FILES_DB_SECRET_KEY && \
-		mc mb --region=$$FILES_DB_REGION filesdb/$$FILES_DB_BUCKET && \
-		mc policy set public filesdb/testbucket \
-	'
+	docker-compose up
 	# Start Postgres
 	docker run -dP --name=indexdb --net=host -e POSTGRES_HOST_AUTH_METHOD=trust postgres:12.3
 	# Configure Postgres
@@ -149,13 +157,6 @@ integration_tests_run:
 	docker run -dP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
 	# Run tests
 	docker run --name=test --net=host --env-file=containers/test.env integration_tests:$(branch) cargo test
-	# Remove containers
-	-docker rm --force test
-	-docker rm --force lockbook
-	-docker rm --force indexdbconfig
-	-docker rm --force indexdb
-	-docker rm --force filesdbconfig
-	-docker rm --force filesdb
 
 .PHONY: integration_tests_push
 integration_tests_push:
@@ -164,11 +165,11 @@ integration_tests_push:
 
 # Helpers
 .PHONY: is_docker_running
-is_docker_running: 
+is_docker_running:
 	@echo "Checking if docker is running"
 	@docker ps -q
 	@echo "Docker is running"
 
 # For docker tags
-hash := $(shell git rev-parse --short HEAD) 
+hash := $(shell git rev-parse --short HEAD)
 branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
