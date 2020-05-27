@@ -146,17 +146,6 @@ integration_tests_lint:
 .PHONY: integration_tests_run
 integration_tests_run:
 	docker-compose up
-	# Start Postgres
-	docker run -dP --name=indexdb --net=host -e POSTGRES_HOST_AUTH_METHOD=trust postgres:12.3
-	# Configure Postgres
-	docker run --name=indexdbconfig --net=host --env-file=containers/test.env --entrypoint=sh -v `pwd`/index_db:/index_db postgres:12.3 -c '\
-		while ! pg_isready -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER; do echo "Waiting for Postgres to start..." && sleep 0.2; done; \
-		psql -wq -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER --db $$INDEX_DB_DB -f /index_db/create_db.sql \
-	'
-	# Start Lockbook Server
-	docker run -dP --name=lockbook --net=host --env-file=containers/test.env server:$(branch) cargo run
-	# Run tests
-	docker run --name=test --net=host --env-file=containers/test.env integration_tests:$(branch) cargo test
 
 .PHONY: integration_tests_push
 integration_tests_push:
