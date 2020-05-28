@@ -1,5 +1,3 @@
-extern crate lockbook_core;
-
 use std::env;
 
 use uuid::Uuid;
@@ -16,13 +14,15 @@ use lockbook_core::model::account::Account;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
 pub fn api_loc() -> String {
-    match env::var("LOCKBOOK_API_LOCATION") {
-        Ok(s) => s,
-        Err(e) => panic!(
-            "Could not read environment variable LOCKBOOK_API_LOCATION: {}",
-            e
-        ),
-    }
+    format!(
+        "http://{}:{}",
+        env_or_panic("SERVER_HOST"),
+        env_or_panic("SERVER_PORT")
+    )
+}
+
+fn env_or_panic(var_name: &str) -> String {
+    env::var(var_name).expect(&format!("Missing environment variable {}", var_name))
 }
 
 pub fn generate_account() -> Account {
