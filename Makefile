@@ -150,7 +150,7 @@ integration_tests_lint:
 .PHONY: integration_tests_run
 integration_tests_run:
 	BRANCH=$(branch) docker-compose down
-	BRANCH=$(branch) docker-compose up
+	BRANCH=$(branch) docker-compose up --exit-code-from=integration_tests
 
 .PHONY: integration_tests_push
 integration_tests_push:
