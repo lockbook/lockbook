@@ -82,7 +82,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 return Ok(Some(file));
             }
         }
-        return Ok(None);
+        Ok(None)
     }
 
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {

@@ -40,7 +40,8 @@ pub async fn handle(
         &server_state.files_db_client,
         &request.file_id,
         &request.new_file_content,
-    );
+    )
+    .await;
     match create_file_result {
         Ok(()) => Ok(ChangeFileContentResponse {
             current_version: new_version as u64,
