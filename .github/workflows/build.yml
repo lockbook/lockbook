@@ -12,7 +12,7 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
@@ -41,7 +41,7 @@ jobs:
   Server:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
@@ -70,7 +70,7 @@ jobs:
   Cli:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
@@ -99,7 +99,7 @@ jobs:
   Integration-Tests:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
