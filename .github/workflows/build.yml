@@ -1,4 +1,4 @@
-name: Build
+name: Github Actions
 
 on:
   push:
@@ -12,32 +12,25 @@ jobs:
   Core:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./core
-      LOCKBOOK_API_LOCATION: http://lockbook.app:8000
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: nightly
-
-          override: true
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older image for cache
+      run: make core_pull
+    - name: Build container
+      run: make core_cached
+    - name: Publish container
+      run: make core_push
+    - name: Lint
+      run: make core_lint
+    - name: Compile and run tests
+      run: make core_test
     - name: Check Formatting
-      run: cargo +stable fmt -- --check -l
-      working-directory: ${{env.working-directory}}
-    - name: Build
-      uses: actions-rs/cargo@v1.0.1
-      with:
-        toolchain: nightly
-        command: build
-        args: --manifest-path core/Cargo.toml
-    - name: Test
-      uses: actions-rs/cargo@v1.0.1
-      with:
-        toolchain: nightly
-        command: test
-        args: --manifest-path core/Cargo.toml --verbose --all --no-fail-fast
-    - name: Slack Notification
+      run: make core_fmt
+    - name: Notify Slack
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
@@ -48,46 +41,91 @@ jobs:
   Server:
     runs-on: ubuntu-latest
     env:
-      working-directory: ./server
-      INDEX_DB_CONFIG_USER: ${{ secrets.INDEX_DB_CONFIG_USER }}
-      INDEX_DB_CONFIG_PASS: ${{ secrets.INDEX_DB_CONFIG_PASS }}
-      INDEX_DB_CONFIG_HOST: ${{ secrets.INDEX_DB_CONFIG_HOST }}
-      INDEX_DB_CONFIG_PORT: ${{ secrets.INDEX_DB_CONFIG_PORT }}
-      INDEX_DB_CONFIG_DB: ${{ secrets.INDEX_DB_CONFIG_DB }}
-      INDEX_DB_CONFIG_CERT: ${{ secrets.INDEX_DB_CONFIG_CERT }}
-      FILES_DB_CONFIG_BUCKET: ${{ secrets.FILES_DB_CONFIG_BUCKET }}
-      FILES_DB_CONFIG_REGION: ${{ secrets.FILES_DB_CONFIG_REGION }}
-      FILES_DB_CONFIG_ACCESS_KEY: ${{ secrets.FILES_DB_CONFIG_ACCESS_KEY }}
-      FILES_DB_CONFIG_SECRET_KEY: ${{ secrets.FILES_DB_CONFIG_SECRET_KEY }}
-      MAX_AUTH_DELAY: 100000
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
     steps:
-      - uses: actions/checkout@v2
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: clippy
-          override: true
-      - name: Check Formatting
-        run: cargo +stable fmt --quiet -- --check
-        working-directory: ${{env.working-directory}}
-      - name: Build
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          toolchain: nightly
-          command: build
-          args: --manifest-path server/Cargo.toml
-      - name: Test
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          toolchain: nightly
-          command: test
-          args: --manifest-path server/Cargo.toml --verbose
-      - name: Slack Notification
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: Build Server - ${{ job.status }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-        if: always()
+    - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older image for cache
+      run: make server_pull
+    - name: Build container
+      run: make server_cached
+    - name: Publish container
+      run: make server_push
+    - name: Lint
+      run: make server_lint
+    - name: Compile and run tests
+      run: make server_test
+    - name: Check Formatting
+      run: make server_fmt
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Build Server - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+  Cli:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older image for cache
+      run: make cli_pull
+    - name: Build container
+      run: make cli_cached
+    - name: Publish container
+      run: make cli_push
+    - name: Lint
+      run: make cli_lint
+    - name: Compile and run tests
+      run: make cli_test
+    - name: Check Formatting
+      run: make cli_fmt
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Build Cli - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+  Integration-Tests:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login
+      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+    - name: Pull older server image for cache
+      run: make server_pull
+    - name: Build server container
+      run: make server_cached
+    - name: Pull older test image for cache
+      run: make integration_tests_pull
+    - name: Build test container
+      run: make integration_tests_cached
+    - name: Publish container
+      run: make integration_tests_push
+    - name: Lint
+      run: make integration_tests_lint
+    - name: Compile and run tests
+      run: make integration_tests_run
+    - name: Check Formatting
+      run: make integration_tests_fmt
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Test - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
