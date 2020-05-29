@@ -15,12 +15,11 @@ In this monorepo you will find code for our:
 
 ### Installing Rust
 
-curl down the `rustup` script and tell `rustup` to use rust nightly, required for `feature(try_trait)`
-```
+curl and execute the `rustup` script
+```shell script
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-
-You should elect to do a **custom** install such that you can select **nightly** and **complete**.
+You should choose a **custom** install and select **complete**.
 
 ### Build Core
 
@@ -29,11 +28,6 @@ Navigate to the core folder and use cargo to build
 $ cd ./core
 $ cargo build
 ``` 
-
-If you don't tell `rustup` to use nightly you'll get the following error
-```shell script
-error[E0554]: `#![feature]` may not be used on the stable release channel
-```
 
 # iOS, iPadOs, macOS
 

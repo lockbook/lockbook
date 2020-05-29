@@ -1,10 +1,8 @@
 FROM rust
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
-RUN rustup toolchain install nightly-2020-05-15
-RUN rustup override set nightly
 RUN rustup component add rustfmt --toolchain stable
-RUN rustup component add clippy --toolchain nightly
+RUN rustup component add clippy --toolchain stable
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
