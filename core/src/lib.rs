@@ -87,10 +87,14 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn init_logger() {
+pub fn init_logger_safely() {
     env_logger::init();
     info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn init_logger() {
+    init_logger_safely()
 }
 
 #[no_mangle]
@@ -237,7 +241,6 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
         Ok(metas) => metas.into_iter().for_each(|meta| {
             DefaultFileMetadataRepo::delete(&db, &meta.file_id).unwrap();
             DefaultFileRepo::delete(&db, &meta.file_id).unwrap();
-            ()
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),
     }

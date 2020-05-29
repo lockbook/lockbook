@@ -1,6 +1,5 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 
@@ -28,7 +27,7 @@ impl From<VersionGenerationError> for Error {
 pub async fn update_file_version(
     client: &mut PostgresClient,
     file_id: &String,
-    old_version: &i64,
+    old_version: i64,
 ) -> Result<i64, Error> {
     let new_version = generate_version(client).await?;
 

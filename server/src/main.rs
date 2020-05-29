@@ -31,14 +31,21 @@ pub struct ServerState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    info!("Starting server on port 8000");
-
+    env_logger::init();
     let config = config();
+
+    info!("Connecting to index_db...");
     let index_db_client = index_db::connect(&config.index_db_config)
         .await
         .expect("Failed to connect to index_db");
-    let files_db_client =
-        files_db::connect(&config.files_db_config).expect("Failed to connect to files_db");
+    info!("Connected to index_db");
+
+    info!("Connecting to files_db...");
+    let files_db_client = files_db::connect(&config.files_db_config)
+        .await
+        .expect("Failed to connect to files_db");
+    info!("Connected to files_db");
+
     let server_state = Arc::new(Mutex::new(ServerState {
         index_db_client: index_db_client,
         files_db_client: files_db_client,
@@ -55,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    info!("Serving on port 8000");
     hyper::Server::bind(&addr).serve(make_service).await?;
     Ok(())
 }
@@ -143,18 +151,18 @@ async fn deserialize<Request: DeserializeOwned>(
 ) -> Result<Request, Error> {
     let body_bytes = body::to_bytes(request.into_body())
         .await
-        .map_err(|e| Error::HyperBodyToBytes(e))?;
+        .map_err(Error::HyperBodyToBytes)?;
     let body_string =
-        String::from_utf8(body_bytes.to_vec()).map_err(|e| Error::HyperBodyBytesToString(e))?;
-    let request = serde_json::from_str(&body_string).map_err(|e| Error::JsonDeserialize(e))?;
+        String::from_utf8(body_bytes.to_vec()).map_err(Error::HyperBodyBytesToString)?;
+    let request = serde_json::from_str(&body_string).map_err(Error::JsonDeserialize)?;
     Ok(request)
 }
 
-fn serialize<'a, Response: Serialize, ResponseError: Serialize>(
+fn serialize<Response: Serialize, ResponseError: Serialize>(
     response: Result<Result<Response, ResponseError>, Error>,
 ) -> Result<hyper::Response<Body>, hyper::http::Error> {
     let response_body =
-        response.and_then(|r| serde_json::to_string(&r).map_err(|e| Error::JsonSerialize(e)));
+        response.and_then(|r| serde_json::to_string(&r).map_err(Error::JsonSerialize));
     match response_body {
         Ok(body) => {
             debug!("Response: {:?}", body);

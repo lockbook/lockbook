@@ -22,8 +22,8 @@ impl From<&s3::serde_types::Object> for FileDetails {
     }
 }
 
-pub fn get_file_details(client: &S3Client, file_id: &str) -> Result<FileDetails, Error> {
-    let file_details = match client.list_all(file_id.to_string(), None) {
+pub async fn get_file_details(client: &S3Client, file_id: &str) -> Result<FileDetails, Error> {
+    let file_details = match client.list(file_id.to_string(), None).await {
         Ok(fd) => fd,
         Err(err) => {
             return Err(Error::S3(categorized_s3_error::Error::from(err)));
@@ -31,7 +31,7 @@ pub fn get_file_details(client: &S3Client, file_id: &str) -> Result<FileDetails,
     };
 
     match file_details.first() {
-        Some((list, _)) => list
+        Some(list) => list
             .contents
             .first()
             .ok_or(Error::NoSuchFile(()))

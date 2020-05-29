@@ -13,15 +13,15 @@ pub enum Error {
 
 pub fn send(api_location: String, request: &MoveFileRequest) -> Result<MoveFileResponse, Error> {
     let client = Client::new();
-    let serialized_request = serde_json::to_string(&request).map_err(|e| Error::Serialize(e))?;
+    let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
     let serialized_response = client
         .put(format!("{}/move-file", api_location).as_str())
         .body(serialized_request)
         .send()
-        .map_err(|e| Error::SendFailed(e))?
+        .map_err(Error::SendFailed)?
         .text()
-        .map_err(|e| Error::ReceiveFailed(e))?;
-    let response = serde_json::from_str(&serialized_response).map_err(|e| Error::Deserialize(e))?;
+        .map_err(Error::ReceiveFailed)?;
+    let response = serde_json::from_str(&serialized_response).map_err(Error::Deserialize)?;
 
     match response {
         Ok(r) => Ok(r),

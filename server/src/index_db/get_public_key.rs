@@ -1,5 +1,4 @@
 use rsa::RSAPublicKey;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 
@@ -20,8 +19,9 @@ pub async fn get_public_key(
         )
         .await
     {
-        Ok(row) => Ok(serde_json::from_str(row.get("public_key"))
-            .map_err(|err| Error::SerializationError(err))?),
+        Ok(row) => {
+            Ok(serde_json::from_str(row.get("public_key")).map_err(Error::SerializationError)?)
+        }
         Err(e) => Err(Error::Postgres(e)),
     }
 }
