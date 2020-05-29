@@ -39,6 +39,33 @@ fn test_get_public_key() {
     assert_matches!(get_public_key(), Ok(_));
 }
 
+fn get_public_key_case_insensitive_username() -> Result<(), TestError> {
+    let account = generate_account();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    client::get_public_key::send(
+        api_loc(),
+        &GetPublicKeyRequest {
+            username: account.username.to_uppercase(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_get_public_key_case_insensitive_username() {
+    assert_matches!(get_public_key_case_insensitive_username(), Ok(_));
+}
+
 fn get_public_key_invalid() -> Result<(), TestError> {
     let account = generate_account();
 

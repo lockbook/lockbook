@@ -11,21 +11,20 @@
 
 .PHONY: all
 all: core server cli integration_tests
-	$(MAKE) core_fmt
-	$(MAKE) core_lint
 	$(MAKE) core_test
-
-	$(MAKE) server_fmt
-	$(MAKE) server_lint
 	$(MAKE) server_test
-
-	$(MAKE) cli_fmt
-	$(MAKE) cli_lint
 	$(MAKE) cli_test
-
-	$(MAKE) integration_tests_fmt
-	$(MAKE) integration_tests_lint
 	$(MAKE) integration_tests_run
+
+	$(MAKE) core_fmt
+	$(MAKE) server_fmt
+	$(MAKE) cli_fmt
+	$(MAKE) integration_tests_fmt
+
+	$(MAKE) core_lint
+	$(MAKE) server_lint
+	$(MAKE) cli_lint
+	$(MAKE) integration_tests_lint
 
 	-$(MAKE) core_push
 	-$(MAKE) server_push
