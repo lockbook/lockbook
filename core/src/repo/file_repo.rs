@@ -1,5 +1,3 @@
-use std::option::NoneError;
-
 use crate::error_enum;
 use crate::service::file_encryption_service::EncryptedFile;
 use sled::Db;
@@ -8,7 +6,7 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        FileRowMissing(NoneError)
+        FileRowMissing(())
     }
 }
 
@@ -30,7 +28,7 @@ impl FileRepo for FileRepoImpl {
     fn get(db: &Db, id: &String) -> Result<EncryptedFile, Error> {
         let tree = db.open_tree(b"files")?;
         let maybe_value = tree.get(id.as_bytes())?;
-        let value = maybe_value?;
+        let value = maybe_value.ok_or(())?;
         let file: EncryptedFile = serde_json::from_slice(value.as_ref())?;
 
         Ok(file)

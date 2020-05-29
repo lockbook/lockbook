@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::option::NoneError;
 
 use rsa::RSAPublicKey;
 use serde::export::PhantomData;
@@ -36,7 +35,7 @@ error_enum! {
 
 error_enum! {
     enum FileWriteError {
-        NoAccessFoundForUser(NoneError),
+        NoAccessFoundForUser(()),
         UnableToDecryptAccessKey(DecryptionFailed),
         UnableToEncryptContent(AesEncryptionFailed),
         SignatureCreationError(rsa::errors::Error)
@@ -45,7 +44,7 @@ error_enum! {
 
 error_enum! {
     enum UnableToReadFile {
-        NoAccessFoundForUser(NoneError),
+        NoAccessFoundForUser(()),
         UnableToDecryptAccessKey(DecryptionFailed),
         UnableToEncryptContent(AesDecryptionFailed),
 
@@ -108,7 +107,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         file_before: &EncryptedFile,
         content: &DecryptedValue,
     ) -> Result<EncryptedFile, FileWriteError> {
-        let encrypted_key = &file_before.access_keys.get(&author.username)?.access_key;
+        let encrypted_key = &file_before.access_keys.get(&author.username).ok_or(())?.access_key;
         let file_encryption_key = AesKey {
             key: PK::decrypt(&author.keys, encrypted_key)?.secret,
         };
@@ -126,7 +125,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         account: &Account,
         file: &EncryptedFile,
     ) -> Result<DecryptedValue, UnableToReadFile> {
-        let encrypted_key = &file.access_keys.get(&account.username)?.access_key;
+        let encrypted_key = &file.access_keys.get(&account.username).ok_or(())?.access_key;
         let file_encryption_key = AesKey {
             key: PK::decrypt(&account.keys, encrypted_key)?.secret,
         };
