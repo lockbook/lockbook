@@ -1,7 +1,5 @@
 use std::option::NoneError;
 
-use serde_json;
-use sled;
 use sled::Db;
 
 use crate::error_enum;

@@ -1,17 +1,22 @@
+use std::env;
+
 pub struct IndexDbConfig {
-    pub user: &'static str,
-    pub pass: &'static str,
-    pub host: &'static str,
+    pub user: String,
+    pub pass: String,
+    pub host: String,
     pub port: u16,
-    pub db: &'static str,
-    pub cert: &'static str,
+    pub db: String,
+    pub cert: String,
 }
 
 pub struct FilesDbConfig {
-    pub bucket: &'static str,
-    pub region: s3::region::Region,
-    pub access_key: &'static str,
-    pub secret_key: &'static str,
+    pub scheme: String,
+    pub host: String,
+    pub port: u16,
+    pub region: String,
+    pub bucket: String,
+    pub access_key: String,
+    pub secret_key: String,
 }
 
 pub struct AuthConfig {
@@ -27,21 +32,28 @@ pub struct Config {
 pub fn config() -> Config {
     Config {
         index_db_config: IndexDbConfig {
-            user: env!("INDEX_DB_CONFIG_USER"),
-            pass: env!("INDEX_DB_CONFIG_PASS"),
-            host: env!("INDEX_DB_CONFIG_HOST"),
-            port: env!("INDEX_DB_CONFIG_PORT").parse().unwrap(),
-            db: env!("INDEX_DB_CONFIG_DB"),
-            cert: env!("INDEX_DB_CONFIG_CERT"),
+            host: env_or_panic("INDEX_DB_HOST"),
+            port: env_or_panic("INDEX_DB_PORT").parse().unwrap(),
+            db: env_or_panic("INDEX_DB_DB"),
+            user: env_or_panic("INDEX_DB_USER"),
+            pass: env_or_panic("INDEX_DB_PASS"),
+            cert: env_or_panic("INDEX_DB_CERT"),
         },
         files_db_config: FilesDbConfig {
-            bucket: env!("FILES_DB_CONFIG_BUCKET"),
-            region: env!("FILES_DB_CONFIG_REGION").parse().unwrap(),
-            access_key: env!("FILES_DB_CONFIG_ACCESS_KEY"),
-            secret_key: env!("FILES_DB_CONFIG_SECRET_KEY"),
+            scheme: env_or_panic("FILES_DB_SCHEME"),
+            host: env_or_panic("FILES_DB_HOST"),
+            port: env_or_panic("FILES_DB_PORT").parse().unwrap(),
+            region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
+            bucket: env_or_panic("FILES_DB_BUCKET"),
+            access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
+            secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
         },
         auth_config: AuthConfig {
-            max_auth_delay: env!("MAX_AUTH_DELAY").parse().unwrap(),
+            max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
         },
     }
+}
+
+fn env_or_panic(var_name: &str) -> String {
+    env::var(var_name).expect(&format!("Missing environment variable {}", var_name))
 }

@@ -4,9 +4,6 @@ use serde::Serialize;
 
 #[derive(Serialize, Debug, Clone)]
 pub enum WorkUnit {
-    /// No action needs to be taken for this file
-    Nop,
-
     /// File was created locally and doesn't exist anywhere else, push this file to the server
     PushNewFile(ClientFileMetadata),
 
@@ -40,7 +37,6 @@ pub enum WorkUnit {
 
 pub fn get_verb(work: &WorkUnit) -> String {
     match work {
-        WorkUnit::Nop => "Doing nothing".to_string(),
         WorkUnit::PushNewFile(client) => format!("Pushing file: {}", client.file_name),
         WorkUnit::UpdateLocalMetadata(server) => {
             format!("Updating metadata for: {}", server.file_name)
