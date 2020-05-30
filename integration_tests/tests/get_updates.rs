@@ -185,16 +185,4 @@ fn test_get_updates_alphanumeric_username() {
             GetUpdatesError::InvalidUsername
         )))
     );
-    let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
-    assert_eq!(
-        updates_metadata[..],
-        [FileMetadata {
-            file_id: file_id.to_string(),
-            file_name: "file_name".to_string(),
-            file_path: "file_path".to_string(),
-            file_content_version: file_version,
-            file_metadata_version: file_version,
-            deleted: false,
-        }][..]
-    );
 }
