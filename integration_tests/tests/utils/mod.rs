@@ -33,7 +33,7 @@ pub fn generate_account() -> Account {
 }
 
 pub fn generate_username() -> String {
-    Uuid::new_v4().to_string().trim_matches('-').to_string()
+    Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect()
 }
 
 pub fn generate_file_id() -> String {
