@@ -1,8 +1,10 @@
 use crate::utils::generate_account;
 
-use lockbook_core::client::get_updates;
 use lockbook_core::client;
-use lockbook_core::model::api::{FileMetadata, GetUpdatesRequest, NewAccountRequest, CreateFileRequest, GetUpdatesError};
+use lockbook_core::client::get_updates;
+use lockbook_core::model::api::{
+    CreateFileRequest, FileMetadata, GetUpdatesError, GetUpdatesRequest, NewAccountRequest,
+};
 
 #[macro_use]
 pub mod utils;
@@ -176,7 +178,7 @@ fn test_get_updates_alphanumeric_username() {
     let file_id = generate_file_id();
 
     let updates_metadata_and_file_version =
-        get_updates_case_insensitive_username(&account, file_id.to_string());
+        get_updates_alphanumeric_username(&account, file_id.to_string());
     assert_matches!(
         &updates_metadata_and_file_version,
         Err(TestError::GetUpdatesError(get_updates::Error::API(
