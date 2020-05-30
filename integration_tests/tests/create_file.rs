@@ -173,3 +173,40 @@ fn test_create_file_duplicate_file_path() {
         )))
     );
 }
+
+fn create_file_alphanumeric_username() -> Result<(), TestError> {
+    let account = generate_account();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: "Smail#@%!".to_string(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: generate_file_id(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_create_file_alphanumeric_username() {
+    assert_matches!(
+        create_file_alphanumeric_username(),
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::InvalidUsername
+        )))
+    );
+}
