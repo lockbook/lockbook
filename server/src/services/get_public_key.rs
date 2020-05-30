@@ -10,7 +10,9 @@ pub async fn handle(
         index_db::get_public_key(&mut server_state.index_db_client, &request.username).await;
     match get_public_key_result {
         Ok(key) => Ok(GetPublicKeyResponse { key: key }),
-        Err(index_db::get_public_key::Error::InvalidUsername) => Err(GetPublicKeyError::InvalidUsername),
+        Err(index_db::get_public_key::Error::InvalidUsername) => {
+            Err(GetPublicKeyError::InvalidUsername)
+        }
         Err(index_db::get_public_key::Error::Postgres(_)) => Err(GetPublicKeyError::UserNotFound),
         Err(index_db::get_public_key::Error::SerializationError(_)) => {
             println!("Internal server error! {:?}", get_public_key_result);

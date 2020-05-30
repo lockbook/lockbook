@@ -6,7 +6,7 @@ use tokio_postgres::Client as PostgresClient;
 #[derive(Debug)]
 pub enum Error {
     Postgres(PostgresError),
-    InvalidUsername
+    InvalidUsername,
 }
 
 pub async fn get_updates(
@@ -14,7 +14,6 @@ pub async fn get_updates(
     username: &String,
     metadata_version: i64,
 ) -> Result<Vec<FileMetadata>, Error> {
-
     if !username.chars().all(char::is_alphanumeric) {
         return Err(Error::InvalidUsername);
     }
