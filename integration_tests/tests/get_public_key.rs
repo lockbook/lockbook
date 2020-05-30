@@ -88,3 +88,36 @@ fn test_get_public_key_invalid() {
         )))
     );
 }
+
+fn get_public_key_alphanumeric_username() -> Result<(), TestError>{
+    let account = generate_account();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    client::get_public_key::send(
+        api_loc(),
+        &GetPublicKeyRequest {
+            username: "Smail&%^".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_get_public_key_alphanumeric_username() {
+    assert_matches!(
+        get_public_key_alphanumeric_username(),
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::InvalidUsername
+        )))
+    );
+}
+
