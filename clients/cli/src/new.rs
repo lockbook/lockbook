@@ -1,26 +1,22 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::process::Command;
 use std::{fs, io};
 
 use uuid::Uuid;
 
-use crate::utils::{connect_to_db, get_account, get_editor};
-use lockbook_core::model::client_file_metadata::ClientFileMetadata;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::auth_service::AuthService;
-use lockbook_core::service::file_service::{FileService, NewFileError, UpdateFileError};
+use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
 
-use lockbook_core::client::create_file::Error;
-use lockbook_core::client::Client;
-use lockbook_core::{
-    DefaultAuthService, DefaultClient, DefaultFileMetadataRepo, DefaultFileService,
-};
+use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+
+use lockbook_core::service::file_service::{FileService, NewFileError};
+
+use lockbook_core::service::sync_service::SyncService;
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
 
 pub fn new() {
     let db = connect_to_db();
-    let account = get_account(&db);
+    get_account(&db);
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
@@ -34,8 +30,8 @@ pub fn new() {
     io::stdin()
         .read_line(&mut file_name)
         .expect("Failed to read from stdin");
-    println!("Creating file {}", &file_name);
     file_name.retain(|c| !c.is_whitespace());
+    println!("Creating file {}", &file_name);
 
     let file_metadata = match DefaultFileService::create(&db, &file_name, &file_location) {
         Ok(file_metadata) => file_metadata,
@@ -53,86 +49,22 @@ pub fn new() {
         },
     };
 
-    let edit_was_successful = Command::new(get_editor())
-        .arg(&file_location)
-        .spawn()
-        .expect(
-            format!(
-                "Failed to spawn: {}, content location: {}",
-                get_editor(),
-                &file_location
-            )
-            .as_str(),
-        )
-        .wait()
-        .expect(
-            format!(
-                "Failed to wait for spawned process: {}, content location: {}",
-                get_editor(),
-                &file_location
-            )
-            .as_str(),
-        )
-        .success();
+    let edit_was_successful = edit_file_with_editor(&file_location);
 
     if edit_was_successful {
         let file_content =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        let encrypted_file =
-            match DefaultFileService::update(&db, &file_metadata.file_id, &file_content) {
-                Ok(file) => file,
-                Err(err) => match err {
-                    UpdateFileError::AccountRetrievalError(_) => panic!(
-                        "No account found, run init, import, or help, aborting without cleaning up"
-                    ),
-                    UpdateFileError::FileRetrievalError(_) => {
-                        panic!("Failed to get file being edited, aborting without cleaning up")
-                    }
-                    UpdateFileError::EncryptedWriteError(_) => {
-                        panic!("Failed to perform encryption!, aborting without cleaning up")
-                    }
-                    UpdateFileError::MetadataDbError(_) => {
-                        panic!("Failed to update file metadata, aborting without cleaning up")
-                    }
-                },
-            };
+        DefaultFileService::update(&db, &file_metadata.file_id, &file_content)
+            .expect("Unexpected error while updating internal state");
 
-        // Once sync service is good we should do the following and remove 103 onwards
-        // DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
-        // DefaultSyncService::sync(&db).expect("Failed to sync");
+        println!("Updating local state.");
+        DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
 
-        match DefaultClient::create_file(
-            account.username.clone(),
-            DefaultAuthService::generate_auth(&account).expect("Failed to sign message"),
-            file_metadata.file_id.clone(),
-            file_metadata.file_name.clone(),
-            file_location.clone(),
-            serde_json::to_string(&encrypted_file).expect("Failed to serialize encrypted file"),
-        ) {
-            Ok(version) => {
-                DefaultFileMetadataRepo::update(
-                    &db,
-                    &ClientFileMetadata {
-                        file_id: file_metadata.file_id,
-                        file_name: file_metadata.file_name,
-                        file_path: file_metadata.file_path,
-                        file_content_version: version,
-                        file_metadata_version: 0,
-                        new_file: false,
-                        content_edited_locally: false,
-                        metadata_edited_locally: false,
-                        deleted_locally: false,
-                    },
-                )
-                .expect("Failed to update metadata repo");
-                println!("File saved locally and synced!")
-            }
-            Err(err) => match err {
-                Error::SendFailed(_) => eprintln!("Network error occurred"),
-                _ => eprintln!("Unknown error occured: {:?}", err),
-            },
-        }
+        println!("Syncing");
+        DefaultSyncService::sync(&db).expect("Failed to sync");
+
+        println!("Sync successful, cleaning up.")
     } else {
         eprintln!(
             "{} indicated a problem, aborting and cleaning up",

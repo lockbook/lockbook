@@ -1,5 +1,4 @@
 use lockbook_core::model::api::FileMetadata;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 

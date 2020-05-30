@@ -12,7 +12,6 @@ pub fn status() {
         .work_units
         .into_iter()
         .for_each(|work| match work {
-            WorkUnit::Nop => {}
             WorkUnit::PushNewFile(client) => println!(
                 "{} has local changes that need to be pushed",
                 client.file_name

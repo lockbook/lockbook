@@ -8,7 +8,7 @@ pub async fn handle(
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
     let get_file_details_result =
-        files_db::get_file_details(&server_state.files_db_client, &request.file_id);
+        files_db::get_file_details(&server_state.files_db_client, &request.file_id).await;
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(_) => {
@@ -47,7 +47,8 @@ pub async fn handle(
         &server_state.files_db_client,
         &request.file_id,
         &request.file_content,
-    );
+    )
+    .await;
     match files_db_create_file_result {
         Ok(()) => Ok(CreateFileResponse {
             current_version: new_version as u64,
