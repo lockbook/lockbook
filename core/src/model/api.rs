@@ -160,9 +160,9 @@ pub struct NewAccountResponse {}
 pub enum NewAccountError {
     InternalError,
     InvalidAuth,
-    InvalidUsername,
     ExpiredAuth,
     UsernameTaken,
+    InvalidUsername,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
