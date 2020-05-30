@@ -37,8 +37,8 @@ impl From<SignatureVerificationFailed> for VerificationError {
 }
 
 impl From<()> for VerificationError {
-    fn from(e: ()) -> Self {
-        InvalidAuthLayout(e)
+    fn from(_e: ()) -> Self {
+        InvalidAuthLayout(())
     }
 }
 
