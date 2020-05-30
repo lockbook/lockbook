@@ -2,7 +2,6 @@ use crate::config::IndexDbConfig;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
-use tokio_postgres;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Client as PostgresClient;
 use tokio_postgres::Config as PostgresConfig;
@@ -17,13 +16,13 @@ pub enum Error {
 pub async fn connect(config: &IndexDbConfig) -> Result<PostgresClient, Error> {
     let mut postgres_config = PostgresConfig::new();
     postgres_config
-        .user(config.user)
-        .host(config.host)
-        .password(config.pass)
+        .user(&config.user)
+        .host(&config.host)
+        .password(&config.pass)
         .port(config.port)
-        .dbname(config.db);
+        .dbname(&config.db);
 
-    match config.cert {
+    match config.cert.as_str() {
         "" => connect_no_tls(&postgres_config).await,
         cert => connect_with_tls(&postgres_config, &cert).await,
     }
@@ -51,9 +50,7 @@ async fn connect_with_tls(
         Ok(builder) => builder,
         Err(err) => return Err(Error::OpenSslFailed(err)),
     };
-    builder
-        .set_ca_file(cert)
-        .map_err(|e| Error::OpenSslFailed(e))?;
+    builder.set_ca_file(cert).map_err(Error::OpenSslFailed)?;
     match postgres_config
         .connect(MakeTlsConnector::new(builder.build()))
         .await
