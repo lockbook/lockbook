@@ -1,0 +1,5 @@
+**/target/*
+.git
+graphics
+.DS_Store
+docs
