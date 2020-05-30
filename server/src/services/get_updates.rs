@@ -16,6 +16,7 @@ pub async fn handle(
         Ok(updates) => Ok(GetUpdatesResponse {
             file_metadata: updates,
         }),
+        Err(index_db::get_updates::Error::InvalidUsername) => Err(GetUpdatesError::InvalidUsername),
         Err(_) => {
             println!("Internal server error! {:?}", get_updates_result);
             Err(GetUpdatesError::InternalError)
