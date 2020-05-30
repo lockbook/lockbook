@@ -1,5 +1,3 @@
-use std::option::NoneError;
-
 use crate::error_enum;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use sled::Db;
@@ -15,7 +13,7 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        FileRowMissing(NoneError),
+        FileRowMissing(()),
     }
 }
 
@@ -69,7 +67,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         let maybe_value = tree.get(id.as_bytes())?;
-        let value = maybe_value?;
+        let value = maybe_value.ok_or(())?;
         let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref())?;
 
         Ok(file_metadata)

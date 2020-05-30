@@ -1,5 +1,4 @@
 use std::io;
-use std::option::NoneError;
 
 use crate::error_enum;
 use crate::model::state::Config;
@@ -11,7 +10,6 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         TempFileError(io::Error),
-        NoTempDir(NoneError),
     }
 }
 
@@ -34,11 +32,7 @@ impl DbProvider for DiskBackedDB {
 impl DbProvider for TempBackedDB {
     fn connect_to_db(_config: &Config) -> Result<Db, Error> {
         let dir = tempdir()?;
-        let dir_path = format!(
-            "{}/{}",
-            dir.path().to_str()?.to_string(),
-            DB_NAME.to_string()
-        );
+        let dir_path = dir.path().join(DB_NAME);
         Ok(sled::open(dir_path)?)
     }
 }
