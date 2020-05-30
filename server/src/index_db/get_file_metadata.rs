@@ -7,6 +7,7 @@ use tokio_postgres::Client as PostgresClient;
 pub enum Error {
     Postgres(PostgresError),
     FileDoesNotExist(()),
+    InvalidUsername,
 }
 
 pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
@@ -25,6 +26,11 @@ pub async fn get_file_metadata(
     username: &String,
     file_id: &String,
 ) -> Result<FileMetadata, Error> {
+
+    if !username.chars().all(char::is_alphanumeric) {
+        return Err(Error::InvalidUsername);
+    }
+
     match client.query_one(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_id = $2;",

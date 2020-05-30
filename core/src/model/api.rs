@@ -46,6 +46,7 @@ pub struct CreateFileResponse {
 pub enum CreateFileError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
@@ -88,6 +89,7 @@ pub struct GetPublicKeyResponse {
 pub enum GetPublicKeyError {
     InternalError,
     UserNotFound,
+    InvalidUsername,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -158,6 +160,7 @@ pub struct NewAccountResponse {}
 pub enum NewAccountError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     UsernameTaken,
 }

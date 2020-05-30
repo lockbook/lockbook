@@ -7,6 +7,7 @@ use tokio_postgres::Client as PostgresClient;
 #[derive(Debug)]
 pub enum Error {
     Postgres(PostgresError),
+    InvalidUsername
 }
 
 pub async fn get_updates(
@@ -14,6 +15,11 @@ pub async fn get_updates(
     username: &String,
     metadata_version: &i64,
 ) -> Result<Vec<FileMetadata>, Error> {
+
+    if !username.chars().all(char::is_alphanumeric) {
+        return Err(Error::InvalidUsername);
+    }
+
     match client.query(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_metadata_version > $2",
