@@ -23,7 +23,6 @@ pub async fn new_account(
     username: &String,
     public_key: &String,
 ) -> Result<(), Error> {
-
     if !username.chars().all(char::is_alphanumeric) {
         return Err(Error::InvalidUsername);
     }
