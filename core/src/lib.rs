@@ -1,4 +1,3 @@
-#![feature(try_trait)]
 extern crate reqwest;
 
 #[macro_use]
