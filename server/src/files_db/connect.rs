@@ -1,16 +1,26 @@
 use crate::config::FilesDbConfig;
 use crate::files_db::categorized_s3_error;
 use s3::bucket::Bucket as S3Client;
-use s3::credentials::Credentials;
+use s3::creds::Credentials;
+use s3::region::Region;
 
-pub fn connect(config: &FilesDbConfig) -> Result<S3Client, categorized_s3_error::Error> {
-    let region = config.region.clone();
+pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, categorized_s3_error::Error> {
     let credentials = Credentials::new(
-        Some(config.access_key.to_string()),
-        Some(config.secret_key.to_string()),
+        Some(&config.access_key),
+        Some(&config.secret_key),
         None,
         None,
-    );
-    let client = S3Client::new(config.bucket, region, credentials)?;
+        None,
+    )
+    .await?;
+    let client = S3Client::new(
+        &config.bucket,
+        Region::Custom {
+            endpoint: format!("{}://{}:{}", config.scheme, config.host, config.port),
+            region: config.region.clone(),
+        },
+        credentials,
+    )?;
+    println!("{}://{}:{}", config.scheme, config.host, config.port);
     Ok(client)
 }
