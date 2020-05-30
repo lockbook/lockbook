@@ -25,7 +25,6 @@ pub async fn get_file_metadata(
     username: &String,
     file_id: &String,
 ) -> Result<FileMetadata, Error> {
-
     if !username.chars().all(char::is_alphanumeric) {
         return Err(Error::InvalidUsername);
     }
