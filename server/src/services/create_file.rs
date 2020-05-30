@@ -32,6 +32,7 @@ pub async fn handle(
         Err(index_db::create_file::Error::FilePathTaken) => {
             return Err(CreateFileError::FilePathTaken)
         }
+        Err(index_db::create_file::Error::InvalidUsername) => return Err(CreateFileError::InvalidUsername),
         Err(index_db::create_file::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
