@@ -178,7 +178,12 @@ fn test_get_updates_alphanumeric_username() {
 
     let updates_metadata_and_file_version =
         get_updates_case_insensitive_username(&account, file_id.to_string());
-    assert_matches!(&updates_metadata_and_file_version, Err(TestError::GetUpdatesError(get_updates::Error::API(GetUpdatesRequest::InvalidUsername))));
+    assert_matches!(
+        &updates_metadata_and_file_version,
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesRequest::InvalidUsername
+        )))
+    );
     let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
     assert_eq!(
         updates_metadata[..],
