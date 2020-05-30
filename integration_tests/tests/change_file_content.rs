@@ -15,7 +15,6 @@ use utils::{api_loc, generate_account, generate_file_id, TestError};
 fn change_file_content() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
-
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
@@ -60,7 +59,6 @@ fn test_change_file_content() {
 fn change_file_content_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
-
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
@@ -104,7 +102,6 @@ fn test_change_file_content_case_insensitive_username() {
 
 fn change_file_content_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
-
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
