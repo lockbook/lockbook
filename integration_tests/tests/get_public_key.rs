@@ -89,7 +89,7 @@ fn test_get_public_key_invalid() {
     );
 }
 
-fn get_public_key_alphanumeric_username() -> Result<(), TestError>{
+fn get_public_key_alphanumeric_username() -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -120,4 +120,3 @@ fn test_get_public_key_alphanumeric_username() {
         )))
     );
 }
-
