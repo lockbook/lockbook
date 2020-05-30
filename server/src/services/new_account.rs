@@ -15,6 +15,7 @@ pub async fn handle(
     match new_account_result {
         Ok(()) => Ok(NewAccountResponse {}),
         Err(index_db::new_account::Error::UsernameTaken) => Err(NewAccountError::UsernameTaken),
+        Err(index_db::new_account::Error::InvalidUsername) => Err(NewAccountError::InvalidUsername),
         Err(index_db::new_account::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", new_account_result);
             Err(NewAccountError::InternalError)

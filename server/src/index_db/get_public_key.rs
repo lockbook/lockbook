@@ -7,12 +7,18 @@ use tokio_postgres::Client as PostgresClient;
 pub enum Error {
     Postgres(PostgresError),
     SerializationError(serde_json::Error),
+    InvalidUsername,
 }
 
 pub async fn get_public_key(
     client: &mut PostgresClient,
     username: &String,
 ) -> Result<RSAPublicKey, Error> {
+
+    if !username.chars().all(char::is_alphanumeric) {
+        return Err(Error::InvalidUsername);
+    }
+
     match client
         .query_one(
             "SELECT public_key FROM users WHERE username = $1;",
