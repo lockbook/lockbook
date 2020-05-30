@@ -1,5 +1,4 @@
 use std::num::ParseIntError;
-use std::option::NoneError;
 
 use rsa::RSAPublicKey;
 use serde::export::PhantomData;
@@ -19,7 +18,7 @@ use crate::service::crypto_service::{
 pub enum VerificationError {
     TimeStampParseFailure(ParseIntError),
     CryptoVerificationError(SignatureVerificationFailed),
-    InvalidAuthLayout(NoneError),
+    InvalidAuthLayout(()),
     AuthDeserializationError(serde_json::error::Error),
     InvalidUsername,
     TimeStampOutOfBounds(u128),
@@ -37,9 +36,9 @@ impl From<SignatureVerificationFailed> for VerificationError {
     }
 }
 
-impl From<NoneError> for VerificationError {
-    fn from(e: NoneError) -> Self {
-        InvalidAuthLayout(e)
+impl From<()> for VerificationError {
+    fn from(_e: ()) -> Self {
+        InvalidAuthLayout(())
     }
 }
 
@@ -83,11 +82,11 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
 
         let mut auth_comp = signed_val.content.split(',');
 
-        if &String::from(auth_comp.next()?) != username {
+        if &String::from(auth_comp.next().ok_or(())?) != username {
             return Err(InvalidUsername);
         }
 
-        let auth_time = auth_comp.next()?.parse::<u128>()?;
+        let auth_time = auth_comp.next().ok_or(())?.parse::<u128>()?;
         let range = auth_time..auth_time + max_auth_delay;
         let current_time = Time::get_time();
 
