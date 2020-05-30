@@ -108,10 +108,10 @@ pub struct GetUpdatesResponse {
 pub enum GetUpdatesError {
     InternalError,
     InvalidAuth,
-    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
+    InvalidUsername,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
