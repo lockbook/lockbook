@@ -8,7 +8,6 @@ use tokio_postgres::Client as PostgresClient;
 pub enum Error {
     FileIdTaken,
     FilePathTaken,
-    InvalidUsername,
     Uninterpreted(PostgresError),
     VersionGeneration(VersionGenerationError),
 }
@@ -47,11 +46,6 @@ pub async fn create_file(
     file_path: &String,
 ) -> Result<i64, Error> {
     let version = generate_version(client).await?;
-
-    if !username.chars().all(|x| x.is_digit(36)) {
-        return Err(Error::InvalidUsername);
-    }
-
     client.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);

@@ -174,7 +174,7 @@ fn test_create_file_duplicate_file_path() {
     );
 }
 
-fn create_file_alphanumeric_username() -> Result<(), TestError> {
+fn create_file_alphanumeric_username(username: String) -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -189,7 +189,7 @@ fn create_file_alphanumeric_username() -> Result<(), TestError> {
     client::create_file::send(
         api_loc(),
         &CreateFileRequest {
-            username: "Smail#@%!".to_string(),
+            username: username,
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: generate_file_id(),
             file_name: "file_name".to_string(),
@@ -204,7 +204,31 @@ fn create_file_alphanumeric_username() -> Result<(), TestError> {
 #[test]
 fn test_create_file_alphanumeric_username() {
     assert_matches!(
-        create_file_alphanumeric_username(),
+        create_file_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        create_file_alphanumeric_username("漢字".to_string()),
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        create_file_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        create_file_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::CreateFileError(create_file::Error::API(
+            CreateFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        create_file_alphanumeric_username("ãÁêì".to_string()),
         Err(TestError::CreateFileError(create_file::Error::API(
             CreateFileError::InvalidUsername
         )))

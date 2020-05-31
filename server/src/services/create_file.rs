@@ -7,6 +7,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(CreateFileError::InvalidUsername);
+    }
     let get_file_details_result =
         files_db::get_file_details(&server_state.files_db_client, &request.file_id).await;
     match get_file_details_result {
@@ -31,9 +34,6 @@ pub async fn handle(
         Err(index_db::create_file::Error::FileIdTaken) => return Err(CreateFileError::FileIdTaken),
         Err(index_db::create_file::Error::FilePathTaken) => {
             return Err(CreateFileError::FilePathTaken)
-        }
-        Err(index_db::create_file::Error::InvalidUsername) => {
-            return Err(CreateFileError::InvalidUsername)
         }
         Err(index_db::create_file::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", index_db_create_file_result);

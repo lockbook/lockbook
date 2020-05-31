@@ -133,10 +133,10 @@ fn test_get_updates_case_insensitive_username() {
     );
 }
 
-fn get_updates_alphanumeric_username(
-    account: &Account,
-    file_id: String,
-) -> Result<(Vec<FileMetadata>, u64), TestError> {
+fn get_updates_alphanumeric_username(username: String) -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
@@ -146,7 +146,7 @@ fn get_updates_alphanumeric_username(
         },
     )?;
 
-    let file_version = client::create_file::send(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -159,28 +159,47 @@ fn get_updates_alphanumeric_username(
     )?
     .current_version;
 
-    let updates_metadata = client::get_updates::send(
+    client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
-            username: "Smail*$%&".to_string(),
+            username: username,
             auth: "test_auth".to_string(),
             since_version: 0,
         },
     )?
     .file_metadata;
 
-    Ok((updates_metadata, file_version))
+    Ok(())
 }
 
 #[test]
 fn test_get_updates_alphanumeric_username() {
-    let account = generate_account();
-    let file_id = generate_file_id();
-
-    let updates_metadata_and_file_version =
-        get_updates_alphanumeric_username(&account, file_id.to_string());
     assert_matches!(
-        &updates_metadata_and_file_version,
+        get_updates_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_updates_alphanumeric_username("漢字".to_string()),
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_updates_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_updates_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_updates_alphanumeric_username("ãÁêì".to_string()),
         Err(TestError::GetUpdatesError(get_updates::Error::API(
             GetUpdatesError::InvalidUsername
         )))
