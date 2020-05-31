@@ -35,13 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config();
 
     info!("Connecting to index_db...");
-    let index_db_client = index_db::connect(&config.index_db_config)
+    let index_db_client = index_db::connect(&config.index_db)
         .await
         .expect("Failed to connect to index_db");
     info!("Connected to index_db");
 
     info!("Connecting to files_db...");
-    let files_db_client = files_db::connect(&config.files_db_config)
+    let files_db_client = files_db::connect(&config.files_db)
         .await
         .expect("Failed to connect to files_db");
     info!("Connected to files_db");
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         index_db_client: index_db_client,
         files_db_client: files_db_client,
     }));
-    let addr = "0.0.0.0:8000".parse()?;
+    let addr = format!("0.0.0.0:{}", config.server.port).parse()?;
 
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
-    info!("Serving on port 8000");
+    info!("Serving on port {}", config.server.port);
     hyper::Server::bind(&addr).serve(make_service).await?;
     Ok(())
 }
