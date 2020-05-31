@@ -1,7 +1,7 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
 use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -25,13 +25,11 @@ impl From<VersionGenerationError> for Error {
 }
 
 pub async fn update_file_version(
-    client: &mut PostgresClient,
+    transaction: &Transaction<'_>,
     file_id: &String,
     old_version: i64,
 ) -> Result<i64, Error> {
-    let new_version = generate_version(client).await?;
-
-    let transaction = client.transaction().await?;
+    let new_version = generate_version(transaction).await?;
     let num_affected = transaction.execute(
         "UPDATE files SET file_content_version = $1 WHERE file_id = $2 AND file_content_version = $3;",
         &[&new_version, &file_id, &old_version]
@@ -42,7 +40,6 @@ pub async fn update_file_version(
             &[&file_id],
         )
         .await?;
-    transaction.commit().await?;
 
     match row_vec.len() {
         0 => Err(Error::FileDoesNotExist),
