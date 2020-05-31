@@ -160,6 +160,7 @@ pub enum NewAccountError {
     InvalidAuth,
     ExpiredAuth,
     UsernameTaken,
+    InvalidPublicKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
