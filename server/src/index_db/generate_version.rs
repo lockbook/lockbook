@@ -15,7 +15,7 @@ impl From<PostgresError> for Error {
 pub async fn generate_version(client: &mut PostgresClient) -> Result<i64, Error> {
     let version = client
         .query_one(
-            "SELECT CAST(EXTRACT(EPOCH FROM NOW()) * 1000000 AS BIGINT);",
+            "SELECT CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT);",
             &[],
         )
         .await?
