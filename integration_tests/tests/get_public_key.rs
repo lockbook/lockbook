@@ -89,7 +89,7 @@ fn test_get_public_key_invalid() {
     );
 }
 
-fn get_public_key_alphanumeric_username() -> Result<(), TestError> {
+fn get_public_key_alphanumeric_username(username: String) -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -101,12 +101,7 @@ fn get_public_key_alphanumeric_username() -> Result<(), TestError> {
         },
     )?;
 
-    client::get_public_key::send(
-        api_loc(),
-        &GetPublicKeyRequest {
-            username: "Smail&%^".to_string(),
-        },
-    )?;
+    client::get_public_key::send(api_loc(), &GetPublicKeyRequest { username: username })?;
 
     Ok(())
 }
@@ -114,7 +109,31 @@ fn get_public_key_alphanumeric_username() -> Result<(), TestError> {
 #[test]
 fn test_get_public_key_alphanumeric_username() {
     assert_matches!(
-        get_public_key_alphanumeric_username(),
+        get_public_key_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_public_key_alphanumeric_username("漢字".to_string()),
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_public_key_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_public_key_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::GetPublicKeyError(get_public_key::Error::API(
+            GetPublicKeyError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        get_public_key_alphanumeric_username("ãÁêì".to_string()),
         Err(TestError::GetPublicKeyError(get_public_key::Error::API(
             GetPublicKeyError::InvalidUsername
         )))
