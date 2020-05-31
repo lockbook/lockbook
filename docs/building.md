@@ -24,7 +24,15 @@ Simply go into the [Cli Folder](../clients/cli) and `cargo run`.
 
 ## Android
 
-In addition to the nightly rust toolchain, you need `gradle`, android's build system of choice.
+Standard Android development toolchain.
+
+Native development support for cargo.
+
+```shell script
+cargo install cargo-ndk
+```
+
+
 
 ## iOS, iPadOS, and macOS
 
@@ -36,6 +44,11 @@ In addition to the nightly rust toolchain, you need `gradle`, android's build sy
 + XCode 11+
 + `cbindgen` for creating c headers `cargo install cbindgen`
 + `cargo-lipo` for creating `[Fat Binaries](https://en.wikipedia.org/wiki/Fat_binary) `cargo install cargo-lipo`
++ The build targets:
+
+```shell script
+rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
+```
 
 ## Reference Instructions
 
