@@ -6,6 +6,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: RenameFileRequest,
 ) -> Result<RenameFileResponse, RenameFileError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(RenameFileError::InvalidUsername);
+    }
     let rename_file_result = index_db::rename_file(
         &mut server_state.index_db_client,
         &request.file_id,

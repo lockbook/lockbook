@@ -9,6 +9,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(ChangeFileContentError::InvalidUsername);
+    }
     let update_file_version_result = index_db::update_file_version(
         &mut server_state.index_db_client,
         &request.file_id,

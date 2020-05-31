@@ -6,6 +6,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(MoveFileError::InvalidUsername);
+    }
     let move_file_result = index_db::move_file(
         &mut server_state.index_db_client,
         &request.file_id,
