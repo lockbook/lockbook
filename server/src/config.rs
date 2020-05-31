@@ -19,19 +19,20 @@ pub struct FilesDbConfig {
     pub secret_key: String,
 }
 
-pub struct AuthConfig {
+pub struct ServerConfig {
+    pub port: u16,
     pub max_auth_delay: u128,
 }
 
 pub struct Config {
-    pub index_db_config: IndexDbConfig,
-    pub files_db_config: FilesDbConfig,
-    pub auth_config: AuthConfig,
+    pub index_db: IndexDbConfig,
+    pub files_db: FilesDbConfig,
+    pub server: ServerConfig,
 }
 
 pub fn config() -> Config {
     Config {
-        index_db_config: IndexDbConfig {
+        index_db: IndexDbConfig {
             host: env_or_panic("INDEX_DB_HOST"),
             port: env_or_panic("INDEX_DB_PORT").parse().unwrap(),
             db: env_or_panic("INDEX_DB_DB"),
@@ -39,7 +40,7 @@ pub fn config() -> Config {
             pass: env_or_panic("INDEX_DB_PASS"),
             cert: env_or_panic("INDEX_DB_CERT"),
         },
-        files_db_config: FilesDbConfig {
+        files_db: FilesDbConfig {
             scheme: env_or_panic("FILES_DB_SCHEME"),
             host: env_or_panic("FILES_DB_HOST"),
             port: env_or_panic("FILES_DB_PORT").parse().unwrap(),
@@ -48,7 +49,8 @@ pub fn config() -> Config {
             access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
             secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
         },
-        auth_config: AuthConfig {
+        server: ServerConfig {
+            port: env_or_panic("SERVER_PORT").parse().unwrap(),
             max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
         },
     }
