@@ -48,7 +48,7 @@ pub async fn create_file(
 ) -> Result<i64, Error> {
     let version = generate_version(client).await?;
 
-    if !username.chars().all(char::is_alphanumeric) {
+    if !username.chars().all(|x| x.is_digit(36)) {
         return Err(Error::InvalidUsername);
     }
 

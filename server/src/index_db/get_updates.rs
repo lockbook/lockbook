@@ -14,7 +14,7 @@ pub async fn get_updates(
     username: &String,
     metadata_version: i64,
 ) -> Result<Vec<FileMetadata>, Error> {
-    if !username.chars().all(char::is_alphanumeric) {
+    if !username.chars().all(|x| x.is_digit(36)) {
         return Err(Error::InvalidUsername);
     }
 
