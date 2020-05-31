@@ -90,8 +90,8 @@ pub struct GetPublicKeyResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetPublicKeyError {
     InternalError,
-    UserNotFound,
     InvalidUsername,
+    UserNotFound,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
