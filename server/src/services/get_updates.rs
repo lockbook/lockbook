@@ -6,6 +6,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(GetUpdatesError::InvalidUsername);
+    }
     let get_updates_result = index_db::get_updates(
         &mut server_state.index_db_client,
         &request.username,
@@ -16,7 +19,6 @@ pub async fn handle(
         Ok(updates) => Ok(GetUpdatesResponse {
             file_metadata: updates,
         }),
-        Err(index_db::get_updates::Error::InvalidUsername) => Err(GetUpdatesError::InvalidUsername),
         Err(_) => {
             println!("Internal server error! {:?}", get_updates_result);
             Err(GetUpdatesError::InternalError)

@@ -7,6 +7,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(DeleteFileError::InvalidUsername);
+    }
     let index_db_delete_file_result =
         index_db::delete_file(&mut server_state.index_db_client, &request.file_id).await;
     match index_db_delete_file_result {

@@ -5,7 +5,6 @@ use tokio_postgres::Client as PostgresClient;
 #[derive(Debug)]
 pub enum Error {
     UsernameTaken,
-    InvalidUsername,
     Uninterpreted(PostgresError),
 }
 
@@ -23,10 +22,6 @@ pub async fn new_account(
     username: &String,
     public_key: &String,
 ) -> Result<(), Error> {
-    if !username.chars().all(|x| x.is_digit(36)) {
-        return Err(Error::InvalidUsername);
-    }
-
     client
         .execute(
             "INSERT INTO users (username, public_key) VALUES ($1, $2);",

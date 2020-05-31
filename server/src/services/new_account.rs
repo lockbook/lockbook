@@ -6,6 +6,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
+    if !request.username.chars().all(|x| x.is_digit(36)) {
+        return Err(NewAccountError::InvalidUsername);
+    }
     let new_account_result = index_db::new_account(
         &mut server_state.index_db_client,
         &request.username,
@@ -15,7 +18,6 @@ pub async fn handle(
     match new_account_result {
         Ok(()) => Ok(NewAccountResponse {}),
         Err(index_db::new_account::Error::UsernameTaken) => Err(NewAccountError::UsernameTaken),
-        Err(index_db::new_account::Error::InvalidUsername) => Err(NewAccountError::InvalidUsername),
         Err(index_db::new_account::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", new_account_result);
             Err(NewAccountError::InternalError)

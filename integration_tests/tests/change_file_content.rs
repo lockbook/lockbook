@@ -242,3 +242,77 @@ fn test_change_file_content_file_deleted() {
         ))
     );
 }
+
+fn change_file_alphanumeric_username(username: String) -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let old_file_version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?
+    .current_version;
+
+    client::change_file_content::send(
+        api_loc(),
+        &ChangeFileContentRequest {
+            username: username,
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_file_version,
+            new_file_content: "new_file_content".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_change_file_alphanumeric_username() {
+    assert_matches!(
+        change_file_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
+    assert_matches!(
+        change_file_alphanumeric_username("漢字".to_string()),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
+    assert_matches!(
+        change_file_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
+    assert_matches!(
+        change_file_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
+    assert_matches!(
+        change_file_alphanumeric_username("ãÁêì".to_string()),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
+}
