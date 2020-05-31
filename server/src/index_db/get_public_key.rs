@@ -13,7 +13,7 @@ pub async fn get_public_key(
     client: &mut PostgresClient,
     username: &String,
 ) -> Result<RSAPublicKey, Error> {
-    if !username.chars().all(char::is_alphanumeric) {
+    if !username.chars().all(|x| x.is_digit(36)) {
         return Err(Error::InvalidUsername);
     }
 
