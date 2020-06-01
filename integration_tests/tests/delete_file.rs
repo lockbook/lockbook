@@ -206,7 +206,7 @@ fn test_delete_file_edit_conflict() {
     assert_matches!(
         delete_file_edit_conflict(),
         Err(TestError::DeleteFileError(delete_file::Error::API(
-            DeleteFileError::FileDeleted
+            DeleteFileError::EditConflict
         )))
     );
 }
