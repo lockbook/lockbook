@@ -9,7 +9,7 @@ pub async fn handle(
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(GetUpdatesError::InternalError);
         }
     };
@@ -25,7 +25,7 @@ pub async fn handle(
             file_metadata: updates,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", get_updates_result);
+            error!("Internal server error! {:?}", get_updates_result);
             Err(GetUpdatesError::InternalError)
         }
     };
@@ -33,7 +33,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetUpdatesError::InternalError)
         }
     }
