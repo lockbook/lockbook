@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
@@ -9,7 +10,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
-    if !request.username.chars().all(|x| x.is_digit(36)) {
+    if !username_is_valid(request.username.clone()) {
         return Err(ChangeFileContentError::InvalidUsername);
     }
     let update_file_version_result = index_db::update_file_version(

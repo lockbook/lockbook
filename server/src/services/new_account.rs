@@ -1,4 +1,5 @@
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
 
@@ -6,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
-    if !request.username.chars().all(|x| x.is_digit(36)) {
+    if !username_is_valid(request.username.clone()) {
         return Err(NewAccountError::InvalidUsername);
     }
     let new_account_result = index_db::new_account(
