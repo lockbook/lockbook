@@ -1,6 +1,7 @@
 use lockbook_core::client;
 use lockbook_core::client::delete_file;
 use lockbook_core::model::api::CreateFileRequest;
+use lockbook_core::model::api::MoveFileRequest;
 use lockbook_core::model::api::NewAccountRequest;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest};
 
@@ -34,7 +35,8 @@ fn delete_file() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -112,7 +114,8 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     let version = client::delete_file::send(
         api_loc(),
@@ -122,7 +125,8 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
             file_id: file_id.to_string(),
             old_metadata_version: version,
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -141,6 +145,66 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
 fn test_delete_file_file_deleted() {
     assert_matches!(
         delete_file_file_deleted(),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::FileDeleted
+        )))
+    );
+}
+
+fn delete_file_edit_conflict() -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?
+    .current_metadata_and_content_version;
+
+    client::move_file::send(
+        api_loc(),
+        &MoveFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+            new_file_path: "new_file_path".to_string(),
+        },
+    )?;
+
+    client::delete_file::send(
+        api_loc(),
+        &DeleteFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_delete_file_edit_conflict() {
+    assert_matches!(
+        delete_file_edit_conflict(),
         Err(TestError::DeleteFileError(delete_file::Error::API(
             DeleteFileError::FileDeleted
         )))

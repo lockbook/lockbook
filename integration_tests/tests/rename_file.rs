@@ -35,7 +35,8 @@ fn rename_file() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::rename_file::send(
         api_loc(),
@@ -115,7 +116,8 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     let version = client::delete_file::send(
         api_loc(),
@@ -125,7 +127,8 @@ fn rename_file_file_deleted() -> Result<(), TestError> {
             file_id: file_id.to_string(),
             old_metadata_version: version,
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::rename_file::send(
         api_loc(),
@@ -147,6 +150,67 @@ fn test_rename_file_file_deleted() {
         rename_file_file_deleted(),
         Err(TestError::RenameFileError(rename_file::Error::API(
             RenameFileError::FileDeleted
+        )))
+    );
+}
+
+fn rename_file_edit_conflict() -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?
+    .current_metadata_and_content_version;
+
+    client::rename_file::send(
+        api_loc(),
+        &RenameFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+            new_file_name: "new_file_name".to_string(),
+        },
+    )?;
+
+    client::rename_file::send(
+        api_loc(),
+        &RenameFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+            new_file_name: "new_file_name".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_rename_file_edit_conflict() {
+    assert_matches!(
+        rename_file_edit_conflict(),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::EditConflict
         )))
     );
 }
