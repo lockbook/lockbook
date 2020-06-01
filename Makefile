@@ -55,7 +55,7 @@ core_fmt:
 
 .PHONY: core_lint
 core_lint:
-	docker run core:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run core:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: core_test
 core_test:
@@ -85,7 +85,7 @@ server_fmt:
 
 .PHONY: server_lint
 server_lint:
-	docker run server:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run server:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: server_test
 server_test:
@@ -115,7 +115,7 @@ cli_fmt:
 
 .PHONY: cli_lint
 cli_lint:
-	docker run cli:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run cli:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: cli_test
 cli_test:
@@ -145,7 +145,7 @@ integration_tests_fmt:
 
 .PHONY: integration_tests_lint
 integration_tests_lint:
-	docker run integration_tests:$(branch) cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run integration_tests:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: integration_tests_run
 integration_tests_run:
