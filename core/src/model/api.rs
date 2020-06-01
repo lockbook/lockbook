@@ -6,13 +6,13 @@ pub struct ChangeFileContentRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
-    pub old_file_version: u64,
+    pub old_metadata_version: u64,
     pub new_file_content: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeFileContentResponse {
-    pub current_version: u64,
+    pub current_metadata_and_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -39,7 +39,7 @@ pub struct CreateFileRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFileResponse {
-    pub current_version: u64,
+    pub current_metadata_and_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -58,10 +58,13 @@ pub struct DeleteFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
+    pub old_metadata_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteFileResponse {}
+pub struct DeleteFileResponse {
+    pub current_metadata_and_content_version: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DeleteFileError {
@@ -71,6 +74,7 @@ pub enum DeleteFileError {
     NotPermissioned,
     UserNotFound,
     FileNotFound,
+    EditConflict,
     FileDeleted,
 }
 
@@ -94,7 +98,7 @@ pub enum GetPublicKeyError {
 pub struct GetUpdatesRequest {
     pub username: String,
     pub auth: String,
-    pub since_version: u64,
+    pub since_metadata_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -126,11 +130,14 @@ pub struct MoveFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
+    pub old_metadata_version: u64,
     pub new_file_path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MoveFileResponse {}
+pub struct MoveFileResponse {
+    pub current_metadata_version: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MoveFileError {
@@ -140,6 +147,7 @@ pub enum MoveFileError {
     NotPermissioned,
     UserNotFound,
     FileNotFound,
+    EditConflict,
     FileDeleted,
     FilePathTaken,
 }
@@ -167,11 +175,14 @@ pub struct RenameFileRequest {
     pub username: String,
     pub auth: String,
     pub file_id: String,
+    pub old_metadata_version: u64,
     pub new_file_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RenameFileResponse {}
+pub struct RenameFileResponse {
+    pub current_metadata_version: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RenameFileError {
@@ -182,4 +193,5 @@ pub enum RenameFileError {
     UserNotFound,
     FileNotFound,
     FileDeleted,
+    EditConflict,
 }

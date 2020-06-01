@@ -14,20 +14,44 @@ pub async fn handle(
         }
     };
 
-    let rename_file_result =
-        index_db::rename_file(&transaction, &request.file_id, &request.new_file_name).await;
+    let rename_file_result = index_db::rename_file(
+        &transaction,
+        &request.file_id,
+        request.old_metadata_version,
+        &request.new_file_name,
+    )
+    .await;
     let result = match rename_file_result {
-        Ok(_) => Ok(RenameFileResponse {}),
+        Ok(v) => Ok(RenameFileResponse {
+            current_metadata_version: v,
+        }),
         Err(index_db::rename_file::Error::FileDoesNotExist) => Err(RenameFileError::FileNotFound),
         Err(index_db::rename_file::Error::FileDeleted) => Err(RenameFileError::FileDeleted),
         Err(index_db::rename_file::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", rename_file_result);
             Err(RenameFileError::InternalError)
         }
-        Err(index_db::rename_file::Error::VersionGeneration(_)) => {
+        Err(index_db::rename_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::Uninterpreted(_),
+        )) => {
             println!("Internal server error! {:?}", rename_file_result);
-            Err(RenameFileError::InternalError)
+            return Err(RenameFileError::InternalError);
         }
+        Err(index_db::rename_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::VersionGeneration(_),
+        )) => {
+            println!("Internal server error! {:?}", rename_file_result);
+            return Err(RenameFileError::InternalError);
+        }
+        Err(index_db::rename_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::FileDoesNotExist,
+        )) => return Err(RenameFileError::FileNotFound),
+        Err(index_db::rename_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::IncorrectOldVersion(_),
+        )) => return Err(RenameFileError::EditConflict),
+        Err(index_db::rename_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::FileDeleted,
+        )) => return Err(RenameFileError::FileDeleted),
     };
 
     match transaction.commit().await {

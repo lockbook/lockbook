@@ -58,7 +58,7 @@ pub async fn handle(
     .await;
     let result = match files_db_create_file_result {
         Ok(()) => Ok(CreateFileResponse {
-            current_version: new_version as u64,
+            current_metadata_and_content_version: new_version as u64,
         }),
         Err(_) => {
             println!("Internal server error! {:?}", files_db_create_file_result);

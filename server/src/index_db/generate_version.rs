@@ -6,19 +6,15 @@ pub enum Error {
     Uninterpreted(PostgresError),
 }
 
-impl From<PostgresError> for Error {
-    fn from(e: PostgresError) -> Error {
-        Error::Uninterpreted(e)
-    }
-}
-
-pub async fn generate_version(transaction: &Transaction<'_>) -> Result<i64, Error> {
-    let version = transaction
+pub async fn generate_version(transaction: &Transaction<'_>) -> Result<u64, Error> {
+    let version: i64 = transaction
         .query_one(
             "SELECT CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT);",
             &[],
         )
-        .await?
-        .try_get(0)?;
-    Ok(version)
+        .await
+        .map_err(Error::Uninterpreted)?
+        .try_get(0)
+        .map_err(Error::Uninterpreted)?;
+    Ok(version as u64)
 }
