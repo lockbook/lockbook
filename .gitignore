@@ -92,4 +92,4 @@ server/ca-certificate.crt
 *.iml
 integration_tests/target/
 containers/qa.env
-
+clients/android/core/src/main/jniLibs/
