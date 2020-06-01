@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import androidx.navigation.fragment.findNavController
+import app.lockbook.core.helloDirect
+import app.lockbook.core.loadRustyLib
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -18,15 +20,15 @@ class FirstFragment : Fragment() {
             savedInstanceState: Bundle?
     ): View? {
         // Inflate the layout for this fragment
+
         return inflater.inflate(R.layout.fragment_first, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        loadRustyLib()
 
-        view.findViewById<Button>(R.id.button_first).setOnClickListener {
-            val action = FirstFragmentDirections.actionFirstFragmentToSecondFragment("From FirstFragment")
-            findNavController().navigate(action)
-        }
+        println("reached here")
+        println(helloDirect("hi"))
     }
 }
