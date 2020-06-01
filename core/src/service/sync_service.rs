@@ -241,6 +241,7 @@ impl<
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
                     client.file_id,
+                    client.file_metadata_version,
                     metadata.file_name.clone(),
                 )?;
 
@@ -248,6 +249,7 @@ impl<
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
                     metadata.file_id.clone(),
+                    client.file_metadata_version,
                     metadata.file_path.clone(),
                 )?;
 
@@ -281,6 +283,7 @@ impl<
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
                     client.clone().file_id,
+                    client.file_metadata_version,
                 )?;
 
                 FileMetadataDb::delete(&db, &client.file_id)?;
