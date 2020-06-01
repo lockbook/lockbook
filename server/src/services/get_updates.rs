@@ -1,4 +1,5 @@
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{GetUpdatesError, GetUpdatesRequest, GetUpdatesResponse};
 
@@ -6,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
-    if !request.username.chars().all(|x| x.is_digit(36)) {
+    if !username_is_valid(request.username.clone()) {
         return Err(GetUpdatesError::InvalidUsername);
     }
     let get_updates_result = index_db::get_updates(

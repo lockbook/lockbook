@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
@@ -7,7 +8,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
-    if !request.username.chars().all(|x| x.is_digit(36)) {
+    if !username_is_valid(request.username.clone()) {
         return Err(DeleteFileError::InvalidUsername);
     }
     let index_db_delete_file_result =
