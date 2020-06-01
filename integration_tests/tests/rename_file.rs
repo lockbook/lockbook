@@ -55,7 +55,7 @@ fn test_rename_file() {
     assert_matches!(rename_file(), Ok(_));
 }
 
-fn rename_file_case_insensitive_username() -> Result<(), TestError> {
+fn rename_file_case_sensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
@@ -94,8 +94,13 @@ fn rename_file_case_insensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_rename_file_case_insensitive_username() {
-    assert_matches!(rename_file_case_insensitive_username(), Ok(_));
+fn test_rename_file_case_sensitive_username() {
+    assert_matches!(
+        rename_file_case_sensitive_username(),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
 }
 
 fn rename_file_file_not_found() -> Result<(), TestError> {

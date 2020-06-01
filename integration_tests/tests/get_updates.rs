@@ -72,10 +72,10 @@ fn test_get_updates() {
     );
 }
 
-fn get_updates_case_insensitive_username(
-    account: &Account,
-    file_id: String,
-) -> Result<(Vec<FileMetadata>, u64), TestError> {
+fn get_updates_case_sensitive_username() -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
@@ -85,7 +85,7 @@ fn get_updates_case_insensitive_username(
         },
     )?;
 
-    let file_version = client::create_file::send(
+    client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -98,7 +98,7 @@ fn get_updates_case_insensitive_username(
     )?
     .current_version;
 
-    let updates_metadata = client::get_updates::send(
+    client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
             username: account.username.to_uppercase(),
@@ -108,28 +108,16 @@ fn get_updates_case_insensitive_username(
     )?
     .file_metadata;
 
-    Ok((updates_metadata, file_version))
+    Ok(())
 }
 
 #[test]
-fn test_get_updates_case_insensitive_username() {
-    let account = generate_account();
-    let file_id = generate_file_id();
-
-    let updates_metadata_and_file_version =
-        get_updates_case_insensitive_username(&account, file_id.to_string());
-    assert_matches!(&updates_metadata_and_file_version, &Ok(_));
-    let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
-    assert_eq!(
-        updates_metadata[..],
-        [FileMetadata {
-            file_id: file_id.to_string(),
-            file_name: "file_name".to_string(),
-            file_path: "file_path".to_string(),
-            file_content_version: file_version,
-            file_metadata_version: file_version,
-            deleted: false,
-        }][..]
+fn test_get_updates_case_sensitive_username() {
+    assert_matches!(
+        get_updates_case_sensitive_username(),
+        Err(TestError::GetUpdatesError(get_updates::Error::API(
+            GetUpdatesError::InvalidUsername
+        )))
     );
 }
 

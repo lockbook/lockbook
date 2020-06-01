@@ -64,7 +64,7 @@ fn test_new_account_duplicate() {
     );
 }
 
-fn new_account_case_insensitive_username() -> Result<(), TestError> {
+fn new_account_case_sensitive_username() -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -89,11 +89,11 @@ fn new_account_case_insensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_new_account_case_insensitive_username() {
+fn test_new_account_case_sensitive_username() {
     assert_matches!(
-        new_account_case_insensitive_username(),
+        new_account_case_sensitive_username(),
         Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::UsernameTaken
+            NewAccountError::InvalidUsername
         )))
     );
 }

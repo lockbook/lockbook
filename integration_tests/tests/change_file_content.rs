@@ -56,7 +56,7 @@ fn test_change_file_content() {
     assert_matches!(change_file_content(), Ok(_));
 }
 
-fn change_file_content_case_insensitive_username() -> Result<(), TestError> {
+fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
     client::new_account::send(
@@ -96,8 +96,13 @@ fn change_file_content_case_insensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_change_file_content_case_insensitive_username() {
-    assert_matches!(change_file_content_case_insensitive_username(), Ok(_));
+fn test_change_file_content_case_sensitive_username() {
+    assert_matches!(
+        change_file_content_case_sensitive_username(),
+        Err(TestError::ChangeFileContentError(
+            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        ))
+    );
 }
 
 fn change_file_content_file_not_found() -> Result<(), TestError> {
