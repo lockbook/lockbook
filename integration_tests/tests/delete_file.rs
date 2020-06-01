@@ -53,7 +53,7 @@ fn test_delete_file() {
     assert_matches!(delete_file(), Ok(_));
 }
 
-fn delete_file_case_insensitive_username() -> Result<(), TestError> {
+fn delete_file_case_sensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
@@ -91,8 +91,13 @@ fn delete_file_case_insensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_delete_file_case_insensitive_username() {
-    assert_matches!(delete_file_case_insensitive_username(), Ok(_));
+fn test_delete_file_case_sensitive_username() {
+    assert_matches!(
+        delete_file_case_sensitive_username(),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
 }
 
 fn delete_file_file_not_found() -> Result<(), TestError> {

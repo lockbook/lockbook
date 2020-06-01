@@ -55,7 +55,7 @@ fn test_move_file() {
     assert_matches!(move_file(), Ok(_));
 }
 
-fn move_file_case_insensitive_username() -> Result<(), TestError> {
+fn move_file_case_sensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
@@ -94,8 +94,13 @@ fn move_file_case_insensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_move_file_case_insensitive_username() {
-    assert_matches!(move_file_case_insensitive_username(), Ok(_));
+fn test_move_file_case_sensitive_username() {
+    assert_matches!(
+        move_file_case_sensitive_username(),
+        Err(TestError::MoveFileError(move_file::Error::API(
+            MoveFileError::InvalidUsername
+        )))
+    );
 }
 
 fn move_file_file_not_found() -> Result<(), TestError> {
