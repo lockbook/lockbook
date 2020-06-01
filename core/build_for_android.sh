@@ -10,7 +10,7 @@ cargo ndk --target x86_64-linux-android --android-platform ${min_ver} -- build -
 
 # moving libraries to the android project
 jniLibs=../clients/android/core/src/main/jniLibs
-libName=libdevicers.so
+libName=liblockbook_core.so
 
 rm -rf ${jniLibs}
 
