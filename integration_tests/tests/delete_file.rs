@@ -24,7 +24,7 @@ fn delete_file() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -34,7 +34,7 @@ fn delete_file() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?;
+    )?.current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -42,6 +42,7 @@ fn delete_file() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
+            old_metadata_version: version,
         },
     )?;
 
@@ -71,6 +72,7 @@ fn delete_file_file_not_found() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: generate_file_id(),
+            old_metadata_version: 0,
         },
     )?;
 
@@ -100,7 +102,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -110,16 +112,17 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?;
+    )?.current_metadata_and_content_version;
 
-    client::delete_file::send(
+    let version = client::delete_file::send(
         api_loc(),
         &DeleteFileRequest {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
+            old_metadata_version: version,
         },
-    )?;
+    )?.current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -127,6 +130,7 @@ fn delete_file_file_deleted() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
+            old_metadata_version: version,
         },
     )?;
 
