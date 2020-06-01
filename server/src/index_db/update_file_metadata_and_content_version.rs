@@ -19,12 +19,8 @@ pub async fn update_file_metadata_and_content_version(
         .map_err(Error::MetadataVersionUpdate)?;
     transaction
         .execute(
-            "UPDATE files SET file_content_version = file_metadata_version WHERE file_id = $2;",
-            &[
-                &(new_version as i64),
-                &file_id,
-                &(old_metadata_version as i64),
-            ],
+            "UPDATE files SET file_content_version = file_metadata_version WHERE file_id = $1;",
+            &[&file_id],
         )
         .await
         .map_err(Error::Uninterpreted)?;
