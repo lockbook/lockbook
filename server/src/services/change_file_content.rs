@@ -10,7 +10,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(ChangeFileContentError::InvalidUsername);
     }
     let update_file_version_result = index_db::update_file_version(
