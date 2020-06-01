@@ -1,5 +1,3 @@
-use std::option::NoneError;
-
 use sled::Db;
 
 use crate::error_enum;
@@ -9,7 +7,7 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        AccountMissing(NoneError), // TODO: not required in get_account
+        AccountMissing(()),
     }
 }
 
@@ -30,7 +28,7 @@ impl AccountRepo for AccountRepoImpl {
     fn get_account(db: &Db) -> Result<Account, Error> {
         let tree = db.open_tree("account")?;
         let maybe_value = tree.get("you")?;
-        let val = maybe_value?;
+        let val = maybe_value.ok_or(())?;
         let account: Account = serde_json::from_slice(val.as_ref())?;
         Ok(account)
     }
