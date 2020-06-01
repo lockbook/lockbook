@@ -7,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(GetUpdatesError::InvalidUsername);
     }
     let get_updates_result = index_db::get_updates(
