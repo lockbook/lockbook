@@ -21,7 +21,7 @@ pub trait Client {
         username: String,
         auth: String,
         file_id: String,
-        old_file_version: u64,
+        old_metadata_version: u64,
         new_file_content: String,
     ) -> Result<u64, change_file_content::Error>;
     fn create_file(
@@ -36,7 +36,8 @@ pub trait Client {
         username: String,
         auth: String,
         file_id: String,
-    ) -> Result<(), delete_file::Error>;
+        old_metadata_version: u64,
+    ) -> Result<u64, delete_file::Error>;
     fn get_updates(
         username: String,
         auth: String,
@@ -46,8 +47,9 @@ pub trait Client {
         username: String,
         auth: String,
         file_id: String,
+        old_metadata_version: u64,
         new_file_path: String,
-    ) -> Result<(), move_file::Error>;
+    ) -> Result<u64, move_file::Error>;
     fn new_account(
         username: String,
         auth: String,
@@ -57,8 +59,9 @@ pub trait Client {
         username: String,
         auth: String,
         file_id: String,
+        old_metadata_version: u64,
         new_file_name: String,
-    ) -> Result<(), rename_file::Error>;
+    ) -> Result<u64, rename_file::Error>;
     fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error>;
     fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error>;
 }
@@ -69,7 +72,7 @@ impl Client for ClientImpl {
         username: String,
         auth: String,
         file_id: String,
-        old_file_version: u64,
+        old_metadata_version: u64,
         new_file_content: String,
     ) -> Result<u64, change_file_content::Error> {
         Ok(change_file_content::send(
@@ -78,11 +81,11 @@ impl Client for ClientImpl {
                 username,
                 auth,
                 file_id,
-                old_file_version,
+                old_metadata_version,
                 new_file_content,
             },
         )?
-        .current_version)
+        .current_metadata_and_content_version)
     }
     fn create_file(
         username: String,
@@ -103,34 +106,36 @@ impl Client for ClientImpl {
                 file_content,
             },
         )?
-        .current_version)
+        .current_metadata_and_content_version)
     }
     fn delete_file(
         username: String,
         auth: String,
         file_id: String,
-    ) -> Result<(), delete_file::Error> {
-        delete_file::send(
+        old_metadata_version: u64,
+    ) -> Result<u64, delete_file::Error> {
+        Ok(delete_file::send(
             String::from(API_LOC),
             &DeleteFileRequest {
                 username,
                 auth,
                 file_id,
+                old_metadata_version,
             },
-        )?;
-        Ok(())
+        )?
+        .current_metadata_and_content_version)
     }
     fn get_updates(
         username: String,
         auth: String,
-        since_version: u64,
+        since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, get_updates::Error> {
         Ok(get_updates::send(
             String::from(API_LOC),
             &GetUpdatesRequest {
                 username,
                 auth,
-                since_version,
+                since_metadata_version,
             },
         )?
         .file_metadata)
@@ -139,18 +144,20 @@ impl Client for ClientImpl {
         username: String,
         auth: String,
         file_id: String,
+        old_metadata_version: u64,
         new_file_path: String,
-    ) -> Result<(), move_file::Error> {
-        move_file::send(
+    ) -> Result<u64, move_file::Error> {
+        Ok(move_file::send(
             String::from(API_LOC),
             &MoveFileRequest {
                 username,
                 auth,
                 file_id,
+                old_metadata_version,
                 new_file_path,
             },
-        )?;
-        Ok(())
+        )?
+        .current_metadata_version)
     }
     fn new_account(
         username: String,
@@ -171,18 +178,20 @@ impl Client for ClientImpl {
         username: String,
         auth: String,
         file_id: String,
+        old_metadata_version: u64,
         new_file_name: String,
-    ) -> Result<(), rename_file::Error> {
-        rename_file::send(
+    ) -> Result<u64, rename_file::Error> {
+        Ok(rename_file::send(
             String::from(API_LOC),
             &RenameFileRequest {
                 username,
                 auth,
                 file_id,
+                old_metadata_version,
                 new_file_name,
             },
-        )?;
-        Ok(())
+        )?
+        .current_metadata_version)
     }
     fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error> {
         get_file::send(String::from(BUCKET_LOC), file_id)
