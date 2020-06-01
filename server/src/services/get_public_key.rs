@@ -7,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: GetPublicKeyRequest,
 ) -> Result<GetPublicKeyResponse, GetPublicKeyError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(GetPublicKeyError::InvalidUsername);
     }
     let get_public_key_result =

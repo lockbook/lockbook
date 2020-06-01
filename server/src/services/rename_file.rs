@@ -7,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: RenameFileRequest,
 ) -> Result<RenameFileResponse, RenameFileError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(RenameFileError::InvalidUsername);
     }
     let rename_file_result = index_db::rename_file(

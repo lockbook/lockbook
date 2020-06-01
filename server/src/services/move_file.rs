@@ -7,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(MoveFileError::InvalidUsername);
     }
     let move_file_result = index_db::move_file(

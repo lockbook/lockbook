@@ -8,7 +8,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: CreateFileRequest,
 ) -> Result<CreateFileResponse, CreateFileError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(CreateFileError::InvalidUsername);
     }
     let get_file_details_result =

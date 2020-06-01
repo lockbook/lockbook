@@ -7,7 +7,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(NewAccountError::InvalidUsername);
     }
     let new_account_result = index_db::new_account(

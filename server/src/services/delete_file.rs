@@ -8,7 +8,7 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
-    if !username_is_valid(request.username.clone()) {
+    if !username_is_valid(&request.username) {
         return Err(DeleteFileError::InvalidUsername);
     }
     let index_db_delete_file_result =
