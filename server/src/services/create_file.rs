@@ -10,7 +10,7 @@ pub async fn handle(
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(CreateFileError::InternalError);
         }
     };
@@ -20,7 +20,7 @@ pub async fn handle(
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(_) => {
-            println!("Internal server error! {:?}", get_file_details_result);
+            error!("Internal server error! {:?}", get_file_details_result);
             return Err(CreateFileError::InternalError);
         }
         Ok(_) => return Err(CreateFileError::FileIdTaken),
@@ -41,11 +41,11 @@ pub async fn handle(
             return Err(CreateFileError::FilePathTaken)
         }
         Err(index_db::create_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", index_db_create_file_result);
+            error!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
         }
         Err(index_db::create_file::Error::VersionGeneration(_)) => {
-            println!("Internal server error! {:?}", index_db_create_file_result);
+            error!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
         }
     };
@@ -61,7 +61,7 @@ pub async fn handle(
             current_version: new_version as u64,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", files_db_create_file_result);
+            error!("Internal server error! {:?}", files_db_create_file_result);
             Err(CreateFileError::InternalError)
         }
     };
@@ -69,7 +69,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(CreateFileError::InternalError)
         }
     }

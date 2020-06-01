@@ -12,7 +12,7 @@ pub async fn handle(
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(ChangeFileContentError::InternalError);
         }
     };
@@ -26,11 +26,11 @@ pub async fn handle(
     let new_version = match update_file_version_result {
         Ok(new_version) => new_version,
         Err(index_db::update_file_version::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", update_file_version_result);
+            error!("Internal server error! {:?}", update_file_version_result);
             return Err(ChangeFileContentError::InternalError);
         }
         Err(index_db::update_file_version::Error::VersionGeneration(_)) => {
-            println!("Internal server error! {:?}", update_file_version_result);
+            error!("Internal server error! {:?}", update_file_version_result);
             return Err(ChangeFileContentError::InternalError);
         }
         Err(index_db::update_file_version::Error::FileDoesNotExist) => {
@@ -55,7 +55,7 @@ pub async fn handle(
             current_version: new_version as u64,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", create_file_result);
+            error!("Internal server error! {:?}", create_file_result);
             Err(ChangeFileContentError::InternalError)
         }
     };
@@ -63,7 +63,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(ChangeFileContentError::InternalError)
         }
     }
