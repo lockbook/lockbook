@@ -25,7 +25,7 @@ pub async fn new_account(
     client
         .execute(
             "INSERT INTO users (username, public_key) VALUES ($1, $2);",
-            &[&username.to_lowercase(), &public_key],
+            &[&username, &public_key],
         )
         .await?;
     Ok(())
