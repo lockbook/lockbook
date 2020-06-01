@@ -10,7 +10,7 @@ pub async fn handle(
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(DeleteFileError::InternalError);
         }
     };
@@ -23,11 +23,11 @@ pub async fn handle(
         }
         Err(index_db::delete_file::Error::FileDeleted) => return Err(DeleteFileError::FileDeleted),
         Err(index_db::delete_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", index_db_delete_file_result);
+            error!("Internal server error! {:?}", index_db_delete_file_result);
             return Err(DeleteFileError::InternalError);
         }
         Err(index_db::delete_file::Error::VersionGeneration(_)) => {
-            println!("Internal server error! {:?}", index_db_delete_file_result);
+            error!("Internal server error! {:?}", index_db_delete_file_result);
             return Err(DeleteFileError::InternalError);
         }
     };
@@ -37,7 +37,7 @@ pub async fn handle(
     let result = match filed_db_delete_file_result {
         Ok(()) => Ok(DeleteFileResponse {}),
         Err(_) => {
-            println!("Internal server error! {:?}", filed_db_delete_file_result);
+            error!("Internal server error! {:?}", filed_db_delete_file_result);
             Err(DeleteFileError::InternalError)
         }
     };
@@ -45,7 +45,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(DeleteFileError::InternalError)
         }
     }
