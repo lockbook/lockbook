@@ -235,6 +235,7 @@ impl<
                 Ok(())
             }
             PushMetadata(client) => {
+                // TODO until we're diffing this is just going to spin on conflicts
                 let mut metadata = client.clone();
                 // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
                 ApiClient::rename_file(
@@ -243,7 +244,7 @@ impl<
                     client.file_id,
                     client.file_metadata_version,
                     metadata.file_name.clone(),
-                )?;
+                )?; // TODO the thing you're not handling is EditConflict!
 
                 ApiClient::move_file(
                     account.username.clone(),
@@ -251,7 +252,7 @@ impl<
                     metadata.file_id.clone(),
                     client.file_metadata_version,
                     metadata.file_path.clone(),
-                )?;
+                )?; // TODO the thing you're not handling is EditConflict!
 
                 metadata.metadata_edited_locally = false;
                 FileMetadataDb::update(&db, &metadata)?;
@@ -279,12 +280,13 @@ impl<
                 Ok(())
             }
             PushDelete(client) => {
+                // TODO until we're diffing this is just going to spin on conflicts
                 ApiClient::delete_file(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
                     client.clone().file_id,
                     client.file_metadata_version,
-                )?;
+                )?; // TODO the thing you're not handling is EditConflict!
 
                 FileMetadataDb::delete(&db, &client.file_id)?;
                 FileDb::delete(&db, &client.file_id)?;
