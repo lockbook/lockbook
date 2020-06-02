@@ -7,7 +7,7 @@ pub async fn delete_file(
     content_version: u64,
 ) -> Result<(), categorized_s3_error::Error> {
     match client
-        .delete_object(&format!("/{}:{}", file_id, content_version))
+        .delete_object(&format!("/{}-{}", file_id, content_version))
         .await?
     {
         (_, 204) => Ok(()),

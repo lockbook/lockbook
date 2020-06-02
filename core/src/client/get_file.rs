@@ -16,7 +16,7 @@ pub fn send(
     file_content_version: u64,
 ) -> Result<EncryptedFile, Error> {
     let client = Client::new();
-    let resource = format!("{}/{}:{}", bucket_location, &file_id, file_content_version);
+    let resource = format!("{}/{}-{}", bucket_location, &file_id, file_content_version);
     let response = client
         .get(resource.as_str())
         .send()
