@@ -13,7 +13,7 @@ pub async fn update_file_metadata_and_content_version(
     transaction: &Transaction<'_>,
     file_id: &String,
     old_metadata_version: u64,
-) -> Result<u64, Error> {
+) -> Result<(u64, u64), Error> {
     let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
         .await
         .map_err(Error::MetadataVersionUpdate)?;
@@ -24,5 +24,14 @@ pub async fn update_file_metadata_and_content_version(
         )
         .await
         .map_err(Error::Uninterpreted)?;
-    Ok(new_version)
+    let old_content_version: i64 = transaction
+        .query_one(
+            "SELECT file_content_version FROM files WHERE file_id = $1",
+            &[&file_id],
+        )
+        .await
+        .map_err(Error::Uninterpreted)?
+        .try_get(0)
+        .map_err(Error::Uninterpreted)?;
+    Ok((old_content_version as u64, new_version))
 }
