@@ -9,7 +9,7 @@ pub async fn create_file(
 ) -> Result<(), categorized_s3_error::Error> {
     match client
         .put_object(
-            &format!("/{}:{}", file_id, content_version),
+            &format!("/{}-{}", file_id, content_version),
             file_contents.as_bytes(),
             "text/plain",
         )
