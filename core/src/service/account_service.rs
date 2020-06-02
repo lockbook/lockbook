@@ -25,6 +25,7 @@ error_enum! {
     enum AccountImportError {
         AccountStringCorrupted(serde_json::error::Error),
         PersistenceError(account_repo::Error),
+        InvalidPrivateKey(rsa::errors::Error),
     }
 }
 
@@ -74,8 +75,8 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
     }
 
     fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError> {
-        let account = serde_json::from_str(account_string.as_str())?;
-
+        let account = serde_json::from_str::<Account>(account_string.as_str())?;
+        account.keys.validate()?;
         AccountDb::insert_account(db, &account)?;
         info!("Account imported successfully");
         Ok(account)
