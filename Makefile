@@ -152,6 +152,10 @@ integration_tests_run:
 	BRANCH=$(branch) docker-compose down
 	BRANCH=$(branch) docker-compose up --exit-code-from=integration_tests
 
+.PHONY: android
+android:
+	docker build -f containers/Dockerfile.android . --tag android:$(branch)
+
 .PHONY: integration_tests_push
 integration_tests_push:
 	docker tag integration_tests:$(branch) docker.pkg.github.com/lockbook/lockbook/integration_tests:$(branch)

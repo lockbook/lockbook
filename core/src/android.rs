@@ -11,16 +11,16 @@ use std::ffi::CString;
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_helloDirect(
-  env: JNIEnv,
-  _: JClass,
-  input: JString,
+    env: JNIEnv,
+    _: JClass,
+    input: JString,
 ) -> jstring {
-  let input: String = env
-    .get_string(input)
-    .expect("Couldn't get Java string!")
-    .into();
-  let output = env
-    .new_string(format!("Hello from Rust: {}", input))
-    .expect("Couldn't create a Java string!");
-  output.into_inner()
+    let input: String = env
+        .get_string(input)
+        .expect("Couldn't get Java string!")
+        .into();
+    let output = env
+        .new_string(format!("Hello from Rust: {}", input))
+        .expect("Couldn't create a Java string!");
+    output.into_inner()
 }

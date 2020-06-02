@@ -26,13 +26,15 @@ Simply go into the [Cli Folder](../clients/cli) and `cargo run`.
 
 Standard Android development toolchain.
 
-Native development support for cargo.
-
+Native development support for cargo:
 ```shell script
 cargo install cargo-ndk
 ```
 
+Android targets for cargo:
+```shell script
 
+```
 
 ## iOS, iPadOS, and macOS
 
