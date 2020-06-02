@@ -1,7 +1,7 @@
 use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
 use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,10 +23,8 @@ impl From<VersionGenerationError> for Error {
     }
 }
 
-pub async fn delete_file(client: &mut PostgresClient, file_id: &String) -> Result<i64, Error> {
-    let new_version = generate_version(client).await?;
-
-    let transaction = client.transaction().await?;
+pub async fn delete_file(transaction: &Transaction<'_>, file_id: &String) -> Result<i64, Error> {
+    let new_version = generate_version(transaction).await?;
     let row_vec = transaction
         .query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])
         .await?;
@@ -36,7 +34,6 @@ pub async fn delete_file(client: &mut PostgresClient, file_id: &String) -> Resul
             &[&file_id],
         )
         .await?;
-    transaction.commit().await?;
 
     match num_affected {
         0 => Err(Error::FileDoesNotExist),
