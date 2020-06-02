@@ -22,7 +22,6 @@ pub struct AccountRepoImpl;
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
-        account.keys.validate()?;
         let tree = db.open_tree("account")?;
         tree.insert("you", serde_json::to_vec(account)?)?;
         Ok(())
