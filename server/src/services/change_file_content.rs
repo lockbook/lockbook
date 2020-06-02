@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
@@ -9,6 +10,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
+    if !username_is_valid(&request.username) {
+        return Err(ChangeFileContentError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
@@ -16,7 +20,6 @@ pub async fn handle(
             return Err(ChangeFileContentError::InternalError);
         }
     };
-
     let update_file_version_result = index_db::update_file_version(
         &transaction,
         &request.file_id,
