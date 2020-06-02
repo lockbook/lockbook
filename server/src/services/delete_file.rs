@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
@@ -7,10 +8,13 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
+    if !username_is_valid(&request.username) {
+        return Err(DeleteFileError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(DeleteFileError::InternalError);
         }
     };
@@ -24,7 +28,7 @@ pub async fn handle(
         }
         Err(index_db::delete_file::Error::FileDeleted) => return Err(DeleteFileError::FileDeleted),
         Err(index_db::delete_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", index_db_delete_file_result);
+            error!("Internal server error! {:?}", index_db_delete_file_result);
             return Err(DeleteFileError::InternalError);
         }
         Err(index_db::delete_file::Error::MetadataVersionUpdate(
@@ -50,8 +54,12 @@ pub async fn handle(
         )) => return Err(DeleteFileError::FileDeleted),
     };
 
-    let files_db_delete_file_result =
-        files_db::delete_file(&server_state.files_db_client, &request.file_id, old_content_version).await;
+    let files_db_delete_file_result = files_db::delete_file(
+        &server_state.files_db_client,
+        &request.file_id,
+        old_content_version,
+    )
+    .await;
     if let Err(_) = files_db_delete_file_result {
         println!("Internal server error! {:?}", files_db_delete_file_result);
         return Err(DeleteFileError::InternalError);
@@ -62,7 +70,7 @@ pub async fn handle(
             current_metadata_and_content_version: new_version,
         }),
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(DeleteFileError::InternalError)
         }
     }
