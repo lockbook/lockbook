@@ -10,9 +10,13 @@ pub enum Error {
     Unspecified,
 }
 
-pub fn send(bucket_location: String, file_id: String) -> Result<EncryptedFile, Error> {
+pub fn send(
+    bucket_location: String,
+    file_id: String,
+    file_content_version: u64,
+) -> Result<EncryptedFile, Error> {
     let client = Client::new();
-    let resource = format!("{}/{}", bucket_location, file_id.as_str());
+    let resource = format!("{}/{}:{}", bucket_location, &file_id, file_content_version);
     let response = client
         .get(resource.as_str())
         .send()
