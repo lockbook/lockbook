@@ -1,4 +1,5 @@
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{MoveFileError, MoveFileRequest, MoveFileResponse};
 
@@ -6,6 +7,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {
+    if !username_is_valid(&request.username) {
+        return Err(MoveFileError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
