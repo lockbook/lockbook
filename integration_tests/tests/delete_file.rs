@@ -79,7 +79,8 @@ fn delete_file_case_insensitive_username() -> Result<(), TestError> {
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -282,7 +283,8 @@ fn delete_file_alphanumeric_username(username: String) -> Result<(), TestError> 
             file_path: "file_path".to_string(),
             file_content: "file_content".to_string(),
         },
-    )?.current_metadata_and_content_version;
+    )?
+    .current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
