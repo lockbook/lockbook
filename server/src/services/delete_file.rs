@@ -60,7 +60,7 @@ pub async fn handle(
         old_content_version,
     )
     .await;
-    if let Err(_) = files_db_delete_file_result {
+    if files_db_delete_file_result.is_err() {
         println!("Internal server error! {:?}", files_db_delete_file_result);
         return Err(DeleteFileError::InternalError);
     };

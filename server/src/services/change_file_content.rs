@@ -63,7 +63,7 @@ pub async fn handle(
         new_version,
     )
     .await;
-    if let Err(_) = create_file_result {
+    if create_file_result.is_err() {
         println!("Internal server error! {:?}", create_file_result);
         return Err(ChangeFileContentError::InternalError);
     };
@@ -74,7 +74,7 @@ pub async fn handle(
         old_content_version,
     )
     .await;
-    if let Err(_) = delete_file_result {
+    if delete_file_result.is_err() {
         println!("Internal server error! {:?}", delete_file_result);
         return Err(ChangeFileContentError::InternalError);
     };
