@@ -46,11 +46,10 @@ pub async fn create_file(
     file_path: &String,
 ) -> Result<i64, Error> {
     let version = generate_version(transaction).await?;
-
     transaction.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
-", &[file_id, file_name, file_path, username, &version, &version, &false]).await?;
+", &[file_id, file_name, file_path, &username, &version, &version, &false]).await?;
 
     Ok(version)
 }

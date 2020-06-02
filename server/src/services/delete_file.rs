@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{DeleteFileError, DeleteFileRequest, DeleteFileResponse};
 
@@ -7,6 +8,9 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: DeleteFileRequest,
 ) -> Result<DeleteFileResponse, DeleteFileError> {
+    if !username_is_valid(&request.username) {
+        return Err(DeleteFileError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
@@ -14,7 +18,6 @@ pub async fn handle(
             return Err(DeleteFileError::InternalError);
         }
     };
-
     let index_db_delete_file_result = index_db::delete_file(&transaction, &request.file_id).await;
     match index_db_delete_file_result {
         Ok(_) => {}
