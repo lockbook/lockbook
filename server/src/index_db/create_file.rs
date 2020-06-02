@@ -2,7 +2,7 @@ use crate::index_db::generate_version::generate_version;
 use crate::index_db::generate_version::Error as VersionGenerationError;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -39,14 +39,14 @@ impl From<VersionGenerationError> for Error {
 }
 
 pub async fn create_file(
-    client: &mut PostgresClient,
+    transaction: &Transaction<'_>,
     file_id: &String,
     username: &String,
     file_name: &String,
     file_path: &String,
 ) -> Result<i64, Error> {
-    let version = generate_version(client).await?;
-    client.execute("
+    let version = generate_version(transaction).await?;
+    transaction.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
 ", &[file_id, file_name, file_path, &username, &version, &version, &false]).await?;

@@ -11,19 +11,26 @@ pub async fn handle(
     if !username_is_valid(&request.username) {
         return Err(CreateFileError::InvalidUsername);
     }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(CreateFileError::InternalError);
+        }
+    };
     let get_file_details_result =
         files_db::get_file_details(&server_state.files_db_client, &request.file_id).await;
     match get_file_details_result {
         Err(files_db::get_file_details::Error::NoSuchFile(())) => {}
         Err(_) => {
-            println!("Internal server error! {:?}", get_file_details_result);
+            error!("Internal server error! {:?}", get_file_details_result);
             return Err(CreateFileError::InternalError);
         }
         Ok(_) => return Err(CreateFileError::FileIdTaken),
     };
 
     let index_db_create_file_result = index_db::create_file(
-        &mut server_state.index_db_client,
+        &transaction,
         &request.file_id,
         &request.username,
         &request.file_name,
@@ -37,11 +44,11 @@ pub async fn handle(
             return Err(CreateFileError::FilePathTaken)
         }
         Err(index_db::create_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", index_db_create_file_result);
+            error!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
         }
         Err(index_db::create_file::Error::VersionGeneration(_)) => {
-            println!("Internal server error! {:?}", index_db_create_file_result);
+            error!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
         }
     };
@@ -52,12 +59,20 @@ pub async fn handle(
         &request.file_content,
     )
     .await;
-    match files_db_create_file_result {
+    let result = match files_db_create_file_result {
         Ok(()) => Ok(CreateFileResponse {
             current_version: new_version as u64,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", files_db_create_file_result);
+            error!("Internal server error! {:?}", files_db_create_file_result);
+            Err(CreateFileError::InternalError)
+        }
+    };
+
+    match transaction.commit().await {
+        Ok(_) => result,
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(CreateFileError::InternalError)
         }
     }

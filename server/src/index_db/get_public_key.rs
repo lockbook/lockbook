@@ -1,6 +1,6 @@
 use rsa::RSAPublicKey;
 use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -9,10 +9,10 @@ pub enum Error {
 }
 
 pub async fn get_public_key(
-    client: &mut PostgresClient,
+    transaction: &Transaction<'_>,
     username: &String,
 ) -> Result<RSAPublicKey, Error> {
-    match client
+    match transaction
         .query_one(
             "SELECT public_key FROM users WHERE username = $1;",
             &[&username],

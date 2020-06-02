@@ -10,18 +10,33 @@ pub async fn handle(
     if !username_is_valid(&request.username) {
         return Err(GetUpdatesError::InvalidUsername);
     }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(GetUpdatesError::InternalError);
+        }
+    };
     let get_updates_result = index_db::get_updates(
-        &mut server_state.index_db_client,
+        &transaction,
         &request.username,
         request.since_version as i64,
     )
     .await;
-    match get_updates_result {
+    let result = match get_updates_result {
         Ok(updates) => Ok(GetUpdatesResponse {
             file_metadata: updates,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", get_updates_result);
+            error!("Internal server error! {:?}", get_updates_result);
+            Err(GetUpdatesError::InternalError)
+        }
+    };
+
+    match transaction.commit().await {
+        Ok(_) => result,
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetUpdatesError::InternalError)
         }
     }
