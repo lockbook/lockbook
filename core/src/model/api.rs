@@ -19,6 +19,7 @@ pub struct ChangeFileContentResponse {
 pub enum ChangeFileContentError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
@@ -46,6 +47,7 @@ pub struct CreateFileResponse {
 pub enum CreateFileError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
@@ -70,6 +72,7 @@ pub struct DeleteFileResponse {
 pub enum DeleteFileError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
@@ -91,6 +94,7 @@ pub struct GetPublicKeyResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetPublicKeyError {
     InternalError,
+    InvalidUsername,
     UserNotFound,
 }
 
@@ -113,6 +117,7 @@ pub enum GetUpdatesError {
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
+    InvalidUsername,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -143,6 +148,7 @@ pub struct MoveFileResponse {
 pub enum MoveFileError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
@@ -168,6 +174,7 @@ pub enum NewAccountError {
     InvalidAuth,
     ExpiredAuth,
     UsernameTaken,
+    InvalidUsername,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -188,6 +195,7 @@ pub struct RenameFileResponse {
 pub enum RenameFileError {
     InternalError,
     InvalidAuth,
+    InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,

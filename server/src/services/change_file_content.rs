@@ -1,5 +1,6 @@
 use crate::files_db;
 use crate::index_db::{update_file_metadata_and_content_version, update_file_metadata_version};
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{
     ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
@@ -9,10 +10,13 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
 ) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
+    if !username_is_valid(&request.username) {
+        return Err(ChangeFileContentError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(ChangeFileContentError::InternalError);
         }
     };
@@ -63,7 +67,7 @@ pub async fn handle(
             current_metadata_and_content_version: new_version as u64,
         }),
         Err(_) => {
-            println!("Internal server error! {:?}", create_file_result);
+            error!("Internal server error! {:?}", create_file_result);
             Err(ChangeFileContentError::InternalError)
         }
     };
@@ -71,7 +75,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(ChangeFileContentError::InternalError)
         }
     }

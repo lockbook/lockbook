@@ -57,6 +57,55 @@ fn test_rename_file() {
     assert_matches!(rename_file(), Ok(_));
 }
 
+fn rename_file_case_insensitive_username() -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?.current_metadata_and_content_version;
+
+    client::rename_file::send(
+        api_loc(),
+        &RenameFileRequest {
+            username: account.username.to_uppercase(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+            new_file_name: "new_file_name".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_rename_file_case_insensitive_username() {
+    assert_matches!(
+        rename_file_case_insensitive_username(),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
+}
+
 fn rename_file_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
 
@@ -211,6 +260,79 @@ fn test_rename_file_edit_conflict() {
         rename_file_edit_conflict(),
         Err(TestError::RenameFileError(rename_file::Error::API(
             RenameFileError::EditConflict
+        )))
+    );
+}
+
+fn rename_file_alphanumeric_username(username: String) -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?.current_metadata_and_content_version;
+
+    client::rename_file::send(
+        api_loc(),
+        &RenameFileRequest {
+            username: username,
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+            new_file_name: "new_file_name".to_string(),
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_rename_file_alphanumeric_username() {
+    assert_matches!(
+        rename_file_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        rename_file_alphanumeric_username("漢字".to_string()),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        rename_file_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        rename_file_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        rename_file_alphanumeric_username("ãÁêì".to_string()),
+        Err(TestError::RenameFileError(rename_file::Error::API(
+            RenameFileError::InvalidUsername
         )))
     );
 }
