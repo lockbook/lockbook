@@ -20,6 +20,7 @@ android:
 	@cp target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
 	@cp target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
 
+.PHONY: ios
 ios:
 	@echo "@Raayan implement me 😭"
 
