@@ -6,22 +6,34 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: RenameFileRequest,
 ) -> Result<RenameFileResponse, RenameFileError> {
-    let rename_file_result = index_db::rename_file(
-        &mut server_state.index_db_client,
-        &request.file_id,
-        &request.new_file_name,
-    )
-    .await;
-    match rename_file_result {
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(RenameFileError::InternalError);
+        }
+    };
+
+    let rename_file_result =
+        index_db::rename_file(&transaction, &request.file_id, &request.new_file_name).await;
+    let result = match rename_file_result {
         Ok(_) => Ok(RenameFileResponse {}),
         Err(index_db::rename_file::Error::FileDoesNotExist) => Err(RenameFileError::FileNotFound),
         Err(index_db::rename_file::Error::FileDeleted) => Err(RenameFileError::FileDeleted),
         Err(index_db::rename_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", rename_file_result);
+            error!("Internal server error! {:?}", rename_file_result);
             Err(RenameFileError::InternalError)
         }
         Err(index_db::rename_file::Error::VersionGeneration(_)) => {
-            println!("Internal server error! {:?}", rename_file_result);
+            error!("Internal server error! {:?}", rename_file_result);
+            Err(RenameFileError::InternalError)
+        }
+    };
+
+    match transaction.commit().await {
+        Ok(_) => result,
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(RenameFileError::InternalError)
         }
     }
