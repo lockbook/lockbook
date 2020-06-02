@@ -56,6 +56,54 @@ fn test_delete_file() {
     assert_matches!(delete_file(), Ok(_));
 }
 
+fn delete_file_case_insensitive_username() -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?.current_metadata_and_content_version;
+
+    client::delete_file::send(
+        api_loc(),
+        &DeleteFileRequest {
+            username: account.username.to_uppercase(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_delete_file_case_insensitive_username() {
+    assert_matches!(
+        delete_file_case_insensitive_username(),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
+}
+
 fn delete_file_file_not_found() -> Result<(), TestError> {
     let account = generate_account();
 
@@ -207,6 +255,78 @@ fn test_delete_file_edit_conflict() {
         delete_file_edit_conflict(),
         Err(TestError::DeleteFileError(delete_file::Error::API(
             DeleteFileError::EditConflict
+        )))
+    );
+}
+
+fn delete_file_alphanumeric_username(username: String) -> Result<(), TestError> {
+    let account = generate_account();
+    let file_id = generate_file_id();
+
+    client::new_account::send(
+        api_loc(),
+        &NewAccountRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+        },
+    )?;
+
+    let version = client::create_file::send(
+        api_loc(),
+        &CreateFileRequest {
+            username: account.username.clone(),
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            file_name: "file_name".to_string(),
+            file_path: "file_path".to_string(),
+            file_content: "file_content".to_string(),
+        },
+    )?.current_metadata_and_content_version;
+
+    client::delete_file::send(
+        api_loc(),
+        &DeleteFileRequest {
+            username: username,
+            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+            file_id: file_id.to_string(),
+            old_metadata_version: version,
+        },
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_delete_file_alphanumeric_username() {
+    assert_matches!(
+        delete_file_alphanumeric_username("Smail&$@".to_string()),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        delete_file_alphanumeric_username("漢字".to_string()),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        delete_file_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        delete_file_alphanumeric_username("😀😁😂😃😄".to_string()),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
+        )))
+    );
+    assert_matches!(
+        delete_file_alphanumeric_username("ãÁêì".to_string()),
+        Err(TestError::DeleteFileError(delete_file::Error::API(
+            DeleteFileError::InvalidUsername
         )))
     );
 }

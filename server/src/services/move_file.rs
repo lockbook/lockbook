@@ -1,4 +1,5 @@
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{MoveFileError, MoveFileRequest, MoveFileResponse};
 
@@ -6,10 +7,13 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: MoveFileRequest,
 ) -> Result<MoveFileResponse, MoveFileError> {
+    if !username_is_valid(&request.username) {
+        return Err(MoveFileError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(MoveFileError::InternalError);
         }
     };
@@ -29,7 +33,7 @@ pub async fn handle(
         Err(index_db::move_file::Error::FileDeleted) => Err(MoveFileError::FileDeleted),
         Err(index_db::move_file::Error::FilePathTaken) => Err(MoveFileError::FilePathTaken),
         Err(index_db::move_file::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", move_file_result);
+            error!("Internal server error! {:?}", move_file_result);
             Err(MoveFileError::InternalError)
         }
         Err(index_db::move_file::Error::MetadataVersionUpdate(
@@ -58,7 +62,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(MoveFileError::InternalError)
         }
     }

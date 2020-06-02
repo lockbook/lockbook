@@ -1,4 +1,5 @@
 use crate::index_db;
+use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{NewAccountError, NewAccountRequest, NewAccountResponse};
 
@@ -6,10 +7,13 @@ pub async fn handle(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
+    if !username_is_valid(&request.username) {
+        return Err(NewAccountError::InvalidUsername);
+    }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
-            println!("Internal server error! Cannot begin transaction: {:?}", e);
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
             return Err(NewAccountError::InternalError);
         }
     };
@@ -20,7 +24,7 @@ pub async fn handle(
         Ok(()) => Ok(NewAccountResponse {}),
         Err(index_db::new_account::Error::UsernameTaken) => Err(NewAccountError::UsernameTaken),
         Err(index_db::new_account::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", new_account_result);
+            error!("Internal server error! {:?}", new_account_result);
             Err(NewAccountError::InternalError)
         }
     };
@@ -28,7 +32,7 @@ pub async fn handle(
     match transaction.commit().await {
         Ok(_) => result,
         Err(e) => {
-            println!("Internal server error! Cannot commit transaction: {:?}", e);
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(NewAccountError::InternalError)
         }
     }
