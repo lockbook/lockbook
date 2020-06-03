@@ -166,7 +166,7 @@ android_cached: android_pull
 
 .PHONY: android_push
 android_push:
-	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/android:$(branch)
+	docker tag android:$(branch) docker.pkg.github.com/lockbook/lockbook/android:$(branch)
 	docker push docker.pkg.github.com/lockbook/lockbook/android:$(branch)
 
 .PHONY: integration_tests_push
