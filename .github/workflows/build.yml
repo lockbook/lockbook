@@ -96,6 +96,29 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       if: always()
+  Android:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Login
+        run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
+      - name: Pull older image for cache
+        run: make android_pull
+      - name: Build container
+        run: make android_cached
+      - name: Publish container
+        run: make android_push
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: Build Cli - ${{ job.status }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+        if: always()
   Integration-Tests:
     runs-on: ubuntu-latest
     env:
