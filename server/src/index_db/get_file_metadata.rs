@@ -1,6 +1,6 @@
 use lockbook_core::model::api::FileMetadata;
 use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -20,11 +20,11 @@ pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
 }
 
 pub async fn get_file_metadata(
-    client: &mut PostgresClient,
+    transaction: &Transaction<'_>,
     username: &String,
     file_id: &String,
 ) -> Result<FileMetadata, Error> {
-    match client.query_one(
+    match transaction.query_one(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_id = $2;",
         &[&username, &file_id],
