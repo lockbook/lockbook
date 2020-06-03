@@ -1,6 +1,6 @@
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
-use tokio_postgres::Client as PostgresClient;
+use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
@@ -18,11 +18,11 @@ impl From<PostgresError> for Error {
 }
 
 pub async fn new_account(
-    client: &mut PostgresClient,
+    transaction: &Transaction<'_>,
     username: &String,
     public_key: &String,
 ) -> Result<(), Error> {
-    client
+    transaction
         .execute(
             "INSERT INTO users (username, public_key) VALUES ($1, $2);",
             &[&username, &public_key],
