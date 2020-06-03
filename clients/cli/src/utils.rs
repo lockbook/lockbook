@@ -41,7 +41,9 @@ pub fn get_account(db: &Db) -> Account {
                 "No account found, run init, import or help. Error: {:?}",
                 err
             ),
-            Error::InvalidPrivateKey(err) => panic!("The private key provided is invalid. Error: {:?}", err), // TODO: Ask if it should even panic
+            Error::InvalidPrivateKey(err) => {
+                panic!("The private key provided is invalid. Error: {:?}", err)
+            } // TODO: Ask if it should even panic
         },
     }
 }
