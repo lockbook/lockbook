@@ -1,5 +1,5 @@
-use sled::Db;
 use rsa::errors::Error as RSAError;
+use sled::Db;
 
 use crate::error_enum;
 use crate::model::account::Account;
