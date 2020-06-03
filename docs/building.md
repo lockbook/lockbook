@@ -24,7 +24,7 @@ Simply go into the [Cli Folder](../clients/cli) and `cargo run`.
 
 ## Android
 
-Standard Android development toolchain.
+Standard Android development toolchain, along with the native development kit.
 
 Native development support for cargo:
 ```shell script
@@ -33,8 +33,10 @@ cargo install cargo-ndk
 
 Android targets for cargo:
 ```shell script
-
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 ```
+
+`make android` in the `core` folder.
 
 ## iOS, iPadOS, and macOS
 
