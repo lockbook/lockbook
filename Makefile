@@ -23,6 +23,8 @@ all: core server cli integration_tests
 	$(MAKE) cli_lint
 	$(MAKE) cli_test
 
+	$(MAKE) android
+
 	$(MAKE) integration_tests_fmt
 	$(MAKE) integration_tests_lint
 	$(MAKE) integration_tests_run
@@ -30,6 +32,7 @@ all: core server cli integration_tests
 	-$(MAKE) core_push
 	-$(MAKE) server_push
 	-$(MAKE) cli_push
+	-$(MAKE) android_push
 	-$(MAKE) integration_tests_push
 .PHONY: clean
 clean:
@@ -155,6 +158,19 @@ integration_tests_run:
 .PHONY: android
 android:
 	docker build -f containers/Dockerfile.android . --tag android:$(branch)
+
+.PHONY: android_pull
+android_pull:
+	-docker pull docker.pkg.github.com/lockbook/lockbook/android:$(branch)
+
+.PHONY: android_cached
+android_cached: android_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/android:$(branch) -f containers/Dockerfile.cli . --tag android:$(branch)
+
+.PHONY: android_push
+android_push:
+	docker tag cli:$(branch) docker.pkg.github.com/lockbook/lockbook/android:$(branch)
+	docker push docker.pkg.github.com/lockbook/lockbook/android:$(branch)
 
 .PHONY: integration_tests_push
 integration_tests_push:
