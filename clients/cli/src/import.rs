@@ -20,6 +20,7 @@ pub fn import() {
         Err(err) => match err {
             AccountImportError::AccountStringCorrupted(_) => eprintln!("Account String corrupted!"),
             AccountImportError::PersistenceError(_) => eprintln!("Could not persist data!"),
+            AccountImportError::InvalidPrivateKey(_) => eprintln!("Invalid private key!"),
         },
     }
 }
