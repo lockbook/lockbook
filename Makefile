@@ -16,7 +16,6 @@ all: core server cli integration_tests android
 	$(MAKE) cli_test
 	$(MAKE) integration_tests_run
 
-
 	$(MAKE) core_fmt
 	$(MAKE) server_fmt
 	$(MAKE) cli_fmt
@@ -163,7 +162,7 @@ android_pull:
 
 .PHONY: android_cached
 android_cached: android_pull
-	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/android:$(branch) -f containers/Dockerfile.cli . --tag android:$(branch)
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/android:$(branch) -f containers/Dockerfile.android . --tag android:$(branch)
 
 .PHONY: android_push
 android_push:
