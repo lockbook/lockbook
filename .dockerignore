@@ -3,3 +3,15 @@
 graphics
 .DS_Store
 docs
+*.iml
+**/.gradle/*
+clients/android/local.properties
+clients/android/.idea/caches/**
+clients/android/.idea/libraries/**
+clients/android/.idea/modules.xml
+clients/android/.idea/workspace.xml
+clients/android/.idea/navEditor.xml
+clients/android/.idea/assetWizardSettings.xml
+.DS_Store
+clients/android/build/**
+clients/android/captures/**
