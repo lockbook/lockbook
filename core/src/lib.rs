@@ -30,6 +30,9 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
+#[cfg(target_os = "android")]
+mod android;
+
 pub static API_LOC: &str = "http://lockbook.app:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
