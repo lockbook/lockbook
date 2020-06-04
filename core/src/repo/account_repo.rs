@@ -1,4 +1,3 @@
-use rsa::errors::Error as RSAError;
 use sled::Db;
 
 use crate::error_enum;
@@ -9,7 +8,6 @@ error_enum! {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
         AccountMissing(()),
-        InvalidPrivateKey(RSAError),
     }
 }
 
