@@ -82,3 +82,58 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
         Ok(account)
     }
 }
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::client::ClientImpl;
+    use crate::model::account::Account;
+    use crate::model::state::Config;
+    use crate::repo::account_repo::AccountRepoImpl;
+    use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::service::account_service::AccountImportError;
+    use crate::service::account_service::{AccountService, AccountServiceImpl};
+    use crate::service::auth_service::AuthServiceImpl;
+    use crate::service::clock_service::ClockImpl;
+    use crate::service::crypto_service::RsaImpl;
+    use rsa::{BigUint, RSAPrivateKey};
+    use std::mem::discriminant;
+
+    type DefaultClock = ClockImpl;
+    type DefaultCrypto = RsaImpl;
+    type DefaultApiClient = ClientImpl;
+    type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
+    type DefaultAccountDb = AccountRepoImpl;
+    type DefaultDbProvider = TempBackedDB;
+    type DefaultAccountService =
+        AccountServiceImpl<DefaultCrypto, DefaultAccountDb, DefaultApiClient, DefaultAuthService>;
+
+    #[test]
+    fn test_import_invalid_private_key() {
+        let account = Account {
+            username: "Smail".to_string(),
+            keys: RSAPrivateKey::from_components(
+                BigUint::from_bytes_be(b"Test"),
+                BigUint::from_bytes_be(b"Test"),
+                BigUint::from_bytes_be(b"Test"),
+                vec![
+                    BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
+                    BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
+                ],
+            ),
+        };
+        let config = Config {
+            writeable_path: "ignored".to_string(),
+        };
+
+        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+        let result = discriminant(
+            &DefaultAccountService::import_account(&db, &serde_json::to_string(&account).unwrap())
+                .unwrap_err(),
+        );
+        let err = discriminant(&AccountImportError::InvalidPrivateKey(
+            rsa::errors::Error::InvalidModulus,
+        ));
+
+        assert_eq!(result, err)
+    }
+}
