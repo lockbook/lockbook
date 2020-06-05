@@ -25,6 +25,12 @@
             android:name=".Welcome"
             android:theme="@style/Dark.NoActionBar" />
         <activity android:name=".ListFiles" />
+        <activity
+            android:name=".NewAccount"
+            android:theme="@style/Dark.ActionBar" />
+        <activity
+            android:name=".ImportAccount"
+            android:theme="@style/Dark.ActionBar" />
     </application>
 
 </manifest>
