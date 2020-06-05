@@ -1,11 +1,11 @@
 #![cfg(target_os = "android")]
 #![allow(non_snake_case)]
 
+use crate::DB_NAME;
 use jni::objects::{JClass, JString};
 use jni::sys::jboolean;
 use jni::JNIEnv;
 use std::path::Path;
-use crate::DB_NAME;
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
