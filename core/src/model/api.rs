@@ -166,6 +166,7 @@ pub enum NewAccountError {
     InvalidAuth,
     ExpiredAuth,
     UsernameTaken,
+    InvalidPublicKey,
     InvalidUsername,
 }
 
