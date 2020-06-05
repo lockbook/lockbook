@@ -9,7 +9,7 @@
 
     <string name="hello_first_fragment">Hello first fragment</string>
     <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
-    <string name="lockbook">lockbook</string>
+    <string name="lockbook">Lockbook</string>
     <string name="secure_private_reliable">Secure. Private. Reliable.</string>
     <string name="new_lockbook">New Lockbook</string>
     <string name="import_lockbook">Import Lockbook</string>

@@ -2,25 +2,29 @@
 #![allow(non_snake_case)]
 
 use jni::objects::{JClass, JString};
-use jni::sys::jstring;
+use jni::sys::jboolean;
 use jni::JNIEnv;
-use std::ffi::CString;
-
-// NOTE: RustKt references the name rusty.kt, which will be the kotlin file exposing the functions below.
-// Remember the JNI naming conventions.
+use std::path::Path;
+use crate::DB_NAME;
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_helloDirect(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
     env: JNIEnv,
     _: JClass,
     input: JString,
-) -> jstring {
-    let input: String = env
+) -> jboolean {
+    let path: String = env
         .get_string(input)
-        .expect("Couldn't get Java string!")
+        .expect("Couldn't read path out of JNI!")
         .into();
-    let output = env
-        .new_string(format!("Hello from Rust: {}", input))
-        .expect("Couldn't create a Java string!");
-    output.into_inner()
+
+    let db_path = path + "/" + DB_NAME;
+    debug!("Checking if {:?} exists", db_path);
+    if Path::new(db_path.as_str()).exists() {
+        debug!("DB Exists!");
+        1
+    } else {
+        error!("DB Does not exist!");
+        0
+    }
 }
