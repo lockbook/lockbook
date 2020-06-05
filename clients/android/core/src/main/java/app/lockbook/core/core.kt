@@ -1,7 +1,7 @@
 package app.lockbook.core
 
-external fun helloDirect(to: String): String
+external fun isDbPresent(path: String): Boolean
 
-fun loadRustyLib() {
+fun loadLockbookCore() {
     System.loadLibrary("lockbook_core")
 }
