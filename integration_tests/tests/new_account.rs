@@ -154,23 +154,25 @@ fn test_new_account_alphanumeric_username() {
 fn new_account_invalid_public_key() -> Result<(), TestError> {
     let account = Account {
         username: generate_username(),
-        keys: RSAPrivateKey::from_components(
-            BigUint::from_bytes_be(b"Test"),
-            BigUint::from_bytes_be(b"Test"),
-            BigUint::from_bytes_be(b"Test"),
-            vec![
-                BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
-                BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
-            ],
-        ),
+        keys: RsaImpl::generate_key().unwrap(),
     };
+
+    let fake_private_key = RSAPrivateKey::from_components(
+        BigUint::from_bytes_be(b"a"),
+        BigUint::from_bytes_be(b"a"),
+        BigUint::from_bytes_be(b"a"),
+        vec![
+            BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
+            BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
+        ],
+    );
 
     client::new_account::send(
         api_loc(),
         &NewAccountRequest {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
+            public_key: serde_json::to_string(&fake_private_key.to_public_key()).unwrap(),
         },
     )?;
 
@@ -207,7 +209,7 @@ fn test_new_account_invalid_auth() {
     assert_matches!(
         new_account_invalid_auth(),
         Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidPublicKey
+            NewAccountError::InvalidAuth
         )))
     );
 }
