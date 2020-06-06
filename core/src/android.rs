@@ -6,7 +6,7 @@ use crate::repo::db_provider::DbProvider;
 use crate::service::account_service::AccountService;
 use crate::{DefaultAccountService, DefaultDbProvider, DB_NAME, init_logger_safely};
 use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jbyte};
+use jni::sys::{jboolean, jint};
 use jni::JNIEnv;
 use sled::Db;
 use std::path::Path;
@@ -62,7 +62,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     _: JClass,
     jpath: JString,
     jusername: JString,
-) -> jbyte {
+) -> jint {
     // Error codes for this function
     let success = 0; // should handle
     let no_db = 1;
@@ -70,7 +70,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     let io_error = 3;
     let network_error = 4; // should handle
     let unexpected_error = 5;
-    let username_taken = 6;
+    let username_taken = 6; // should handle
 
     let path: String = env
         .get_string(jpath)
