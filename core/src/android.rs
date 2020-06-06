@@ -87,7 +87,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Some(db) => db,
     };
 
-    return match DefaultAccountService::create_account(&db, &username) {
+    match DefaultAccountService::create_account(&db, &username) {
         Ok(_) => success,
         Err(err) => {
             error! {"Error while generating account! {:?}", &err}
@@ -109,5 +109,5 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
                 AccountCreationError::AuthGenFailure(_) => unexpected_error,
             }
         }
-    };
+    }
 }
