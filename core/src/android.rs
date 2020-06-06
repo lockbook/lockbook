@@ -1,17 +1,17 @@
 #![allow(non_snake_case)]
 
-use crate::service::account_service::AccountCreationError;
+use crate::client::new_account::Error;
+use crate::model::api::NewAccountError;
 use crate::model::state::Config;
 use crate::repo::db_provider::DbProvider;
+use crate::service::account_service::AccountCreationError;
 use crate::service::account_service::AccountService;
-use crate::{DefaultAccountService, DefaultDbProvider, DB_NAME, init_logger_safely};
+use crate::{init_logger_safely, DefaultAccountService, DefaultDbProvider, DB_NAME};
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jint};
 use jni::JNIEnv;
 use sled::Db;
 use std::path::Path;
-use crate::client::new_account::Error;
-use crate::model::api::NewAccountError;
 
 fn connect_db(path: String) -> Option<Db> {
     let config = Config {
@@ -27,10 +27,7 @@ fn connect_db(path: String) -> Option<Db> {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
-    _env: JNIEnv,
-    _: JClass,
-) {
+pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(_env: JNIEnv, _: JClass) {
     init_logger_safely()
 }
 
@@ -100,9 +97,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
                     Error::SendFailed(_) => network_error,
                     Error::API(real_api_error) => match real_api_error {
                         NewAccountError::UsernameTaken => username_taken,
-                        _ => unexpected_error
+                        _ => unexpected_error,
                     },
-                    _ => unexpected_error
+                    _ => unexpected_error,
                 },
                 AccountCreationError::KeySerializationError(_) => unexpected_error,
 
