@@ -1,20 +1,47 @@
-#![cfg(target_os = "android")]
 #![allow(non_snake_case)]
 
-use crate::DB_NAME;
+use crate::service::account_service::AccountCreationError;
+use crate::model::state::Config;
+use crate::repo::db_provider::DbProvider;
+use crate::service::account_service::AccountService;
+use crate::{DefaultAccountService, DefaultDbProvider, DB_NAME, init_logger_safely};
 use jni::objects::{JClass, JString};
-use jni::sys::jboolean;
+use jni::sys::{jboolean, jbyte};
 use jni::JNIEnv;
+use sled::Db;
 use std::path::Path;
+use crate::client::new_account::Error;
+use crate::model::api::NewAccountError;
+
+fn connect_db(path: String) -> Option<Db> {
+    let config = Config {
+        writeable_path: path,
+    };
+    match DefaultDbProvider::connect_to_db(&config) {
+        Ok(db) => Some(db),
+        Err(err) => {
+            error!("DB connection failed! Error: {:?}", err);
+            None
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
+    _env: JNIEnv,
+    _: JClass,
+) {
+    init_logger_safely()
+}
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
     env: JNIEnv,
     _: JClass,
-    input: JString,
+    jpath: JString,
 ) -> jboolean {
     let path: String = env
-        .get_string(input)
+        .get_string(jpath)
         .expect("Couldn't read path out of JNI!")
         .into();
 
@@ -27,4 +54,60 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
         error!("DB Does not exist!");
         0
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jusername: JString,
+) -> jbyte {
+    // Error codes for this function
+    let success = 0; // should handle
+    let no_db = 1;
+    let crypto_error = 2;
+    let io_error = 3;
+    let network_error = 4; // should handle
+    let unexpected_error = 5;
+    let username_taken = 6;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let username: String = env
+        .get_string(jusername)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let db = match connect_db(path) {
+        None => return no_db,
+        Some(db) => db,
+    };
+
+    return match DefaultAccountService::create_account(&db, &username) {
+        Ok(_) => success,
+        Err(err) => {
+            error! {"Error while generating account! {:?}", &err}
+            match err {
+                AccountCreationError::KeyGenerationError(_) => crypto_error,
+
+                AccountCreationError::PersistenceError(_) => io_error,
+
+                AccountCreationError::ApiError(api_err) => match api_err {
+                    Error::SendFailed(_) => network_error,
+                    Error::API(real_api_error) => match real_api_error {
+                        NewAccountError::UsernameTaken => username_taken,
+                        _ => unexpected_error
+                    },
+                    _ => unexpected_error
+                },
+                AccountCreationError::KeySerializationError(_) => unexpected_error,
+
+                AccountCreationError::AuthGenFailure(_) => unexpected_error,
+            }
+        }
+    };
 }
