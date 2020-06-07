@@ -34,7 +34,7 @@ pub async fn handle(
         &request.file_id,
         &request.username,
         &request.file_name,
-        &request.file_path,
+        &request.file_parent,
     )
     .await;
     let new_version = match index_db_create_file_result {
