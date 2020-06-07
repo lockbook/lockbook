@@ -33,6 +33,7 @@ error_enum! {
 error_enum! {
     enum AccountExportError {
         KeyRetrievalError(account_repo::Error),
+        AccountStringFailedToSerialize(bincode::Error),
     }
 }
 
@@ -94,7 +95,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
 
     fn export_account(db: &Db) -> Result<String, AccountExportError> {
         let account = &AccountDb::get_account(&db)?;
-        let encoded: Vec<u8> = bincode::serialize(&account).unwrap();
+        let encoded: Vec<u8> = bincode::serialize(&account)?;
         Ok(base64::encode(&encoded))
     }
 }
