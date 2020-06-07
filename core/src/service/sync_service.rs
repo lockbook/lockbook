@@ -187,7 +187,7 @@ impl<
                 let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
 
                 old_file_metadata.file_name = server_meta.file_name;
-                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_path = server_meta.file_parent;
                 old_file_metadata.file_metadata_version = max(
                     server_meta.file_metadata_version,
                     old_file_metadata.file_metadata_version,
@@ -216,7 +216,7 @@ impl<
                                 &ClientFileMetadata {
                                     file_id: new_metadata.file_id.clone(),
                                     file_name: new_metadata.file_name,
-                                    file_path: new_metadata.file_path,
+                                    file_path: new_metadata.file_parent,
                                     file_content_version: new_metadata.file_content_version,
                                     file_metadata_version: new_metadata.file_metadata_version,
                                     new_file: false,
@@ -317,7 +317,7 @@ impl<
                                 &ClientFileMetadata {
                                     file_id: new_metadata.file_id.clone(),
                                     file_name: new_metadata.file_name,
-                                    file_path: new_metadata.file_path,
+                                    file_path: new_metadata.file_parent,
                                     file_content_version: new_metadata.file_content_version,
                                     file_metadata_version: new_metadata.file_metadata_version,
                                     new_file: false,
@@ -338,7 +338,7 @@ impl<
                 let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
 
                 old_file_metadata.file_name = server_meta.file_name;
-                old_file_metadata.file_path = server_meta.file_path;
+                old_file_metadata.file_path = server_meta.file_parent;
                 old_file_metadata.file_metadata_version = max(
                     server_meta.file_metadata_version,
                     old_file_metadata.file_metadata_version,
