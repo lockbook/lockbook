@@ -167,6 +167,9 @@ mod unit_tests {
 
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         DefaultAccountService::import_account(&db, &account_string).unwrap();
-        assert_eq!(DefaultAccountService::export_account(&db).unwrap(), account_string);
+        assert_eq!(
+            DefaultAccountService::export_account(&db).unwrap(),
+            account_string
+        );
     }
 }
