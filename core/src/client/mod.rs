@@ -29,7 +29,7 @@ pub trait Client {
         auth: String,
         file_id: String,
         file_name: String,
-        file_path: String,
+        file_parent: String,
         file_content: String,
     ) -> Result<u64, create_file::Error>;
     fn delete_file(
@@ -48,7 +48,7 @@ pub trait Client {
         auth: String,
         file_id: String,
         old_metadata_version: u64,
-        new_file_path: String,
+        new_file_parent: String,
     ) -> Result<u64, move_file::Error>;
     fn new_account(
         username: String,
@@ -95,7 +95,7 @@ impl Client for ClientImpl {
         auth: String,
         file_id: String,
         file_name: String,
-        file_path: String,
+        file_parent: String,
         file_content: String,
     ) -> Result<u64, create_file::Error> {
         Ok(create_file::send(
@@ -105,7 +105,7 @@ impl Client for ClientImpl {
                 auth,
                 file_id,
                 file_name,
-                file_path,
+                file_parent,
                 file_content,
             },
         )?
@@ -148,7 +148,7 @@ impl Client for ClientImpl {
         auth: String,
         file_id: String,
         old_metadata_version: u64,
-        new_file_path: String,
+        new_file_parent: String,
     ) -> Result<u64, move_file::Error> {
         Ok(move_file::send(
             String::from(API_LOC),
@@ -157,7 +157,7 @@ impl Client for ClientImpl {
                 auth,
                 file_id,
                 old_metadata_version,
-                new_file_path,
+                new_file_parent,
             },
         )?
         .current_metadata_version)
