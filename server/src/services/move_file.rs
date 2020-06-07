@@ -22,7 +22,7 @@ pub async fn handle(
         &transaction,
         &request.file_id,
         request.old_metadata_version,
-        &request.new_file_path,
+        &request.new_file_parent,
     )
     .await;
     let result = match move_file_result {
