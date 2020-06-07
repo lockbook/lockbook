@@ -8,3 +8,4 @@ edition = "2018"
 lockbook_core = { path = "../core" }
 serde_json = "1.0.44"
 uuid = { version = "0.8.1", features = ["v4"] }
+rsa = { version = "^0.2", features = ["serde1"] }
