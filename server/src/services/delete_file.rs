@@ -18,9 +18,11 @@ pub async fn handle(
             return Err(DeleteFileError::InternalError);
         }
     };
-    let index_db_delete_file_result = index_db::delete_file(&transaction, &request.file_id).await;
-    match index_db_delete_file_result {
-        Ok(_) => {}
+
+    let index_db_delete_file_result =
+        index_db::delete_file(&transaction, &request.file_id, request.old_metadata_version).await;
+    let new_version = match index_db_delete_file_result {
+        Ok(v) => v,
         Err(index_db::delete_file::Error::FileDoesNotExist) => {
             return Err(DeleteFileError::FileNotFound)
         }
@@ -29,16 +31,35 @@ pub async fn handle(
             error!("Internal server error! {:?}", index_db_delete_file_result);
             return Err(DeleteFileError::InternalError);
         }
-        Err(index_db::delete_file::Error::VersionGeneration(_)) => {
-            error!("Internal server error! {:?}", index_db_delete_file_result);
+        Err(index_db::delete_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::Uninterpreted(_),
+        )) => {
+            println!("Internal server error! {:?}", index_db_delete_file_result);
             return Err(DeleteFileError::InternalError);
         }
+        Err(index_db::delete_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::VersionGeneration(_),
+        )) => {
+            println!("Internal server error! {:?}", index_db_delete_file_result);
+            return Err(DeleteFileError::InternalError);
+        }
+        Err(index_db::delete_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::FileDoesNotExist,
+        )) => return Err(DeleteFileError::FileNotFound),
+        Err(index_db::delete_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::IncorrectOldVersion(_),
+        )) => return Err(DeleteFileError::EditConflict),
+        Err(index_db::delete_file::Error::MetadataVersionUpdate(
+            index_db::update_file_metadata_version::Error::FileDeleted,
+        )) => return Err(DeleteFileError::FileDeleted),
     };
 
     let filed_db_delete_file_result =
         files_db::delete_file(&server_state.files_db_client, &request.file_id).await;
     let result = match filed_db_delete_file_result {
-        Ok(()) => Ok(DeleteFileResponse {}),
+        Ok(()) => Ok(DeleteFileResponse {
+            current_metadata_and_content_version: new_version,
+        }),
         Err(_) => {
             error!("Internal server error! {:?}", filed_db_delete_file_result);
             Err(DeleteFileError::InternalError)
