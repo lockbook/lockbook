@@ -197,7 +197,10 @@ impl<
                 Ok(())
             }
             PullFileContent(new_metadata) => {
-                let file = ApiClient::get_file(new_metadata.file_id.clone())?;
+                let file = ApiClient::get_file(
+                    new_metadata.file_id.clone(),
+                    new_metadata.file_content_version,
+                )?;
 
                 FileDb::update(&db, &new_metadata.file_id, &file)?;
 
@@ -295,7 +298,10 @@ impl<
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                let file = ApiClient::get_file(new_metadata.file_id.clone())?;
+                let file = ApiClient::get_file(
+                    new_metadata.file_id.clone(),
+                    new_metadata.file_content_version,
+                )?;
 
                 FileDb::update(&db, &new_metadata.file_id, &file)?;
 

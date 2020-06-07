@@ -62,7 +62,10 @@ pub trait Client {
         old_metadata_version: u64,
         new_file_name: String,
     ) -> Result<u64, rename_file::Error>;
-    fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error>;
+    fn get_file(
+        file_id: String,
+        file_content_version: u64,
+    ) -> Result<EncryptedFile, get_file::Error>;
     fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error>;
 }
 
@@ -193,8 +196,11 @@ impl Client for ClientImpl {
         )?
         .current_metadata_version)
     }
-    fn get_file(file_id: String) -> Result<EncryptedFile, get_file::Error> {
-        get_file::send(String::from(BUCKET_LOC), file_id)
+    fn get_file(
+        file_id: String,
+        file_content_version: u64,
+    ) -> Result<EncryptedFile, get_file::Error> {
+        get_file::send(String::from(BUCKET_LOC), file_id, file_content_version)
     }
     fn get_public_key(username: String) -> Result<RSAPublicKey, get_public_key::Error> {
         Ok(get_public_key::send(String::from(API_LOC), &GetPublicKeyRequest { username })?.key)

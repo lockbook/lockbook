@@ -21,8 +21,8 @@ pub async fn handle(
 
     let index_db_delete_file_result =
         index_db::delete_file(&transaction, &request.file_id, request.old_metadata_version).await;
-    let new_version = match index_db_delete_file_result {
-        Ok(v) => v,
+    let (old_content_version, new_version) = match index_db_delete_file_result {
+        Ok(x) => x,
         Err(index_db::delete_file::Error::FileDoesNotExist) => {
             return Err(DeleteFileError::FileNotFound)
         }
@@ -54,20 +54,21 @@ pub async fn handle(
         )) => return Err(DeleteFileError::FileDeleted),
     };
 
-    let filed_db_delete_file_result =
-        files_db::delete_file(&server_state.files_db_client, &request.file_id).await;
-    let result = match filed_db_delete_file_result {
-        Ok(()) => Ok(DeleteFileResponse {
-            current_metadata_and_content_version: new_version,
-        }),
-        Err(_) => {
-            error!("Internal server error! {:?}", filed_db_delete_file_result);
-            Err(DeleteFileError::InternalError)
-        }
+    let files_db_delete_file_result = files_db::delete_file(
+        &server_state.files_db_client,
+        &request.file_id,
+        old_content_version,
+    )
+    .await;
+    if files_db_delete_file_result.is_err() {
+        println!("Internal server error! {:?}", files_db_delete_file_result);
+        return Err(DeleteFileError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(_) => Ok(DeleteFileResponse {
+            current_metadata_and_content_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(DeleteFileError::InternalError)
