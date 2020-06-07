@@ -36,7 +36,7 @@ pub struct CreateFileRequest {
     pub auth: Signature,
     pub file_id: FileId,
     pub file_name: FileName,
-    pub file_path: String,
+    pub file_parent: FileId,
     pub file_content: EncryptedDocumentContent,
 }
 
@@ -126,7 +126,7 @@ pub enum GetUpdatesError {
 pub struct FileMetadata {
     pub file_id: FileId,
     pub file_name: FileName,
-    pub file_path: String,
+    pub file_parent: FileId,
     pub file_content_version: Version,
     pub file_metadata_version: Version,
     pub deleted: bool,
@@ -138,7 +138,7 @@ pub struct MoveFileRequest {
     pub auth: Signature,
     pub file_id: FileId,
     pub old_metadata_version: Version,
-    pub new_file_path: String,
+    pub new_file_parent: FileId,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
