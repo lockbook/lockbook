@@ -53,7 +53,7 @@ pub trait Client {
     fn new_account(
         username: String,
         auth: String,
-        public_key: String,
+        public_key: RSAPublicKey,
     ) -> Result<(), new_account::Error>;
     fn rename_file(
         username: String,
@@ -165,7 +165,7 @@ impl Client for ClientImpl {
     fn new_account(
         username: String,
         auth: String,
-        public_key: String,
+        public_key: RSAPublicKey,
     ) -> Result<(), new_account::Error> {
         new_account::send(
             String::from(API_LOC),
