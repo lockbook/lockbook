@@ -27,8 +27,8 @@ pub async fn handle(
         request.old_metadata_version as u64,
     )
     .await;
-    let new_version = match update_file_version_result {
-        Ok(new_version) => new_version,
+    let (old_content_version, new_version) = match update_file_version_result {
+        Ok(x) => x,
         Err(update_file_metadata_and_content_version::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", update_file_version_result);
             return Err(ChangeFileContentError::InternalError);
@@ -60,20 +60,29 @@ pub async fn handle(
         &server_state.files_db_client,
         &request.file_id,
         &request.new_file_content,
+        new_version,
     )
     .await;
-    let result = match create_file_result {
-        Ok(()) => Ok(ChangeFileContentResponse {
-            current_metadata_and_content_version: new_version as u64,
-        }),
-        Err(_) => {
-            error!("Internal server error! {:?}", create_file_result);
-            Err(ChangeFileContentError::InternalError)
-        }
+    if create_file_result.is_err() {
+        println!("Internal server error! {:?}", create_file_result);
+        return Err(ChangeFileContentError::InternalError);
+    };
+
+    let delete_file_result = files_db::delete_file(
+        &server_state.files_db_client,
+        &request.file_id,
+        old_content_version,
+    )
+    .await;
+    if delete_file_result.is_err() {
+        println!("Internal server error! {:?}", delete_file_result);
+        return Err(ChangeFileContentError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(_) => Ok(ChangeFileContentResponse {
+            current_metadata_and_content_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(ChangeFileContentError::InternalError)

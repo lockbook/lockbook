@@ -51,26 +51,24 @@ pub async fn handle(
             error!("Internal server error! {:?}", index_db_create_file_result);
             return Err(CreateFileError::InternalError);
         }
-    };
+    } as u64;
 
     let files_db_create_file_result = files_db::create_file(
         &server_state.files_db_client,
         &request.file_id,
         &request.file_content,
+        new_version,
     )
     .await;
-    let result = match files_db_create_file_result {
-        Ok(()) => Ok(CreateFileResponse {
-            current_metadata_and_content_version: new_version as u64,
-        }),
-        Err(_) => {
-            error!("Internal server error! {:?}", files_db_create_file_result);
-            Err(CreateFileError::InternalError)
-        }
+    if files_db_create_file_result.is_err() {
+        println!("Internal server error! {:?}", files_db_create_file_result);
+        return Err(CreateFileError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(_) => Ok(CreateFileResponse {
+            current_metadata_and_content_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(CreateFileError::InternalError)
