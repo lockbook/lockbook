@@ -61,13 +61,12 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
         };
         let username = account.username.clone();
         let auth = Auth::generate_auth(&account)?;
-        let public_key = serde_json::to_string(&account.keys.to_public_key())?;
 
         info!("Saving account locally");
         AccountDb::insert_account(db, &account)?;
 
         info!("Sending username & public key to server");
-        ApiClient::new_account(username, auth, public_key)?;
+        ApiClient::new_account(username, auth, account.keys.to_public_key())?;
         info!("Account creation success!");
 
         debug!("{}", serde_json::to_string(&account).unwrap());
