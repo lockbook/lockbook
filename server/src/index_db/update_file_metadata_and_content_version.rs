@@ -7,11 +7,9 @@ use tokio_postgres::Transaction;
 pub enum Error {
     Uninterpreted(PostgresError),
     MetadataVersionUpdate(UpdateFileMetadataVersionError),
-    FileDoesNotExist,
-    FileDeleted,
 }
 
-pub async fn delete_file(
+pub async fn update_file_metadata_and_content_version(
     transaction: &Transaction<'_>,
     file_id: &String,
     old_metadata_version: u64,
@@ -19,28 +17,12 @@ pub async fn delete_file(
     let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
         .await
         .map_err(Error::MetadataVersionUpdate)?;
-    let row_vec = transaction
-        .query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])
-        .await
-        .map_err(Error::Uninterpreted)?;
-    let num_affected = transaction
+    transaction
         .execute(
-            "UPDATE files SET deleted = TRUE WHERE file_id = $1;",
+            "UPDATE files SET file_content_version = file_metadata_version WHERE file_id = $1;",
             &[&file_id],
         )
         .await
         .map_err(Error::Uninterpreted)?;
-
-    match num_affected {
-        0 => Err(Error::FileDoesNotExist),
-        _ => {
-            let deleted = row_vec[0].try_get(0).map_err(Error::Uninterpreted)?;
-
-            if deleted {
-                Err(Error::FileDeleted)
-            } else {
-                Ok(new_version as u64)
-            }
-        }
-    }
+    Ok(new_version)
 }

@@ -39,7 +39,7 @@ fn test_get_public_key() {
     assert_matches!(get_public_key(), Ok(_));
 }
 
-fn get_public_key_case_sensitive_username() -> Result<(), TestError> {
+fn get_public_key_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -62,9 +62,9 @@ fn get_public_key_case_sensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_get_public_key_case_sensitive_username() {
+fn test_get_public_key_case_insensitive_username() {
     assert_matches!(
-        get_public_key_case_sensitive_username(),
+        get_public_key_case_insensitive_username(),
         Err(TestError::GetPublicKeyError(get_public_key::Error::API(
             GetPublicKeyError::InvalidUsername
         )))

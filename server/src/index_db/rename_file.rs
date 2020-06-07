@@ -1,48 +1,41 @@
-use crate::index_db::generate_version::generate_version;
-use crate::index_db::generate_version::Error as VersionGenerationError;
+use crate::index_db::update_file_metadata_version::update_file_metadata_version;
+use crate::index_db::update_file_metadata_version::Error as UpdateFileMetadataVersionError;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
 
 #[derive(Debug)]
 pub enum Error {
     Uninterpreted(PostgresError),
-    VersionGeneration(VersionGenerationError),
+    MetadataVersionUpdate(UpdateFileMetadataVersionError),
     FileDoesNotExist,
     FileDeleted,
-}
-
-impl From<PostgresError> for Error {
-    fn from(e: PostgresError) -> Error {
-        Error::Uninterpreted(e)
-    }
-}
-
-impl From<VersionGenerationError> for Error {
-    fn from(e: VersionGenerationError) -> Error {
-        Error::VersionGeneration(e)
-    }
 }
 
 pub async fn rename_file(
     transaction: &Transaction<'_>,
     file_id: &String,
+    old_metadata_version: u64,
     new_file_name: &String,
-) -> Result<i64, Error> {
-    let new_version = generate_version(transaction).await?;
+) -> Result<u64, Error> {
+    let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
+        .await
+        .map_err(Error::MetadataVersionUpdate)?;
     let num_affected = transaction
         .execute(
             "UPDATE files SET file_name = $1 WHERE file_id = $2;",
             &[&new_file_name, &file_id],
         )
-        .await?;
+        .await
+        .map_err(Error::Uninterpreted)?;
     let row_vec = transaction
         .query("SELECT deleted FROM files WHERE file_id = $1;", &[&file_id])
-        .await?;
+        .await
+        .map_err(Error::Uninterpreted)?;
 
     match num_affected {
         0 => Err(Error::FileDoesNotExist),
         _ => {
-            let deleted = row_vec[0].try_get(0)?;
+            let deleted = row_vec[0].try_get(0).map_err(Error::Uninterpreted)?;
 
             if deleted {
                 Err(Error::FileDeleted)
