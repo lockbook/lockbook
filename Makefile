@@ -10,7 +10,7 @@
 # make core && make core_test to replicate issues locally.
 
 .PHONY: all
-all: core server cli integration_tests
+all: core server cli integration_tests android
 	$(MAKE) core_test
 	$(MAKE) server_test
 	$(MAKE) cli_test
@@ -29,6 +29,7 @@ all: core server cli integration_tests
 	-$(MAKE) core_push
 	-$(MAKE) server_push
 	-$(MAKE) cli_push
+	-$(MAKE) android_push
 	-$(MAKE) integration_tests_push
 .PHONY: clean
 clean:
@@ -150,6 +151,23 @@ integration_tests_lint:
 integration_tests_run:
 	BRANCH=$(branch) docker-compose down
 	BRANCH=$(branch) docker-compose up --exit-code-from=integration_tests
+
+.PHONY: android
+android:
+	docker build -f containers/Dockerfile.android . --tag android:$(branch)
+
+.PHONY: android_pull
+android_pull:
+	-docker pull docker.pkg.github.com/lockbook/lockbook/android:$(branch)
+
+.PHONY: android_cached
+android_cached: android_pull
+	docker build --cache-from docker.pkg.github.com/lockbook/lockbook/android:$(branch) -f containers/Dockerfile.android . --tag android:$(branch)
+
+.PHONY: android_push
+android_push:
+	docker tag android:$(branch) docker.pkg.github.com/lockbook/lockbook/android:$(branch)
+	docker push docker.pkg.github.com/lockbook/lockbook/android:$(branch)
 
 .PHONY: integration_tests_push
 integration_tests_push:
