@@ -12,7 +12,7 @@ pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
     FileMetadata {
         file_id: row.get("file_id"),
         file_name: row.get("file_name"),
-        file_path: row.get("file_path"),
+        file_parent: row.get("file_path"),
         file_content_version: row.get::<&str, i64>("file_content_version") as u64,
         file_metadata_version: row.get::<&str, i64>("file_metadata_version") as u64,
         deleted: row.get("deleted"),
