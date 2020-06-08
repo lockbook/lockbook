@@ -25,7 +25,7 @@ pub fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-        .expect(&format!("Could not connect to db at path: {}", path))
+    .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 pub fn get_account(db: &Db) -> Account {
@@ -82,7 +82,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
                 get_editor(),
                 &file_location
             )
-                .as_str(),
+            .as_str(),
         )
         .wait()
         .expect(
@@ -91,7 +91,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
                 get_editor(),
                 &file_location
             )
-                .as_str(),
+            .as_str(),
         )
         .success()
 }
