@@ -20,7 +20,7 @@ pub async fn handle(
     let get_updates_result = index_db::get_updates(
         &transaction,
         &request.username,
-        request.since_version as i64,
+        request.since_metadata_version as u64,
     )
     .await;
     let result = match get_updates_result {

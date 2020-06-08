@@ -24,7 +24,7 @@ fn change_file_content() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -35,7 +35,7 @@ fn change_file_content() -> Result<(), TestError> {
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::change_file_content::send(
         api_loc(),
@@ -43,7 +43,7 @@ fn change_file_content() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
-            old_file_version,
+            old_metadata_version: version,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
@@ -56,7 +56,7 @@ fn test_change_file_content() {
     assert_matches!(change_file_content(), Ok(_));
 }
 
-fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
+fn change_file_content_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
     client::new_account::send(
@@ -68,7 +68,7 @@ fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -79,7 +79,7 @@ fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::change_file_content::send(
         api_loc(),
@@ -87,7 +87,7 @@ fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
             username: account.username.to_uppercase(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
-            old_file_version,
+            old_metadata_version: version,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
@@ -96,9 +96,9 @@ fn change_file_content_case_sensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_change_file_content_case_sensitive_username() {
+fn test_change_file_content_case_insensitive_username() {
     assert_matches!(
-        change_file_content_case_sensitive_username(),
+        change_file_content_case_insensitive_username(),
         Err(TestError::ChangeFileContentError(
             change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
         ))
@@ -122,7 +122,7 @@ fn change_file_content_file_not_found() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: generate_file_id(),
-            old_file_version: 0,
+            old_metadata_version: 0,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
@@ -171,7 +171,7 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
-            old_file_version: 0,
+            old_metadata_version: 0,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
@@ -202,7 +202,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
         },
     )?;
 
-    let old_file_version = client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -213,7 +213,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::delete_file::send(
         api_loc(),
@@ -221,6 +221,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
+            old_metadata_version: version,
         },
     )?;
 
@@ -230,7 +231,7 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
             username: account.username.clone(),
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
-            old_file_version,
+            old_metadata_version: 0,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
@@ -261,7 +262,7 @@ fn change_file_alphanumeric_username(username: String) -> Result<(), TestError> 
         },
     )?;
 
-    let old_file_version = client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -272,7 +273,7 @@ fn change_file_alphanumeric_username(username: String) -> Result<(), TestError> 
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::change_file_content::send(
         api_loc(),
@@ -280,7 +281,7 @@ fn change_file_alphanumeric_username(username: String) -> Result<(), TestError> 
             username: username,
             auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
             file_id: file_id.to_string(),
-            old_file_version,
+            old_metadata_version: version,
             new_file_content: "new_file_content".to_string(),
         },
     )?;
