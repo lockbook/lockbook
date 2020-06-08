@@ -2,6 +2,7 @@ use lockbook_core::init_logger_safely;
 use structopt::StructOpt;
 
 mod edit;
+mod export;
 mod import;
 mod init;
 mod list;
@@ -55,6 +56,9 @@ enum Lockbook {
 
     /// Delete the Lockbook data directory from this device
     Nuke,
+
+    /// Export your private key
+    Export,
 }
 
 fn main() {
@@ -75,5 +79,6 @@ fn main() {
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
         Lockbook::Nuke => unimplemented!(),
+        Lockbook::Export => export::export(),
     }
 }

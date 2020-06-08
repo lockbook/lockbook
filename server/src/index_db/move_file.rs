@@ -1,5 +1,5 @@
-use crate::index_db::generate_version::generate_version;
-use crate::index_db::generate_version::Error as VersionGenerationError;
+use crate::index_db::update_file_metadata_version::update_file_metadata_version;
+use crate::index_db::update_file_metadata_version::Error as UpdateFileMetadataVersionError;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::Transaction;
@@ -7,7 +7,7 @@ use tokio_postgres::Transaction;
 #[derive(Debug)]
 pub enum Error {
     Uninterpreted(PostgresError),
-    VersionGeneration(VersionGenerationError),
+    MetadataVersionUpdate(UpdateFileMetadataVersionError),
     FileDoesNotExist,
     FileDeleted,
     FilePathTaken,
@@ -27,18 +27,15 @@ impl From<PostgresError> for Error {
     }
 }
 
-impl From<VersionGenerationError> for Error {
-    fn from(e: VersionGenerationError) -> Error {
-        Error::VersionGeneration(e)
-    }
-}
-
 pub async fn move_file(
     transaction: &Transaction<'_>,
     file_id: &String,
+    old_metadata_version: u64,
     new_file_path: &String,
-) -> Result<i64, Error> {
-    let new_version = generate_version(transaction).await?;
+) -> Result<u64, Error> {
+    let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
+        .await
+        .map_err(Error::MetadataVersionUpdate)?;
     let num_affected = transaction
         .execute(
             "UPDATE files SET file_path = $1 WHERE file_id = $2;",
