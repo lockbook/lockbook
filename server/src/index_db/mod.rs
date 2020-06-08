@@ -8,7 +8,8 @@ pub mod get_updates;
 pub mod move_file;
 pub mod new_account;
 pub mod rename_file;
-pub mod update_file_version;
+pub mod update_file_metadata_and_content_version;
+pub mod update_file_metadata_version;
 
 pub use self::connect::connect;
 pub use self::create_file::create_file;
@@ -19,4 +20,5 @@ pub use self::get_updates::get_updates;
 pub use self::move_file::move_file;
 pub use self::new_account::new_account;
 pub use self::rename_file::rename_file;
-pub use self::update_file_version::update_file_version;
+pub use self::update_file_metadata_and_content_version::update_file_metadata_and_content_version;
+pub use self::update_file_metadata_version::update_file_metadata_version;

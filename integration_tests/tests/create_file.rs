@@ -43,7 +43,7 @@ fn test_create_file() {
     assert_matches!(create_file(), Ok(_));
 }
 
-fn create_file_case_sensitive_username() -> Result<(), TestError> {
+fn create_file_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
 
     client::new_account::send(
@@ -71,9 +71,9 @@ fn create_file_case_sensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_create_file_case_sensitive_username() {
+fn test_create_file_case_insensitive_username() {
     assert_matches!(
-        create_file_case_sensitive_username(),
+        create_file_case_insensitive_username(),
         Err(TestError::CreateFileError(create_file::Error::API(
             CreateFileError::InvalidUsername
         )))

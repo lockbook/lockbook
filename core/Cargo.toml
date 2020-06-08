@@ -25,4 +25,5 @@ rand = "0.7"
 sha2 = "0.8.0"
 aead = "0.2.0"
 aes-gcm = "0.5.0"
+bincode = "1.2.1"
 jni = { version = "0.13.1", default-features = false }
