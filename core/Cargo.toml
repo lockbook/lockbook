@@ -25,6 +25,7 @@ rand = "0.7"
 sha2 = "0.8.0"
 aead = "0.2.0"
 aes-gcm = "0.5.0"
+bincode = "1.2.1"
 
 # this dependency is only needed for Android.
 [target.'cfg(target_os = "android")'.dependencies]
