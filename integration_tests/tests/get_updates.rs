@@ -25,7 +25,7 @@ fn get_updates(account: &Account, file_id: String) -> Result<(Vec<FileMetadata>,
         },
     )?;
 
-    let file_version = client::create_file::send(
+    let version = client::create_file::send(
         api_loc(),
         &CreateFileRequest {
             username: account.username.clone(),
@@ -36,19 +36,19 @@ fn get_updates(account: &Account, file_id: String) -> Result<(Vec<FileMetadata>,
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     let updates_metadata = client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
             username: account.username.clone(),
             auth: "test_auth".to_string(),
-            since_version: 0,
+            since_metadata_version: 0,
         },
     )?
     .file_metadata;
 
-    Ok((updates_metadata, file_version))
+    Ok((updates_metadata, version))
 }
 
 #[test]
@@ -56,23 +56,23 @@ fn test_get_updates() {
     let account = generate_account();
     let file_id = generate_file_id();
 
-    let updates_metadata_and_file_version = get_updates(&account, file_id.to_string());
-    assert_matches!(&updates_metadata_and_file_version, &Ok(_));
-    let (updates_metadata, file_version) = updates_metadata_and_file_version.unwrap();
+    let updates_metadata = get_updates(&account, file_id.to_string());
+    assert_matches!(&updates_metadata, &Ok(_));
+    let (updates_metadata, version) = updates_metadata.unwrap();
     assert_eq!(
         updates_metadata[..],
         [FileMetadata {
             file_id: file_id.to_string(),
             file_name: "file_name".to_string(),
             file_path: "file_path".to_string(),
-            file_content_version: file_version,
-            file_metadata_version: file_version,
+            file_content_version: version,
+            file_metadata_version: version,
             deleted: false,
         }][..]
     );
 }
 
-fn get_updates_case_sensitive_username() -> Result<(), TestError> {
+fn get_updates_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
     let file_id = generate_file_id();
 
@@ -96,14 +96,14 @@ fn get_updates_case_sensitive_username() -> Result<(), TestError> {
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
             username: account.username.to_uppercase(),
             auth: "test_auth".to_string(),
-            since_version: 0,
+            since_metadata_version: 0,
         },
     )?
     .file_metadata;
@@ -112,9 +112,9 @@ fn get_updates_case_sensitive_username() -> Result<(), TestError> {
 }
 
 #[test]
-fn test_get_updates_case_sensitive_username() {
+fn test_get_updates_case_insensitive_username() {
     assert_matches!(
-        get_updates_case_sensitive_username(),
+        get_updates_case_insensitive_username(),
         Err(TestError::GetUpdatesError(get_updates::Error::API(
             GetUpdatesError::InvalidUsername
         )))
@@ -145,14 +145,14 @@ fn get_updates_alphanumeric_username(username: String) -> Result<(), TestError> 
             file_content: "file_content".to_string(),
         },
     )?
-    .current_version;
+    .current_metadata_and_content_version;
 
     client::get_updates::send(
         api_loc(),
         &GetUpdatesRequest {
             username: username,
             auth: "test_auth".to_string(),
-            since_version: 0,
+            since_metadata_version: 0,
         },
     )?
     .file_metadata;
