@@ -25,7 +25,7 @@ pub fn connect_to_db() -> Db {
     DefaultDbProvider::connect_to_db(&Config {
         writeable_path: path.clone(),
     })
-    .expect(&format!("Could not connect to db at path: {}", path))
+        .expect(&format!("Could not connect to db at path: {}", path))
 }
 
 pub fn get_account(db: &Db) -> Account {
@@ -52,9 +52,8 @@ pub fn get_editor() -> String {
 pub fn edit_file_with_editor(file_location: &String) -> bool {
     let command_unprocessed = get_editor();
 
-    let command = if command_unprocessed.contains(" ") {
+    let command = if command_unprocessed.contains(' ') {
         command_unprocessed
-            .clone()
             .split_whitespace()
             .next()
             .unwrap()
@@ -64,7 +63,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
     };
 
     // If your environment variable has args, handle that here
-    let args = if command_unprocessed.clone().contains(" ") {
+    let args = if command_unprocessed.clone().contains(' ') {
         let mut args = command_unprocessed
             .split_whitespace()
             .collect::<Vec<&str>>();
@@ -74,7 +73,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
         vec![file_location.as_str()]
     };
 
-    Command::new(command.clone())
+    Command::new(command)
         .args(args)
         .spawn()
         .expect(
@@ -83,7 +82,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
                 get_editor(),
                 &file_location
             )
-            .as_str(),
+                .as_str(),
         )
         .wait()
         .expect(
@@ -92,7 +91,7 @@ pub fn edit_file_with_editor(file_location: &String) -> bool {
                 get_editor(),
                 &file_location
             )
-            .as_str(),
+                .as_str(),
         )
         .success()
 }
