@@ -15,19 +15,31 @@
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
         android:text="@string/import_lockbook"
+        android:paddingBottom="70dp"
         android:textColor="#FFFFFF"
         android:textSize="40sp" />
 
-    <TextView
+
+    <EditText
+        android:id="@+id/account_string"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
-        android:paddingTop="20dp"
-        android:paddingBottom="75dp"
-        android:text="Import Account"
-        android:textAlignment="center"
         android:textColor="#FFFFFF"
-        tools:ignore="HardcodedText" />
+        android:hint="Enter an account string."
+        android:textColorHint="@color/dark"
+        android:backgroundTint="@color/dark"
+        android:inputType="textVisiblePassword"
+        android:importantForAutofill="no"
+        android:layout_marginBottom="20dp"/>
+
+    <Button
+        android:id="@+id/import_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:textColor="#000000"
+        android:text="Import" />
 
 
 </LinearLayout>

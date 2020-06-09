@@ -28,7 +28,7 @@ class NewAccount : AppCompatActivity() {
                 ).show()
                 else -> Toast.makeText(
                     applicationContext,
-                    "Unexpected error occured, please create a bug report",
+                    "Unexpected error occured, please create a bug report (settings)",
                     Toast.LENGTH_LONG
                 ).show()
             }
