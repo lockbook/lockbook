@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp"
+    tools:context=".Welcome">
+
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="@string/new_lockbook"
+        android:textColor="#FFFFFF"
+        android:paddingBottom="70dp"
+        android:textSize="40sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="Press continue to generate a keypair."
+        android:textColor="#FFFFFF"
+        android:paddingBottom="15dp"/>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="The private component stays on your device."
+        android:textColor="#FFFFFF"
+        android:paddingBottom="15dp"/>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="Lockbook is available on every platform, login on another device to keep your key safe."
+        android:textColor="#FFFFFF"
+        android:paddingBottom="15dp"/>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="No one can access your content besides you."
+        android:textColor="#FFFFFF"
+        android:paddingBottom="15dp"/>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="No one can keep your keys safe besides you."
+        android:textColor="#FFFFFF"
+        android:paddingBottom="70dp"/>
+
+    <EditText
+        android:id="@+id/username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textColor="#FFFFFF"
+        android:hint="Select a username."
+        android:textColorHint="@color/dark"
+        android:backgroundTint="@color/dark"
+        android:inputType="textVisiblePassword"
+        android:importantForAutofill="no"
+        android:layout_marginBottom="20dp"/>
+
+
+    <Button
+        android:id="@+id/create_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:textColor="#000000"
+        android:text="Continue" />
+
+</LinearLayout>
