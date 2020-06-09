@@ -1,7 +1,11 @@
 package app.lockbook.core
 
-external fun helloDirect(to: String): String
+external fun initLogger()
+external fun isDbPresent(path: String): Boolean
+external fun createAccount(path: String, username: String): Int
+external fun importAccount(path: String, accountString: String): Int
 
-fun loadRustyLib() {
+fun loadLockbookCore() {
     System.loadLibrary("lockbook_core")
+    initLogger()
 }
