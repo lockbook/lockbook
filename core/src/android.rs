@@ -4,7 +4,7 @@ use crate::client::new_account::Error;
 use crate::model::api::NewAccountError;
 use crate::model::state::Config;
 use crate::repo::db_provider::DbProvider;
-use crate::service::account_service::AccountCreationError;
+use crate::service::account_service::{AccountCreationError, AccountImportError};
 use crate::service::account_service::AccountService;
 use crate::{init_logger_safely, DefaultAccountService, DefaultDbProvider, DB_NAME};
 use jni::objects::{JClass, JString};
@@ -106,5 +106,44 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
                 AccountCreationError::AuthGenFailure(_) => unexpected_error,
             }
         }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jaccount_account: JString,
+) -> jint {
+    // Error codes for this function
+    let success = 0; // should handle
+    let no_db = 1;
+    let account_string_invalid = 2; // should handle
+    let io_err = 3;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let account_string: String = env
+        .get_string(jaccount_account)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let db = match connect_db(path) {
+        None => return no_db,
+        Some(db) => db,
+    };
+
+    match DefaultAccountService::import_account(&db, &account_string) {
+        Ok(_) => success,
+        Err(err) => match err {
+            AccountImportError::AccountStringCorrupted(_) => account_string_invalid,
+            AccountImportError::AccountStringFailedToDeserialize(_) => account_string_invalid,
+            AccountImportError::PersistenceError(_) => io_err,
+            AccountImportError::InvalidPrivateKey(_) => account_string_invalid,
+        },
     }
 }
