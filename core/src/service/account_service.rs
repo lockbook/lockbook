@@ -84,11 +84,20 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
     }
 
     fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError> {
+        info!("Importing account string: {}", &account_string);
+
         let decoded = base64::decode(&account_string)?;
+        debug!("Key is valid base64 string");
+
         let account: Account = bincode::deserialize(&decoded[..])?;
+        debug!("Key was valid bincode");
 
         account.keys.validate()?;
+        debug!("RSA says the key is valid");
+
+        info!("Account String seems valid, saving now");
         AccountDb::insert_account(db, &account)?;
+
         info!("Account imported successfully");
         Ok(account)
     }
