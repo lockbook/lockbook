@@ -37,15 +37,15 @@ pub enum WorkUnit {
 
 pub fn get_verb(work: &WorkUnit) -> String {
     match work {
-        WorkUnit::PushNewFile(client) => format!("Pushing file: {}", client.file_name),
+        WorkUnit::PushNewFile(client) => format!("Pushing file: {}", client.name),
         WorkUnit::UpdateLocalMetadata(server) => {
             format!("Updating metadata for: {}", server.name)
         }
         WorkUnit::PullFileContent(server) => format!("Pulling file: {}", server.name),
-        WorkUnit::DeleteLocally(client) => format!("Deleting file: {}", client.file_name),
-        WorkUnit::PushMetadata(client) => format!("Pushing metadata: {}", client.file_name),
-        WorkUnit::PushFileContent(client) => format!("Pushing file: {}", client.file_name),
-        WorkUnit::PushDelete(client) => format!("Sending delete: {}", client.file_name),
+        WorkUnit::DeleteLocally(client) => format!("Deleting file: {}", client.name),
+        WorkUnit::PushMetadata(client) => format!("Pushing metadata: {}", client.name),
+        WorkUnit::PushFileContent(client) => format!("Pushing file: {}", client.name),
+        WorkUnit::PushDelete(client) => format!("Sending delete: {}", client.name),
         WorkUnit::PullMergePush(server) => format!("Merging file: {}", server.name),
         WorkUnit::MergeMetadataAndPushMetadata(server) => {
             format!("Merging metadata for: {}", server.name)

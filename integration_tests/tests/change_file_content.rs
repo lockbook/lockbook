@@ -3,7 +3,7 @@ use lockbook_core::client::change_file_content;
 use lockbook_core::model::api::CreateFileRequest;
 use lockbook_core::model::api::DeleteFileRequest;
 use lockbook_core::model::api::NewAccountRequest;
-use lockbook_core::model::api::{ChangeFileContentError, ChangeFileContentRequest};
+use lockbook_core::model::api::{ChangeDocumentContentError, ChangeFileContentRequest};
 
 #[macro_use]
 pub mod utils;
@@ -99,8 +99,8 @@ fn change_file_content_case_insensitive_username() -> Result<(), TestError> {
 fn test_change_file_content_case_insensitive_username() {
     assert_matches!(
         change_file_content_case_insensitive_username(),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
 }
@@ -134,8 +134,8 @@ fn change_file_content_file_not_found() -> Result<(), TestError> {
 fn test_change_file_content_file_not_found() {
     assert_matches!(
         change_file_content_file_not_found(),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::FileNotFound)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::FileNotFound)
         ))
     );
 }
@@ -183,8 +183,8 @@ fn change_file_content_edit_conflict() -> Result<(), TestError> {
 fn test_change_file_content_edit_conflict() {
     assert_matches!(
         change_file_content_edit_conflict(),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::EditConflict)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::EditConflict)
         ))
     );
 }
@@ -243,8 +243,8 @@ fn change_file_content_file_deleted() -> Result<(), TestError> {
 fn test_change_file_content_file_deleted() {
     assert_matches!(
         change_file_content_file_deleted(),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::FileDeleted)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::FileDeleted)
         ))
     );
 }
@@ -293,32 +293,32 @@ fn change_file_alphanumeric_username(username: String) -> Result<(), TestError> 
 fn test_change_file_alphanumeric_username() {
     assert_matches!(
         change_file_alphanumeric_username("Smail&$@".to_string()),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
     assert_matches!(
         change_file_alphanumeric_username("漢字".to_string()),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
     assert_matches!(
         change_file_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
     assert_matches!(
         change_file_alphanumeric_username("😀😁😂😃😄".to_string()),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
     assert_matches!(
         change_file_alphanumeric_username("ãÁêì".to_string()),
-        Err(TestError::ChangeFileContentError(
-            change_file_content::Error::API(ChangeFileContentError::InvalidUsername)
+        Err(TestError::ChangeDocumentContentError(
+            change_file_content::Error::API(ChangeDocumentContentError::InvalidUsername)
         ))
     );
 }
