@@ -1,5 +1,5 @@
 use crate::index_db::generate_version::generate_version;
-use crate::index_db::generate_version::Error as VersionGenerationError;
+use crate::index_db::generate_version::Error as GenerateVersionError;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::Transaction;
@@ -9,7 +9,7 @@ pub enum Error {
     FileIdTaken,
     FilePathTaken,
     Uninterpreted(PostgresError),
-    VersionGeneration(VersionGenerationError),
+    VersionGeneration(GenerateVersionError),
 }
 
 impl From<PostgresError> for Error {
@@ -32,24 +32,21 @@ impl From<PostgresError> for Error {
     }
 }
 
-impl From<VersionGenerationError> for Error {
-    fn from(e: VersionGenerationError) -> Error {
-        Error::VersionGeneration(e)
-    }
-}
-
 pub async fn create_file(
     transaction: &Transaction<'_>,
     file_id: &String,
     username: &String,
     file_name: &String,
     file_path: &String,
-) -> Result<i64, Error> {
-    let version = generate_version(transaction).await?;
+) -> Result<u64, Error> {
+    let version = generate_version(transaction)
+        .await
+        .map_err(Error::VersionGeneration)?;
+
     transaction.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
-", &[file_id, file_name, file_path, &username, &version, &version, &false]).await?;
+", &[file_id, file_name, file_path, username, &(version as i64), &(version as i64), &false]).await?;
 
     Ok(version)
 }
