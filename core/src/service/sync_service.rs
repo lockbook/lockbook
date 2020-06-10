@@ -24,12 +24,13 @@ use crate::service::auth_service::AuthService;
 use crate::{client, error_enum};
 use std::cmp::max;
 use std::collections::HashMap;
+use crate::model::api::{GetUpdatesError, CreateDocumentError, RenameDocumentError, MoveDocumentError, DeleteDocumentError, ChangeDocumentContentError};
 
 error_enum! {
     enum CalculateWorkError {
         AccountRetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::Error),
-        ApiError(client::get_updates::Error),
+        GetUpdatesError(client::Error<GetUpdatesError>),
     }
 }
 
@@ -38,13 +39,13 @@ error_enum! {
         RetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::Error),
         FileContentError(repo::file_repo::Error),
-        GetUpdatesError(client::get_updates::Error),
-        CreateFileError(client::create_file::Error),
-        GetFileError(client::get_file::Error),
-        RenameFileError(client::rename_file::Error),
-        MoveFileError(client::move_file::Error),
-        DeleteFileError(client::delete_file::Error),
-        ChangeFileContentError(client::change_file_content::Error),
+        GetUpdatesError(client::Error<GetUpdatesError>),
+        CreateFileError(client::Error<CreateDocumentError>),
+        GetFileError(client::Error<()>),
+        RenameFileError(client::Error<RenameDocumentError>),
+        MoveFileError(client::Error<MoveDocumentError>),
+        DeleteFileError(client::Error<DeleteDocumentError>),
+        ChangeDocumentContentError(client::Error<ChangeDocumentContentError>),
         AuthError(service::auth_service::AuthGenError),
         SerdeError(serde_json::Error),
     }
@@ -85,12 +86,12 @@ pub struct FileSyncService<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+    Auth: AuthService,
+> SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating work");
@@ -107,9 +108,9 @@ impl<
         ApiClient::get_updates(account.username, "junk auth :(".to_string(), last_sync)?
             .into_iter()
             .for_each(|file| {
-                server_dirty_files.insert(file.clone().file_id, file.clone());
-                if file.file_metadata_version > most_recent_update_from_server {
-                    most_recent_update_from_server = file.file_metadata_version;
+                server_dirty_files.insert(file.clone().id, file.clone());
+                if file.metadata_version > most_recent_update_from_server {
+                    most_recent_update_from_server = file.metadata_version;
                 }
             });
 
@@ -118,16 +119,16 @@ impl<
         let local_dirty_files_keys = local_dirty_files
             .clone()
             .into_iter()
-            .map(|f| f.file_id)
+            .map(|f| f.id)
             .collect::<Vec<String>>();
 
         // Process intersection first
         local_dirty_files
             .clone()
             .into_iter()
-            .filter(|f| server_dirty_files.contains_key(&f.file_id))
+            .filter(|f| server_dirty_files.contains_key(&f.id))
             .for_each(|client| {
-                let server = server_dirty_files.get(&client.file_id).unwrap();
+                let server = server_dirty_files.get(&client.id).unwrap();
                 work_units.extend(calculate_work_across_server_and_client(
                     server.clone(),
                     client,
@@ -137,7 +138,7 @@ impl<
         // Local-only files next
         local_dirty_files
             .into_iter()
-            .filter(|f| !server_dirty_files.contains_key(&f.file_id))
+            .filter(|f| !server_dirty_files.contains_key(&f.id))
             .for_each(|client| work_units.extend(calculate_work_for_local_changes(client)));
 
         server_dirty_files
@@ -165,48 +166,48 @@ impl<
         match work {
             PushNewFile(client) => {
                 let mut client = client;
-                let file_content = FileDb::get(&db, &client.file_id)?;
+                let file_content = FileDb::get(&db, &client.id)?;
 
-                let new_version = ApiClient::create_file(
+                let new_version = ApiClient::create_document(
                     account.username.to_string(),
                     Auth::generate_auth(&account)?,
-                    client.file_id.clone(),
-                    client.file_name.clone(),
-                    client.file_path.clone(),
+                    client.id.clone(),
+                    client.name.clone(),
+                    client.parent_id.clone(),
                     serde_json::to_string(&file_content)?,
                 )?;
 
-                client.file_content_version = new_version;
-                client.new_file = false;
-                client.content_edited_locally = false;
+                client.content_version = new_version;
+                client.new = false;
+                client.document_edited = false;
 
                 FileMetadataDb::update(&db, &client)?;
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
-                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.id)?;
 
-                old_file_metadata.file_name = server_meta.file_name;
-                old_file_metadata.file_path = server_meta.file_parent;
-                old_file_metadata.file_metadata_version = max(
-                    server_meta.file_metadata_version,
-                    old_file_metadata.file_metadata_version,
+                old_file_metadata.name = server_meta.name;
+                old_file_metadata.parent_id = server_meta.parent;
+                old_file_metadata.metadata_version = max(
+                    server_meta.metadata_version,
+                    old_file_metadata.metadata_version,
                 );
 
                 FileMetadataDb::update(&db, &old_file_metadata)?;
                 Ok(())
             }
             PullFileContent(new_metadata) => {
-                let file = ApiClient::get_file(
-                    new_metadata.file_id.clone(),
-                    new_metadata.file_content_version,
+                let file = ApiClient::get_document(
+                    new_metadata.id.clone(),
+                    new_metadata.content_version,
                 )?;
 
-                FileDb::update(&db, &new_metadata.file_id, &file)?;
+                FileDb::update(&db, &new_metadata.id, &file)?;
 
-                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                match FileMetadataDb::get(&db, &new_metadata.id) {
                     Ok(mut old_meta) => {
-                        old_meta.file_content_version = new_metadata.file_content_version;
+                        old_meta.content_version = new_metadata.content_version;
                         FileMetadataDb::update(&db, &old_meta)?;
                     }
                     Err(err) => match err {
@@ -214,15 +215,15 @@ impl<
                             FileMetadataDb::update(
                                 &db,
                                 &ClientFileMetadata {
-                                    file_id: new_metadata.file_id.clone(),
-                                    file_name: new_metadata.file_name,
-                                    file_path: new_metadata.file_parent,
-                                    file_content_version: new_metadata.file_content_version,
-                                    file_metadata_version: new_metadata.file_metadata_version,
-                                    new_file: false,
-                                    content_edited_locally: false,
-                                    metadata_edited_locally: false,
-                                    deleted_locally: false,
+                                    id: new_metadata.id.clone(),
+                                    name: new_metadata.name,
+                                    parent_id: new_metadata.parent,
+                                    content_version: new_metadata.content_version,
+                                    metadata_version: new_metadata.metadata_version,
+                                    new: false,
+                                    document_edited: false,
+                                    metadata_changed: false,
+                                    deleted: false,
                                 },
                             )?;
                         }
@@ -233,31 +234,31 @@ impl<
                 Ok(())
             }
             DeleteLocally(client) => {
-                FileMetadataDb::delete(&db, &client.file_id)?;
-                FileDb::delete(&db, &client.file_id)?;
+                FileMetadataDb::delete(&db, &client.id)?;
+                FileDb::delete(&db, &client.id)?;
                 Ok(())
             }
             PushMetadata(client) => {
                 // TODO until we're diffing this is just going to spin on conflicts
                 let mut metadata = client.clone();
                 // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
-                ApiClient::rename_file(
+                ApiClient::rename_document(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
-                    client.file_id,
-                    client.file_metadata_version,
-                    metadata.file_name.clone(),
+                    client.id,
+                    client.metadata_version,
+                    metadata.name.clone(),
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                ApiClient::move_file(
+                ApiClient::move_document(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
-                    metadata.file_id.clone(),
-                    client.file_metadata_version,
-                    metadata.file_path.clone(),
+                    metadata.id.clone(),
+                    client.metadata_version,
+                    metadata.parent_id.clone(),
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                metadata.metadata_edited_locally = false;
+                metadata.metadata_changed = false;
                 FileMetadataDb::update(&db, &metadata)?;
 
                 Ok(())
@@ -265,18 +266,18 @@ impl<
             PushFileContent(client) => {
                 // TODO until we're diffing this is just going to spin on conflicts
                 let mut old_file_metadata = client.clone();
-                let file_content = FileDb::get(&db, &client.file_id)?;
+                let file_content = FileDb::get(&db, &client.id)?;
 
-                let new_version = ApiClient::change_file_content(
+                let new_version = ApiClient::move_document(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
-                    client.file_id.clone(),
-                    client.file_content_version,
+                    client.id.clone(),
+                    client.content_version,
                     serde_json::to_string(&file_content)?,
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                old_file_metadata.file_content_version = new_version;
-                old_file_metadata.content_edited_locally = false;
+                old_file_metadata.content_version = new_version;
+                old_file_metadata.document_edited = false;
 
                 FileMetadataDb::update(&db, &old_file_metadata)?;
 
@@ -284,30 +285,30 @@ impl<
             }
             PushDelete(client) => {
                 // TODO until we're diffing this is just going to spin on conflicts
-                ApiClient::delete_file(
+                ApiClient::delete_document(
                     account.username.clone(),
                     Auth::generate_auth(&account)?,
-                    client.clone().file_id,
-                    client.file_metadata_version,
+                    client.clone().id,
+                    client.metadata_version,
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                FileMetadataDb::delete(&db, &client.file_id)?;
-                FileDb::delete(&db, &client.file_id)?;
+                FileMetadataDb::delete(&db, &client.id)?;
+                FileDb::delete(&db, &client.id)?;
 
                 Ok(())
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                let file = ApiClient::get_file(
-                    new_metadata.file_id.clone(),
-                    new_metadata.file_content_version,
+                let file = ApiClient::get_document(
+                    new_metadata.id.clone(),
+                    new_metadata.content_version,
                 )?;
 
-                FileDb::update(&db, &new_metadata.file_id, &file)?;
+                FileDb::update(&db, &new_metadata.id, &file)?;
 
-                match FileMetadataDb::get(&db, &new_metadata.file_id) {
+                match FileMetadataDb::get(&db, &new_metadata.id) {
                     Ok(mut old_meta) => {
-                        old_meta.file_content_version = new_metadata.file_content_version;
+                        old_meta.content_version = new_metadata.content_version;
                         FileMetadataDb::update(&db, &old_meta)?;
                     }
                     Err(err) => match err {
@@ -315,15 +316,15 @@ impl<
                             FileMetadataDb::update(
                                 &db,
                                 &ClientFileMetadata {
-                                    file_id: new_metadata.file_id.clone(),
-                                    file_name: new_metadata.file_name,
-                                    file_path: new_metadata.file_parent,
-                                    file_content_version: new_metadata.file_content_version,
-                                    file_metadata_version: new_metadata.file_metadata_version,
-                                    new_file: false,
-                                    content_edited_locally: false,
-                                    metadata_edited_locally: false,
-                                    deleted_locally: false,
+                                    id: new_metadata.id.clone(),
+                                    name: new_metadata.name,
+                                    parent_id: new_metadata.parent,
+                                    content_version: new_metadata.content_version,
+                                    metadata_version: new_metadata.metadata_version,
+                                    new: false,
+                                    document_edited: false,
+                                    metadata_changed: false,
+                                    deleted: false,
                                 },
                             )?;
                         }
@@ -335,13 +336,13 @@ impl<
             }
             MergeMetadataAndPushMetadata(server_meta) => {
                 // TODO we can't tell who changed what so this just going to be an UpdateLocalMetadata for now:
-                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.file_id)?;
+                let mut old_file_metadata = FileMetadataDb::get(&db, &server_meta.id)?;
 
-                old_file_metadata.file_name = server_meta.file_name;
-                old_file_metadata.file_path = server_meta.file_parent;
-                old_file_metadata.file_metadata_version = max(
-                    server_meta.file_metadata_version,
-                    old_file_metadata.file_metadata_version,
+                old_file_metadata.name = server_meta.name;
+                old_file_metadata.parent_id = server_meta.parent;
+                old_file_metadata.metadata_version = max(
+                    server_meta.metadata_version,
+                    old_file_metadata.metadata_version,
                 );
 
                 FileMetadataDb::update(&db, &old_file_metadata)?;
@@ -378,10 +379,10 @@ impl<
 
 fn calculate_work_for_local_changes(client: ClientFileMetadata) -> Vec<WorkUnit> {
     match (
-        client.new_file,
-        client.deleted_locally,
-        client.content_edited_locally,
-        client.metadata_edited_locally,
+        client.new,
+        client.deleted,
+        client.document_edited,
+        client.metadata_changed,
     ) {
         (_, true, _, _) => vec![DeleteLocally(client)],
         (true, _, _, _) => vec![PushNewFile(client)],
@@ -396,13 +397,13 @@ fn calculate_work_across_server_and_client(
     server: ServerFileMetadata,
     client: ClientFileMetadata,
 ) -> Vec<WorkUnit> {
-    let local_delete = client.deleted_locally;
-    let local_edit = client.content_edited_locally;
-    let local_move = client.metadata_edited_locally;
+    let local_delete = client.deleted;
+    let local_edit = client.document_edited;
+    let local_move = client.metadata_changed;
     let server_delete = server.deleted;
-    let server_content_change = server.file_content_version != client.file_content_version;
+    let server_content_change = server.content_version != client.content_version;
     // We could consider diffing across name & path instead of doing this
-    let server_move = server.file_metadata_version != client.file_metadata_version;
+    let server_move = server.metadata_version != client.metadata_version;
 
     match (
         local_delete,
