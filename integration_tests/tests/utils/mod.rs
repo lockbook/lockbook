@@ -59,7 +59,7 @@ macro_rules! assert_matches (
 pub enum TestError {
     NewAccountError(new_account::Error),
     CreateFileError(create_file::Error),
-    ChangeFileContentError(change_file_content::Error),
+    ChangeDocumentContentError(change_file_content::Error),
     RenameFileError(rename_file::Error),
     MoveFileError(move_file::Error),
     DeleteFileError(delete_file::Error),
@@ -81,7 +81,7 @@ impl From<create_file::Error> for TestError {
 
 impl From<change_file_content::Error> for TestError {
     fn from(e: change_file_content::Error) -> TestError {
-        TestError::ChangeFileContentError(e)
+        TestError::ChangeDocumentContentError(e)
     }
 }
 

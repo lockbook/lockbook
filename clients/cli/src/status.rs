@@ -14,7 +14,7 @@ pub fn status() {
         .for_each(|work| match work {
             WorkUnit::PushNewFile(client) => println!(
                 "{} has local changes that need to be pushed",
-                client.file_name
+                client.name
             ),
             WorkUnit::UpdateLocalMetadata(server) => println!(
                 "{} has been moved or renamed on the server",
@@ -24,17 +24,17 @@ pub fn status() {
                 println!("{} has new content available", server.file_name)
             }
             WorkUnit::DeleteLocally(client) => {
-                println!("{} needs to be deleted locally", client.file_name)
+                println!("{} needs to be deleted locally", client.name)
             }
             WorkUnit::PushMetadata(client) => {
-                println!("{} has been moved locally", client.file_name)
+                println!("{} has been moved locally", client.name)
             }
             WorkUnit::PushFileContent(client) => println!(
                 "{} has local changes that need to be pushed",
-                client.file_name
+                client.name
             ),
             WorkUnit::PushDelete(client) => {
-                println!("{} has been deleted locally", client.file_name)
+                println!("{} has been deleted locally", client.name)
             }
             WorkUnit::PullMergePush(server) => {
                 println!("{} has changes locally and on the server", server.file_name)

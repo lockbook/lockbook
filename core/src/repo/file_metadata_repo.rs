@@ -39,14 +39,14 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert_new_file(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         let meta = ClientFileMetadata::new_file(&name, &path);
-        tree.insert(meta.file_id.as_bytes(), serde_json::to_vec(&meta)?)?;
+        tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
         Ok(meta)
     }
 
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.insert(
-            file_metadata.file_id.as_bytes(),
+            file_metadata.id.as_bytes(),
             serde_json::to_vec(&file_metadata)?,
         )?;
         Ok(file_metadata.clone())
@@ -76,7 +76,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn find_by_name(db: &Db, name: &String) -> Result<Option<ClientFileMetadata>, DbError> {
         let all = FileMetadataRepoImpl::get_all(&db)?;
         for file in all {
-            if &file.file_name == name {
+            if &file.name == name {
                 return Ok(Some(file));
             }
         }
@@ -128,7 +128,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(all_files
             .into_iter()
             .filter(|file| {
-                file.new_file || file.content_edited_locally || file.metadata_edited_locally
+                file.new || file.document_edited || file.metadata_changed
             })
             .collect::<Vec<ClientFileMetadata>>())
     }
@@ -161,39 +161,39 @@ mod unit_tests {
 
         let meta_res = FileMetadataRepoImpl::insert_new_file(
             &db,
-            &test_file_metadata.file_name,
-            &test_file_metadata.file_path,
+            &test_file_metadata.name,
+            &test_file_metadata.parent_id,
         )
         .unwrap();
 
-        let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.file_id).unwrap();
-        assert_eq!(test_file_metadata.file_name, db_file_metadata.file_name);
-        assert_eq!(test_file_metadata.file_path, db_file_metadata.file_path);
+        let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.id).unwrap();
+        assert_eq!(test_file_metadata.name, db_file_metadata.name);
+        assert_eq!(test_file_metadata.parent_id, db_file_metadata.parent_id);
     }
 
     #[test]
     fn update_file_metadata() {
         let test_meta = ClientFileMetadata {
-            file_id: "".to_string(),
-            file_name: "".to_string(),
-            file_path: "".to_string(),
-            file_content_version: 0,
-            file_metadata_version: 0,
-            new_file: false,
-            content_edited_locally: false,
-            metadata_edited_locally: false,
-            deleted_locally: false,
+            id: "".to_string(),
+            name: "".to_string(),
+            parent_id: "".to_string(),
+            content_version: 0,
+            metadata_version: 0,
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
         };
         let test_meta_updated = ClientFileMetadata {
-            file_id: "".to_string(),
-            file_name: "".to_string(),
-            file_path: "".to_string(),
-            file_content_version: 1000,
-            file_metadata_version: 1000,
-            new_file: false,
-            content_edited_locally: false,
-            metadata_edited_locally: false,
-            deleted_locally: false,
+            id: "".to_string(),
+            name: "".to_string(),
+            parent_id: "".to_string(),
+            content_version: 1000,
+            metadata_version: 1000,
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
         };
 
         let config = Config {
@@ -202,20 +202,20 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         let meta_res =
-            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.file_name, &test_meta.file_path)
+            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.name, &test_meta.parent_id)
                 .unwrap();
         assert_eq!(
-            test_meta.file_content_version,
-            FileMetadataRepoImpl::get(&db, &meta_res.file_id)
+            test_meta.content_version,
+            FileMetadataRepoImpl::get(&db, &meta_res.id)
                 .unwrap()
-                .file_content_version
+                .content_version
         );
         let meta_upd_res = FileMetadataRepoImpl::update(&db, &test_meta_updated).unwrap();
         assert_eq!(
-            test_meta_updated.file_content_version,
-            FileMetadataRepoImpl::get(&db, &meta_upd_res.file_id)
+            test_meta_updated.content_version,
+            FileMetadataRepoImpl::get(&db, &meta_upd_res.id)
                 .unwrap()
-                .file_content_version
+                .content_version
         );
     }
 }

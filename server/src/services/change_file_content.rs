@@ -3,21 +3,21 @@ use crate::index_db::{update_file_metadata_and_content_version, update_file_meta
 use crate::services::username_is_valid;
 use crate::ServerState;
 use lockbook_core::model::api::{
-    ChangeFileContentError, ChangeFileContentRequest, ChangeFileContentResponse,
+    ChangeDocumentContentError, ChangeFileContentRequest, ChangeFileContentResponse,
 };
 
 pub async fn handle(
     server_state: &mut ServerState,
     request: ChangeFileContentRequest,
-) -> Result<ChangeFileContentResponse, ChangeFileContentError> {
+) -> Result<ChangeFileContentResponse, ChangeDocumentContentError> {
     if !username_is_valid(&request.username) {
-        return Err(ChangeFileContentError::InvalidUsername);
+        return Err(ChangeDocumentContentError::InvalidUsername);
     }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(ChangeFileContentError::InternalError);
+            return Err(ChangeDocumentContentError::InternalError);
         }
     };
 
@@ -31,29 +31,29 @@ pub async fn handle(
         Ok(x) => x,
         Err(update_file_metadata_and_content_version::Error::Uninterpreted(_)) => {
             println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeFileContentError::InternalError);
+            return Err(ChangeDocumentContentError::InternalError);
         }
         Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
             update_file_metadata_version::Error::Uninterpreted(_),
         )) => {
             println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeFileContentError::InternalError);
+            return Err(ChangeDocumentContentError::InternalError);
         }
         Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
             update_file_metadata_version::Error::VersionGeneration(_),
         )) => {
             println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeFileContentError::InternalError);
+            return Err(ChangeDocumentContentError::InternalError);
         }
         Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
             update_file_metadata_version::Error::FileDoesNotExist,
-        )) => return Err(ChangeFileContentError::FileNotFound),
+        )) => return Err(ChangeDocumentContentError::FileNotFound),
         Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
             update_file_metadata_version::Error::IncorrectOldVersion(_),
-        )) => return Err(ChangeFileContentError::EditConflict),
+        )) => return Err(ChangeDocumentContentError::EditConflict),
         Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
             update_file_metadata_version::Error::FileDeleted,
-        )) => return Err(ChangeFileContentError::FileDeleted),
+        )) => return Err(ChangeDocumentContentError::FileDeleted),
     };
 
     let create_file_result = files_db::create_file(
@@ -65,7 +65,7 @@ pub async fn handle(
     .await;
     if create_file_result.is_err() {
         println!("Internal server error! {:?}", create_file_result);
-        return Err(ChangeFileContentError::InternalError);
+        return Err(ChangeDocumentContentError::InternalError);
     };
 
     let delete_file_result = files_db::delete_file(
@@ -76,7 +76,7 @@ pub async fn handle(
     .await;
     if delete_file_result.is_err() {
         println!("Internal server error! {:?}", delete_file_result);
-        return Err(ChangeFileContentError::InternalError);
+        return Err(ChangeDocumentContentError::InternalError);
     };
 
     match transaction.commit().await {
@@ -85,7 +85,7 @@ pub async fn handle(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(ChangeFileContentError::InternalError)
+            Err(ChangeDocumentContentError::InternalError)
         }
     }
 }
