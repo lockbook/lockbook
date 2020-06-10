@@ -7,7 +7,7 @@ use crate::model::aliases::*;
 pub struct ChangeDocumentContentRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: DocumentId,
+    pub id: FileId,
     pub old_metadata_version: Version,
     pub new_content: EncryptedDocumentContent,
 }
@@ -34,9 +34,9 @@ pub enum ChangeDocumentContentError {
 pub struct CreateDocumentRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: DocumentId,
-    pub name: DocumentName,
-    pub parent: DocumentId,
+    pub id: FileId,
+    pub name: Filename,
+    pub parent: FileId,
     pub content: EncryptedDocumentContent,
 }
 
@@ -53,7 +53,7 @@ pub enum CreateDocumentError {
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
-    DocumentIdTaken,
+    FileIdTaken,
     DocumentPathTaken,
 }
 
@@ -61,7 +61,7 @@ pub enum CreateDocumentError {
 pub struct DeleteDocumentRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: DocumentId,
+    pub id: FileId,
     pub old_metadata_version: Version,
 }
 
@@ -87,9 +87,9 @@ pub enum DeleteDocumentError {
 pub struct MoveDocumentRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: DocumentId,
+    pub id: FileId,
     pub old_metadata_version: Version,
-    pub new_parent: DocumentId,
+    pub new_parent: FileId,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -115,9 +115,9 @@ pub enum MoveDocumentError {
 pub struct RenameDocumentRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: DocumentId,
+    pub id: FileId,
     pub old_metadata_version: Version,
-    pub new_name: DocumentName,
+    pub new_name: Filename,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -142,9 +142,9 @@ pub enum RenameDocumentError {
 pub struct CreateFolderRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: FolderId,
-    pub name: FolderName,
-    pub parent: FolderId,
+    pub id: FileId,
+    pub name: Filename,
+    pub parent: FileId,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -160,7 +160,7 @@ pub enum CreateFolderError {
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
-    FolderIdTaken,
+    FileIdTaken,
     FolderPathTaken,
 }
 
@@ -168,7 +168,7 @@ pub enum CreateFolderError {
 pub struct DeleteFolderRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: FolderId,
+    pub id: FileId,
     pub old_metadata_version: Version,
 }
 
@@ -194,9 +194,9 @@ pub enum DeleteFolderError {
 pub struct MoveFolderRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: FolderId,
+    pub id: FileId,
     pub old_metadata_version: Version,
-    pub new_parent: FolderId,
+    pub new_parent: FileId,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -222,9 +222,9 @@ pub enum MoveFolderError {
 pub struct RenameFolderRequest {
     pub username: Username,
     pub signature: Signature,
-    pub id: FolderId,
+    pub id: FileId,
     pub old_metadata_version: Version,
-    pub new_name: FolderName,
+    pub new_name: Filename,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -285,27 +285,12 @@ pub enum GetUpdatesError {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum FileMetadata {
-    DocumentMetadata(DocumentMetadata),
-    FolderMetadata(FolderMetadata),
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DocumentMetadata {
-    pub id: DocumentId,
-    pub name: DocumentName,
-    pub parent: DocumentId,
+pub struct FileMetadata {
+    pub id: FileId,
+    pub name: Filename,
+    pub parent: FileId,
     pub content_version: Version,
-    pub document_metadata_version: Version,
-    pub deleted: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FolderMetadata {
-    pub id: FolderId,
-    pub name: FolderName,
-    pub parent: FolderId,
-    pub folder_metadata_version: Version,
+    pub metadata_version: Version,
     pub deleted: bool,
 }
 

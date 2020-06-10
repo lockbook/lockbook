@@ -4,6 +4,7 @@ use crate::client;
 use crate::client::Client;
 use crate::error_enum;
 use crate::model::account::Account;
+use crate::model::api::NewAccountError;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::service::auth_service::AuthGenError;
@@ -15,7 +16,7 @@ error_enum! {
     enum AccountCreationError {
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
-        ApiError(client::new_account::Error),
+        ApiError(client::Error<NewAccountError>),
         KeySerializationError(serde_json::error::Error),
         AuthGenFailure(AuthGenError)
     }
