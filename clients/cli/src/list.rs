@@ -11,7 +11,7 @@ pub fn list() {
     DefaultFileMetadataRepo::get_all(&db)
         .expect("Failed to retrieve content from FileMetadataRepo")
         .into_iter()
-        .for_each(|metadata| println!("{}", metadata.file_name.trim()));
+        .for_each(|metadata| println!("{}", metadata.name.trim()));
 
     print_last_successful_sync(&db);
 }

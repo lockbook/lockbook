@@ -77,7 +77,7 @@ impl<
         let meta = FileMetadataDb::insert_new_file(&db, &name, &path)?;
         debug!("Metadata for file: {:?}", meta);
 
-        FileDb::update(db, &meta.file_id, &encrypted_file)?;
+        FileDb::update(db, &meta.id, &encrypted_file)?;
         info!("New file saved locally");
         Ok(meta)
     }
@@ -107,15 +107,15 @@ impl<
         FileMetadataDb::update(
             db,
             &ClientFileMetadata {
-                file_id: id.clone(),
-                file_name: meta.file_name,
-                file_path: meta.file_path,
-                file_content_version: meta.file_content_version,
-                file_metadata_version: meta.file_metadata_version,
-                new_file: meta.new_file,
-                content_edited_locally: true,
-                metadata_edited_locally: false,
-                deleted_locally: false,
+                id: id.clone(),
+                name: meta.name,
+                parent_id: meta.parent_id,
+                content_version: meta.content_version,
+                metadata_version: meta.metadata_version,
+                new: meta.new,
+                document_edited: true,
+                metadata_changed: false,
+                deleted: false,
             },
         )?;
         info!("Updated file {:?} contents {:?}", &id, &content);

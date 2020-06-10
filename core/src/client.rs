@@ -6,8 +6,10 @@ use rsa::RSAPublicKey;
 
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
+#[derive(Debug)]
 pub enum Error<ApiError> {
     Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
@@ -16,7 +18,7 @@ pub enum Error<ApiError> {
     Api(ApiError),
 }
 
-pub fn api_request<'a, Request: Serialize, Response: Deserialize<'a>, ApiError: Deserialize<'a>>(endpoint: &str, request: &Request) -> Result<Response, Error<ApiError>> {
+pub fn api_request<'a, Request: Serialize, Response: DeserializeOwned, ApiError: DeserializeOwned>(endpoint: &str, request: &Request) -> Result<Response, Error<ApiError>> {
     let client = ReqwestClient::new();
     let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
     let serialized_response = client
@@ -123,10 +125,11 @@ impl Client for ClientImpl {
             .get(&format!("{}/{}-{}", BUCKET_LOC, id, content_version))
             .send()
             .map_err(Error::SendFailed)?;
+        let status = response.status().as_u16();
         let response_body = response.text().map_err(Error::ReceiveFailed)?;
         let encrypted_file: EncryptedFile =
             serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?;
-        match response.status().as_u16() {
+        match status {
             200..=299 => Ok(encrypted_file),
             _ => Err(Error::Api(())),
         }
@@ -327,6 +330,6 @@ impl Client for ClientImpl {
                 signature: signature,
                 public_key: public_key,
             }
-        ).map(|r: NewAccountResponse| ())
+        ).map(|_r: NewAccountResponse| ())
     }
 }
