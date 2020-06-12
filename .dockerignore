@@ -1,4 +1,5 @@
 **/target/*
+**/build/*
 .git
 graphics
 .DS_Store
@@ -13,5 +14,5 @@ clients/android/.idea/workspace.xml
 clients/android/.idea/navEditor.xml
 clients/android/.idea/assetWizardSettings.xml
 .DS_Store
-clients/android/build/**
 clients/android/captures/**
+clients/android/core/src/main/jniLibs
