@@ -19,7 +19,7 @@ pub struct AccessInfo {
     pub access_key: EncryptedValue,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EncryptedFile {
     pub access_keys: HashMap<String, AccessInfo>,
     pub content: EncryptedValueWithNonce,
