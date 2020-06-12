@@ -176,7 +176,7 @@ impl<
                     client.id,
                     &client.name,
                     client.parent_id,
-                    FileDb::get(&db, client.id)?,
+                    FileDb::get(&db, client.id)?.content,
                 )?;
 
                 client.content_version = new_version;
@@ -272,7 +272,7 @@ impl<
                     &Auth::generate_auth(&account)?,
                     client.id,
                     client.content_version,
-                    file_content,
+                    file_content.content,
                 )?; // TODO the thing you're not handling is EditConflict!
 
                 old_file_metadata.content_version = new_version;

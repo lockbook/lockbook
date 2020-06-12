@@ -60,10 +60,6 @@ mod unit_tests {
                 garbage: "something".to_string(),
                 nonce: "nonce1".to_string(),
             },
-            last_edited: SignedValue {
-                content: "".to_string(),
-                signature: "".to_string(),
-            },
         };
 
         let config = Config {
@@ -91,10 +87,6 @@ mod unit_tests {
                 content: EncryptedValueWithNonce {
                     garbage: "updated".to_string(),
                     nonce: "nonce2".to_string(),
-                },
-                last_edited: SignedValue {
-                    content: "".to_string(),
-                    signature: "".to_string(),
                 },
             },
         )
