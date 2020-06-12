@@ -50,8 +50,31 @@ pub fn get_editor() -> String {
 }
 
 pub fn edit_file_with_editor(file_location: &String) -> bool {
-    Command::new(get_editor())
-        .arg(&file_location)
+    let command_unprocessed = get_editor();
+
+    let command = if command_unprocessed.contains(' ') {
+        command_unprocessed
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .to_string()
+    } else {
+        command_unprocessed.clone()
+    };
+
+    // If your environment variable has args, handle that here
+    let args = if command_unprocessed.clone().contains(' ') {
+        let mut args = command_unprocessed
+            .split_whitespace()
+            .collect::<Vec<&str>>();
+        args.push(file_location.as_str());
+        args
+    } else {
+        vec![file_location.as_str()]
+    };
+
+    Command::new(command)
+        .args(args)
         .spawn()
         .expect(
             format!(
