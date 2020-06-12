@@ -13,7 +13,7 @@ pub enum Error {
 
 pub async fn delete_file(
     transaction: &Transaction<'_>,
-    file_id: &String,
+    file_id: &str,
     old_metadata_version: u64,
 ) -> Result<(u64, u64), Error> {
     let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)

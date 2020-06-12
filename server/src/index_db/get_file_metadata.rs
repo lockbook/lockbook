@@ -21,8 +21,8 @@ pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
 
 pub async fn get_file_metadata(
     transaction: &Transaction<'_>,
-    username: &String,
-    file_id: &String,
+    username: &str,
+    file_id: &str,
 ) -> Result<FileMetadata, Error> {
     match transaction.query_one(
         "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted

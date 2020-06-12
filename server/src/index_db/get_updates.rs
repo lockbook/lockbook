@@ -10,7 +10,7 @@ pub enum Error {
 
 pub async fn get_updates(
     transaction: &Transaction<'_>,
-    username: &String,
+    username: &str,
     metadata_version: u64,
 ) -> Result<Vec<FileMetadata>, Error> {
     match transaction.query(

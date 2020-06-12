@@ -34,10 +34,10 @@ impl From<PostgresError> for Error {
 
 pub async fn create_file(
     transaction: &Transaction<'_>,
-    file_id: &String,
-    username: &String,
-    file_name: &String,
-    file_path: &String,
+    file_id: &str,
+    username: &str,
+    file_name: &str,
+    file_path: &str,
 ) -> Result<u64, Error> {
     let version = generate_version(transaction)
         .await

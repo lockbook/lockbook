@@ -49,7 +49,7 @@ pub fn get_editor() -> String {
     env::var("VISUAL").unwrap_or_else(|_| env::var("EDITOR").unwrap_or_else(|_| "vi".to_string()))
 }
 
-pub fn edit_file_with_editor(file_location: &String) -> bool {
+pub fn edit_file_with_editor(file_location: &str) -> bool {
     let command_unprocessed = get_editor();
 
     let command = if command_unprocessed.contains(' ') {

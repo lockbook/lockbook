@@ -12,7 +12,7 @@ use lockbook_core::DefaultAccountService;
 pub fn init() {
     let db = connect_to_db();
 
-    print!("Enter a Username: ");
+    print!("Enter a String: ");
     io::stdout().flush().unwrap();
 
     let mut username = String::new();
@@ -35,7 +35,7 @@ pub fn init() {
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::SendFailed(_) => eprintln!("Network error: {:?}", api_err),
                 Error::API(api) => match api {
-                    NewAccountError::UsernameTaken => eprintln!("Username Taken!"),
+                    NewAccountError::UsernameTaken => eprintln!("String Taken!"),
                     _ => eprintln!(
                         "Unexpected error occurred while creating new account: {:?}",
                         api

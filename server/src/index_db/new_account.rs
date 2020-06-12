@@ -19,8 +19,8 @@ impl From<PostgresError> for Error {
 
 pub async fn new_account(
     transaction: &Transaction<'_>,
-    username: &String,
-    public_key: &String,
+    username: &str,
+    public_key: &str,
 ) -> Result<(), Error> {
     transaction
         .execute(

@@ -29,9 +29,9 @@ impl From<PostgresError> for Error {
 
 pub async fn move_file(
     transaction: &Transaction<'_>,
-    file_id: &String,
+    file_id: &str,
     old_metadata_version: u64,
-    new_file_path: &String,
+    new_file_path: &str,
 ) -> Result<u64, Error> {
     let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
         .await

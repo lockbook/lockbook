@@ -10,7 +10,7 @@ pub enum Error {
 
 pub async fn get_public_key(
     transaction: &Transaction<'_>,
-    username: &String,
+    username: &str,
 ) -> Result<RSAPublicKey, Error> {
     match transaction
         .query_one(

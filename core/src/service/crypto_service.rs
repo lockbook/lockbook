@@ -1,35 +1,16 @@
 extern crate rand;
 extern crate rsa;
 
-use std::string::FromUtf8Error;
-
-use aead::{generic_array::GenericArray, Aead, NewAead};
-use aes_gcm::Aes256Gcm;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-
-use crate::error_enum;
-
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-
-#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
-pub struct EncryptedValue {
-    pub garbage: String,
-}
-
-#[derive(PartialEq, Debug, Deserialize, Serialize)]
-pub struct DecryptedValue {
-    pub secret: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SignedValue {
-    pub content: String,
-    pub signature: String,
-}
+use crate::error_enum;
+use crate::model::crypto::*;
+use aead::{generic_array::GenericArray, Aead, NewAead};
+use aes_gcm::Aes256Gcm;
+use sha2::{Digest, Sha256};
+use std::string::FromUtf8Error;
 
 error_enum! {
     enum DecryptionFailed {
@@ -54,7 +35,7 @@ pub trait PubKeyCryptoService {
     ) -> Result<EncryptedValue, rsa::errors::Error>;
     fn sign(
         private_key: &RSAPrivateKey,
-        to_sign: String, // TODO borrow here
+        to_sign: &str, // TODO borrow here
     ) -> Result<SignedValue, rsa::errors::Error>;
     fn verify(
         public_key: &RSAPublicKey,
@@ -88,17 +69,14 @@ impl PubKeyCryptoService for RsaImpl {
         Ok(EncryptedValue { garbage: encoded })
     }
 
-    fn sign(
-        private_key: &RSAPrivateKey,
-        to_sign: String,
-    ) -> Result<SignedValue, rsa::errors::Error> {
+    fn sign(private_key: &RSAPrivateKey, to_sign: &str) -> Result<SignedValue, rsa::errors::Error> {
         let digest = Sha256::digest(to_sign.as_bytes()).to_vec();
         let signature =
             private_key.sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)?;
         let encoded_signature = base64::encode(&signature);
 
         Ok(SignedValue {
-            content: to_sign,
+            content: String::from(to_sign),
             signature: encoded_signature,
         })
     }
@@ -152,7 +130,7 @@ mod unit_test_pubkey {
     fn test_sign_verify() {
         let key = RsaImpl::generate_key().unwrap();
 
-        let value = RsaImpl::sign(&key, "Test".to_string()).unwrap();
+        let value = RsaImpl::sign(&key, "Test").unwrap();
         assert_eq!(value.content, "Test");
 
         RsaImpl::verify(&key.to_public_key(), &value).unwrap();
@@ -172,26 +150,6 @@ mod unit_test_pubkey {
         let decrypted = RsaImpl::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted.secret, "Secret".to_string());
-    }
-}
-
-#[derive(PartialEq, Debug, Deserialize, Serialize)]
-pub struct EncryptedValueWithNonce {
-    pub garbage: String,
-    // https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/
-    pub nonce: String,
-}
-
-#[derive(Debug)]
-pub struct AesKey {
-    pub key: String,
-}
-
-impl AesKey {
-    pub(crate) fn to_decrypted_value(&self) -> DecryptedValue {
-        DecryptedValue {
-            secret: self.key.clone(),
-        }
     }
 }
 

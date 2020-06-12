@@ -5,14 +5,13 @@ use serde::export::PhantomData;
 
 use crate::error_enum;
 use crate::model::account::Account;
+use crate::model::crypto::*;
 use crate::service::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
     TimeStampOutOfBounds, TimeStampParseFailure,
 };
 use crate::service::clock_service::Clock;
-use crate::service::crypto_service::{
-    PubKeyCryptoService, SignatureVerificationFailed, SignedValue,
-};
+use crate::service::crypto_service::{PubKeyCryptoService, SignatureVerificationFailed};
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -57,9 +56,9 @@ error_enum! {
 
 pub trait AuthService {
     fn verify_auth(
-        auth: &String,
+        auth: &str,
         public_key: &RSAPublicKey,
-        username: &String,
+        username: &str,
         max_auth_delay: u128,
     ) -> Result<(), VerificationError>;
     fn generate_auth(account: &Account) -> Result<String, AuthGenError>;
@@ -72,9 +71,9 @@ pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
 
 impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
     fn verify_auth(
-        auth: &String,
+        auth: &str,
         public_key: &RSAPublicKey,
-        username: &String,
+        username: &str,
         max_auth_delay: u128,
     ) -> Result<(), VerificationError> {
         let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
@@ -101,7 +100,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
 
         Ok(serde_json::to_string(&Crypto::sign(
             &account.keys,
-            to_sign,
+            &to_sign,
         )?)?)
     }
 }
