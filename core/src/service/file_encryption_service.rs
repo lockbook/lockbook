@@ -75,13 +75,9 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             },
         )?;
 
-        // TODO re-use of error
-        let last_edited = PK::sign(&author.keys, &author.username)?;
-
         Ok(EncryptedFile {
             access_keys,
             content,
-            last_edited,
         })
     }
 
@@ -99,12 +95,10 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             key: PK::decrypt(&author.keys, encrypted_key)?.secret,
         };
         let new_content = AES::encrypt(&file_encryption_key, &content)?;
-        let signature = PK::sign(&author.keys, &author.username)?;
 
         Ok(EncryptedFile {
             access_keys: file_before.access_keys.clone(),
             content: new_content,
-            last_edited: signature,
         })
     }
 
@@ -165,8 +159,6 @@ mod unit_test_symmetric {
         let aes = AesKey { key };
 
         assert_eq!(AesImpl::decrypt(&aes, &ef.content).unwrap().secret, "");
-
-        RsaImpl::verify(&account.keys.to_public_key(), &ef.last_edited).unwrap();
     }
 
     #[test]
