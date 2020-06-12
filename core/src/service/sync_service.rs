@@ -15,6 +15,10 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::file_repo::FileRepo;
 
 use crate::model::account::Account;
+use crate::model::api::{
+    ChangeDocumentContentError, CreateDocumentError, DeleteDocumentError, GetUpdatesError,
+    MoveDocumentError, RenameDocumentError,
+};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
@@ -24,7 +28,6 @@ use crate::service::auth_service::AuthService;
 use crate::{client, error_enum};
 use std::cmp::max;
 use std::collections::HashMap;
-use crate::model::api::{GetUpdatesError, CreateDocumentError, RenameDocumentError, MoveDocumentError, DeleteDocumentError, ChangeDocumentContentError};
 
 error_enum! {
     enum CalculateWorkError {
@@ -86,12 +89,12 @@ pub struct FileSyncService<
 }
 
 impl<
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-> SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+    > SyncService for FileSyncService<FileMetadataDb, FileDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating work");
@@ -166,15 +169,13 @@ impl<
         match work {
             PushNewFile(client) => {
                 let mut client = client;
-                let file_content = FileDb::get(&db, &client.id)?;
-
                 let new_version = ApiClient::create_document(
                     account.username.to_string(),
                     Auth::generate_auth(&account)?,
                     client.id.clone(),
                     client.name.clone(),
                     client.parent_id.clone(),
-                    serde_json::to_string(&file_content)?,
+                    FileDb::get(&db, &client.id)?,
                 )?;
 
                 client.content_version = new_version;
@@ -198,10 +199,8 @@ impl<
                 Ok(())
             }
             PullFileContent(new_metadata) => {
-                let file = ApiClient::get_document(
-                    new_metadata.id.clone(),
-                    new_metadata.content_version,
-                )?;
+                let file =
+                    ApiClient::get_document(new_metadata.id.clone(), new_metadata.content_version)?;
 
                 FileDb::update(&db, &new_metadata.id, &file)?;
 
@@ -299,10 +298,8 @@ impl<
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                let file = ApiClient::get_document(
-                    new_metadata.id.clone(),
-                    new_metadata.content_version,
-                )?;
+                let file =
+                    ApiClient::get_document(new_metadata.id.clone(), new_metadata.content_version)?;
 
                 FileDb::update(&db, &new_metadata.id, &file)?;
 

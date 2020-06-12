@@ -127,9 +127,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<ClientFileMetadata>>();
         Ok(all_files
             .into_iter()
-            .filter(|file| {
-                file.new || file.document_edited || file.metadata_changed
-            })
+            .filter(|file| file.new || file.document_edited || file.metadata_changed)
             .collect::<Vec<ClientFileMetadata>>())
     }
 
