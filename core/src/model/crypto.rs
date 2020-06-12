@@ -3,6 +3,7 @@ extern crate rsa;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EncryptedValue {
@@ -41,15 +42,21 @@ impl AesKey {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct AccessInfo {
+pub struct UserAccessInfo {
     pub username: String,
     pub public_key: RSAPublicKey,
     pub access_key: EncryptedValue,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct FolderAccessInfo {
+    pub folder_id: Uuid,
+    pub access_key: EncryptedValueWithNonce,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EncryptedFile {
-    pub access_keys: HashMap<String, AccessInfo>,
+    pub access_keys: HashMap<String, UserAccessInfo>,
     pub content: EncryptedValueWithNonce,
     pub last_edited: SignedValue,
 }
