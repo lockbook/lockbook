@@ -10,7 +10,7 @@ pub struct ChangeDocumentContentRequest {
     pub signature: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_content: EncryptedFile,
+    pub new_content: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -38,7 +38,7 @@ pub struct CreateDocumentRequest {
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub content: EncryptedFile,
+    pub content: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

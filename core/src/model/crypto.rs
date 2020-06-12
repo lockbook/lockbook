@@ -58,5 +58,4 @@ pub struct FolderAccessInfo {
 pub struct EncryptedFile {
     pub access_keys: HashMap<String, UserAccessInfo>,
     pub content: EncryptedValueWithNonce,
-    pub last_edited: SignedValue,
 }
