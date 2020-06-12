@@ -39,8 +39,8 @@ error_enum! {
 }
 
 pub trait AccountService {
-    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError>;
-    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError>;
+    fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError>;
+    fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError>;
     fn export_account(db: &Db) -> Result<String, AccountExportError>;
 }
 
@@ -59,31 +59,30 @@ pub struct AccountServiceImpl<
 impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService>
     AccountService for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
 {
-    fn create_account(db: &Db, username: &String) -> Result<Account, AccountCreationError> {
+    fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError> {
         info!("Creating new account for {}", username);
 
         info!("Generating Key...");
         let keys = Crypto::generate_key()?;
 
         let account = Account {
-            username: username.clone(),
+            username: String::from(username),
             keys: keys,
         };
-        let username = account.username.clone();
         let auth = Auth::generate_auth(&account)?;
 
         info!("Saving account locally");
         AccountDb::insert_account(db, &account)?;
 
         info!("Sending username & public key to server");
-        ApiClient::new_account(username, auth, account.keys.to_public_key())?;
+        ApiClient::new_account(&account.username, &auth, account.keys.to_public_key())?;
         info!("Account creation success!");
 
         debug!("{}", serde_json::to_string(&account)?);
         Ok(account)
     }
 
-    fn import_account(db: &Db, account_string: &String) -> Result<Account, AccountImportError> {
+    fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError> {
         info!("Importing account string: {}", &account_string);
 
         let decoded = base64::decode(&account_string)?;

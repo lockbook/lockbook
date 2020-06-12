@@ -14,7 +14,7 @@ pub enum Error {
 
 pub async fn update_file_metadata_version(
     transaction: &Transaction<'_>,
-    file_id: &String,
+    file_id: &str,
     old_metadata_version: u64,
 ) -> Result<u64, Error> {
     let new_metadata_version = generate_version(transaction)

@@ -13,9 +13,9 @@ pub enum Error {
 
 pub async fn rename_file(
     transaction: &Transaction<'_>,
-    file_id: &String,
+    file_id: &str,
     old_metadata_version: u64,
-    new_file_name: &String,
+    new_file_name: &str,
 ) -> Result<u64, Error> {
     let new_version = update_file_metadata_version(transaction, file_id, old_metadata_version)
         .await
