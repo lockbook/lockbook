@@ -1,3 +1,4 @@
+use crate::model::aliases::*;
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use uuid::Uuid;
@@ -5,19 +6,19 @@ use uuid::Uuid;
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct ClientFileMetadata {
     /// Immutable unique identifier for everything related to this file, TODO UUID
-    pub id: String,
+    pub id: Uuid,
 
     /// Human readable name for this file. Does not need to be unique TODO make this encrypted / hashed / etc.
-    pub name: String,
+    pub name: Filename,
 
     /// Where this file lives relative to your other files. TODO make this encrypted / hashed / etc.
-    pub parent_id: String,
+    pub parent_id: Uuid,
 
     /// DB generated timestamp representing the last time the content of a file was updated
-    pub content_version: u64,
+    pub content_version: Version,
 
     /// DB generated timestamp representing the last time the metadata for this file changed
-    pub metadata_version: u64,
+    pub metadata_version: Version,
 
     /// True if this is a new file, that has never been synced before
     pub new: bool,
@@ -33,13 +34,12 @@ pub struct ClientFileMetadata {
 }
 
 impl ClientFileMetadata {
-    pub fn new_file(name: &String, path: &String) -> ClientFileMetadata {
+    pub fn new_file(name: String, parent_id: Uuid) -> ClientFileMetadata {
         let version = 0;
-        let id = Uuid::new_v4().to_string();
         ClientFileMetadata {
-            id: id,
-            name: name.clone(),
-            parent_id: path.clone(),
+            id: Uuid::new_v4(),
+            name: name,
+            parent_id: parent_id,
             content_version: version,
             metadata_version: version,
             new: true,
