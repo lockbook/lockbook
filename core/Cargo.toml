@@ -15,7 +15,7 @@ reqwest = { version = "0.10.6", default-features = false, features = ["rustls-tl
 base64 = "0.11.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
-uuid = { version = "0.8.1", features = ["v4"] }
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
 env_logger = "0.7.1"
 log = "0.4.8"
 sled = "0.31.0"
