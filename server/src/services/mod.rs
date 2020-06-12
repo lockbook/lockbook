@@ -7,6 +7,6 @@ pub mod move_file;
 pub mod new_account;
 pub mod rename_file;
 
-pub fn username_is_valid(username: &String) -> bool {
+pub fn username_is_valid(username: &str) -> bool {
     username.chars().all(|x| x.is_digit(36)) && username.to_lowercase() == *username
 }

@@ -1,6 +1,5 @@
-use crate::model::aliases::*;
 use crate::model::api::*;
-use crate::service::file_encryption_service::EncryptedFile;
+use crate::model::crypto::*;
 use crate::{API_LOC, BUCKET_LOC};
 use rsa::RSAPublicKey;
 
@@ -43,85 +42,85 @@ pub fn api_request<
 }
 
 pub trait Client {
-    fn get_document(id: Uuid, content_version: Version) -> Result<EncryptedFile, Error<()>>;
+    fn get_document(id: Uuid, content_version: u64) -> Result<EncryptedFile, Error<()>>;
     fn change_document_content(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_content: EncryptedFile,
-    ) -> Result<Version, Error<ChangeDocumentContentError>>;
+    ) -> Result<u64, Error<ChangeDocumentContentError>>;
     fn create_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        name: Filename,
+        name: &str,
         parent: Uuid,
         content: EncryptedFile,
-    ) -> Result<Version, Error<CreateDocumentError>>;
+    ) -> Result<u64, Error<CreateDocumentError>>;
     fn delete_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-    ) -> Result<Version, Error<DeleteDocumentError>>;
+        old_metadata_version: u64,
+    ) -> Result<u64, Error<DeleteDocumentError>>;
     fn move_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_parent: Uuid,
-    ) -> Result<Version, Error<MoveDocumentError>>;
+    ) -> Result<u64, Error<MoveDocumentError>>;
     fn rename_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-        new_name: Filename,
-    ) -> Result<Version, Error<RenameDocumentError>>;
+        old_metadata_version: u64,
+        new_name: &str,
+    ) -> Result<u64, Error<RenameDocumentError>>;
     fn create_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        name: Filename,
+        name: &str,
         parent: Uuid,
-    ) -> Result<Version, Error<CreateFolderError>>;
+    ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-    ) -> Result<Version, Error<DeleteFolderError>>;
+        old_metadata_version: u64,
+    ) -> Result<u64, Error<DeleteFolderError>>;
     fn move_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_parent: Uuid,
-    ) -> Result<Version, Error<MoveFolderError>>;
+    ) -> Result<u64, Error<MoveFolderError>>;
     fn rename_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-        new_name: Filename,
-    ) -> Result<Version, Error<RenameFolderError>>;
-    fn get_public_key(username: Username) -> Result<RSAPublicKey, Error<GetPublicKeyError>>;
+        old_metadata_version: u64,
+        new_name: &str,
+    ) -> Result<u64, Error<RenameFolderError>>;
+    fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>>;
     fn get_updates(
-        username: Username,
-        signature: Signature,
-        since_metadata_version: Version,
+        username: &str,
+        signature: &str,
+        since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>>;
     fn new_account(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         public_key: RSAPublicKey,
     ) -> Result<(), Error<NewAccountError>>;
 }
 
 pub struct ClientImpl;
 impl Client for ClientImpl {
-    fn get_document(id: Uuid, content_version: Version) -> Result<EncryptedFile, Error<()>> {
+    fn get_document(id: Uuid, content_version: u64) -> Result<EncryptedFile, Error<()>> {
         let client = ReqwestClient::new();
         let response = client
             .get(&format!("{}/{}-{}", BUCKET_LOC, id, content_version))
@@ -137,17 +136,17 @@ impl Client for ClientImpl {
         }
     }
     fn change_document_content(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_content: EncryptedFile,
-    ) -> Result<Version, Error<ChangeDocumentContentError>> {
+    ) -> Result<u64, Error<ChangeDocumentContentError>> {
         api_request(
             "",
             &ChangeDocumentContentRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_content: new_content,
@@ -156,20 +155,20 @@ impl Client for ClientImpl {
         .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
     }
     fn create_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        name: Filename,
+        name: &str,
         parent: Uuid,
         content: EncryptedFile,
-    ) -> Result<Version, Error<CreateDocumentError>> {
+    ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
             "",
             &CreateDocumentRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
-                name: name,
+                name: String::from(name),
                 parent: parent,
                 content: content,
             },
@@ -177,16 +176,16 @@ impl Client for ClientImpl {
         .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
     }
     fn delete_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-    ) -> Result<Version, Error<DeleteDocumentError>> {
+        old_metadata_version: u64,
+    ) -> Result<u64, Error<DeleteDocumentError>> {
         api_request(
             "",
             &DeleteDocumentRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -194,17 +193,17 @@ impl Client for ClientImpl {
         .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
     }
     fn move_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_parent: Uuid,
-    ) -> Result<Version, Error<MoveDocumentError>> {
+    ) -> Result<u64, Error<MoveDocumentError>> {
         api_request(
             "",
             &MoveDocumentRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -213,54 +212,54 @@ impl Client for ClientImpl {
         .map(|r: MoveDocumentResponse| r.new_metadata_version)
     }
     fn rename_document(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-        new_name: Filename,
-    ) -> Result<Version, Error<RenameDocumentError>> {
+        old_metadata_version: u64,
+        new_name: &str,
+    ) -> Result<u64, Error<RenameDocumentError>> {
         api_request(
             "",
             &RenameDocumentRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
-                new_name: new_name,
+                new_name: String::from(new_name),
             },
         )
         .map(|r: RenameDocumentResponse| r.new_metadata_version)
     }
     fn create_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        name: Filename,
+        name: &str,
         parent: Uuid,
-    ) -> Result<Version, Error<CreateFolderError>> {
+    ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             "",
             &CreateFolderRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
-                name: name,
+                name: String::from(name),
                 parent: parent,
             },
         )
         .map(|r: CreateFolderResponse| r.new_metadata_version)
     }
     fn delete_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-    ) -> Result<Version, Error<DeleteFolderError>> {
+        old_metadata_version: u64,
+    ) -> Result<u64, Error<DeleteFolderError>> {
         api_request(
             "",
             &DeleteFolderRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -268,17 +267,17 @@ impl Client for ClientImpl {
         .map(|r: DeleteFolderResponse| r.new_metadata_version)
     }
     fn move_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
+        old_metadata_version: u64,
         new_parent: Uuid,
-    ) -> Result<Version, Error<MoveFolderError>> {
+    ) -> Result<u64, Error<MoveFolderError>> {
         api_request(
             "",
             &MoveFolderRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -287,53 +286,58 @@ impl Client for ClientImpl {
         .map(|r: MoveFolderResponse| r.new_metadata_version)
     }
     fn rename_folder(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         id: Uuid,
-        old_metadata_version: Version,
-        new_name: Filename,
-    ) -> Result<Version, Error<RenameFolderError>> {
+        old_metadata_version: u64,
+        new_name: &str,
+    ) -> Result<u64, Error<RenameFolderError>> {
         api_request(
             "",
             &RenameFolderRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 id: id,
                 old_metadata_version: old_metadata_version,
-                new_name: new_name,
+                new_name: String::from(new_name),
             },
         )
         .map(|r: RenameFolderResponse| r.new_metadata_version)
     }
-    fn get_public_key(username: Username) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
-        api_request("", &GetPublicKeyRequest { username: username })
-            .map(|r: GetPublicKeyResponse| r.key)
+    fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
+        api_request(
+            "",
+            &GetPublicKeyRequest {
+                username: String::from(username),
+            },
+        )
+        .map(|r: GetPublicKeyResponse| r.key)
     }
     fn get_updates(
-        username: Username,
-        signature: Signature,
-        since_metadata_version: Version,
+        username: &str,
+        signature: &str,
+        since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
         api_request(
             "",
             &GetUpdatesRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 since_metadata_version: since_metadata_version,
             },
         )
         .map(|r: GetUpdatesResponse| r.file_metadata)
     }
     fn new_account(
-        username: Username,
-        signature: Signature,
+        username: &str,
+        signature: &str,
         public_key: RSAPublicKey,
     ) -> Result<(), Error<NewAccountError>> {
         api_request(
             "",
             &NewAccountRequest {
-                username: username,
-                signature: signature,
+                username: String::from(username),
+                signature: String::from(signature),
                 public_key: public_key,
             },
         )

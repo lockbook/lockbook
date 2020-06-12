@@ -1,6 +1,7 @@
 use crate::error_enum;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use sled::Db;
+use uuid::Uuid;
 
 error_enum! {
     enum DbError {
@@ -18,16 +19,16 @@ error_enum! {
 }
 
 pub trait FileMetadataRepo {
-    fn insert_new_file(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, Error>;
+    fn insert_new_file(db: &Db, name: &str, parent: Uuid) -> Result<ClientFileMetadata, Error>;
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error>;
-    fn maybe_get(db: &Db, id: &String) -> Result<Option<ClientFileMetadata>, DbError>;
-    fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error>;
-    fn find_by_name(db: &Db, name: &String) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
+    fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError>;
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
-    fn delete(db: &Db, id: &String) -> Result<u64, Error>;
+    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -36,9 +37,9 @@ static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert_new_file(db: &Db, name: &String, path: &String) -> Result<ClientFileMetadata, Error> {
+    fn insert_new_file(db: &Db, name: &str, parent: Uuid) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
-        let meta = ClientFileMetadata::new_file(&name, &path);
+        let meta = ClientFileMetadata::new_file(name, parent);
         tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
         Ok(meta)
     }
@@ -52,7 +53,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata.clone())
     }
 
-    fn maybe_get(db: &Db, id: &String) -> Result<Option<ClientFileMetadata>, DbError> {
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA)?;
         let maybe_value = tree.get(id.as_bytes())?;
         match maybe_value {
@@ -64,7 +65,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn get(db: &Db, id: &String) -> Result<ClientFileMetadata, Error> {
+    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         let maybe_value = tree.get(id.as_bytes())?;
         let value = maybe_value.ok_or(())?;
@@ -73,7 +74,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(file_metadata)
     }
 
-    fn find_by_name(db: &Db, name: &String) -> Result<Option<ClientFileMetadata>, DbError> {
+    fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError> {
         let all = FileMetadataRepoImpl::get_all(&db)?;
         for file in all {
             if &file.name == name {
@@ -131,7 +132,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<ClientFileMetadata>>())
     }
 
-    fn delete(db: &Db, id: &String) -> Result<u64, Error> {
+    fn delete(db: &Db, id: Uuid) -> Result<u64, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.remove(id.as_bytes())?;
         Ok(1)
@@ -144,13 +145,13 @@ mod unit_tests {
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use uuid::Uuid;
 
     type DefaultDbProvider = TempBackedDB;
 
     #[test]
     fn insert_file_metadata() {
-        let test_file_metadata =
-            ClientFileMetadata::new_file(&("test_file".to_string()), &("test_file".to_string()));
+        let test_file_metadata = ClientFileMetadata::new_file("test_file", Uuid::new_v4());
 
         let config = Config {
             writeable_path: "ignored".to_string(),
@@ -160,21 +161,23 @@ mod unit_tests {
         let meta_res = FileMetadataRepoImpl::insert_new_file(
             &db,
             &test_file_metadata.name,
-            &test_file_metadata.parent_id,
+            test_file_metadata.parent_id,
         )
         .unwrap();
 
-        let db_file_metadata = FileMetadataRepoImpl::get(&db, &meta_res.id).unwrap();
+        let db_file_metadata = FileMetadataRepoImpl::get(&db, meta_res.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
         assert_eq!(test_file_metadata.parent_id, db_file_metadata.parent_id);
     }
 
     #[test]
     fn update_file_metadata() {
+        let id = Uuid::new_v4();
+        let parent = Uuid::new_v4();
         let test_meta = ClientFileMetadata {
-            id: "".to_string(),
+            id: id,
             name: "".to_string(),
-            parent_id: "".to_string(),
+            parent_id: parent,
             content_version: 0,
             metadata_version: 0,
             new: false,
@@ -183,9 +186,9 @@ mod unit_tests {
             deleted: false,
         };
         let test_meta_updated = ClientFileMetadata {
-            id: "".to_string(),
+            id: id,
             name: "".to_string(),
-            parent_id: "".to_string(),
+            parent_id: parent,
             content_version: 1000,
             metadata_version: 1000,
             new: false,
@@ -200,18 +203,18 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         let meta_res =
-            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.name, &test_meta.parent_id)
+            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.name, test_meta.parent_id)
                 .unwrap();
         assert_eq!(
             test_meta.content_version,
-            FileMetadataRepoImpl::get(&db, &meta_res.id)
+            FileMetadataRepoImpl::get(&db, meta_res.id)
                 .unwrap()
                 .content_version
         );
         let meta_upd_res = FileMetadataRepoImpl::update(&db, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
-            FileMetadataRepoImpl::get(&db, &meta_upd_res.id)
+            FileMetadataRepoImpl::get(&db, meta_upd_res.id)
                 .unwrap()
                 .content_version
         );

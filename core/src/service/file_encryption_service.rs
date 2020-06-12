@@ -1,30 +1,13 @@
-use std::collections::HashMap;
-
-use rsa::RSAPublicKey;
 use serde::export::PhantomData;
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::error_enum;
 use crate::model::account::Account;
+use crate::model::crypto::*;
 use crate::service::crypto_service::{
-    AesDecryptionFailed, AesEncryptionFailed, AesKey, DecryptedValue, DecryptionFailed,
-    EncryptedValue, EncryptedValueWithNonce, PubKeyCryptoService, SignedValue,
+    AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
 };
-
-#[derive(Clone, Deserialize, Serialize, Debug)]
-pub struct AccessInfo {
-    pub username: String,
-    pub public_key: RSAPublicKey,
-    pub access_key: EncryptedValue,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct EncryptedFile {
-    pub access_keys: HashMap<String, AccessInfo>,
-    pub content: EncryptedValueWithNonce,
-    pub last_edited: SignedValue,
-}
 
 error_enum! {
     enum FileCreationError {
@@ -93,7 +76,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         )?;
 
         // TODO re-use of error
-        let last_edited = PK::sign(&author.keys, author.username.clone())?;
+        let last_edited = PK::sign(&author.keys, &author.username)?;
 
         Ok(EncryptedFile {
             access_keys,
@@ -116,7 +99,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             key: PK::decrypt(&author.keys, encrypted_key)?.secret,
         };
         let new_content = AES::encrypt(&file_encryption_key, &content)?;
-        let signature = PK::sign(&author.keys, author.username.clone())?;
+        let signature = PK::sign(&author.keys, &author.username)?;
 
         Ok(EncryptedFile {
             access_keys: file_before.access_keys.clone(),
@@ -144,8 +127,9 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 #[cfg(test)]
 mod unit_test_symmetric {
     use crate::model::account::Account;
+    use crate::model::crypto::*;
     use crate::service::crypto_service::{
-        AesImpl, AesKey, DecryptedValue, PubKeyCryptoService, RsaImpl, SymmetricCryptoService,
+        AesImpl, PubKeyCryptoService, RsaImpl, SymmetricCryptoService,
     };
     use crate::service::file_encryption_service::{
         FileEncryptionService, FileEncryptionServiceImpl,
