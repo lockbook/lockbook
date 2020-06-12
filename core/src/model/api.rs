@@ -2,6 +2,7 @@ use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
@@ -292,6 +293,8 @@ pub struct FileMetadata {
     pub content_version: u64,
     pub metadata_version: u64,
     pub deleted: bool,
+    pub user_access_keys: HashMap<String, UserAccessInfo>,
+    pub folder_access_keys: HashMap<String, FolderAccessInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
