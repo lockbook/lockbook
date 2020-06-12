@@ -175,16 +175,20 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
-    c_file_path: *const c_char,
+    c_file_parent_id: *const c_char,
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
         Some(db) => db,
     };
     let file_name = string_from_ptr(c_file_name);
-    let file_path = string_from_ptr(c_file_path);
+    let file_parent_id = string_from_ptr(c_file_parent_id);
 
-    match DefaultFileService::create(&db, &file_name, &file_path) {
+    match DefaultFileService::create(
+        &db,
+        &file_name,
+        serde_json::from_str(&file_parent_id).unwrap(),
+    ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to create file metadata! Error: {:?}", err);
@@ -201,7 +205,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, &file_id) {
+    match DefaultFileService::get(&db, serde_json::from_str(&file_id).unwrap()) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to get file! Error: {:?}", err);
@@ -223,7 +227,7 @@ pub unsafe extern "C" fn update_file(
     let file_id = string_from_ptr(c_file_id);
     let file_content = string_from_ptr(c_file_content);
 
-    match DefaultFileService::update(&db, &file_id, &file_content) {
+    match DefaultFileService::update(&db, serde_json::from_str(&file_id).unwrap(), &file_content) {
         Ok(_) => 1,
         Err(err) => {
             error!("Failed to update file! Error: {:?}", err);
@@ -240,8 +244,8 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     };
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
-            DefaultFileMetadataRepo::delete(&db, &meta.id).unwrap();
-            DefaultFileRepo::delete(&db, &meta.id).unwrap();
+            DefaultFileMetadataRepo::delete(&db, meta.id).unwrap();
+            DefaultFileRepo::delete(&db, meta.id).unwrap();
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),
     }
