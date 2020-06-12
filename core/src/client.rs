@@ -48,7 +48,7 @@ pub trait Client {
         signature: &str,
         id: Uuid,
         old_metadata_version: u64,
-        new_content: EncryptedFile,
+        new_content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<ChangeDocumentContentError>>;
     fn create_document(
         username: &str,
@@ -56,7 +56,7 @@ pub trait Client {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        content: EncryptedFile,
+        content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>>;
     fn delete_document(
         username: &str,
@@ -140,7 +140,7 @@ impl Client for ClientImpl {
         signature: &str,
         id: Uuid,
         old_metadata_version: u64,
-        new_content: EncryptedFile,
+        new_content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<ChangeDocumentContentError>> {
         api_request(
             "",
@@ -160,7 +160,7 @@ impl Client for ClientImpl {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        content: EncryptedFile,
+        content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
             "",
