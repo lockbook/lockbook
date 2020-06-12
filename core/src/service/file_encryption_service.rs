@@ -59,7 +59,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         let encrypted_for_author =
             PK::encrypt(&author_pk, &file_encryption_key.to_decrypted_value())?;
 
-        let author_access = AccessInfo {
+        let author_access = UserAccessInfo {
             username: author.username.clone(),
             public_key: author_pk,
             access_key: encrypted_for_author,

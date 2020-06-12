@@ -4,13 +4,13 @@ use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct ClientFileMetadata {
-    /// Immutable unique identifier for everything related to this file, TODO UUID
+    /// Immutable unique identifier for everything related to this file
     pub id: Uuid,
 
     /// Human readable name for this file. Does not need to be unique TODO make this encrypted / hashed / etc.
     pub name: String,
 
-    /// Where this file lives relative to your other files. TODO make this encrypted / hashed / etc.
+    /// Where this file lives relative to your other files
     pub parent_id: Uuid,
 
     /// DB generated timestamp representing the last time the content of a file was updated
