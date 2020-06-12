@@ -267,12 +267,12 @@ impl<
                 let mut old_file_metadata = client.clone();
                 let file_content = FileDb::get(&db, client.id)?;
 
-                let new_version = ApiClient::move_document(
+                let new_version = ApiClient::change_document_content(
                     &account.username,
                     &Auth::generate_auth(&account)?,
                     client.id,
                     client.content_version,
-                    client.parent_id,
+                    file_content,
                 )?; // TODO the thing you're not handling is EditConflict!
 
                 old_file_metadata.content_version = new_version;
