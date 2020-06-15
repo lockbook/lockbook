@@ -294,7 +294,7 @@ pub struct FileMetadata {
     pub metadata_version: u64,
     pub deleted: bool,
     pub user_access_keys: HashMap<String, UserAccessInfo>,
-    pub folder_access_keys: HashMap<String, FolderAccessInfo>,
+    pub folder_access_keys: HashMap<Uuid, FolderAccessInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
