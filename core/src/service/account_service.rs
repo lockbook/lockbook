@@ -67,7 +67,7 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
 
         let account = Account {
             username: String::from(username),
-            keys: keys,
+            keys,
         };
         let auth = Auth::generate_auth(&account)?;
 
