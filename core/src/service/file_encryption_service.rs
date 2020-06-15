@@ -65,8 +65,9 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             access_key: encrypted_for_author,
         };
 
-        let mut access_keys = HashMap::new();
-        access_keys.insert(author.username.clone(), author_access);
+        let mut user_access_keys = HashMap::new();
+        let folder_access_keys = HashMap::new();
+        user_access_keys.insert(author.username.clone(), author_access);
 
         let content = AES::encrypt(
             &file_encryption_key,
@@ -76,7 +77,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         )?;
 
         Ok(EncryptedFile {
-            access_keys,
+            user_access_keys,
+            folder_access_keys,
             content,
         })
     }
@@ -87,7 +89,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         content: &DecryptedValue,
     ) -> Result<EncryptedFile, FileWriteError> {
         let encrypted_key = &file_before
-            .access_keys
+            .user_access_keys
             .get(&author.username)
             .ok_or(())?
             .access_key;
@@ -97,7 +99,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         let new_content = AES::encrypt(&file_encryption_key, &content)?;
 
         Ok(EncryptedFile {
-            access_keys: file_before.access_keys.clone(),
+            user_access_keys: file_before.user_access_keys.clone(),
+            folder_access_keys: file_before.folder_access_keys.clone(),
             content: new_content,
         })
     }
@@ -107,7 +110,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         file: &EncryptedFile,
     ) -> Result<DecryptedValue, UnableToReadFile> {
         let encrypted_key = &file
-            .access_keys
+            .user_access_keys
             .get(&account.username)
             .ok_or(())?
             .access_key;
@@ -141,17 +144,23 @@ mod unit_test_symmetric {
         let ef = File::new_file(&account).unwrap();
 
         assert_eq!(
-            ef.access_keys.get(&account.username).unwrap().username,
+            ef.user_access_keys.get(&account.username).unwrap().username,
             account.username
         );
         assert_eq!(
-            ef.access_keys.get(&account.username).unwrap().public_key,
+            ef.user_access_keys
+                .get(&account.username)
+                .unwrap()
+                .public_key,
             account.keys.to_public_key()
         );
 
         let key = RsaImpl::decrypt(
             &account.keys,
-            &ef.access_keys.get(&account.username).unwrap().access_key,
+            &ef.user_access_keys
+                .get(&account.username)
+                .unwrap()
+                .access_key,
         )
         .unwrap()
         .secret;
@@ -184,7 +193,7 @@ mod unit_test_symmetric {
         let key = RsaImpl::decrypt(
             &account.keys,
             &new_file
-                .access_keys
+                .user_access_keys
                 .get(&account.username)
                 .unwrap()
                 .access_key,
