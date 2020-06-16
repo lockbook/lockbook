@@ -55,7 +55,7 @@ core_fmt:
 
 .PHONY: core_lint
 core_lint:
-	docker run core:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run core:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call
 
 .PHONY: core_test
 core_test:

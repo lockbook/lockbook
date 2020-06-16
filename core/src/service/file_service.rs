@@ -111,7 +111,8 @@ impl<
         FileMetadataDb::update(
             db,
             &ClientFileMetadata {
-                id: id,
+                id,
+                file_type: meta.file_type,
                 name: meta.name,
                 parent_id: meta.parent_id,
                 content_version: meta.content_version,

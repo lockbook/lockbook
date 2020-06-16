@@ -1,9 +1,19 @@
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use uuid::Uuid;
+use crate::model::client_file_metadata::FileType::Document;
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub enum FileType {
+    Document,
+    Folder
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct ClientFileMetadata {
+    /// Is this a file or a folder?
+    pub file_type: FileType,
+
     /// Immutable unique identifier for everything related to this file
     pub id: Uuid,
 
@@ -33,12 +43,13 @@ pub struct ClientFileMetadata {
 }
 
 impl ClientFileMetadata {
-    pub fn new_file(name: &str, parent_id: Uuid) -> ClientFileMetadata {
+    pub fn new_document(name: &str, parent_id: Uuid) -> ClientFileMetadata {
         let version = 0;
         ClientFileMetadata {
+            file_type: Document,
             id: Uuid::new_v4(),
             name: String::from(name),
-            parent_id: parent_id,
+            parent_id,
             content_version: version,
             metadata_version: version,
             new: true,
