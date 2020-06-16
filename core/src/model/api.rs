@@ -3,6 +3,7 @@ use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+use crate::model::client_file_metadata::FileType;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
@@ -288,6 +289,7 @@ pub enum GetUpdatesError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadata {
     pub id: Uuid,
+    pub file_type: FileType,
     pub name: String,
     pub parent: Uuid,
     pub content_version: u64,

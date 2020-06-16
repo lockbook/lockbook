@@ -215,6 +215,7 @@ impl<
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
+                                    file_type: new_metadata.file_type,
                                     name: new_metadata.name,
                                     parent_id: new_metadata.parent,
                                     content_version: new_metadata.content_version,
@@ -313,6 +314,7 @@ impl<
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
+                                    file_type: new_metadata.file_type,
                                     name: new_metadata.name,
                                     parent_id: new_metadata.parent,
                                     content_version: new_metadata.content_version,
