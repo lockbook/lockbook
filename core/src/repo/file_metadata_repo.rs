@@ -39,7 +39,7 @@ static LAST_UPDATED: &[u8; 12] = b"last_updated";
 impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert_new_file(db: &Db, name: &str, parent: Uuid) -> Result<ClientFileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
-        let meta = ClientFileMetadata::new_file(name, parent);
+        let meta = ClientFileMetadata::new_document(name, parent);
         tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
         Ok(meta)
     }
@@ -151,7 +151,7 @@ mod unit_tests {
 
     #[test]
     fn insert_file_metadata() {
-        let test_file_metadata = ClientFileMetadata::new_file("test_file", Uuid::new_v4());
+        let test_file_metadata = ClientFileMetadata::new_document("test_file", Uuid::new_v4());
 
         let config = Config {
             writeable_path: "ignored".to_string(),
