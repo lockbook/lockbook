@@ -116,6 +116,8 @@ impl<
                 parent_id: meta.parent_id,
                 content_version: meta.content_version,
                 metadata_version: meta.metadata_version,
+                user_access_keys: meta.user_access_keys,
+                folder_access_keys: meta.folder_access_keys,
                 new: meta.new,
                 document_edited: true,
                 metadata_changed: false,
