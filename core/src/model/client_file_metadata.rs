@@ -1,5 +1,7 @@
+use crate::model::crypto::*;
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -18,6 +20,12 @@ pub struct ClientFileMetadata {
 
     /// DB generated timestamp representing the last time the metadata for this file changed
     pub metadata_version: u64,
+
+    /// Map from username to access info which contains the file key encrypted for that user
+    pub user_access_keys: HashMap<String, UserAccessInfo>,
+
+    // Map from folder id to access info which contains the file key encrypted for that folder
+    pub folder_access_keys: HashMap<Uuid, FolderAccessInfo>,
 
     /// True if this is a new file, that has never been synced before
     pub new: bool,
@@ -41,6 +49,8 @@ impl ClientFileMetadata {
             parent_id: parent_id,
             content_version: version,
             metadata_version: version,
+            user_access_keys: Default::default(),
+            folder_access_keys: Default::default(),
             new: true,
             document_edited: false,
             metadata_changed: false,
