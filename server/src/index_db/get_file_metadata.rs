@@ -10,12 +10,14 @@ pub enum Error {
 
 pub fn to_file_metadata(row: &tokio_postgres::row::Row) -> FileMetadata {
     FileMetadata {
-        file_id: row.get("file_id"),
-        file_name: row.get("file_name"),
-        file_parent: row.get("file_path"),
-        file_content_version: row.get::<&str, i64>("file_content_version") as u64,
-        file_metadata_version: row.get::<&str, i64>("file_metadata_version") as u64,
+        id: Default::default(), // todo
+        name: row.get("file_name"),
+        parent: Default::default(), // todo
+        content_version: row.get::<&str, i64>("file_content_version") as u64,
+        metadata_version: row.get::<&str, i64>("file_metadata_version") as u64,
         deleted: row.get("deleted"),
+        user_access_keys: Default::default(), // todo
+        folder_access_keys: Default::default(), // todo
     }
 }
 
