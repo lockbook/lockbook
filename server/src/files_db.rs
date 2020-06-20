@@ -1,4 +1,8 @@
+use crate::config::FilesDbConfig;
+use s3::bucket::Bucket as S3Client;
 use s3::creds::AwsCredsError;
+use s3::creds::Credentials;
+use s3::region::Region;
 use s3::S3Error;
 
 #[derive(Debug)]
@@ -50,8 +54,54 @@ impl From<S3Error> for Error {
     }
 }
 
-impl From<AwsCredsError> for Error {
-    fn from(err: AwsCredsError) -> Error {
-        Error::Credentials(err)
+pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, Error> {
+    let credentials = Credentials::new(
+        Some(&config.access_key),
+        Some(&config.secret_key),
+        None,
+        None,
+        None,
+    )
+    .await.map_err(Error::Credentials)?;
+    Ok(S3Client::new(
+        &config.bucket,
+        Region::Custom {
+            endpoint: format!("{}://{}:{}", config.scheme, config.host, config.port),
+            region: config.region.clone(),
+        },
+        credentials,
+    )?)
+}
+
+pub async fn create_file(
+    client: &S3Client,
+    file_id: &str,
+    file_contents: &str,
+    content_version: u64,
+) -> Result<(), Error> {
+    match client
+        .put_object(
+            &format!("/{}-{}", file_id, content_version),
+            file_contents.as_bytes(),
+            "text/plain",
+        )
+        .await?
+    {
+        (_, 200) => Ok(()),
+        (body, _) => Err(Error::from(body)),
+    }
+}
+
+pub async fn delete_file(
+    client: &S3Client,
+    file_id: &str,
+    content_version: u64,
+) -> Result<(), Error> {
+    match client
+        .delete_object(&format!("/{}-{}", file_id, content_version))
+        .await?
+    {
+        (_, 204) => Ok(()),
+        (body, _) => Err(Error::from(body)),
     }
 }
