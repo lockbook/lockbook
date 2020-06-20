@@ -46,7 +46,7 @@ pub async fn create_file(
     transaction.execute("
 INSERT INTO files (file_id, file_name, file_path, username, file_content_version, file_metadata_version, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
-", &[file_id, file_name, file_path, username, &(version as i64), &(version as i64), &false]).await?;
+", &[&file_id, &file_name, &file_path, &username, &(version as i64), &(version as i64), &false]).await?;
 
     Ok(version)
 }
