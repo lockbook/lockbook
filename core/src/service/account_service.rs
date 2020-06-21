@@ -7,15 +7,21 @@ use crate::model::account::Account;
 use crate::model::api::NewAccountError;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
+use crate::repo::file_metadata_repo;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::auth_service::AuthGenError;
 use crate::service::auth_service::AuthService;
 use crate::service::crypto_service::PubKeyCryptoService;
+use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_encryption_service::RootFolderCreationError;
 use sled::Db;
 
 error_enum! {
     enum AccountCreationError {
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
+        FolderError(RootFolderCreationError),
+        MetadataRepoError(file_metadata_repo::Error),
         ApiError(client::Error<NewAccountError>),
         KeySerializationError(serde_json::error::Error),
         AuthGenFailure(AuthGenError)
@@ -49,15 +55,26 @@ pub struct AccountServiceImpl<
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
+    FileCrypto: FileEncryptionService,
+    FileMetadata: FileMetadataRepo,
 > {
     encryption: PhantomData<Crypto>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
     auth: PhantomData<Auth>,
+    file_crypto: PhantomData<FileCrypto>,
+    file_db: PhantomData<FileMetadata>,
 }
 
-impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Auth: AuthService>
-    AccountService for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth>
+impl<
+        Crypto: PubKeyCryptoService,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+        FileCrypto: FileEncryptionService,
+        FileMetadata: FileMetadataRepo,
+    > AccountService
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetadata>
 {
     fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError> {
         info!("Creating new account for {}", username);
@@ -69,14 +86,22 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
             username: String::from(username),
             keys,
         };
-        let auth = Auth::generate_auth(&account)?;
 
         info!("Saving account locally");
         AccountDb::insert_account(db, &account)?;
 
+        info!("Generating Root Folder");
+        // @tvanderstad you want to take this guy
+        let file_metadata = FileCrypto::create_root_folder(&account)?;
+
         info!("Sending username & public key to server");
+        let auth = Auth::generate_auth(&account)?;
+
+        // @tvanderstad this should return ServerFM with versions that I can save for now I'll store the one I created
         ApiClient::new_account(&account.username, &auth, account.keys.to_public_key())?;
         info!("Account creation success!");
+
+        FileMetadata::insert(&db, &file_metadata)?;
 
         debug!("{}", serde_json::to_string(&account)?);
         Ok(account)
@@ -96,6 +121,8 @@ impl<Crypto: PubKeyCryptoService, AccountDb: AccountRepo, ApiClient: Client, Aut
 
         info!("Account String seems valid, saving now");
         AccountDb::insert_account(db, &account)?;
+
+        // TODO fetch root folder? Kick off sycn
 
         info!("Account imported successfully");
         Ok(account)
