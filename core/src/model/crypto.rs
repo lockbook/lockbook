@@ -56,7 +56,5 @@ pub struct FolderAccessInfo {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EncryptedFile {
-    pub user_access_keys: HashMap<String, UserAccessInfo>,
-    pub folder_access_keys: HashMap<Uuid, UserAccessInfo>,
     pub content: EncryptedValueWithNonce,
 }

@@ -23,6 +23,7 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
+use crate::model::client_file_metadata::FileType::Document;
 
 pub mod client;
 pub mod error_enum;
@@ -43,8 +44,14 @@ pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-pub type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+pub type DefaultAccountService = AccountServiceImpl<
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+    DefaultFileEncryptionService,
+    DefaultFileMetadataRepo,
+>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
@@ -175,7 +182,7 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
-    c_file_parent_id: *const c_char,
+    c_file_parent_id: *const c_char, // TODO @raayan add type?
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
@@ -188,6 +195,7 @@ pub unsafe extern "C" fn create_file(
         &db,
         &file_name,
         serde_json::from_str(&file_parent_id).unwrap(),
+        Document // TODO @raayan
     ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {

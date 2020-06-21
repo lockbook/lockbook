@@ -19,7 +19,7 @@ error_enum! {
 }
 
 pub trait FileMetadataRepo {
-    fn insert_new_file(db: &Db, name: &str, parent: Uuid) -> Result<ClientFileMetadata, Error>;
+    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), Error>;
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error>;
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
@@ -28,7 +28,7 @@ pub trait FileMetadataRepo {
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
-    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>;
+    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>; // TODO differentiate from "marked for deletion"?
 }
 
 pub struct FileMetadataRepoImpl;
@@ -37,11 +37,10 @@ static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert_new_file(db: &Db, name: &str, parent: Uuid) -> Result<ClientFileMetadata, Error> {
+    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), Error> {
         let tree = db.open_tree(FILE_METADATA)?;
-        let meta = ClientFileMetadata::new_document(name, parent);
-        tree.insert(meta.id.as_bytes(), serde_json::to_vec(&meta)?)?;
-        Ok(meta)
+        tree.insert(&file.id.as_bytes(), serde_json::to_vec(&file)?)?;
+        Ok(())
     }
 
     fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error> {
@@ -158,7 +157,7 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res = FileMetadataRepoImpl::insert_new_file(
+        let meta_res = FileMetadataRepoImpl::insert(
             &db,
             &test_file_metadata.name,
             test_file_metadata.parent_id,
@@ -203,8 +202,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         let meta_res =
-            FileMetadataRepoImpl::insert_new_file(&db, &test_meta.name, test_meta.parent_id)
-                .unwrap();
+            FileMetadataRepoImpl::insert(&db, &test_meta.name, test_meta.parent_id).unwrap();
         assert_eq!(
             test_meta.content_version,
             FileMetadataRepoImpl::get(&db, meta_res.id)

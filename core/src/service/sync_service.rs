@@ -224,6 +224,8 @@ impl<
                                     document_edited: false,
                                     metadata_changed: false,
                                     deleted: false,
+                                    user_access_keys: new_metadata.user_access_keys,
+                                    folder_access_keys: new_metadata.folder_access_keys
                                 },
                             )?;
                         }
@@ -323,6 +325,8 @@ impl<
                                     document_edited: false,
                                     metadata_changed: false,
                                     deleted: false,
+                                    user_access_keys: new_metadata.user_access_keys,
+                                    folder_access_keys: new_metadata.folder_access_keys
                                 },
                             )?;
                         }

@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use uuid::Uuid;
-use crate::model::client_file_metadata::FileType::Document;
+
+use crate::model::crypto::{FolderAccessInfo, UserAccessInfo};
+use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum FileType {
     Document,
-    Folder
+    Folder,
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -40,22 +42,7 @@ pub struct ClientFileMetadata {
 
     /// True if the user attempted to delete this file locally. Once the server also deletes this file, the content and the associated metadata are deleted locally.
     pub deleted: bool,
-}
 
-impl ClientFileMetadata {
-    pub fn new_document(name: &str, parent_id: Uuid) -> ClientFileMetadata {
-        let version = 0;
-        ClientFileMetadata {
-            file_type: Document,
-            id: Uuid::new_v4(),
-            name: String::from(name),
-            parent_id,
-            content_version: version,
-            metadata_version: version,
-            new: true,
-            document_edited: false,
-            metadata_changed: false,
-            deleted: false,
-        }
-    }
+    pub user_access_keys: HashMap<String, UserAccessInfo>,
+    pub folder_access_keys: FolderAccessInfo,
 }

@@ -55,8 +55,6 @@ mod unit_tests {
     #[test]
     fn update_file() {
         let test_file = EncryptedFile {
-            user_access_keys: Default::default(),
-            folder_access_keys: Default::default(),
             content: EncryptedValueWithNonce {
                 garbage: "something".to_string(),
                 nonce: "nonce1".to_string(),
@@ -84,8 +82,6 @@ mod unit_tests {
             &db,
             file_id,
             &EncryptedFile {
-                user_access_keys: Default::default(),
-                folder_access_keys: Default::default(),
                 content: EncryptedValueWithNonce {
                     garbage: "updated".to_string(),
                     nonce: "nonce2".to_string(),
