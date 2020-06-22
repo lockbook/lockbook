@@ -1,11 +1,20 @@
-use crate::model::crypto::*;
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
 use uuid::Uuid;
+use crate::model::crypto::{FolderAccessInfo, UserAccessInfo};
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub enum FileType {
+    Document,
+    Folder,
+}
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct ClientFileMetadata {
+    /// Is this a file or a folder?
+    pub file_type: FileType,
+
     /// Immutable unique identifier for everything related to this file
     pub id: Uuid,
 
@@ -25,7 +34,7 @@ pub struct ClientFileMetadata {
     pub user_access_keys: HashMap<String, UserAccessInfo>,
 
     // Map from folder id to access info which contains the file key encrypted for that folder
-    pub folder_access_keys: HashMap<Uuid, FolderAccessInfo>,
+    pub folder_access_keys: FolderAccessInfo,
 
     /// True if this is a new file, that has never been synced before
     pub new: bool,
@@ -38,23 +47,4 @@ pub struct ClientFileMetadata {
 
     /// True if the user attempted to delete this file locally. Once the server also deletes this file, the content and the associated metadata are deleted locally.
     pub deleted: bool,
-}
-
-impl ClientFileMetadata {
-    pub fn new_file(name: &str, parent_id: Uuid) -> ClientFileMetadata {
-        let version = 0;
-        ClientFileMetadata {
-            id: Uuid::new_v4(),
-            name: String::from(name),
-            parent_id: parent_id,
-            content_version: version,
-            metadata_version: version,
-            user_access_keys: Default::default(),
-            folder_access_keys: Default::default(),
-            new: true,
-            document_edited: false,
-            metadata_changed: false,
-            deleted: false,
-        }
-    }
 }

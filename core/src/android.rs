@@ -101,6 +101,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
                 },
                 AccountCreationError::KeySerializationError(_) => unexpected_error,
                 AccountCreationError::AuthGenFailure(_) => unexpected_error,
+                AccountCreationError::FolderError(_) => unexpected_error, // TODO added during files and folders (unhandled)
+                AccountCreationError::MetadataRepoError(_) => unexpected_error, // TODO added during files and folders (unhandled)
             }
         }
     }

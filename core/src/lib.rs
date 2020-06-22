@@ -11,6 +11,7 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
+use crate::model::client_file_metadata::FileType::Document;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
@@ -23,6 +24,7 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
+use crate::model::crypto::DecryptedValue;
 
 pub mod client;
 pub mod error_enum;
@@ -43,8 +45,14 @@ pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-pub type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+pub type DefaultAccountService = AccountServiceImpl<
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+    DefaultFileEncryptionService,
+    DefaultFileMetadataRepo,
+>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultFileRepo = FileRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
@@ -175,7 +183,7 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
-    c_file_parent_id: *const c_char,
+    c_file_parent_id: *const c_char, // TODO @raayan add type?
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
@@ -188,6 +196,7 @@ pub unsafe extern "C" fn create_file(
         &db,
         &file_name,
         serde_json::from_str(&file_parent_id).unwrap(),
+        Document, // TODO @raayan
     ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
@@ -205,7 +214,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, serde_json::from_str(&file_id).unwrap()) {
+    match DefaultFileService::read_document(&db, serde_json::from_str(&file_id).unwrap()) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to get file! Error: {:?}", err);
@@ -225,9 +234,9 @@ pub unsafe extern "C" fn update_file(
         Some(db) => db,
     };
     let file_id = string_from_ptr(c_file_id);
-    let file_content = string_from_ptr(c_file_content);
+    let file_content = DecryptedValue { secret: string_from_ptr(c_file_content)};
 
-    match DefaultFileService::update(&db, serde_json::from_str(&file_id).unwrap(), &file_content) {
+    match DefaultFileService::write_document(&db, serde_json::from_str(&file_id).unwrap(), &file_content) {
         Ok(_) => 1,
         Err(err) => {
             error!("Failed to update file! Error: {:?}", err);
@@ -244,7 +253,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     };
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
-            DefaultFileMetadataRepo::delete(&db, meta.id).unwrap();
+            DefaultFileMetadataRepo::actually_delete(&db, meta.id).unwrap();
             DefaultFileRepo::delete(&db, meta.id).unwrap();
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),

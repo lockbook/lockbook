@@ -2,7 +2,6 @@ extern crate rand;
 extern crate rsa;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -56,7 +55,5 @@ pub struct FolderAccessInfo {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct EncryptedFile {
-    pub user_access_keys: HashMap<String, UserAccessInfo>,
-    pub folder_access_keys: HashMap<Uuid, UserAccessInfo>,
     pub content: EncryptedValueWithNonce,
 }

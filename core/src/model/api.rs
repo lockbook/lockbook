@@ -1,3 +1,5 @@
+use crate::model::account::Username;
+use crate::model::client_file_metadata::FileType;
 use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
@@ -288,25 +290,26 @@ pub enum GetUpdatesError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadata {
     pub id: Uuid,
+    pub file_type: FileType,
     pub parent: Uuid,
     pub name: String,
     pub signature: SignedValue,
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
-    pub user_access_keys: HashMap<String, UserAccessInfo>,
-    pub folder_access_keys: HashMap<Uuid, FolderAccessInfo>,
+    pub user_access_keys: HashMap<Username, UserAccessInfo>,
+    pub folder_access_keys: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
-    pub username: String,
+    pub username: Username,
     pub signature: String,
-    pub public_key: RSAPublicKey,
+    pub public_key: RSAPublicKey, // @tvanderstad you probably want to add filemetadata here
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct NewAccountResponse {}
+pub struct NewAccountResponse {} // @tvanderstad you want to return a FileMetadata here -- with version numbers
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {

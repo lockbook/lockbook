@@ -33,7 +33,8 @@ use uuid::Uuid;
 error_enum! {
     enum CalculateWorkError {
         AccountRetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::DbError),
+        FileMetadataError(repo::file_metadata_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
     }
 }
@@ -41,7 +42,8 @@ error_enum! {
 error_enum! {
     enum WorkExecutionError {
         RetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::DbError),
+        FileMetadataError(repo::file_metadata_repo::Error),
         FileContentError(repo::file_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
         CreateFileError(client::Error<CreateDocumentError>),
@@ -183,7 +185,7 @@ impl<
                 client.new = false;
                 client.document_edited = false;
 
-                FileMetadataDb::update(&db, &client)?;
+                FileMetadataDb::insert(&db, &client)?;
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
@@ -196,25 +198,26 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
                 Ok(())
             }
             PullFileContent(new_metadata) => {
                 let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
 
-                FileDb::update(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::update(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
-                            FileMetadataDb::update(
+                            FileMetadataDb::insert(
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
+                                    file_type: new_metadata.file_type,
                                     name: new_metadata.name,
                                     parent_id: new_metadata.parent,
                                     content_version: new_metadata.content_version,
@@ -228,14 +231,14 @@ impl<
                                 },
                             )?;
                         }
-                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                        _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
                 }
 
                 Ok(())
             }
             DeleteLocally(client) => {
-                FileMetadataDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)?;
                 FileDb::delete(&db, client.id)?;
                 Ok(())
             }
@@ -260,7 +263,7 @@ impl<
                 )?; // TODO the thing you're not handling is EditConflict!
 
                 metadata.metadata_changed = false;
-                FileMetadataDb::update(&db, &metadata)?;
+                FileMetadataDb::insert(&db, &metadata)?;
 
                 Ok(())
             }
@@ -280,7 +283,7 @@ impl<
                 old_file_metadata.content_version = new_version;
                 old_file_metadata.document_edited = false;
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
 
                 Ok(())
             }
@@ -293,7 +296,7 @@ impl<
                     client.metadata_version,
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                FileMetadataDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)?;
                 FileDb::delete(&db, client.id)?;
 
                 Ok(())
@@ -302,19 +305,20 @@ impl<
                 // TODO until we're diffing, this is just going to be a pull file
                 let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
 
-                FileDb::update(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::update(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
-                            FileMetadataDb::update(
+                            FileMetadataDb::insert(
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
+                                    file_type: new_metadata.file_type,
                                     name: new_metadata.name,
                                     parent_id: new_metadata.parent,
                                     content_version: new_metadata.content_version,
@@ -328,7 +332,7 @@ impl<
                                 },
                             )?;
                         }
-                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                        _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
                 }
 
@@ -345,7 +349,7 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
                 Ok(())
             }
         }
