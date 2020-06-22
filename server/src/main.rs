@@ -9,17 +9,13 @@ extern crate log;
 pub mod config;
 pub mod files_db;
 pub mod index_db;
-pub mod services;
+pub mod file_service;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Method, Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use services::{
-    change_file_content, create_file, delete_file, get_public_key, get_updates, move_file,
-    new_account, rename_file,
-};
 use std::convert::Infallible;
 use std::future::Future;
 use std::sync::Arc;
@@ -76,35 +72,35 @@ async fn route(
     match (request.method(), request.uri().path()) {
         (&Method::PUT, "/change-file-content") => {
             info!("Request matched PUT /change-file-content");
-            handle(&mut s, request, change_file_content::handle).await
+            handle(&mut s, request, file_service::change_file_content).await
         }
         (&Method::POST, "/create-file") => {
             info!("Request matched POST /create-file");
-            handle(&mut s, request, create_file::handle).await
+            handle(&mut s, request, file_service::create_file).await
         }
         (&Method::DELETE, "/delete-file") => {
             info!("Request matched DELETE /delete-file");
-            handle(&mut s, request, delete_file::handle).await
+            handle(&mut s, request, file_service::delete_file).await
         }
         (&Method::GET, "/get-public-key") => {
             info!("Request matched GET /get-public-key");
-            handle(&mut s, request, get_public_key::handle).await
+            handle(&mut s, request, file_service::get_public_key).await
         }
         (&Method::GET, "/get-updates") => {
             info!("Request matched GET /get-updates");
-            handle(&mut s, request, get_updates::handle).await
+            handle(&mut s, request, file_service::get_updates).await
         }
         (&Method::PUT, "/move-file") => {
             info!("Request matched PUT /move-file");
-            handle(&mut s, request, move_file::handle).await
+            handle(&mut s, request, file_service::move_file).await
         }
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
-            handle(&mut s, request, new_account::handle).await
+            handle(&mut s, request, file_service::new_account).await
         }
         (&Method::PUT, "/rename-file") => {
             info!("Request matched PUT /rename-file");
-            handle(&mut s, request, rename_file::handle).await
+            handle(&mut s, request, file_service::rename_file).await
         }
         _ => {
             warn!("Request matched no endpoints");
@@ -118,7 +114,7 @@ async fn route(
 async fn handle<'a, Request, Response, ResponseError, Fut>(
     server_state: &'a mut ServerState,
     request: hyper::Request<Body>,
-    endpoint_handle: impl FnOnce(&'a mut ServerState, Request) -> Fut
+    endpoint_handle: impl FnOnce(&'a mut ServerState, Request) -> Fut,
 ) -> Result<hyper::Response<Body>, hyper::http::Error>
 where
     Fut: Future<Output = Result<Response, ResponseError>>,
