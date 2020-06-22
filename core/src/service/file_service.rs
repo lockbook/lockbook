@@ -86,10 +86,6 @@ impl<
     }
 
     fn get(db: &Db, id: Uuid) -> Result<DecryptedValue, Error> {
-        info!("Getting file contents {:?}", id);
-        let account = AccountDb::get_account(db)?;
-        let encrypted_file = FileDb::get(db, id)?;
-        let decrypted_file = FileCrypto::read_file(&account, &encrypted_file)?;
-        Ok(decrypted_file)
+        unimplemented!()
     }
 }
