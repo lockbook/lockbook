@@ -6,21 +6,23 @@ use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
+use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::repo::file_repo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_service::NewFileError::{
+    AccountRetrievalError, CouldNotFindParents, FailedToSaveMetadata, FileCryptoError,
+};
 use serde::export::PhantomData;
 use uuid::Uuid;
 
-error_enum! {
-    enum NewFileError {
-        AccountRetrievalError(account_repo::Error),
-        EncryptedFileError(file_encryption_service::FileCreationError),
-        SavingMetadataFailed(file_metadata_repo::Error),
-        SavingFileContentsFailed(file_repo::Error),
-    }
+#[derive(Debug)]
+pub enum NewFileError {
+    AccountRetrievalError(account_repo::Error),
+    CouldNotFindParents(FindingParentsFailed),
+    FileCryptoError(file_encryption_service::FileCreationError),
+    FailedToSaveMetadata(file_metadata_repo::DbError),
 }
 
 error_enum! {
@@ -78,7 +80,18 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<ClientFileMetadata, NewFileError> {
-        unimplemented!()
+        let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
+
+        let parents =
+            FileMetadataDb::get_with_all_parents(&db, parent).map_err(CouldNotFindParents)?;
+
+        let new_metadata =
+            FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
+                .map_err(FileCryptoError)?;
+
+        FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
+
+        Ok(new_metadata)
     }
 
     fn update(db: &Db, id: Uuid, content: &str) -> Result<EncryptedFile, UpdateFileError> {

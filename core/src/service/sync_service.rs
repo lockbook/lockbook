@@ -33,7 +33,8 @@ use uuid::Uuid;
 error_enum! {
     enum CalculateWorkError {
         AccountRetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::DbError),
+        FileMetadataError(repo::file_metadata_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
     }
 }
@@ -41,7 +42,8 @@ error_enum! {
 error_enum! {
     enum WorkExecutionError {
         RetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::Error),
+        FileRetievalError(repo::file_metadata_repo::DbError),
+        FileMetadataError(repo::file_metadata_repo::Error),
         FileContentError(repo::file_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
         CreateFileError(client::Error<CreateDocumentError>),
@@ -229,14 +231,14 @@ impl<
                                 },
                             )?;
                         }
-                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                        _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
                 }
 
                 Ok(())
             }
             DeleteLocally(client) => {
-                FileMetadataDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)?;
                 FileDb::delete(&db, client.id)?;
                 Ok(())
             }
@@ -294,7 +296,7 @@ impl<
                     client.metadata_version,
                 )?; // TODO the thing you're not handling is EditConflict!
 
-                FileMetadataDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)?;
                 FileDb::delete(&db, client.id)?;
 
                 Ok(())
@@ -330,7 +332,7 @@ impl<
                                 },
                             )?;
                         }
-                        _ => return Err(WorkExecutionError::FileRetievalError(err)),
+                        _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
                 }
 

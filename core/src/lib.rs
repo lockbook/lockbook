@@ -252,7 +252,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     };
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
-            DefaultFileMetadataRepo::delete(&db, meta.id).unwrap();
+            DefaultFileMetadataRepo::actually_delete(&db, meta.id).unwrap();
             DefaultFileRepo::delete(&db, meta.id).unwrap();
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),

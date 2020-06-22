@@ -1,6 +1,8 @@
 use crate::error_enum;
 use crate::model::client_file_metadata::ClientFileMetadata;
+use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use sled::Db;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 error_enum! {
@@ -18,14 +20,24 @@ error_enum! {
     }
 }
 
+#[derive(Debug)]
+pub enum FindingParentsFailed {
+    AncestorMissing,
+    DbError(DbError),
+}
+
 pub trait FileMetadataRepo {
-    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), Error>;
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError>;
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
     fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn get_with_all_parents(
+        db: &Db,
+        id: Uuid,
+    ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
-    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>; // TODO differentiate from "marked for deletion"?
+    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
 }
@@ -36,10 +48,19 @@ static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), Error> {
+    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError> {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.insert(&file.id.as_bytes(), serde_json::to_vec(&file)?)?;
         Ok(())
+    }
+
+    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error> {
+        let tree = db.open_tree(FILE_METADATA)?;
+        let maybe_value = tree.get(id.as_bytes())?;
+        let value = maybe_value.ok_or(())?;
+        let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref())?;
+
+        Ok(file_metadata)
     }
 
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError> {
@@ -54,15 +75,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error> {
-        let tree = db.open_tree(FILE_METADATA)?;
-        let maybe_value = tree.get(id.as_bytes())?;
-        let value = maybe_value.ok_or(())?;
-        let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref())?;
-
-        Ok(file_metadata)
-    }
-
     fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError> {
         let all = FileMetadataRepoImpl::get_all(&db)?;
         for file in all {
@@ -73,24 +85,30 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(None)
     }
 
-    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
-        debug!("Setting last updated to: {}", last_updated);
-        let tree = db.open_tree(LAST_UPDATED)?;
-        tree.insert(LAST_UPDATED, serde_json::to_vec(&last_updated)?)?;
-        Ok(())
-    }
+    fn get_with_all_parents(
+        db: &Db,
+        id: Uuid,
+    ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed> {
+        let mut parents = HashMap::new();
+        let mut current_id = id;
 
-    fn get_last_updated(db: &Db) -> Result<u64, Error> {
-        let tree = db.open_tree(LAST_UPDATED)?;
-        let maybe_value = tree.get(LAST_UPDATED)?;
-        match maybe_value {
-            None => Ok(0),
-            Some(value) => Ok(serde_json::from_slice(value.as_ref())?),
+        loop {
+            match Self::maybe_get(&db, current_id).map_err(FindingParentsFailed::DbError)? {
+                Some(found) => {
+                    parents.insert(current_id, found.clone());
+                    if found.id == found.parent_id {
+                        return Ok(parents);
+                    } else {
+                        current_id = found.parent_id;
+                        continue;
+                    }
+                }
+                None => return Err(AncestorMissing),
+            }
         }
     }
 
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError> {
-        debug!("Test");
         let tree = db.open_tree(FILE_METADATA)?;
         let value = tree
             .iter()
@@ -121,10 +139,26 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<ClientFileMetadata>>())
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<u64, Error> {
+    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.remove(id.as_bytes())?;
         Ok(1)
+    }
+
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
+        debug!("Setting last updated to: {}", last_updated);
+        let tree = db.open_tree(LAST_UPDATED)?;
+        tree.insert(LAST_UPDATED, serde_json::to_vec(&last_updated)?)?;
+        Ok(())
+    }
+
+    fn get_last_updated(db: &Db) -> Result<u64, Error> {
+        let tree = db.open_tree(LAST_UPDATED)?;
+        let maybe_value = tree.get(LAST_UPDATED)?;
+        match maybe_value {
+            None => Ok(0),
+            Some(value) => Ok(serde_json::from_slice(value.as_ref())?),
+        }
     }
 }
 
