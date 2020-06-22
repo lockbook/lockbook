@@ -10,7 +10,6 @@ use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
 };
-use std::borrow::Borrow;
 use uuid::Uuid;
 
 error_enum! {
@@ -36,18 +35,15 @@ error_enum! {
 
 error_enum! {
     enum FileWriteError {
-        NoAccessFoundForUser(()),
-        UnableToDecryptAccessKey(DecryptionFailed),
-        UnableToEncryptContent(AesEncryptionFailed),
-        SignatureCreationError(rsa::errors::Error)
+        FileKeyDecryptionFailed(KeyDecryptionFailure),
+        AesEncryptionFailed(AesEncryptionFailed),
     }
 }
 
 error_enum! {
     enum UnableToReadFile {
-        NoAccessFoundForUser(()),
-        UnableToDecryptAccessKey(DecryptionFailed),
-        UnableToEncryptContent(AesDecryptionFailed),
+        FileKeyDecryptionFailed(KeyDecryptionFailure),
+        AesDecryptionFailed(AesDecryptionFailed),
 
     }
 }
@@ -59,21 +55,31 @@ pub trait FileEncryptionService {
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<AesKey, KeyDecryptionFailure>;
 
-    fn create_file(
+    fn create_file_metadata(
         name: &str,
         file_type: FileType,
         parent: Uuid,
-        author: &Account,
+        account: &Account,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<ClientFileMetadata, FileCreationError>;
-    fn create_root_folder(account: &Account)
-                          -> Result<ClientFileMetadata, RootFolderCreationError>;
+
+    fn create_metadata_for_root_folder(
+        account: &Account,
+    ) -> Result<ClientFileMetadata, RootFolderCreationError>;
+
     fn write_to_file(
-        author: &Account,
-        file_before: &EncryptedFile,
+        account: &Account,
         content: &DecryptedValue,
+        metadata: &ClientFileMetadata,
+        parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<EncryptedFile, FileWriteError>;
-    fn read_file(key: &Account, file: &EncryptedFile) -> Result<DecryptedValue, UnableToReadFile>;
+
+    fn read_file(
+        account: &Account,
+        file: &EncryptedFile,
+        metadata: &ClientFileMetadata,
+        parents: HashMap<Uuid, ClientFileMetadata>,
+    ) -> Result<DecryptedValue, UnableToReadFile>;
 }
 
 pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> {
@@ -97,11 +103,7 @@ for FileEncryptionServiceImpl<PK, AES>
                 let decrypted_parent =
                     Self::decrypt_key_for_file(account, folder_access.folder_id, parents)?;
 
-                let key = AES::decrypt(
-                    &decrypted_parent,
-                    &folder_access.access_key,
-                )?
-                    .secret;
+                let key = AES::decrypt(&decrypted_parent, &folder_access.access_key)?.secret;
 
                 Ok(AesKey { key })
             }
@@ -112,46 +114,49 @@ for FileEncryptionServiceImpl<PK, AES>
         }
     }
 
-    fn create_file(
+    fn create_file_metadata(
         name: &str,
         file_type: FileType,
         parent_id: Uuid,
-        author: &Account,
+        account: &Account,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<ClientFileMetadata, FileCreationError> {
         let secret = AES::generate_key().key;
-        let parent_key = Self::decrypt_key_for_file(&author, parent_id, parents)?;
+        let parent_key = Self::decrypt_key_for_file(&account, parent_id, parents)?;
         let access_key = AES::encrypt(&parent_key, &DecryptedValue { secret })?;
         let id = Uuid::new_v4();
 
-        Ok(
-            ClientFileMetadata {
-                file_type,
-                id,
-                name: name.to_string(),
-                parent_id,
-                content_version: 0,
-                metadata_version: 0,
-                new: true,
-                document_edited: false,
-                metadata_changed: false,
-                deleted: false,
-                user_access_keys: Default::default(),
-                folder_access_keys: FolderAccessInfo {
-                    folder_id: parent_id,
-                    access_key,
-                },
-            }
-        )
+        Ok(ClientFileMetadata {
+            file_type,
+            id,
+            name: name.to_string(),
+            parent_id,
+            content_version: 0,
+            metadata_version: 0,
+            new: true,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: parent_id,
+                access_key,
+            },
+        })
     }
 
-    fn create_root_folder(
+    fn create_metadata_for_root_folder(
         account: &Account,
     ) -> Result<ClientFileMetadata, RootFolderCreationError> {
         let id = Uuid::new_v4();
         let public_key = account.keys.to_public_key();
         let key = AES::generate_key();
-        let encrypted_access_key = PK::encrypt(&public_key, &DecryptedValue { secret: key.key.clone() })?;
+        let encrypted_access_key = PK::encrypt(
+            &public_key,
+            &DecryptedValue {
+                secret: key.key.clone(),
+            },
+        )?;
         let use_access_key = UserAccessInfo {
             username: account.username.clone(),
             public_key,
@@ -175,23 +180,39 @@ for FileEncryptionServiceImpl<PK, AES>
             user_access_keys,
             folder_access_keys: FolderAccessInfo {
                 folder_id: id,
-                access_key: AES::encrypt(&key, &DecryptedValue { secret: key.key.clone() })?,
+                access_key: AES::encrypt(
+                    &key,
+                    &DecryptedValue {
+                        secret: key.key.clone(),
+                    },
+                )?,
             },
         })
     }
 
     fn write_to_file(
-        author: &Account,
-        file_before: &EncryptedFile,
+        account: &Account,
         content: &DecryptedValue,
+        metadata: &ClientFileMetadata,
+        parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<EncryptedFile, FileWriteError> {
-        unimplemented!()
+        let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
+
+        Ok(EncryptedFile {
+            content: AES::encrypt(&key, &content)?,
+        })
     }
 
     fn read_file(
         account: &Account,
         file: &EncryptedFile,
+        metadata: &ClientFileMetadata,
+        parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile> {
-        unimplemented!()
+        let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
+
+        Ok(
+            AES::decrypt(&key, &file.content)?
+        )
     }
 }

@@ -92,7 +92,7 @@ impl<
 
         info!("Generating Root Folder");
         // @tvanderstad you want to take this guy
-        let file_metadata = FileCrypto::create_root_folder(&account)?;
+        let file_metadata = FileCrypto::create_metadata_for_root_folder(&account)?;
 
         info!("Sending username & public key to server");
         let auth = Auth::generate_auth(&account)?;
@@ -147,6 +147,7 @@ mod unit_tests {
     use crate::service::auth_service::AuthServiceImpl;
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::RsaImpl;
+    use crate::{DefaultFileEncryptionService, DefaultFileMetadataRepo};
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 
@@ -156,8 +157,14 @@ mod unit_tests {
     type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
     type DefaultAccountDb = AccountRepoImpl;
     type DefaultDbProvider = TempBackedDB;
-    type DefaultAccountService =
-        AccountServiceImpl<DefaultCrypto, DefaultAccountDb, DefaultApiClient, DefaultAuthService>;
+    type DefaultAccountService = AccountServiceImpl<
+        DefaultCrypto,
+        DefaultAccountDb,
+        DefaultApiClient,
+        DefaultAuthService,
+        DefaultFileEncryptionService,
+        DefaultFileMetadataRepo,
+    >;
 
     #[test]
     fn test_import_invalid_private_key() {
