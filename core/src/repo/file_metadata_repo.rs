@@ -20,15 +20,14 @@ error_enum! {
 
 pub trait FileMetadataRepo {
     fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), Error>;
-    fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error>;
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
     fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError>;
-    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
-    fn get_last_updated(db: &Db) -> Result<u64, Error>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn delete(db: &Db, id: Uuid) -> Result<u64, Error>; // TODO differentiate from "marked for deletion"?
+    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
+    fn get_last_updated(db: &Db) -> Result<u64, Error>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -41,15 +40,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.insert(&file.id.as_bytes(), serde_json::to_vec(&file)?)?;
         Ok(())
-    }
-
-    fn update(db: &Db, file_metadata: &ClientFileMetadata) -> Result<ClientFileMetadata, Error> {
-        let tree = db.open_tree(FILE_METADATA)?;
-        tree.insert(
-            file_metadata.id.as_bytes(),
-            serde_json::to_vec(&file_metadata)?,
-        )?;
-        Ok(file_metadata.clone())
     }
 
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError> {
@@ -209,7 +199,7 @@ mod unit_tests {
                 .unwrap()
                 .content_version
         );
-        let meta_upd_res = FileMetadataRepoImpl::update(&db, &test_meta_updated).unwrap();
+        let meta_upd_res = FileMetadataRepoImpl::insert(&db, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
             FileMetadataRepoImpl::get(&db, meta_upd_res.id)

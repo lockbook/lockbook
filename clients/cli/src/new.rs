@@ -59,7 +59,7 @@ pub fn new() {
             .expect("Unexpected error while updating internal state");
 
         println!("Updating local state.");
-        DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
+        DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
 
         println!("Syncing");
         DefaultSyncService::sync(&db).expect("Failed to sync");
