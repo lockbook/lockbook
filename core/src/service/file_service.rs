@@ -18,6 +18,7 @@ use crate::service::file_service::NewFileError::{
 use crate::service::file_service::UpdateFileError::{CouldNotFindFile, DbError, ThisIsAFolderYouDummy, DocumentWriteError};
 use serde::export::PhantomData;
 use uuid::Uuid;
+use crate::service::file_service::ReadDocumentError::DocumentReadError;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -29,6 +30,7 @@ pub enum NewFileError {
 
 #[derive(Debug)]
 pub enum UpdateFileError {
+    // TODO rename to document
     AccountRetrievalError(account_repo::Error),
     CouldNotFindFile,
     CouldNotFindParents(FindingParentsFailed),
@@ -38,13 +40,15 @@ pub enum UpdateFileError {
     DbError(file_metadata_repo::DbError),
 }
 
-error_enum! {
-    enum Error {
-        FileRepo(file_repo::Error),
-        AccountRepo(account_repo::Error),
-        EncryptionServiceWrite(file_encryption_service::FileWriteError),
-        EncryptionServiceRead(file_encryption_service::UnableToReadFile),
-    }
+#[derive(Debug)]
+pub enum ReadDocumentError {
+    AccountRetrievalError(account_repo::Error),
+    CouldNotFindFile,
+    DbError(file_metadata_repo::DbError),
+    ThisIsAFolderYouDummy,
+    DocumentReadError(file_repo::Error),
+    CouldNotFindParents(FindingParentsFailed),
+    FileCryptoError(file_encryption_service::UnableToReadFile),
 }
 
 pub trait FileService {
@@ -57,7 +61,7 @@ pub trait FileService {
 
     fn write_document(db: &Db, id: Uuid, content: &DecryptedValue) -> Result<(), UpdateFileError>;
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, Error>;
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 }
 
 pub struct FileServiceImpl<
@@ -73,11 +77,11 @@ pub struct FileServiceImpl<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
-        AccountDb: AccountRepo,
-        FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: FileRepo,
+    AccountDb: AccountRepo,
+    FileCrypto: FileEncryptionService,
+> FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn create(
         db: &Db,
@@ -128,7 +132,26 @@ impl<
         Ok(())
     }
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, Error> {
-        unimplemented!()
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
+        let account =
+            AccountDb::get_account(&db).map_err(ReadDocumentError::AccountRetrievalError)?;
+
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(ReadDocumentError::DbError)?
+            .ok_or(ReadDocumentError::CouldNotFindFile)?;
+
+        if file_metadata.file_type == Folder {
+            return Err(ReadDocumentError::ThisIsAFolderYouDummy);
+        }
+
+        let document = FileDb::get(&db, id).map_err(DocumentReadError)?;
+
+        let parents = FileMetadataDb::get_with_all_parents(&db, id)
+            .map_err(ReadDocumentError::CouldNotFindParents)?;
+
+        let contents = FileCrypto::read_document(&account, &document, &file_metadata, parents)
+            .map_err(ReadDocumentError::FileCryptoError)?;
+
+        Ok(contents)
     }
 }
