@@ -88,7 +88,7 @@ pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryp
 }
 
 impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
-for FileEncryptionServiceImpl<PK, AES>
+    for FileEncryptionServiceImpl<PK, AES>
 {
     fn decrypt_key_for_file(
         account: &Account,
@@ -211,8 +211,6 @@ for FileEncryptionServiceImpl<PK, AES>
     ) -> Result<DecryptedValue, UnableToReadFile> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
 
-        Ok(
-            AES::decrypt(&key, &file.content)?
-        )
+        Ok(AES::decrypt(&key, &file.content)?)
     }
 }
