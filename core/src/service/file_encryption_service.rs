@@ -67,14 +67,14 @@ pub trait FileEncryptionService {
         account: &Account,
     ) -> Result<ClientFileMetadata, RootFolderCreationError>;
 
-    fn write_to_file(
+    fn write_to_document( // TODO add checks for folders?
         account: &Account,
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<EncryptedFile, FileWriteError>;
 
-    fn read_file(
+    fn read_document( // TODO add checks for folders?
         account: &Account,
         file: &EncryptedFile,
         metadata: &ClientFileMetadata,
@@ -190,7 +190,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         })
     }
 
-    fn write_to_file(
+    fn write_to_document(
         account: &Account,
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
@@ -203,7 +203,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         })
     }
 
-    fn read_file(
+    fn read_document(
         account: &Account,
         file: &EncryptedFile,
         metadata: &ClientFileMetadata,
