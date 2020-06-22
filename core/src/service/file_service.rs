@@ -1,6 +1,7 @@
 use sled::Db;
 
 use crate::error_enum;
+use crate::model::client_file_metadata::FileType::Folder;
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
@@ -14,6 +15,7 @@ use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::NewFileError::{
     AccountRetrievalError, CouldNotFindParents, FailedToSaveMetadata, FileCryptoError,
 };
+use crate::service::file_service::UpdateFileError::{CouldNotFindFile, DbError, ThisIsAFolderYouDummy, DocumentWriteError};
 use serde::export::PhantomData;
 use uuid::Uuid;
 
@@ -25,14 +27,15 @@ pub enum NewFileError {
     FailedToSaveMetadata(file_metadata_repo::DbError),
 }
 
-error_enum! {
-    enum UpdateFileError {
-        AccountRetrievalError(account_repo::Error),
-        FileRetrievalError(file_repo::Error),
-        EncryptedWriteError(file_encryption_service::FileWriteError),
-        MetadataDbError(file_metadata_repo::Error),
-
-    }
+#[derive(Debug)]
+pub enum UpdateFileError {
+    AccountRetrievalError(account_repo::Error),
+    CouldNotFindFile,
+    CouldNotFindParents(FindingParentsFailed),
+    ThisIsAFolderYouDummy,
+    FileCryptoError(file_encryption_service::FileWriteError),
+    DocumentWriteError(file_repo::Error),
+    DbError(file_metadata_repo::DbError),
 }
 
 error_enum! {
@@ -51,8 +54,10 @@ pub trait FileService {
         parent: Uuid,
         file_type: FileType,
     ) -> Result<ClientFileMetadata, NewFileError>;
-    fn update(db: &Db, id: Uuid, content: &str) -> Result<EncryptedFile, UpdateFileError>;
-    fn get(db: &Db, id: Uuid) -> Result<DecryptedValue, Error>;
+
+    fn write_document(db: &Db, id: Uuid, content: &DecryptedValue) -> Result<(), UpdateFileError>;
+
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, Error>;
 }
 
 pub struct FileServiceImpl<
@@ -80,10 +85,10 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<ClientFileMetadata, NewFileError> {
-        let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
+        let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
 
-        let parents =
-            FileMetadataDb::get_with_all_parents(&db, parent).map_err(CouldNotFindParents)?;
+        let parents = FileMetadataDb::get_with_all_parents(&db, parent)
+            .map_err(NewFileError::CouldNotFindParents)?;
 
         let new_metadata =
             FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
@@ -94,11 +99,36 @@ impl<
         Ok(new_metadata)
     }
 
-    fn update(db: &Db, id: Uuid, content: &str) -> Result<EncryptedFile, UpdateFileError> {
-        unimplemented!()
+    fn write_document(db: &Db, id: Uuid, content: &DecryptedValue) -> Result<(), UpdateFileError> {
+        let account =
+            AccountDb::get_account(&db).map_err(UpdateFileError::AccountRetrievalError)?;
+
+        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(DbError)?
+            .ok_or(CouldNotFindFile)?;
+
+        if file_metadata.file_type == Folder {
+            return Err(ThisIsAFolderYouDummy);
+        }
+
+        let parents = FileMetadataDb::get_with_all_parents(&db, id)
+            .map_err(UpdateFileError::CouldNotFindParents)?;
+
+        let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
+            .map_err(UpdateFileError::FileCryptoError)?;
+
+        file_metadata.document_edited = true;
+
+        FileMetadataDb::insert(&db, &file_metadata)
+            .map_err(DbError)?;
+
+        FileDb::insert(&db, file_metadata.id, &new_file)
+            .map_err(DocumentWriteError)?;
+
+        Ok(())
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<DecryptedValue, Error> {
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, Error> {
         unimplemented!()
     }
 }

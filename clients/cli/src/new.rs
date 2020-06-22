@@ -55,7 +55,7 @@ pub fn new() {
         let file_content =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::update(&db, &file_metadata.id, &file_content)
+        DefaultFileService::write_document(&db, &file_metadata.id, &file_content)
             .expect("Unexpected error while updating internal state");
 
         println!("Updating local state.");
