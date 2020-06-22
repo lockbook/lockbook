@@ -19,7 +19,6 @@ pub enum Error<ApiError> {
 }
 
 pub fn api_request<
-    'a,
     Request: Serialize,
     Response: DeserializeOwned,
     ApiError: DeserializeOwned,
