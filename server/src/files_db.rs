@@ -62,7 +62,8 @@ pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, Error> {
         None,
         None,
     )
-    .await.map_err(Error::Credentials)?;
+    .await
+    .map_err(Error::Credentials)?;
     Ok(S3Client::new(
         &config.bucket,
         Region::Custom {
