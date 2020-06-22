@@ -114,7 +114,7 @@ pub trait Client {
     fn new_account(
         username: &str,
         signature: &str,
-        public_key: RSAPublicKey,
+        public_key: RSAPublicKey, // @tvanderstad add a metadata struct here
     ) -> Result<(), Error<NewAccountError>>;
 }
 
