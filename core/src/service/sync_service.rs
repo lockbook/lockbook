@@ -204,7 +204,7 @@ impl<
             PullFileContent(new_metadata) => {
                 let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
 
-                FileDb::update(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
@@ -305,7 +305,7 @@ impl<
                 // TODO until we're diffing, this is just going to be a pull file
                 let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
 
-                FileDb::update(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {

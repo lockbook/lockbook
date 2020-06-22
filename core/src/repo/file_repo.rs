@@ -7,12 +7,13 @@ error_enum! {
     enum Error {
         SledError(sled::Error),
         SerdeError(serde_json::Error),
-        FileRowMissing(())
+        FileRowMissing(()) // TODO remove from insert
     }
 }
 
+// TODO rename to DocumentRepo
 pub trait FileRepo {
-    fn update(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error>;
+    fn insert(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error>;
     fn get(db: &Db, id: Uuid) -> Result<EncryptedFile, Error>;
     fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
 }
@@ -20,7 +21,7 @@ pub trait FileRepo {
 pub struct FileRepoImpl;
 
 impl FileRepo for FileRepoImpl {
-    fn update(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error> {
+    fn insert(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error> {
         let tree = db.open_tree(b"files")?;
         tree.insert(id.as_bytes(), serde_json::to_vec(file)?)?;
         Ok(())
@@ -67,7 +68,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let file_id = Uuid::new_v4();
 
-        FileRepoImpl::update(&db, file_id, &test_file).unwrap();
+        FileRepoImpl::insert(&db, file_id, &test_file).unwrap();
 
         let file = FileRepoImpl::get(&db, file_id).unwrap();
         assert_eq!(
@@ -78,7 +79,7 @@ mod unit_tests {
             }
         );
 
-        FileRepoImpl::update(
+        FileRepoImpl::insert(
             &db,
             file_id,
             &EncryptedFile {
