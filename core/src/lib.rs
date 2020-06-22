@@ -11,6 +11,7 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
+use crate::model::client_file_metadata::FileType::Document;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
@@ -23,7 +24,6 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
-use crate::model::client_file_metadata::FileType::Document;
 
 pub mod client;
 pub mod error_enum;
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn create_file(
         &db,
         &file_name,
         serde_json::from_str(&file_parent_id).unwrap(),
-        Document // TODO @raayan
+        Document, // TODO @raayan
     ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
