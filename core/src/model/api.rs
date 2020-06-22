@@ -288,10 +288,11 @@ pub enum GetUpdatesError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadata {
     pub id: Uuid,
-    pub name: String,
     pub parent: Uuid,
-    pub content_version: u64,
+    pub name: String,
+    pub signature: SignedValue,
     pub metadata_version: u64,
+    pub content_version: u64,
     pub deleted: bool,
     pub user_access_keys: HashMap<String, UserAccessInfo>,
     pub folder_access_keys: HashMap<Uuid, FolderAccessInfo>,
