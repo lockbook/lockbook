@@ -21,7 +21,7 @@ error_enum! {
         KeyGenerationError(rsa::errors::Error),
         PersistenceError(account_repo::Error),
         FolderError(RootFolderCreationError),
-        MetadataRepoError(file_metadata_repo::Error),
+        MetadataRepoError(file_metadata_repo::DbError),
         ApiError(client::Error<NewAccountError>),
         KeySerializationError(serde_json::error::Error),
         AuthGenFailure(AuthGenError)
