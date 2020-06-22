@@ -143,7 +143,7 @@ impl Client for ClientImpl {
         new_content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<ChangeDocumentContentError>> {
         api_request(
-            "",
+            "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -163,7 +163,7 @@ impl Client for ClientImpl {
         content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
-            "",
+            "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -182,7 +182,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteDocumentError>> {
         api_request(
-            "",
+            "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -200,7 +200,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveDocumentError>> {
         api_request(
-            "",
+            "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -219,7 +219,7 @@ impl Client for ClientImpl {
         new_name: &str,
     ) -> Result<u64, Error<RenameDocumentError>> {
         api_request(
-            "",
+            "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -238,7 +238,7 @@ impl Client for ClientImpl {
         parent: Uuid,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
-            "",
+            "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -256,7 +256,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteFolderError>> {
         api_request(
-            "",
+            "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -274,7 +274,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveFolderError>> {
         api_request(
-            "",
+            "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -293,7 +293,7 @@ impl Client for ClientImpl {
         new_name: &str,
     ) -> Result<u64, Error<RenameFolderError>> {
         api_request(
-            "",
+            "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -306,7 +306,7 @@ impl Client for ClientImpl {
     }
     fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
         api_request(
-            "",
+            "get-public-key",
             &GetPublicKeyRequest {
                 username: String::from(username),
             },
@@ -319,7 +319,7 @@ impl Client for ClientImpl {
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
         api_request(
-            "",
+            "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
                 signature: String::from(signature),
@@ -334,7 +334,7 @@ impl Client for ClientImpl {
         public_key: RSAPublicKey,
     ) -> Result<(), Error<NewAccountError>> {
         api_request(
-            "",
+            "new-account",
             &NewAccountRequest {
                 username: String::from(username),
                 signature: String::from(signature),

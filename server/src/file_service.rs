@@ -22,67 +22,48 @@ pub async fn change_document_content(
         }
     };
 
-    let update_file_version_result = update_file_metadata_and_content_version(
+    let result = index_db::change_document_content_version(
         &transaction,
-        &request.file_id,
-        request.old_metadata_version as u64,
+        request.id,
+        request.old_metadata_version,
     )
     .await;
-    let (old_content_version, new_version) = match update_file_version_result {
-        Ok(x) => x,
-        Err(update_file_metadata_and_content_version::Error::Uninterpreted(_)) => {
-            println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeDocumentContentError::InternalError);
+    let (old_content_version, new_version) = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => ChangeDocumentContentError::EditConflict,
+        index_db::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            ChangeDocumentContentError::InternalError
         }
-        Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
-            update_file_metadata_version::Error::Uninterpreted(_),
-        )) => {
-            println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeDocumentContentError::InternalError);
-        }
-        Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
-            update_file_metadata_version::Error::VersionGeneration(_),
-        )) => {
-            println!("Internal server error! {:?}", update_file_version_result);
-            return Err(ChangeDocumentContentError::InternalError);
-        }
-        Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
-            update_file_metadata_version::Error::DocumentDoesNotExist,
-        )) => return Err(ChangeDocumentContentError::DocumentNotFound),
-        Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
-            update_file_metadata_version::Error::IncorrectOldVersion(_),
-        )) => return Err(ChangeDocumentContentError::EditConflict),
-        Err(update_file_metadata_and_content_version::Error::MetadataVersionUpdate(
-            update_file_metadata_version::Error::DocumentDeleted,
-        )) => return Err(ChangeDocumentContentError::DocumentDeleted),
-    };
+    })?;
 
-    let create_file_result = files_db::create_file(
+    let create_result = files_db::create(
         &server_state.files_db_client,
-        &request.file_id,
-        &request.new_file_content,
+        request.id,
         new_version,
+        &request.new_content,
     )
     .await;
-    if create_file_result.is_err() {
-        println!("Internal server error! {:?}", create_file_result);
+    if create_result.is_err() {
+        println!("Internal server error! {:?}", create_result);
         return Err(ChangeDocumentContentError::InternalError);
     };
 
-    let delete_file_result = files_db::delete_file(
+    let delete_result = files_db::delete(
         &server_state.files_db_client,
-        &request.file_id,
+        request.id,
         old_content_version,
     )
     .await;
-    if delete_file_result.is_err() {
-        println!("Internal server error! {:?}", delete_file_result);
+    if delete_result.is_err() {
+        println!("Internal server error! {:?}", delete_result);
         return Err(ChangeDocumentContentError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => Ok(ChangeDocumentContentResponse {
-            current_metadata_and_content_version: new_version,
+        Ok(()) => Ok(ChangeDocumentContentResponse {
+            new_metadata_and_content_version: new_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -105,56 +86,40 @@ pub async fn create_document(
             return Err(CreateDocumentError::InternalError);
         }
     };
-    let get_file_details_result =
-        files_db::get_file_details(&server_state.files_db_client, &request.file_id).await;
-    match get_file_details_result {
-        Err(files_db::get_file_details::Error::NoSuchDocument(())) => {}
-        Err(_) => {
-            error!("Internal server error! {:?}", get_file_details_result);
-            return Err(CreateDocumentError::InternalError);
-        }
-        Ok(_) => return Err(CreateDocumentError::DocumentIdTaken),
-    };
 
-    let index_db_create_file_result = index_db::create_file(
+    let index_result = index_db::create_document(
         &transaction,
-        &request.file_id,
+        request.id,
+        request.parent,
+        &request.name,
         &request.username,
-        &request.file_name,
-        &request.file_parent,
+        &request.signature,
     )
     .await;
-    let new_version = match index_db_create_file_result {
-        Ok(version) => version,
-        Err(index_db::create_file::Error::DocumentIdTaken) => return Err(CreateDocumentError::DocumentIdTaken),
-        Err(index_db::create_file::Error::DocumentPathTaken) => {
-            return Err(CreateDocumentError::DocumentPathTaken)
+    let new_version = index_result.map_err(|e| match e {
+        index_db::FileError::IdTaken => CreateDocumentError::FileIdTaken,
+        index_db::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            CreateDocumentError::InternalError
         }
-        Err(index_db::create_file::Error::Uninterpreted(_)) => {
-            error!("Internal server error! {:?}", index_db_create_file_result);
-            return Err(CreateDocumentError::InternalError);
-        }
-        Err(index_db::create_file::Error::VersionGeneration(_)) => {
-            error!("Internal server error! {:?}", index_db_create_file_result);
-            return Err(CreateDocumentError::InternalError);
-        }
-    } as u64;
+    })?;
 
-    let files_db_create_file_result = files_db::create_file(
+    let files_result = files_db::create(
         &server_state.files_db_client,
-        &request.file_id,
-        &request.file_content,
+        request.id,
         new_version,
+        &request.content,
     )
     .await;
-    if files_db_create_file_result.is_err() {
-        println!("Internal server error! {:?}", files_db_create_file_result);
+    if files_result.is_err() {
+        println!("Internal server error! {:?}", files_result);
         return Err(CreateDocumentError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => Ok(CreateDocumentResponse {
-            current_metadata_and_content_version: new_version,
+        Ok(()) => Ok(CreateDocumentResponse {
+            new_metadata_and_content_version: new_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -178,55 +143,32 @@ pub async fn delete_document(
         }
     };
 
-    let index_db_delete_file_result =
-        index_db::delete_file(&transaction, &request.file_id, request.old_metadata_version).await;
-    let (old_content_version, new_version) = match index_db_delete_file_result {
-        Ok(x) => x,
-        Err(index_db::delete_file::Error::DocumentDoesNotExist) => {
-            return Err(DeleteDocumentError::DocumentNotFound)
+    let index_result =
+        index_db::delete_document(&transaction, request.id, request.old_metadata_version).await;
+    let (old_content_version, new_version) = index_result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => DeleteDocumentError::EditConflict,
+        index_db::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            DeleteDocumentError::InternalError
         }
-        Err(index_db::delete_file::Error::DocumentDeleted) => return Err(DeleteDocumentError::DocumentDeleted),
-        Err(index_db::delete_file::Error::Uninterpreted(_)) => {
-            error!("Internal server error! {:?}", index_db_delete_file_result);
-            return Err(DeleteDocumentError::InternalError);
-        }
-        Err(index_db::delete_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::Uninterpreted(_),
-        )) => {
-            println!("Internal server error! {:?}", index_db_delete_file_result);
-            return Err(DeleteDocumentError::InternalError);
-        }
-        Err(index_db::delete_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::VersionGeneration(_),
-        )) => {
-            println!("Internal server error! {:?}", index_db_delete_file_result);
-            return Err(DeleteDocumentError::InternalError);
-        }
-        Err(index_db::delete_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDoesNotExist,
-        )) => return Err(DeleteDocumentError::DocumentNotFound),
-        Err(index_db::delete_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::IncorrectOldVersion(_),
-        )) => return Err(DeleteDocumentError::EditConflict),
-        Err(index_db::delete_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDeleted,
-        )) => return Err(DeleteDocumentError::DocumentDeleted),
-    };
+    })?;
 
-    let files_db_delete_file_result = files_db::delete_file(
+    let files_result = files_db::delete(
         &server_state.files_db_client,
-        &request.file_id,
+        request.id,
         old_content_version,
     )
     .await;
-    if files_db_delete_file_result.is_err() {
-        println!("Internal server error! {:?}", files_db_delete_file_result);
+    if files_result.is_err() {
+        println!("Internal server error! {:?}", files_result);
         return Err(DeleteDocumentError::InternalError);
     };
 
     match transaction.commit().await {
-        Ok(_) => Ok(DeleteDocumentResponse {
-            current_metadata_and_content_version: new_version,
+        Ok(()) => Ok(DeleteDocumentResponse {
+            new_metadata_and_content_version: new_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -250,49 +192,28 @@ pub async fn move_document(
         }
     };
 
-    let move_file_result = index_db::move_file(
+    let result = index_db::move_document(
         &transaction,
-        &request.file_id,
+        request.id,
         request.old_metadata_version,
-        &request.new_file_parent,
+        request.new_parent,
     )
     .await;
-    let result = match move_file_result {
-        Ok(v) => Ok(MoveDocumentResponse {
-            current_metadata_version: v,
-        }),
-        Err(index_db::move_file::Error::DocumentDoesNotExist) => Err(MoveDocumentError::DocumentNotFound),
-        Err(index_db::move_file::Error::DocumentDeleted) => Err(MoveDocumentError::DocumentDeleted),
-        Err(index_db::move_file::Error::DocumentPathTaken) => Err(MoveDocumentError::DocumentPathTaken),
-        Err(index_db::move_file::Error::Uninterpreted(_)) => {
-            error!("Internal server error! {:?}", move_file_result);
-            Err(MoveDocumentError::InternalError)
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => MoveDocumentError::EditConflict,
+        index_db::FileError::Deleted => MoveDocumentError::DocumentDeleted,
+        index_db::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            MoveDocumentError::InternalError
         }
-        Err(index_db::move_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::Uninterpreted(_),
-        )) => {
-            println!("Internal server error! {:?}", move_file_result);
-            return Err(MoveDocumentError::InternalError);
-        }
-        Err(index_db::move_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::VersionGeneration(_),
-        )) => {
-            println!("Internal server error! {:?}", move_file_result);
-            return Err(MoveDocumentError::InternalError);
-        }
-        Err(index_db::move_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDoesNotExist,
-        )) => return Err(MoveDocumentError::DocumentNotFound),
-        Err(index_db::move_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::IncorrectOldVersion(_),
-        )) => return Err(MoveDocumentError::EditConflict),
-        Err(index_db::move_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDeleted,
-        )) => return Err(MoveDocumentError::DocumentDeleted),
-    };
+    })?;
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(()) => Ok(MoveDocumentResponse {
+            new_metadata_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(MoveDocumentError::InternalError)
@@ -315,51 +236,199 @@ pub async fn rename_document(
         }
     };
 
-    let rename_file_result = index_db::rename_file(
+    let result = index_db::rename_document(
         &transaction,
-        &request.file_id,
+        request.id,
         request.old_metadata_version,
-        &request.new_file_name,
+        &request.new_name,
     )
     .await;
-    let result = match rename_file_result {
-        Ok(v) => Ok(RenameDocumentResponse {
-            current_metadata_version: v,
-        }),
-        Err(index_db::rename_file::Error::DocumentDoesNotExist) => Err(RenameDocumentError::DocumentNotFound),
-        Err(index_db::rename_file::Error::DocumentDeleted) => Err(RenameDocumentError::DocumentDeleted),
-        Err(index_db::rename_file::Error::Uninterpreted(_)) => {
-            error!("Internal server error! {:?}", rename_file_result);
-            Err(RenameDocumentError::InternalError)
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => RenameDocumentError::EditConflict,
+        index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            RenameDocumentError::InternalError
         }
-        Err(index_db::rename_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::Uninterpreted(_),
-        )) => {
-            println!("Internal server error! {:?}", rename_file_result);
-            return Err(RenameDocumentError::InternalError);
-        }
-        Err(index_db::rename_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::VersionGeneration(_),
-        )) => {
-            println!("Internal server error! {:?}", rename_file_result);
-            return Err(RenameDocumentError::InternalError);
-        }
-        Err(index_db::rename_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDoesNotExist,
-        )) => return Err(RenameDocumentError::DocumentNotFound),
-        Err(index_db::rename_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::IncorrectOldVersion(_),
-        )) => return Err(RenameDocumentError::EditConflict),
-        Err(index_db::rename_file::Error::MetadataVersionUpdate(
-            index_db::update_file_metadata_version::Error::DocumentDeleted,
-        )) => return Err(RenameDocumentError::DocumentDeleted),
-    };
+    })?;
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(()) => Ok(RenameDocumentResponse {
+            new_metadata_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(RenameDocumentError::InternalError)
+        }
+    }
+}
+
+pub async fn create_folder(
+    server_state: &mut ServerState,
+    request: CreateFolderRequest,
+) -> Result<CreateFolderResponse, CreateFolderError> {
+    if !username_is_valid(&request.username) {
+        return Err(CreateFolderError::InvalidUsername);
+    }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(CreateFolderError::InternalError);
+        }
+    };
+
+    let result = index_db::create_folder(
+        &transaction,
+        request.id,
+        request.parent,
+        &request.name,
+        &request.username,
+        &request.signature,
+    )
+    .await;
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::IdTaken => CreateFolderError::FileIdTaken,
+        index_db::FileError::PathTaken => CreateFolderError::FolderPathTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            CreateFolderError::InternalError
+        }
+    })?;
+
+    match transaction.commit().await {
+        Ok(()) => Ok(CreateFolderResponse {
+            new_metadata_version: new_version,
+        }),
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
+            Err(CreateFolderError::InternalError)
+        }
+    }
+}
+
+pub async fn delete_folder(
+    server_state: &mut ServerState,
+    request: DeleteFolderRequest,
+) -> Result<DeleteFolderResponse, DeleteFolderError> {
+    if !username_is_valid(&request.username) {
+        return Err(DeleteFolderError::InvalidUsername);
+    }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(DeleteFolderError::InternalError);
+        }
+    };
+
+    let result =
+        index_db::delete_folder(&transaction, request.id, request.old_metadata_version).await;
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => DeleteFolderError::EditConflict,
+        index_db::FileError::Deleted => DeleteFolderError::FolderDeleted,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            DeleteFolderError::InternalError
+        }
+    })?;
+
+    match transaction.commit().await {
+        Ok(()) => Ok(DeleteFolderResponse {
+            new_metadata_version: new_version,
+        }),
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
+            Err(DeleteFolderError::InternalError)
+        }
+    }
+}
+
+pub async fn move_folder(
+    server_state: &mut ServerState,
+    request: MoveFolderRequest,
+) -> Result<MoveFolderResponse, MoveFolderError> {
+    if !username_is_valid(&request.username) {
+        return Err(MoveFolderError::InvalidUsername);
+    }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(MoveFolderError::InternalError);
+        }
+    };
+
+    let result = index_db::move_folder(
+        &transaction,
+        request.id,
+        request.old_metadata_version,
+        request.new_parent,
+    )
+    .await;
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => MoveFolderError::FolderNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => MoveFolderError::EditConflict,
+        index_db::FileError::Deleted => MoveFolderError::FolderDeleted,
+        index_db::FileError::PathTaken => MoveFolderError::FolderPathTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            MoveFolderError::InternalError
+        }
+    })?;
+
+    match transaction.commit().await {
+        Ok(()) => Ok(MoveFolderResponse {
+            new_metadata_version: new_version,
+        }),
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
+            Err(MoveFolderError::InternalError)
+        }
+    }
+}
+
+pub async fn rename_folder(
+    server_state: &mut ServerState,
+    request: RenameFolderRequest,
+) -> Result<RenameFolderResponse, RenameFolderError> {
+    if !username_is_valid(&request.username) {
+        return Err(RenameFolderError::InvalidUsername);
+    }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:?}", e);
+            return Err(RenameFolderError::InternalError);
+        }
+    };
+
+    let result = index_db::rename_folder(
+        &transaction,
+        request.id,
+        request.old_metadata_version,
+        &request.new_name,
+    )
+    .await;
+    let new_version = result.map_err(|e| match e {
+        index_db::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
+        index_db::FileError::IncorrectOldVersion(_) => RenameFolderError::EditConflict,
+        index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            RenameFolderError::InternalError
+        }
+    })?;
+
+    match transaction.commit().await {
+        Ok(()) => Ok(RenameFolderResponse {
+            new_metadata_version: new_version,
+        }),
+        Err(e) => {
+            error!("Internal server error! Cannot commit transaction: {:?}", e);
+            Err(RenameFolderError::InternalError)
         }
     }
 }
@@ -378,24 +447,21 @@ pub async fn get_updates(
             return Err(GetUpdatesError::InternalError);
         }
     };
-    let get_updates_result = index_db::get_updates(
+    let result = index_db::get_updates(
         &transaction,
         &request.username,
-        request.since_metadata_version as u64,
+        request.since_metadata_version,
     )
     .await;
-    let result = match get_updates_result {
-        Ok(updates) => Ok(GetUpdatesResponse {
-            file_metadata: updates,
-        }),
-        Err(_) => {
-            error!("Internal server error! {:?}", get_updates_result);
-            Err(GetUpdatesError::InternalError)
-        }
-    };
+    let updates = result.map_err(|e| {
+        error!("Internal server error! {:?}", e);
+        GetUpdatesError::InternalError
+    })?;
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(()) => Ok(GetUpdatesResponse {
+            file_metadata: updates,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetUpdatesError::InternalError)
@@ -407,9 +473,9 @@ pub async fn new_account(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
-    let auth = serde_json::from_str::<SignedValue>(&request.auth)
-        .map_err(|_| NewAccountError::InvalidAuth)?;
-    RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
+    // let auth = serde_json::from_str::<SignedValue>(&request.auth)
+    //     .map_err(|_| NewAccountError::InvalidAuth)?;
+    // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
     if !username_is_valid(&request.username) {
         return Err(NewAccountError::InvalidUsername);
     }
@@ -421,24 +487,23 @@ pub async fn new_account(
         }
     };
 
-    let new_account_result = index_db::new_account(
+    let result = index_db::new_account(
         &transaction,
         &request.username,
         &serde_json::to_string(&request.public_key)
             .map_err(|_| NewAccountError::InvalidPublicKey)?,
     )
     .await;
-    let result = match new_account_result {
-        Ok(()) => Ok(NewAccountResponse {}),
-        Err(index_db::new_account::Error::UsernameTaken) => Err(NewAccountError::UsernameTaken),
-        Err(index_db::new_account::Error::Uninterpreted(_)) => {
-            error!("Internal server error! {:?}", new_account_result);
-            Err(NewAccountError::InternalError)
+    result.map_err(|e| match e {
+        index_db::AccountError::UsernameTaken => NewAccountError::UsernameTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            NewAccountError::InternalError
         }
-    };
+    })?;
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(()) => Ok(NewAccountResponse {}),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(NewAccountError::InternalError)
@@ -460,18 +525,17 @@ pub async fn get_public_key(
             return Err(GetPublicKeyError::InternalError);
         }
     };
-    let get_public_key_result = index_db::get_public_key(&transaction, &request.username).await;
-    let result = match get_public_key_result {
-        Ok(key) => Ok(GetPublicKeyResponse { key: key }),
-        Err(index_db::get_public_key::Error::Postgres(_)) => Err(GetPublicKeyError::UserNotFound),
-        Err(index_db::get_public_key::Error::SerializationError(_)) => {
-            error!("Internal server error! {:?}", get_public_key_result);
-            Err(GetPublicKeyError::InternalError)
+    let result = index_db::get_public_key(&transaction, &request.username).await;
+    let key = result.map_err(|e| match e {
+        index_db::PublicKeyError::UserNotFound => GetPublicKeyError::UserNotFound,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            GetPublicKeyError::InternalError
         }
-    };
+    })?;
 
     match transaction.commit().await {
-        Ok(_) => result,
+        Ok(()) => Ok(GetPublicKeyResponse { key: key }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetPublicKeyError::InternalError)
