@@ -30,7 +30,7 @@ pub fn edit() {
         .expect("Could not search files ")
         .expect("Could not find that file!");
 
-    let file_content = match DefaultFileService::get(&db, &file_metadata.id) {
+    let file_content = match DefaultFileService::read_document(&db, &file_metadata.id) {
         Ok(content) => content,
         Err(error) => panic!("Unexpected error: {:?}", error),
     };
@@ -58,13 +58,13 @@ pub fn edit() {
         let file_content =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::update(&db, &file_metadata.id, &file_content)
+        DefaultFileService::write_document(&db, &file_metadata.id, &file_content)
             .expect("Unexpected error while updating internal state");
 
         file_metadata.document_edited = true;
 
         println!("Updating local state.");
-        DefaultFileMetadataRepo::update(&db, &file_metadata).expect("Failed to index new file!");
+        DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
 
         println!("Syncing");
         DefaultSyncService::sync(&db).expect("Failed to sync");
