@@ -201,7 +201,7 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res = FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, test_file_metadata.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
@@ -252,14 +252,14 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res = FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
             FileMetadataRepoImpl::get(&db, test_meta.id)
                 .unwrap()
                 .content_version
         );
-        let meta_upd_res = FileMetadataRepoImpl::insert(&db, &test_meta_updated).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
             FileMetadataRepoImpl::get(&db, test_meta_updated.id)
