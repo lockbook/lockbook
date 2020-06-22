@@ -78,7 +78,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError> {
         let all = FileMetadataRepoImpl::get_all(&db)?;
         for file in all {
-            if &file.name == name {
+            if file.name == name {
                 return Ok(Some(file));
             }
         }
