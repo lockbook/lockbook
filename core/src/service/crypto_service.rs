@@ -113,7 +113,6 @@ mod unit_test_pubkey {
     use crate::service::crypto_service::{DecryptedValue, PubKeyCryptoService, RsaImpl};
 
     use super::rsa::RSAPrivateKey;
-    use crate::model::crypto::DecryptedValue;
 
     #[test]
     fn test_key_generation_serde() {
