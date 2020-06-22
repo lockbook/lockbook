@@ -114,7 +114,7 @@ impl<
         ApiClient::get_updates(&account.username, "junk auth :(", last_sync)?
             .into_iter()
             .for_each(|file| {
-                server_dirty_files.insert(file.clone().id, file.clone());
+                server_dirty_files.insert(file.id, file.clone());
                 if file.metadata_version > most_recent_update_from_server {
                     most_recent_update_from_server = file.metadata_version;
                 }
@@ -292,7 +292,7 @@ impl<
                 ApiClient::delete_document(
                     &account.username,
                     &Auth::generate_auth(&account)?,
-                    client.clone().id,
+                    client.id,
                     client.metadata_version,
                 )?; // TODO the thing you're not handling is EditConflict!
 
