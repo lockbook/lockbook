@@ -36,8 +36,10 @@ impl From<PostgresError> for AccountError {
 
 #[derive(Debug)]
 pub enum PublicKeyError {
+    UserNotFound,
     Deserialization(serde_json::Error),
     Postgres(PostgresError),
+    Unknown(String),
 }
 
 #[derive(Debug)]
@@ -127,10 +129,9 @@ async fn connect_with_tls(
     }
 }
 
-// todo return old content version
 pub async fn change_document_content_version(
     transaction: &Transaction<'_>,
-    file_id: &str,
+    id: Uuid,
     old_metadata_version: u64,
 ) -> Result<(u64, u64), FileError> {
     let rows = transaction
@@ -148,7 +149,7 @@ pub async fn change_document_content_version(
                     ELSE old.content_version END)
             FROM old WHERE old.id = new.id
             RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&file_id, &(old_metadata_version as i64)],
+            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
         )
         .await
         .map_err(FileError::Postgres)?;
@@ -168,7 +169,7 @@ pub async fn create_document(
         "INSERT INTO documents (id, parent, name, owner, signature, metadata_version, content_version, deleted)
         VALUES ($1, $2, $3, $4, $5, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
         RETURNING *;",
-        &[&(serde_json::to_string(&id).map_err(FileError::Serialize)?), &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
+        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
@@ -176,9 +177,9 @@ pub async fn create_document(
 
 pub async fn delete_document(
     transaction: &Transaction<'_>,
-    file_id: &str,
+    id: Uuid,
     old_metadata_version: u64,
-) -> Result<u64, FileError> {
+) -> Result<(u64, u64), FileError> {
     let rows = transaction
         .query(
             "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
@@ -193,11 +194,12 @@ pub async fn delete_document(
                     END)
             FROM old WHERE old.id = new.id
             RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&file_id, &(old_metadata_version as i64)],
+            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    let metadata = rows_to_metadata(&rows, old_metadata_version)?;
+    Ok((metadata.old_content_version, metadata.new.metadata_version))
 }
 
 pub async fn move_document(
@@ -224,7 +226,9 @@ pub async fn move_document(
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    Ok(rows_to_metadata(&rows, old_metadata_version)?
+        .new
+        .metadata_version)
 }
 
 pub async fn rename_document(
@@ -251,7 +255,9 @@ pub async fn rename_document(
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    Ok(rows_to_metadata(&rows, old_metadata_version)?
+        .new
+        .metadata_version)
 }
 
 pub async fn create_folder(
@@ -266,7 +272,7 @@ pub async fn create_folder(
         "INSERT INTO folders (id, parent, name, owner, signature, metadata_version, content_version, deleted)
         VALUES ($1, $2, $3, $4, $5, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
         RETURNING *;",
-        &[&(serde_json::to_string(&id).map_err(FileError::Serialize)?), &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
+        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
@@ -274,7 +280,7 @@ pub async fn create_folder(
 
 pub async fn delete_folder(
     transaction: &Transaction<'_>,
-    file_id: &str,
+    id: Uuid,
     old_metadata_version: u64,
 ) -> Result<u64, FileError> {
     let rows = transaction
@@ -291,11 +297,13 @@ pub async fn delete_folder(
                     END)
             FROM old WHERE old.id = new.id
             RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&file_id, &(old_metadata_version as i64)],
+            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    Ok(rows_to_metadata(&rows, old_metadata_version)?
+        .new
+        .metadata_version)
 }
 
 pub async fn move_folder(
@@ -322,7 +330,9 @@ pub async fn move_folder(
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    Ok(rows_to_metadata(&rows, old_metadata_version)?
+        .new
+        .metadata_version)
 }
 
 pub async fn rename_folder(
@@ -349,7 +359,9 @@ pub async fn rename_folder(
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?.new.metadata_version)
+    Ok(rows_to_metadata(&rows, old_metadata_version)?
+        .new
+        .metadata_version)
 }
 
 pub async fn get_public_key(
@@ -357,17 +369,22 @@ pub async fn get_public_key(
     username: &str,
 ) -> Result<RSAPublicKey, PublicKeyError> {
     match transaction
-        .query_one(
+        .query(
             "SELECT public_key FROM users WHERE username = $1;",
             &[&username],
         )
         .await
+        .map_err(PublicKeyError::Postgres)?
+        .as_slice()
     {
-        Ok(row) => {
+        [] => Err(PublicKeyError::UserNotFound),
+        [row] => {
             Ok(serde_json::from_str(row.get("public_key"))
                 .map_err(PublicKeyError::Deserialization)?)
         }
-        Err(e) => Err(PublicKeyError::Postgres(e)),
+        _ => Err(PublicKeyError::Unknown(String::from(
+            "unexpected multiple postgres rows",
+        ))),
     }
 }
 
@@ -378,7 +395,7 @@ struct FileUpdateMetadata {
     new: FileMetadata,
 }
 
-pub fn rows_to_metadata(
+fn rows_to_metadata(
     rows: &Vec<tokio_postgres::row::Row>,
     old_metadata_version: u64,
 ) -> Result<FileUpdateMetadata, FileError> {
@@ -390,7 +407,9 @@ pub fn rows_to_metadata(
                 return Err(FileError::Deleted);
             }
             if metadata.old_metadata_version != old_metadata_version {
-                return Err(FileError::IncorrectOldVersion(metadata.old_metadata_version));
+                return Err(FileError::IncorrectOldVersion(
+                    metadata.old_metadata_version,
+                ));
             }
             Ok(metadata)
         }
@@ -400,17 +419,16 @@ pub fn rows_to_metadata(
     }
 }
 
-pub fn row_to_metadata(row: &tokio_postgres::row::Row) -> Result<FileUpdateMetadata, FileError> {
+fn row_to_metadata(row: &tokio_postgres::row::Row) -> Result<FileUpdateMetadata, FileError> {
     Ok(FileUpdateMetadata {
         old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
         old_metadata_version: row
             .try_get::<&str, i64>("old_metadata_version")
             .map_err(FileError::Postgres)? as u64,
-        old_content_version: match row
-            .try_get::<&str, i64>("old_content_version") {
-                Ok(v) => v as u64,
-                Err(_) => 0
-            },
+        old_content_version: match row.try_get::<&str, i64>("old_content_version") {
+            Ok(v) => v as u64,
+            Err(_) => 0,
+        },
         new: FileMetadata {
             id: serde_json::from_str(
                 row.try_get::<&str, &str>("id")
@@ -446,11 +464,17 @@ pub async fn get_updates(
     username: &str,
     metadata_version: u64,
 ) -> Result<Vec<FileMetadata>, FileError> {
-    transaction.query(
-        "SELECT file_id, file_name, file_path, file_content_version, file_metadata_version, deleted
+    transaction
+        .query(
+            "SELECT id, file_name, file_path, file_content_version, file_metadata_version, deleted
     FROM files WHERE username = $1 AND file_metadata_version > $2",
-        &[&username, &(metadata_version as i64)],
-    ).await.map_err(FileError::Postgres)?.iter().map(|row| Ok(row_to_metadata(row)?.new)).collect()
+            &[&username, &(metadata_version as i64)],
+        )
+        .await
+        .map_err(FileError::Postgres)?
+        .iter()
+        .map(|row| Ok(row_to_metadata(row)?.new))
+        .collect()
 }
 
 pub async fn new_account(

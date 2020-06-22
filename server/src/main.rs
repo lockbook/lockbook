@@ -7,9 +7,9 @@ extern crate tokio;
 extern crate log;
 
 pub mod config;
+pub mod file_service;
 pub mod files_db;
 pub mod index_db;
-pub mod file_service;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
@@ -70,17 +70,41 @@ async fn route(
 ) -> Result<Response<Body>, hyper::http::Error> {
     let mut s = server_state.lock().await;
     match (request.method(), request.uri().path()) {
-        (&Method::PUT, "/change-file-content") => {
+        (&Method::PUT, "/change-document-content") => {
             info!("Request matched PUT /change-file-content");
-            handle(&mut s, request, file_service::change_file_content).await
+            handle(&mut s, request, file_service::change_document_content).await
         }
-        (&Method::POST, "/create-file") => {
+        (&Method::POST, "/create-document") => {
             info!("Request matched POST /create-file");
-            handle(&mut s, request, file_service::create_file).await
+            handle(&mut s, request, file_service::create_document).await
         }
-        (&Method::DELETE, "/delete-file") => {
+        (&Method::DELETE, "/delete-document") => {
             info!("Request matched DELETE /delete-file");
-            handle(&mut s, request, file_service::delete_file).await
+            handle(&mut s, request, file_service::delete_document).await
+        }
+        (&Method::PUT, "/move-document") => {
+            info!("Request matched PUT /move-file");
+            handle(&mut s, request, file_service::move_document).await
+        }
+        (&Method::PUT, "/rename-document") => {
+            info!("Request matched PUT /rename-file");
+            handle(&mut s, request, file_service::rename_document).await
+        }
+        (&Method::POST, "/create-folder") => {
+            info!("Request matched POST /create-file");
+            handle(&mut s, request, file_service::create_folder).await
+        }
+        (&Method::DELETE, "/delete-folder") => {
+            info!("Request matched DELETE /delete-file");
+            handle(&mut s, request, file_service::delete_folder).await
+        }
+        (&Method::PUT, "/move-folder") => {
+            info!("Request matched PUT /move-file");
+            handle(&mut s, request, file_service::move_folder).await
+        }
+        (&Method::PUT, "/rename-folder") => {
+            info!("Request matched PUT /rename-file");
+            handle(&mut s, request, file_service::rename_folder).await
         }
         (&Method::GET, "/get-public-key") => {
             info!("Request matched GET /get-public-key");
@@ -90,17 +114,9 @@ async fn route(
             info!("Request matched GET /get-updates");
             handle(&mut s, request, file_service::get_updates).await
         }
-        (&Method::PUT, "/move-file") => {
-            info!("Request matched PUT /move-file");
-            handle(&mut s, request, file_service::move_file).await
-        }
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
             handle(&mut s, request, file_service::new_account).await
-        }
-        (&Method::PUT, "/rename-file") => {
-            info!("Request matched PUT /rename-file");
-            handle(&mut s, request, file_service::rename_file).await
         }
         _ => {
             warn!("Request matched no endpoints");

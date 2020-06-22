@@ -1,9 +1,11 @@
 use crate::config::FilesDbConfig;
+use lockbook_core::model::crypto::EncryptedValueWithNonce;
 use s3::bucket::Bucket as S3Client;
 use s3::creds::AwsCredsError;
 use s3::creds::Credentials;
 use s3::region::Region;
 use s3::S3Error;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum Error {
@@ -13,6 +15,7 @@ pub enum Error {
     NoSuchKey(String),
     ResponseNotUtf8(String),
     SignatureDoesNotMatch(String),
+    Serialization(serde_json::Error),
     Unknown(Option<String>),
 }
 
@@ -74,16 +77,16 @@ pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, Error> {
     )?)
 }
 
-pub async fn create_file(
+pub async fn create(
     client: &S3Client,
-    file_id: &str,
-    file_contents: &str,
+    file_id: Uuid,
     content_version: u64,
+    file_contents: &EncryptedValueWithNonce,
 ) -> Result<(), Error> {
     match client
         .put_object(
             &format!("/{}-{}", file_id, content_version),
-            file_contents.as_bytes(),
+            &serde_json::to_vec(file_contents).map_err(Error::Serialization)?,
             "text/plain",
         )
         .await?
@@ -93,11 +96,7 @@ pub async fn create_file(
     }
 }
 
-pub async fn delete_file(
-    client: &S3Client,
-    file_id: &str,
-    content_version: u64,
-) -> Result<(), Error> {
+pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> Result<(), Error> {
     match client
         .delete_object(&format!("/{}-{}", file_id, content_version))
         .await?
