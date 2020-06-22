@@ -183,7 +183,7 @@ impl<
                 client.new = false;
                 client.document_edited = false;
 
-                FileMetadataDb::update(&db, &client)?;
+                FileMetadataDb::insert(&db, &client)?;
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
@@ -196,7 +196,7 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
                 Ok(())
             }
             PullFileContent(new_metadata) => {
@@ -207,11 +207,11 @@ impl<
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::update(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
-                            FileMetadataDb::update(
+                            FileMetadataDb::insert(
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
@@ -261,7 +261,7 @@ impl<
                 )?; // TODO the thing you're not handling is EditConflict!
 
                 metadata.metadata_changed = false;
-                FileMetadataDb::update(&db, &metadata)?;
+                FileMetadataDb::insert(&db, &metadata)?;
 
                 Ok(())
             }
@@ -281,7 +281,7 @@ impl<
                 old_file_metadata.content_version = new_version;
                 old_file_metadata.document_edited = false;
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
 
                 Ok(())
             }
@@ -308,11 +308,11 @@ impl<
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::update(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
-                            FileMetadataDb::update(
+                            FileMetadataDb::insert(
                                 &db,
                                 &ClientFileMetadata {
                                     id: new_metadata.id,
@@ -347,7 +347,7 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::update(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)?;
                 Ok(())
             }
         }
