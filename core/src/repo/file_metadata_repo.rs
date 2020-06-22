@@ -203,7 +203,7 @@ mod unit_tests {
 
         let meta_res = FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
 
-        let db_file_metadata = FileMetadataRepoImpl::get(&db, meta_res.id).unwrap();
+        let db_file_metadata = FileMetadataRepoImpl::get(&db, test_file_metadata.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
         assert_eq!(test_file_metadata.parent_id, db_file_metadata.parent_id);
     }
@@ -213,26 +213,34 @@ mod unit_tests {
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
         let test_meta = ClientFileMetadata {
+            file_type: FileType::Document,
             id: id,
             name: "".to_string(),
             parent_id: parent,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
-            folder_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Uuid::new_v4(),
+                access_key: EncryptedValueWithNonce { garbage: "".to_string(), nonce: "".to_string() }
+            },
             new: false,
             document_edited: false,
             metadata_changed: false,
             deleted: false,
         };
         let test_meta_updated = ClientFileMetadata {
+            file_type: FileType::Document,
             id: id,
             name: "".to_string(),
             parent_id: parent,
             content_version: 1000,
             metadata_version: 1000,
             user_access_keys: Default::default(),
-            folder_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Uuid::new_v4(),
+                access_key: EncryptedValueWithNonce { garbage: "".to_string(), nonce: "".to_string() }
+            },
             new: false,
             document_edited: false,
             metadata_changed: false,
@@ -247,14 +255,14 @@ mod unit_tests {
         let meta_res = FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
-            FileMetadataRepoImpl::get(&db, meta_res.id)
+            FileMetadataRepoImpl::get(&db, test_meta.id)
                 .unwrap()
                 .content_version
         );
         let meta_upd_res = FileMetadataRepoImpl::insert(&db, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
-            FileMetadataRepoImpl::get(&db, meta_upd_res.id)
+            FileMetadataRepoImpl::get(&db, test_meta_updated.id)
                 .unwrap()
                 .content_version
         );

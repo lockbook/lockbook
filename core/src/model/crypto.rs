@@ -33,7 +33,7 @@ pub struct AesKey {
 }
 
 impl AesKey {
-    pub(crate) fn to_decrypted_value(&self) -> DecryptedValue {
+    pub fn to_decrypted_value(&self) -> DecryptedValue {
         DecryptedValue {
             secret: self.key.clone(),
         }
