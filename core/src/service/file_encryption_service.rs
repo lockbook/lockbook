@@ -67,14 +67,16 @@ pub trait FileEncryptionService {
         account: &Account,
     ) -> Result<ClientFileMetadata, RootFolderCreationError>;
 
-    fn write_to_document( // TODO add checks for folders?
+    fn write_to_document(
+        // TODO add checks for folders?
         account: &Account,
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<EncryptedFile, FileWriteError>;
 
-    fn read_document( // TODO add checks for folders?
+    fn read_document(
+        // TODO add checks for folders?
         account: &Account,
         file: &EncryptedFile,
         metadata: &ClientFileMetadata,

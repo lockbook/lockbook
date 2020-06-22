@@ -164,7 +164,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::client_file_metadata::ClientFileMetadata;
+    use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+    use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo};
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
@@ -174,18 +175,33 @@ mod unit_tests {
 
     #[test]
     fn insert_file_metadata() {
-        let test_file_metadata = ClientFileMetadata::new_document("test_file", Uuid::new_v4());
+        let test_file_metadata = ClientFileMetadata {
+            file_type: FileType::Document,
+            id: Uuid::new_v4(),
+            name: "".to_string(),
+            parent_id: Default::default(),
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
+        };
 
         let config = Config {
             writeable_path: "ignored".to_string(),
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res = FileMetadataRepoImpl::insert(
-            &db,
-            &test_file_metadata,
-        )
-        .unwrap();
+        let meta_res = FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, meta_res.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
@@ -228,8 +244,7 @@ mod unit_tests {
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
-        let meta_res =
-            FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
+        let meta_res = FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
             FileMetadataRepoImpl::get(&db, meta_res.id)
