@@ -11,13 +11,13 @@ use crate::repo::file_repo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::service::file_service::NewFileError::{
-    FailedToSaveMetadata, FileCryptoError,
+use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError};
+use crate::service::file_service::ReadDocumentError::DocumentReadError;
+use crate::service::file_service::UpdateFileError::{
+    CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
-use crate::service::file_service::UpdateFileError::{CouldNotFindFile, DbError, ThisIsAFolderYouDummy, DocumentWriteError};
 use serde::export::PhantomData;
 use uuid::Uuid;
-use crate::service::file_service::ReadDocumentError::DocumentReadError;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -76,11 +76,11 @@ pub struct FileServiceImpl<
 }
 
 impl<
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
-    AccountDb: AccountRepo,
-    FileCrypto: FileEncryptionService,
-> FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: FileRepo,
+        AccountDb: AccountRepo,
+        FileCrypto: FileEncryptionService,
+    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn create(
         db: &Db,
@@ -122,11 +122,9 @@ impl<
 
         file_metadata.document_edited = true;
 
-        FileMetadataDb::insert(&db, &file_metadata)
-            .map_err(DbError)?;
+        FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
-        FileDb::insert(&db, file_metadata.id, &new_file)
-            .map_err(DocumentWriteError)?;
+        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
 
         Ok(())
     }

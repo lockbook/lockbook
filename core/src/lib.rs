@@ -12,6 +12,7 @@ pub use sled::Db;
 
 use crate::client::ClientImpl;
 use crate::model::client_file_metadata::FileType::Document;
+use crate::model::crypto::DecryptedValue;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
@@ -24,7 +25,6 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
-use crate::model::crypto::DecryptedValue;
 
 pub mod client;
 pub mod error_enum;
@@ -234,9 +234,15 @@ pub unsafe extern "C" fn update_file(
         Some(db) => db,
     };
     let file_id = string_from_ptr(c_file_id);
-    let file_content = DecryptedValue { secret: string_from_ptr(c_file_content)};
+    let file_content = DecryptedValue {
+        secret: string_from_ptr(c_file_content),
+    };
 
-    match DefaultFileService::write_document(&db, serde_json::from_str(&file_id).unwrap(), &file_content) {
+    match DefaultFileService::write_document(
+        &db,
+        serde_json::from_str(&file_id).unwrap(),
+        &file_content,
+    ) {
         Ok(_) => 1,
         Err(err) => {
             error!("Failed to update file! Error: {:?}", err);
