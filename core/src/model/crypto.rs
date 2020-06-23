@@ -54,6 +54,6 @@ pub struct FolderAccessInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct EncryptedFile {
+pub struct Document {
     pub content: EncryptedValueWithNonce,
 }
