@@ -189,8 +189,10 @@ mod unit_tests {
 
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
+        assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_none());
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+        assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_some());
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
         let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
