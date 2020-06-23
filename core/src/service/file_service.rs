@@ -5,10 +5,10 @@ use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::file_metadata_repo;
-use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
+use crate::repo::file_metadata_repo;
+use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
@@ -166,13 +166,16 @@ mod unit_tests {
     use crate::model::client_file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
     use crate::model::state::Config;
+    use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService, DefaultAccountRepo};
-    use crate::repo::account_repo::AccountRepo;
+    use crate::{
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService,
+    };
 
     #[test]
     fn file_service_runthrough() {
@@ -210,7 +213,12 @@ mod unit_tests {
         )
         .unwrap();
 
-        assert_eq!(DefaultFileService::read_document(&db, file.id).unwrap().secret, "5 folders deep".to_string());
+        assert_eq!(
+            DefaultFileService::read_document(&db, file.id)
+                .unwrap()
+                .secret,
+            "5 folders deep".to_string()
+        );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
     }
 }
