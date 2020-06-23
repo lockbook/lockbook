@@ -47,8 +47,8 @@ mod unit_tests {
     use crate::model::crypto::*;
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
     use uuid::Uuid;
-    use crate::repo::document_repo::{DocumentRepoImpl, DocumentRepo};
 
     type DefaultDbProvider = TempBackedDB;
 
