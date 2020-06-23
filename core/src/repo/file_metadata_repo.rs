@@ -31,7 +31,7 @@ pub trait FileMetadataRepo {
     fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
-    fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn get_by_path(db: &Db, path: &str) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get_with_all_parents(
         db: &Db,
         id: Uuid,
@@ -96,14 +96,47 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError> {
-        let all = FileMetadataRepoImpl::get_all(&db)?;
-        for file in all {
-            if file.name == name {
-                return Ok(Some(file));
+    fn get_by_path(db: &Db, path: &str) -> Result<Option<ClientFileMetadata>, DbError> {
+        debug!("Path: {}", path);
+        let root = match Self::get_root(&db)? {
+            None => return Ok(None),
+            Some(root) => root,
+        };
+
+        let mut current = root.clone();
+        let paths: Vec<&str> = path
+            .split("/")
+            .collect::<Vec<&str>>()
+            .into_iter()
+            .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
+            .collect::<Vec<&str>>();
+
+        debug!("Split length: {}", &paths.len());
+
+        for (i, value) in paths.clone().into_iter().enumerate() {
+            if value != current.name {
+                return Ok(None);
+            }
+
+            if i + 1 == paths.len() {
+                return Ok(Some(current));
+            }
+
+            let children = Self::get_children(&db, current.id)?;
+            let mut found_child = false;
+            for child in children {
+                if child.name == paths[i + 1] {
+                    current = child;
+                    found_child = true;
+                }
+            }
+
+            if !found_child {
+                return Ok(None);
             }
         }
-        Ok(None)
+
+        Ok(Some(current)) // This path is never visited
     }
 
     fn get_with_all_parents(
@@ -153,7 +186,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Self::get_all(&db)
             .map_err(FindingParentsFailed::DbError)?
             .into_iter()
-            .for_each(|meta| { cache.insert(meta.id, meta); });
+            .for_each(|meta| {
+                cache.insert(meta.id, meta);
+            });
 
         for (_, meta) in &cache {
             saturate_path_cache(&meta, &cache, &mut path_cache)?;
@@ -211,7 +246,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 }
 
-fn saturate_path_cache(client: &ClientFileMetadata, ids: &HashMap<Uuid, ClientFileMetadata>, paths: &mut HashMap<Uuid, String>) -> Result<String, FindingParentsFailed> {
+fn saturate_path_cache(
+    client: &ClientFileMetadata,
+    ids: &HashMap<Uuid, ClientFileMetadata>,
+    paths: &mut HashMap<Uuid, String>,
+) -> Result<String, FindingParentsFailed> {
     match paths.get(&client.id) {
         Some(path) => Ok(path.to_string()),
         None => {
@@ -281,13 +320,6 @@ mod unit_tests {
             .unwrap()
             .unwrap();
         assert!(FileMetadataRepoImpl::maybe_get(&db, Uuid::new_v4())
-            .unwrap()
-            .is_none());
-
-        FileMetadataRepoImpl::find_by_name(&db, "test")
-            .unwrap()
-            .unwrap();
-        assert!(FileMetadataRepoImpl::find_by_name(&db, "test2")
             .unwrap()
             .is_none());
     }
