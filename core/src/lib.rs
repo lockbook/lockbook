@@ -17,7 +17,7 @@ use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
-use crate::repo::file_repo::{FileRepo, FileRepoImpl};
+use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
@@ -54,18 +54,18 @@ pub type DefaultAccountService = AccountServiceImpl<
     DefaultFileMetadataRepo,
 >;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultFileRepo = FileRepoImpl;
+pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
-    DefaultFileRepo,
+    DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,
     DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
-    DefaultFileRepo,
+    DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
             DefaultFileMetadataRepo::actually_delete(&db, meta.id).unwrap();
-            DefaultFileRepo::delete(&db, meta.id).unwrap();
+            DefaultDocumentRepo::delete(&db, meta.id).unwrap();
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),
     }
