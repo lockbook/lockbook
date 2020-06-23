@@ -73,12 +73,12 @@ pub trait FileEncryptionService {
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
-    ) -> Result<EncryptedFile, FileWriteError>;
+    ) -> Result<Document, FileWriteError>;
 
     fn read_document(
         // TODO add checks for folders?
         account: &Account,
-        file: &EncryptedFile,
+        file: &Document,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile>;
@@ -197,17 +197,17 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
-    ) -> Result<EncryptedFile, FileWriteError> {
+    ) -> Result<Document, FileWriteError> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
 
-        Ok(EncryptedFile {
+        Ok(Document {
             content: AES::encrypt(&key, &content)?,
         })
     }
 
     fn read_document(
         account: &Account,
-        file: &EncryptedFile,
+        file: &Document,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile> {
