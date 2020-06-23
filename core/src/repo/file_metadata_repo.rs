@@ -28,6 +28,7 @@ pub enum FindingParentsFailed {
 
 pub trait FileMetadataRepo {
     fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError>;
+    fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError>;
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
     fn find_by_name(db: &Db, name: &str) -> Result<Option<ClientFileMetadata>, DbError>;
@@ -38,6 +39,7 @@ pub trait FileMetadataRepo {
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
+    fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError>;
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
 }
@@ -45,13 +47,31 @@ pub trait FileMetadataRepo {
 pub struct FileMetadataRepoImpl;
 
 static FILE_METADATA: &[u8; 13] = b"file_metadata";
+static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError> {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.insert(&file.id.as_bytes(), serde_json::to_vec(&file)?)?;
+        if file.id == file.parent_id {
+            let root = db.open_tree(ROOT)?;
+            debug!("saving root folder: {:?}", &file.id);
+            root.insert(ROOT, serde_json::to_vec(&file.id)?)?;
+        }
         Ok(())
+    }
+
+    fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError> {
+        let tree = db.open_tree(ROOT)?;
+        let maybe_value = tree.get(ROOT)?;
+        match maybe_value {
+            None => Ok(None),
+            Some(value) => {
+                let id: Uuid = serde_json::from_slice(value.as_ref())?;
+                Self::maybe_get(&db, id)
+            }
+        }
     }
 
     fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error> {
@@ -147,6 +167,16 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let tree = db.open_tree(FILE_METADATA)?;
         tree.remove(id.as_bytes())?;
         Ok(1)
+    }
+
+    // TODO Should seriously consider keeping a list of children in ClientFileMetadata -- this operation would be so fast
+    fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError> {
+        Ok(
+            Self::get_all(&db)?
+            .into_iter()
+            .filter(|file| file.parent_id == id && file.parent_id != file.id)
+            .collect::<Vec<ClientFileMetadata>>()
+        )
     }
 
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
@@ -440,6 +470,9 @@ mod unit_tests {
         assert!(parents.contains_key(&root.id));
         assert!(parents.contains_key(&test_folder.id));
         assert!(parents.contains_key(&test_file4.id));
+
+        let children = FileMetadataRepoImpl::get_children(&db, root.id).unwrap();
+        assert_eq!(children.len(), 2);
     }
 }
 /*
