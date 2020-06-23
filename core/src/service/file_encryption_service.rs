@@ -220,12 +220,12 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::client_file_metadata::FileType::{Folder, Document};
+    use crate::model::client_file_metadata::FileType::{Document, Folder};
+    use crate::model::crypto::DecryptedValue;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::{DefaultCrypto, DefaultFileEncryptionService};
     use std::collections::HashMap;
-    use crate::model::crypto::DecryptedValue;
 
     #[test]
     fn test_root_folder() {
@@ -262,7 +262,8 @@ mod unit_tests {
             sub_child.id,
             &account,
             parents.clone(),
-        ).unwrap();
+        )
+        .unwrap();
         parents.insert(sub_sub_child.id, sub_sub_child.clone());
 
         let deep_file = DefaultFileEncryptionService::create_file_metadata(
@@ -270,23 +271,28 @@ mod unit_tests {
             Document,
             sub_sub_child.id,
             &account,
-            parents.clone()
-        ).unwrap();
+            parents.clone(),
+        )
+        .unwrap();
         parents.insert(deep_file.id, deep_file.clone());
 
         let public_content = DefaultFileEncryptionService::write_to_document(
             &account,
-            &DecryptedValue { secret: "test content".to_string() },
+            &DecryptedValue {
+                secret: "test content".to_string(),
+            },
             &deep_file,
-            parents.clone()
-        ).unwrap();
+            parents.clone(),
+        )
+        .unwrap();
 
         let private_content = DefaultFileEncryptionService::read_document(
             &account,
             &public_content,
             &deep_file,
-            parents.clone()
-        ).unwrap();
+            parents.clone(),
+        )
+        .unwrap();
 
         assert_eq!(private_content.secret, "test content");
     }
