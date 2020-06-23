@@ -1,5 +1,5 @@
 use crate::error_enum;
-use crate::model::client_file_metadata::ClientFileMetadata;
+use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use sled::Db;
 use std::collections::HashMap;
@@ -37,6 +37,7 @@ pub trait FileMetadataRepo {
         id: Uuid,
     ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
+    fn get_all_paths(db: &Db) -> Result<Vec<String>, FindingParentsFailed>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError>;
@@ -144,6 +145,23 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(value)
     }
 
+    fn get_all_paths(db: &Db) -> Result<Vec<String>, FindingParentsFailed> {
+        let mut cache = HashMap::new();
+        let mut path_cache = HashMap::new();
+
+        // Populate metadata cache
+        Self::get_all(&db)
+            .map_err(FindingParentsFailed::DbError)?
+            .into_iter()
+            .for_each(|meta| { cache.insert(meta.id, meta); });
+
+        for (_, meta) in &cache {
+            saturate_path_cache(&meta, &cache, &mut path_cache)?;
+        }
+
+        Ok(path_cache.values().cloned().collect())
+    }
+
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
         let tree = db.open_tree(b"file_metadata")?;
         let all_files = tree
@@ -169,7 +187,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
-    // TODO Should seriously consider keeping a list of children in ClientFileMetadata -- this operation would be so fast
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
@@ -190,6 +207,27 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         match maybe_value {
             None => Ok(0),
             Some(value) => Ok(serde_json::from_slice(value.as_ref())?),
+        }
+    }
+}
+
+fn saturate_path_cache(client: &ClientFileMetadata, ids: &HashMap<Uuid, ClientFileMetadata>, paths: &mut HashMap<Uuid, String>) -> Result<String, FindingParentsFailed> {
+    match paths.get(&client.id) {
+        Some(path) => Ok(path.to_string()),
+        None => {
+            if client.id == client.parent_id {
+                let path = format!("{}/", client.name.clone());
+                paths.insert(client.id, path.clone());
+                return Ok(path);
+            }
+            let parent = ids.get(&client.parent_id).ok_or(AncestorMissing)?.clone();
+            let parent_path = saturate_path_cache(&parent, ids, paths)?;
+            let path = match client.file_type {
+                FileType::Document => format!("{}{}", parent_path, client.name),
+                FileType::Folder => format!("{}{}/", parent_path, client.name),
+            };
+            paths.insert(client.id, path.clone());
+            Ok(path)
         }
     }
 }
@@ -479,4 +517,5 @@ TODO validations we may want to add here:
 2. Don't insert a file as a child to a document
 3. Don't insert a file with a name shared by another file with the same parent (files vs folders?)
 4. Don't delete a folder with children, or delete all children when you delete a folder
+5. File names should not contain `/` otherwise it'll mess up path parsing
  */
