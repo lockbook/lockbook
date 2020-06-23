@@ -171,12 +171,10 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     // TODO Should seriously consider keeping a list of children in ClientFileMetadata -- this operation would be so fast
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError> {
-        Ok(
-            Self::get_all(&db)?
+        Ok(Self::get_all(&db)?
             .into_iter()
             .filter(|file| file.parent_id == id && file.parent_id != file.id)
-            .collect::<Vec<ClientFileMetadata>>()
-        )
+            .collect::<Vec<ClientFileMetadata>>())
     }
 
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {

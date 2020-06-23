@@ -11,8 +11,8 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::Error as MetadataError;
 use crate::service;
 
-use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::document_repo::DocumentRepo;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
 
 use crate::model::account::Account;
 use crate::model::api::{
