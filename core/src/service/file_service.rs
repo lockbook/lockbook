@@ -7,8 +7,8 @@ use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
-use crate::repo::file_repo;
-use crate::repo::file_repo::FileRepo;
+use crate::repo::document_repo;
+use crate::repo::document_repo::DocumentRepo;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
@@ -34,7 +34,7 @@ pub enum DocumentUpdateError {
     CouldNotFindParents(FindingParentsFailed),
     ThisIsAFolderYouDummy,
     FileCryptoError(file_encryption_service::FileWriteError),
-    DocumentWriteError(file_repo::Error),
+    DocumentWriteError(document_repo::Error),
     DbError(file_metadata_repo::DbError),
 }
 
@@ -44,7 +44,7 @@ pub enum ReadDocumentError {
     CouldNotFindFile,
     DbError(file_metadata_repo::DbError),
     ThisIsAFolderYouDummy,
-    DocumentReadError(file_repo::Error),
+    DocumentReadError(document_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::UnableToReadFile),
 }
@@ -68,7 +68,7 @@ pub trait FileService {
 
 pub struct FileServiceImpl<
     FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
+    FileDb: DocumentRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
@@ -80,7 +80,7 @@ pub struct FileServiceImpl<
 
 impl<
         FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
+        FileDb: DocumentRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
     > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>

@@ -12,7 +12,7 @@ use crate::repo::file_metadata_repo::Error as MetadataError;
 use crate::service;
 
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::repo::file_repo::FileRepo;
+use crate::repo::document_repo::DocumentRepo;
 
 use crate::model::account::Account;
 use crate::model::api::{
@@ -44,7 +44,7 @@ error_enum! {
         RetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::DbError),
         FileMetadataError(repo::file_metadata_repo::Error),
-        FileContentError(repo::file_repo::Error),
+        FileContentError(repo::document_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
         CreateFileError(client::Error<CreateDocumentError>),
         GetFileError(client::Error<()>),
@@ -79,7 +79,7 @@ pub struct WorkCalculated {
 
 pub struct FileSyncService<
     FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
+    FileDb: DocumentRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
@@ -93,7 +93,7 @@ pub struct FileSyncService<
 
 impl<
         FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
+        FileDb: DocumentRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
         Auth: AuthService,
