@@ -142,7 +142,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<ClientFileMetadata>>())
     }
 
-    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> { // TODO should this be recursive?
+    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
+        // TODO should this be recursive?
         let tree = db.open_tree(FILE_METADATA)?;
         tree.remove(id.as_bytes())?;
         Ok(1)
@@ -231,7 +232,7 @@ mod unit_tests {
         let parent = Uuid::new_v4();
         let test_meta = ClientFileMetadata {
             file_type: FileType::Document,
-            id: id,
+            id,
             name: "".to_string(),
             parent_id: parent,
             content_version: 0,
@@ -251,7 +252,7 @@ mod unit_tests {
         };
         let test_meta_updated = ClientFileMetadata {
             file_type: FileType::Document,
-            id: id,
+            id,
             name: "".to_string(),
             parent_id: parent,
             content_version: 1000,
