@@ -91,10 +91,12 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed> {
         let mut parents = HashMap::new();
         let mut current_id = id;
+        debug!("Finding parents for: {}", current_id);
 
         loop {
             match Self::maybe_get(&db, current_id).map_err(FindingParentsFailed::DbError)? {
                 Some(found) => {
+                    debug!("Current id exists: {:?}", &found);
                     parents.insert(current_id, found.clone());
                     if found.id == found.parent_id {
                         return Ok(parents);
@@ -123,7 +125,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
-        // TODO test
         let tree = db.open_tree(b"file_metadata")?;
         let all_files = tree
             .iter()
@@ -135,11 +136,13 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<ClientFileMetadata>>();
         Ok(all_files
             .into_iter()
-            .filter(|file| file.new || file.document_edited || file.metadata_changed)
+            .filter(|file| {
+                file.new || file.document_edited || file.metadata_changed || file.deleted
+            })
             .collect::<Vec<ClientFileMetadata>>())
     }
 
-    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
+    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> { // TODO should this be recursive?
         let tree = db.open_tree(FILE_METADATA)?;
         tree.remove(id.as_bytes())?;
         Ok(1)
@@ -178,7 +181,7 @@ mod unit_tests {
         let test_file_metadata = ClientFileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
-            name: "".to_string(),
+            name: "test".to_string(),
             parent_id: Default::default(),
             content_version: 0,
             metadata_version: 0,
@@ -206,6 +209,20 @@ mod unit_tests {
         let db_file_metadata = FileMetadataRepoImpl::get(&db, test_file_metadata.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
         assert_eq!(test_file_metadata.parent_id, db_file_metadata.parent_id);
+
+        FileMetadataRepoImpl::maybe_get(&db, test_file_metadata.id)
+            .unwrap()
+            .unwrap();
+        assert!(FileMetadataRepoImpl::maybe_get(&db, Uuid::new_v4())
+            .unwrap()
+            .is_none());
+
+        FileMetadataRepoImpl::find_by_name(&db, "test")
+            .unwrap()
+            .unwrap();
+        assert!(FileMetadataRepoImpl::find_by_name(&db, "test2")
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -222,7 +239,10 @@ mod unit_tests {
             user_access_keys: Default::default(),
             folder_access_keys: FolderAccessInfo {
                 folder_id: Uuid::new_v4(),
-                access_key: EncryptedValueWithNonce { garbage: "".to_string(), nonce: "".to_string() }
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
             },
             new: false,
             document_edited: false,
@@ -239,7 +259,10 @@ mod unit_tests {
             user_access_keys: Default::default(),
             folder_access_keys: FolderAccessInfo {
                 folder_id: Uuid::new_v4(),
-                access_key: EncryptedValueWithNonce { garbage: "".to_string(), nonce: "".to_string() }
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
             },
             new: false,
             document_edited: false,
@@ -267,4 +290,161 @@ mod unit_tests {
                 .content_version
         );
     }
+
+    #[test]
+    fn test_searches() {
+        let config = Config {
+            writeable_path: "ignored".to_string(),
+        };
+        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        let root = &ClientFileMetadata {
+            file_type: FileType::Folder,
+            id: root_id,
+            name: "root_folder".to_string(),
+            parent_id: root_id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: root_id,
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
+        };
+
+        let test_file = &ClientFileMetadata {
+            file_type: FileType::Document,
+            id: Uuid::new_v4(),
+            name: "test.txt".to_string(),
+            parent_id: root.id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: true,
+        };
+
+        let test_folder = &ClientFileMetadata {
+            file_type: FileType::Folder,
+            id: Uuid::new_v4(),
+            name: "tests".to_string(),
+            parent_id: root.id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: true,
+            deleted: false,
+        };
+
+        let test_file2 = &ClientFileMetadata {
+            file_type: FileType::Document,
+            id: Uuid::new_v4(),
+            name: "test.txt".to_string(),
+            parent_id: test_folder.id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
+        };
+        let test_file3 = &ClientFileMetadata {
+            file_type: FileType::Document,
+            id: Uuid::new_v4(),
+            name: "test.txt".to_string(),
+            parent_id: test_folder.id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: false,
+            metadata_changed: false,
+            deleted: false,
+        };
+        let test_file4 = &ClientFileMetadata {
+            file_type: FileType::Document,
+            id: Uuid::new_v4(),
+            name: "test.txt".to_string(),
+            parent_id: test_folder.id,
+            content_version: 0,
+            metadata_version: 0,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: Default::default(),
+                access_key: EncryptedValueWithNonce {
+                    garbage: "".to_string(),
+                    nonce: "".to_string(),
+                },
+            },
+            new: false,
+            document_edited: true,
+            metadata_changed: false,
+            deleted: false,
+        };
+
+        FileMetadataRepoImpl::insert(&db, &root).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_folder).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file2).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file3).unwrap();
+        FileMetadataRepoImpl::insert(&db, &test_file4).unwrap();
+
+        assert_eq!(FileMetadataRepoImpl::get_all_dirty(&db).unwrap().len(), 3);
+
+        let parents = FileMetadataRepoImpl::get_with_all_parents(&db, test_file4.id).unwrap();
+
+        assert_eq!(parents.len(), 3);
+        assert!(parents.contains_key(&root.id));
+        assert!(parents.contains_key(&test_folder.id));
+        assert!(parents.contains_key(&test_file4.id));
+    }
 }
+/*
+TODO validations we may want to add here:
+1. Don't insert a file with a non existent parent -- causes problems for sync so maybe not
+2. Don't insert a file as a child to a document
+3. Don't insert a file with a name shared by another file with the same parent (files vs folders?)
+4. Don't delete a folder with children, or delete all children when you delete a folder
+ */

@@ -18,11 +18,7 @@ pub enum Error<ApiError> {
     Api(ApiError),
 }
 
-pub fn api_request<
-    Request: Serialize,
-    Response: DeserializeOwned,
-    ApiError: DeserializeOwned,
->(
+pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: DeserializeOwned>(
     endpoint: &str,
     request: &Request,
 ) -> Result<Response, Error<ApiError>> {
