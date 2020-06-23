@@ -79,11 +79,11 @@ pub struct FileServiceImpl<
 }
 
 impl<
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: DocumentRepo,
-    AccountDb: AccountRepo,
-    FileCrypto: FileEncryptionService,
-> FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+        FileMetadataDb: FileMetadataRepo,
+        FileDb: DocumentRepo,
+        AccountDb: AccountRepo,
+        FileCrypto: FileEncryptionService,
+    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn create(
         db: &Db,
@@ -172,7 +172,10 @@ mod unit_tests {
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService};
+    use crate::{
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService,
+    };
 
     #[test]
     fn file_service_runthrough() {
@@ -208,7 +211,7 @@ mod unit_tests {
                 secret: "5 folders deep".to_string(),
             },
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(
             DefaultFileService::read_document(&db, file.id)
@@ -298,7 +301,6 @@ mod unit_tests {
 
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
-
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -317,16 +319,29 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::get_by_path(&db, "invalid")
             .unwrap()
             .is_none());
-        assert!(DefaultFileMetadataRepo::get_by_path(&db, "username/TestFolder1/TestFolder2/test3.text")
+        assert!(DefaultFileMetadataRepo::get_by_path(
+            &db,
+            "username/TestFolder1/TestFolder2/test3.text"
+        )
+        .unwrap()
+        .is_some());
+        assert_eq!(
+            DefaultFileMetadataRepo::get_by_path(
+                &db,
+                "username/TestFolder1/TestFolder2/test3.text"
+            )
             .unwrap()
-            .is_some());
-        assert_eq!(DefaultFileMetadataRepo::get_by_path(&db, "username/TestFolder1/TestFolder2/test3.text")
-            .unwrap()
-            .unwrap(), file);
+            .unwrap(),
+            file
+        );
 
         DefaultFileMetadataRepo::get_all_paths(&db)
             .unwrap()
             .into_iter()
-            .for_each(|path| assert!(DefaultFileMetadataRepo::get_by_path(&db, &path).unwrap().is_some()))
+            .for_each(|path| {
+                assert!(DefaultFileMetadataRepo::get_by_path(&db, &path)
+                    .unwrap()
+                    .is_some())
+            })
     }
 }
