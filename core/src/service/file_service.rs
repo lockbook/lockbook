@@ -11,11 +11,11 @@ use crate::repo::file_repo;
 use crate::repo::file_repo::FileRepo;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError};
-use crate::service::file_service::ReadDocumentError::DocumentReadError;
-use crate::service::file_service::UpdateFileError::{
+use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
+use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError};
+use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use serde::export::PhantomData;
 use uuid::Uuid;
 
@@ -28,8 +28,7 @@ pub enum NewFileError {
 }
 
 #[derive(Debug)]
-pub enum UpdateFileError {
-    // TODO rename to document
+pub enum DocumentUpdateError {
     AccountRetrievalError(account_repo::Error),
     CouldNotFindFile,
     CouldNotFindParents(FindingParentsFailed),
@@ -58,7 +57,11 @@ pub trait FileService {
         file_type: FileType,
     ) -> Result<ClientFileMetadata, NewFileError>;
 
-    fn write_document(db: &Db, id: Uuid, content: &DecryptedValue) -> Result<(), UpdateFileError>;
+    fn write_document(
+        db: &Db,
+        id: Uuid,
+        content: &DecryptedValue,
+    ) -> Result<(), DocumentUpdateError>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 }
@@ -102,9 +105,13 @@ impl<
         Ok(new_metadata)
     }
 
-    fn write_document(db: &Db, id: Uuid, content: &DecryptedValue) -> Result<(), UpdateFileError> {
+    fn write_document(
+        db: &Db,
+        id: Uuid,
+        content: &DecryptedValue,
+    ) -> Result<(), DocumentUpdateError> {
         let account =
-            AccountDb::get_account(&db).map_err(UpdateFileError::AccountRetrievalError)?;
+            AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
         let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DbError)?
@@ -115,10 +122,10 @@ impl<
         }
 
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
-            .map_err(UpdateFileError::CouldNotFindParents)?;
+            .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
         let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
-            .map_err(UpdateFileError::FileCryptoError)?;
+            .map_err(DocumentUpdateError::FileCryptoError)?;
 
         file_metadata.document_edited = true;
 
@@ -150,5 +157,58 @@ impl<
             .map_err(ReadDocumentError::FileCryptoError)?;
 
         Ok(contents)
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::model::account::Account;
+    use crate::model::client_file_metadata::FileType::{Document, Folder};
+    use crate::model::crypto::DecryptedValue;
+    use crate::model::state::Config;
+    use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::repo::file_metadata_repo::FileMetadataRepo;
+    use crate::service::crypto_service::PubKeyCryptoService;
+    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_service::FileService;
+    use crate::{DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService, DefaultAccountRepo};
+    use crate::repo::account_repo::AccountRepo;
+
+    #[test]
+    fn file_service_runthrough() {
+        let config = Config {
+            writeable_path: "ignored".to_string(),
+        };
+        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
+        let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
+        let folder3 = DefaultFileService::create(&db, "TestFolder3", folder2.id, Folder).unwrap();
+        let folder4 = DefaultFileService::create(&db, "TestFolder4", folder3.id, Folder).unwrap();
+        let folder5 = DefaultFileService::create(&db, "TestFolder5", folder4.id, Folder).unwrap();
+        let file = DefaultFileService::create(&db, "test.text", folder5.id, Document).unwrap();
+
+        DefaultFileService::write_document(
+            &db,
+            file.id,
+            &DecryptedValue {
+                secret: "5 folders deep".to_string(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(DefaultFileService::read_document(&db, file.id).unwrap().secret, "5 folders deep".to_string());
+        assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
     }
 }
