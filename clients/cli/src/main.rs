@@ -23,26 +23,17 @@ enum Lockbook {
     /// Search and edit a file
     Edit,
 
-    /// Browse your files interactively
-    Browse,
-
     /// Search and delete a file
     Remove,
 
     /// Rename a file
     Move,
 
-    /// Search for a file and see file metadata
-    Find,
-
     /// List all your files
     List,
 
     /// Bring a file from your computer into Lockbook
     Copy,
-
-    /// Share a file with a collaborator
-    Share,
 
     /// Create a new Lockbook account
     Init,
@@ -68,13 +59,10 @@ fn main() {
         Lockbook::New => new::new(),
         Lockbook::Sync => sync::sync(),
         Lockbook::Edit => edit::edit(),
-        Lockbook::Browse => unimplemented!(),
         Lockbook::Remove => unimplemented!(),
         Lockbook::Move => unimplemented!(),
-        Lockbook::Find => unimplemented!(),
         Lockbook::List => list::list(),
         Lockbook::Copy => unimplemented!(),
-        Lockbook::Share => unimplemented!(),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
