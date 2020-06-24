@@ -15,10 +15,9 @@ pub fn status() {
             WorkUnit::PushNewFile(client) => {
                 println!("{} has local changes that need to be pushed", client.name)
             }
-            WorkUnit::UpdateLocalMetadata(server) => println!(
-                "{} has been moved or renamed on the server",
-                server.name
-            ),
+            WorkUnit::UpdateLocalMetadata(server) => {
+                println!("{} has been moved or renamed on the server", server.name)
+            }
             WorkUnit::PullFileContent(server) => {
                 println!("{} has new content available", server.name)
             }

@@ -11,9 +11,9 @@ use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 
 use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
 
+use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
-use lockbook_core::model::crypto::DecryptedValue;
 
 pub fn new() {
     let db = connect_to_db();
