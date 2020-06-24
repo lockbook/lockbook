@@ -1,6 +1,6 @@
 use sled::Db;
 
-use crate::model::client_file_metadata::FileType::Folder;
+use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
@@ -15,6 +15,9 @@ use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
 use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError};
+use crate::service::file_service::NewFileFromPathError::{
+    FailedToCreateChild, InvalidRootFolder, NoRoot,
+};
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use serde::export::PhantomData;
 use uuid::Uuid;
@@ -25,6 +28,14 @@ pub enum NewFileError {
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::FileCreationError),
     FailedToSaveMetadata(file_metadata_repo::DbError),
+}
+
+#[derive(Debug)]
+pub enum NewFileFromPathError {
+    DbError(file_metadata_repo::DbError),
+    NoRoot,
+    InvalidRootFolder,
+    FailedToCreateChild(NewFileError),
 }
 
 #[derive(Debug)]
@@ -56,6 +67,11 @@ pub trait FileService {
         parent: Uuid,
         file_type: FileType,
     ) -> Result<ClientFileMetadata, NewFileError>;
+
+    fn create_at_path(
+        db: &Db,
+        path_and_name: &str,
+    ) -> Result<ClientFileMetadata, NewFileFromPathError>;
 
     fn write_document(
         db: &Db,
@@ -103,6 +119,67 @@ impl<
         FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
 
         Ok(new_metadata)
+    }
+
+    fn create_at_path(
+        db: &Db,
+        path_and_name: &str,
+    ) -> Result<ClientFileMetadata, NewFileFromPathError> {
+        debug!("Creating path at: {}", path_and_name);
+        let path_components: Vec<&str> = path_and_name
+            .split("/")
+            .collect::<Vec<&str>>()
+            .into_iter()
+            .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
+            .collect::<Vec<&str>>();
+
+        let is_folder = path_and_name.ends_with('/');
+        debug!("is folder: {}", is_folder);
+
+        let mut current = FileMetadataDb::get_root(&db)
+            .map_err(NewFileFromPathError::DbError)?
+            .ok_or(NoRoot)?;
+
+        if current.name != path_components[0] {
+            return Err(InvalidRootFolder);
+        }
+
+        // We're going to look ahead, and find or create the right child
+        'path: for index in 0..path_components.len() - 1 {
+            let children = FileMetadataDb::get_children(&db, current.id)
+                .map_err(NewFileFromPathError::DbError)?;
+            debug!(
+                "children: {:?}",
+                children
+                    .clone()
+                    .into_iter()
+                    .map(|f| f.name)
+                    .collect::<Vec<String>>()
+            );
+
+            let next_name = path_components[index + 1];
+            debug!("child we're searching for: {}", next_name);
+
+            for child in children {
+                if child.name == next_name {
+                    current = child;
+                    continue 'path; // Child exists, onto the next one
+                }
+            }
+            debug!("child not found!");
+
+            // Child does not exist, create it
+            let file_type = if is_folder || index != path_components.len() - 2 {
+                Folder
+            } else {
+                Document
+            };
+
+            current =
+                Self::create(&db, next_name, current.id, file_type).map_err(FailedToCreateChild)?;
+        }
+
+        Ok(current)
     }
 
     fn write_document(
@@ -173,8 +250,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::{
-        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
-        DefaultFileService,
+        init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
+        DefaultFileMetadataRepo, DefaultFileService,
     };
 
     #[test]
@@ -321,14 +398,14 @@ mod unit_tests {
             .is_none());
         assert!(DefaultFileMetadataRepo::get_by_path(
             &db,
-            "username/TestFolder1/TestFolder2/test3.text"
+            "username/TestFolder1/TestFolder2/test3.text",
         )
         .unwrap()
         .is_some());
         assert_eq!(
             DefaultFileMetadataRepo::get_by_path(
                 &db,
-                "username/TestFolder1/TestFolder2/test3.text"
+                "username/TestFolder1/TestFolder2/test3.text",
             )
             .unwrap()
             .unwrap(),
@@ -343,5 +420,83 @@ mod unit_tests {
                     .unwrap()
                     .is_some())
             })
+    }
+
+    #[test]
+    fn test_arbitary_path_file_creation() {
+        init_logger_safely();
+        let config = Config {
+            writeable_path: "ignored".to_string(),
+        };
+        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
+        assert_eq!(
+            DefaultFileService::create_at_path(&db, "username")
+                .unwrap()
+                .name,
+            "username"
+        );
+        assert_eq!(
+            DefaultFileService::create_at_path(&db, "username/")
+                .unwrap()
+                .name,
+            "username"
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            DefaultFileService::create_at_path(&db, "username/test.txt")
+                .unwrap()
+                .name,
+            "test.txt"
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db).unwrap().len(),
+            2
+        );
+        assert_eq!(
+            DefaultFileService::create_at_path(&db, "username/folder1/folder2/folder3/test2.txt")
+                .unwrap()
+                .name,
+            "test2.txt"
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db).unwrap().len(),
+            6
+        );
+        println!("{:?}", DefaultFileMetadataRepo::get_all_paths(&db).unwrap());
+        let file =
+            DefaultFileService::create_at_path(&db, "username/folder1/folder2/test3.txt").unwrap();
+        println!("{:?}", DefaultFileMetadataRepo::get_all_paths(&db).unwrap());
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db).unwrap().len(),
+            7
+        );
+        assert_eq!(file.name, "test3.txt");
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db, file.parent_id)
+                .unwrap()
+                .name,
+            "folder2"
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db, file.parent_id)
+                .unwrap()
+                .file_type,
+            Folder
+        );
     }
 }
