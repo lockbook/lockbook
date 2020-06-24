@@ -103,9 +103,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             Some(root) => root,
         };
 
-        let mut current = root.clone();
+        let mut current = root;
         let paths: Vec<&str> = path
-            .split("/")
+            .split('/')
             .collect::<Vec<&str>>()
             .into_iter()
             .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
@@ -190,7 +190,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 cache.insert(meta.id, meta);
             });
 
-        for (_, meta) in &cache {
+        for meta in cache.values() {
             saturate_path_cache(&meta, &cache, &mut path_cache)?;
         }
 
