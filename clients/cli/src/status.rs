@@ -12,36 +12,30 @@ pub fn status() {
         .work_units
         .into_iter()
         .for_each(|work| match work {
-            WorkUnit::PushNewFile(client) => println!(
-                "{} has local changes that need to be pushed",
-                client.name
-            ),
+            WorkUnit::PushNewFile(client) => {
+                println!("{} has local changes that need to be pushed", client.name)
+            }
             WorkUnit::UpdateLocalMetadata(server) => println!(
                 "{} has been moved or renamed on the server",
-                server.file_name
+                server.name
             ),
             WorkUnit::PullFileContent(server) => {
-                println!("{} has new content available", server.file_name)
+                println!("{} has new content available", server.name)
             }
             WorkUnit::DeleteLocally(client) => {
                 println!("{} needs to be deleted locally", client.name)
             }
-            WorkUnit::PushMetadata(client) => {
-                println!("{} has been moved locally", client.name)
+            WorkUnit::PushMetadata(client) => println!("{} has been moved locally", client.name),
+            WorkUnit::PushFileContent(client) => {
+                println!("{} has local changes that need to be pushed", client.name)
             }
-            WorkUnit::PushFileContent(client) => println!(
-                "{} has local changes that need to be pushed",
-                client.name
-            ),
-            WorkUnit::PushDelete(client) => {
-                println!("{} has been deleted locally", client.name)
-            }
+            WorkUnit::PushDelete(client) => println!("{} has been deleted locally", client.name),
             WorkUnit::PullMergePush(server) => {
-                println!("{} has changes locally and on the server", server.file_name)
+                println!("{} has changes locally and on the server", server.name)
             }
             WorkUnit::MergeMetadataAndPushMetadata(server) => println!(
                 "{} has been moved or renamed locally and on the server",
-                server.file_name
+                server.name
             ),
         });
 
