@@ -12,7 +12,7 @@ use lockbook_core::DefaultAccountService;
 pub fn init() {
     let db = connect_to_db();
 
-    print!("Enter a String: ");
+    print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
     let mut username = String::new();
