@@ -5,7 +5,7 @@ use std::io;
 use lockbook_core::service::account_service::{AccountCreationError, AccountService};
 
 use crate::utils::connect_to_db;
-use lockbook_core::client::new_account::Error;
+use lockbook_core::client::Error;
 use lockbook_core::model::api::NewAccountError;
 use lockbook_core::DefaultAccountService;
 
@@ -34,26 +34,14 @@ pub fn init() {
 
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::SendFailed(_) => eprintln!("Network error: {:?}", api_err),
-                Error::API(api) => match api {
-                    NewAccountError::UsernameTaken => eprintln!("String Taken!"),
-                    _ => eprintln!(
-                        "Unexpected error occurred while creating new account: {:?}",
-                        api
-                    ),
+                Error::Api(api_err_err) => match api_err_err {
+                    NewAccountError::UsernameTaken => eprintln!("Username Taken!"),
+                    _ => eprintln!("Unexpected error occurred: {:?}", api_err_err),
                 },
-                _ => eprintln!(
-                    "Unexpected error occurred while creating new account: {:?}",
-                    api_err
-                ),
+                _ => eprintln!("Unexpected error occurred: {:?}", api_err),
             },
 
-            AccountCreationError::AuthGenFailure(err) => {
-                eprintln!("Could not use private key to sign message: {:?}.", err)
-            }
-
-            AccountCreationError::KeySerializationError(err) => {
-                eprintln!("Could not serialize key: {}", err)
-            }
+            _ => eprintln!("Unexpected error occurred: {:?}", err),
         },
     }
 }
