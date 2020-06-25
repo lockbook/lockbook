@@ -11,33 +11,32 @@ error_enum! {
     }
 }
 
-// TODO rename to DocumentRepo
-pub trait FileRepo {
-    fn insert(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error>;
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedFile, Error>;
+pub trait DocumentRepo {
+    fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error>;
+    fn get(db: &Db, id: Uuid) -> Result<Document, Error>;
     fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
 }
 
-pub struct FileRepoImpl;
+pub struct DocumentRepoImpl;
 
-impl FileRepo for FileRepoImpl {
-    fn insert(db: &Db, id: Uuid, file: &EncryptedFile) -> Result<(), Error> {
-        let tree = db.open_tree(b"files")?;
-        tree.insert(id.as_bytes(), serde_json::to_vec(file)?)?;
+impl DocumentRepo for DocumentRepoImpl {
+    fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error> {
+        let tree = db.open_tree(b"documents")?;
+        tree.insert(id.as_bytes(), serde_json::to_vec(document)?)?;
         Ok(())
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedFile, Error> {
-        let tree = db.open_tree(b"files")?;
+    fn get(db: &Db, id: Uuid) -> Result<Document, Error> {
+        let tree = db.open_tree(b"documents")?;
         let maybe_value = tree.get(id.as_bytes())?;
         let value = maybe_value.ok_or(())?;
-        let file: EncryptedFile = serde_json::from_slice(value.as_ref())?;
+        let document: Document = serde_json::from_slice(value.as_ref())?;
 
-        Ok(file)
+        Ok(document)
     }
 
     fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
-        let tree = db.open_tree(b"files")?;
+        let tree = db.open_tree(b"documents")?;
         tree.remove(id.as_bytes())?;
         Ok(())
     }
@@ -48,14 +47,14 @@ mod unit_tests {
     use crate::model::crypto::*;
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_repo::{FileRepo, FileRepoImpl};
+    use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
     use uuid::Uuid;
 
     type DefaultDbProvider = TempBackedDB;
 
     #[test]
-    fn update_file() {
-        let test_file = EncryptedFile {
+    fn update_document() {
+        let test_document = Document {
             content: EncryptedValueWithNonce {
                 garbage: "something".to_string(),
                 nonce: "nonce1".to_string(),
@@ -66,23 +65,23 @@ mod unit_tests {
             writeable_path: "ignored".to_string(),
         };
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
-        let file_id = Uuid::new_v4();
+        let document_id = Uuid::new_v4();
 
-        FileRepoImpl::insert(&db, file_id, &test_file).unwrap();
+        DocumentRepoImpl::insert(&db, document_id, &test_document).unwrap();
 
-        let file = FileRepoImpl::get(&db, file_id).unwrap();
+        let document = DocumentRepoImpl::get(&db, document_id).unwrap();
         assert_eq!(
-            file.content,
+            document.content,
             EncryptedValueWithNonce {
                 garbage: "something".to_string(),
                 nonce: "nonce1".to_string()
             }
         );
 
-        FileRepoImpl::insert(
+        DocumentRepoImpl::insert(
             &db,
-            file_id,
-            &EncryptedFile {
+            document_id,
+            &Document {
                 content: EncryptedValueWithNonce {
                     garbage: "updated".to_string(),
                     nonce: "nonce2".to_string(),
@@ -91,7 +90,7 @@ mod unit_tests {
         )
         .unwrap();
 
-        let file_updated = FileRepoImpl::get(&db, file_id).unwrap();
+        let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
 
         assert_eq!(
             file_updated.content,

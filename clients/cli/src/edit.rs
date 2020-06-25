@@ -1,4 +1,5 @@
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
+use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
@@ -18,19 +19,18 @@ pub fn edit() {
     let mut file_handle = File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
 
-    print!("Enter a filename: ");
+    print!("Enter a filepath: "); // TODO say this sort of thing only if TTY
     io::stdout().flush().unwrap();
     let mut file_name = String::new();
     io::stdin()
         .read_line(&mut file_name)
         .expect("Failed to read from stdin");
-    file_name.retain(|c| !c.is_whitespace());
 
-    let mut file_metadata = DefaultFileMetadataRepo::find_by_name(&db, &file_name)
+    let mut file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
         .expect("Could not search files ")
         .expect("Could not find that file!");
 
-    let file_content = match DefaultFileService::read_document(&db, &file_metadata.id) {
+    let file_content = match DefaultFileService::read_document(&db, file_metadata.id) {
         Ok(content) => content,
         Err(error) => panic!("Unexpected error: {:?}", error),
     };
@@ -55,10 +55,10 @@ pub fn edit() {
     let edit_was_successful = edit_file_with_editor(&file_location);
 
     if edit_was_successful {
-        let file_content =
+        let secret =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::write_document(&db, &file_metadata.id, &file_content)
+        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
             .expect("Unexpected error while updating internal state");
 
         file_metadata.document_edited = true;

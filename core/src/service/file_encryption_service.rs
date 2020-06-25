@@ -67,16 +67,18 @@ pub trait FileEncryptionService {
         account: &Account,
     ) -> Result<ClientFileMetadata, RootFolderCreationError>;
 
-    fn write_to_document( // TODO add checks for folders?
+    fn write_to_document(
+        // TODO add checks for folders?
         account: &Account,
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
-    ) -> Result<EncryptedFile, FileWriteError>;
+    ) -> Result<Document, FileWriteError>;
 
-    fn read_document( // TODO add checks for folders?
+    fn read_document(
+        // TODO add checks for folders?
         account: &Account,
-        file: &EncryptedFile,
+        file: &Document,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile>;
@@ -195,22 +197,103 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         content: &DecryptedValue,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
-    ) -> Result<EncryptedFile, FileWriteError> {
+    ) -> Result<Document, FileWriteError> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
 
-        Ok(EncryptedFile {
+        Ok(Document {
             content: AES::encrypt(&key, &content)?,
         })
     }
 
     fn read_document(
         account: &Account,
-        file: &EncryptedFile,
+        file: &Document,
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)?;
 
         Ok(AES::decrypt(&key, &file.content)?)
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::model::account::Account;
+    use crate::model::client_file_metadata::FileType::{Document, Folder};
+    use crate::model::crypto::DecryptedValue;
+    use crate::service::crypto_service::PubKeyCryptoService;
+    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::{DefaultCrypto, DefaultFileEncryptionService};
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_root_folder() {
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        assert_eq!(root.id, root.parent_id);
+        assert_eq!(root.file_type, Folder);
+        assert!(root.user_access_keys.contains_key("username"));
+        assert_eq!(root.folder_access_keys.folder_id, root.id);
+
+        let mut parents = HashMap::new();
+
+        parents.insert(root.id, root.clone());
+
+        let sub_child = DefaultFileEncryptionService::create_file_metadata(
+            "test_folder1",
+            Folder,
+            root.id,
+            &account,
+            parents.clone(),
+        )
+        .unwrap();
+        parents.insert(sub_child.id, sub_child.clone());
+
+        let sub_sub_child = DefaultFileEncryptionService::create_file_metadata(
+            "test_folder2",
+            Folder,
+            sub_child.id,
+            &account,
+            parents.clone(),
+        )
+        .unwrap();
+        parents.insert(sub_sub_child.id, sub_sub_child.clone());
+
+        let deep_file = DefaultFileEncryptionService::create_file_metadata(
+            "file",
+            Document,
+            sub_sub_child.id,
+            &account,
+            parents.clone(),
+        )
+        .unwrap();
+        parents.insert(deep_file.id, deep_file.clone());
+
+        let public_content = DefaultFileEncryptionService::write_to_document(
+            &account,
+            &DecryptedValue {
+                secret: "test content".to_string(),
+            },
+            &deep_file,
+            parents.clone(),
+        )
+        .unwrap();
+
+        let private_content = DefaultFileEncryptionService::read_document(
+            &account,
+            &public_content,
+            &deep_file,
+            parents.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(private_content.secret, "test content");
     }
 }
