@@ -8,10 +8,10 @@ pub fn list() {
 
     get_account(&db);
 
-    DefaultFileMetadataRepo::get_all(&db)
+    DefaultFileMetadataRepo::get_all_paths(&db)
         .expect("Failed to retrieve content from FileMetadataRepo")
         .into_iter()
-        .for_each(|metadata| println!("{}", metadata.name.trim()));
+        .for_each(|path| println!("{}", path));
 
     print_last_successful_sync(&db);
 }
