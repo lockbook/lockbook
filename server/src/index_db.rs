@@ -1,5 +1,7 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::api::FileMetadata;
+use lockbook_core::model::client_file_metadata::FileType;
+use lockbook_core::model::crypto::EncryptedValueWithNonce;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
@@ -11,6 +13,11 @@ use tokio_postgres::Config as PostgresConfig;
 use tokio_postgres::NoTls;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
+
+// todo:
+// * update parent metadata
+// * check ownership
+// * better serialization
 
 #[derive(Debug)]
 pub enum ConnectError {
@@ -48,10 +55,11 @@ pub enum FileError {
     Deserialize(serde_json::Error),
     DoesNotExist,
     IdTaken,
-    IncorrectOldVersion(u64),
+    IncorrectOldVersion,
     PathTaken,
     Postgres(PostgresError),
     Serialize(serde_json::Error),
+    WrongFileType,
     Unknown(String),
 }
 
@@ -136,105 +144,154 @@ pub async fn change_document_content_version(
 ) -> Result<(u64, u64), FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
-                metadata_version = 
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2
+                metadata_version =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END),
-                content_version = 
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2
+                content_version =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.content_version END)
             FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
+            RETURNING
+                old.deleted AS old_deleted,
+                old.metadata_version AS old_metadata_version,
+                old.content_version AS old_content_version,
+                new.metadata_version AS new_metadata_version,
+                old.is_folder AS is_folder;",
+            &[
+                &serde_json::to_string(&id).map_err(FileError::Serialize)?,
+                &(old_metadata_version as i64),
+            ],
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata = rows_to_metadata(&rows, old_metadata_version)?;
-    Ok((metadata.old_content_version, metadata.new.metadata_version))
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
+        .validate(old_metadata_version, FileType::Document)?;
+    Ok((metadata.old_content_version, metadata.new_metadata_version))
 }
 
-pub async fn create_document(
+pub async fn create_file(
     transaction: &Transaction<'_>,
     id: Uuid,
     parent: Uuid,
+    file_type: FileType,
     name: &str,
     owner: &str,
     signature: &str,
+    access_key: &EncryptedValueWithNonce,
 ) -> Result<u64, FileError> {
-    let row = transaction.query_one(
-        "INSERT INTO documents (id, parent, name, owner, signature, metadata_version, content_version, deleted)
-        VALUES ($1, $2, $3, $4, $5, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
-        RETURNING *;",
-        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
+    let row = transaction
+        .query_one(
+            "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
+            RETURNING metadata_version;",
+            &[
+                &serde_json::to_string(&id).map_err(FileError::Serialize)?,
+                &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
+                &serde_json::to_string(&access_key)
+                    .map_err(FileError::Serialize)?,
+                &(file_type == FileType::Folder),
+                &name,
+                &owner,
+                &serde_json::to_string(&signature).map_err(FileError::Serialize)?,
+            ],
+        )
+        .await
+        .map_err(FileError::Postgres)?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
 }
 
-pub async fn delete_document(
+pub async fn delete_file(
     transaction: &Transaction<'_>,
     id: Uuid,
     old_metadata_version: u64,
+    file_type: FileType,
 ) -> Result<(u64, u64), FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
-                deleted = true,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
+                deleted =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    THEN TRUE
+                    ELSE old.deleted END),
+                metadata_version =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
+                    ELSE old.metadata_version END)
             FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
+            RETURNING
+                old.deleted AS old_deleted,
+                old.metadata_version AS old_metadata_version,
+                old.content_version AS old_content_version,
+                new.metadata_version AS new_metadata_version,
+                old.is_folder AS is_folder;",
+            &[
+                &serde_json::to_string(&id).map_err(FileError::Serialize)?,
+                &(old_metadata_version as i64),
+                &(file_type == FileType::Folder),
+            ],
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata = rows_to_metadata(&rows, old_metadata_version)?;
-    Ok((metadata.old_content_version, metadata.new.metadata_version))
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
+        .validate(old_metadata_version, file_type)?;
+    Ok((metadata.old_content_version, metadata.new_metadata_version))
 }
 
-pub async fn move_document(
+pub async fn move_file(
     transaction: &Transaction<'_>,
     id: Uuid,
     old_metadata_version: u64,
+    file_type: FileType,
     parent: Uuid,
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
-                parent = $3,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
+                parent =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    THEN $4
+                    ELSE old.parent END),
+                metadata_version =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
+                    ELSE old.metadata_version END)
             FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64), &serde_json::to_string(&parent).map_err(FileError::Serialize)?],
+            RETURNING
+                old.deleted AS old_deleted,
+                old.metadata_version AS old_metadata_version,
+                old.content_version AS old_content_version,
+                new.metadata_version AS new_metadata_version,
+                old.is_folder AS is_folder;",
+            &[
+                &serde_json::to_string(&id).map_err(FileError::Serialize)?,
+                &(old_metadata_version as i64),
+                &(file_type == FileType::Folder),
+                &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
+            ],
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?
-        .new
-        .metadata_version)
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
+        .validate(old_metadata_version, file_type)?;
+    Ok(metadata.new_metadata_version)
 }
 
-pub async fn rename_document(
+pub async fn rename_file(
     transaction: &Transaction<'_>,
     id: Uuid,
     old_metadata_version: u64,
+    file_type: FileType,
     name: &str,
 ) -> Result<u64, FileError> {
     let rows = transaction
@@ -242,22 +299,33 @@ pub async fn rename_document(
             "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
             UPDATE documents new
             SET
-                name = $3,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
+                name =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    THEN $4
+                    ELSE old.metadata_version END),
+                metadata_version =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
+                    ELSE old.metadata_version END)
             FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64), &name],
+            RETURNING
+                old.deleted AS old_deleted,
+                old.metadata_version AS old_metadata_version,
+                old.content_version AS old_content_version,
+                new.metadata_version AS new_metadata_version,
+                old.is_folder AS is_folder;",
+            &[
+                &serde_json::to_string(&id).map_err(FileError::Serialize)?,
+                &(old_metadata_version as i64),
+                &(file_type == FileType::Folder),
+                &name,
+            ],
         )
         .await
         .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?
-        .new
-        .metadata_version)
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
+        .validate(old_metadata_version, file_type)?;
+    Ok(metadata.new_metadata_version)
 }
 
 pub async fn create_folder(
@@ -276,92 +344,6 @@ pub async fn create_folder(
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
-}
-
-pub async fn delete_folder(
-    transaction: &Transaction<'_>,
-    id: Uuid,
-    old_metadata_version: u64,
-) -> Result<u64, FileError> {
-    let rows = transaction
-        .query(
-            "WITH old AS (SELECT * FROM folders WHERE id = $1 FOR UPDATE)
-            UPDATE folders new
-            SET
-                deleted = true,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
-                    THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
-            FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64)],
-        )
-        .await
-        .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?
-        .new
-        .metadata_version)
-}
-
-pub async fn move_folder(
-    transaction: &Transaction<'_>,
-    id: Uuid,
-    old_metadata_version: u64,
-    parent: Uuid,
-) -> Result<u64, FileError> {
-    let rows = transaction
-        .query(
-            "WITH old AS (SELECT * FROM folders WHERE id = $1 FOR UPDATE)
-            UPDATE folders new
-            SET
-                parent = $3,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
-                    THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
-            FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64), &serde_json::to_string(&parent).map_err(FileError::Serialize)?],
-        )
-        .await
-        .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?
-        .new
-        .metadata_version)
-}
-
-pub async fn rename_folder(
-    transaction: &Transaction<'_>,
-    id: Uuid,
-    old_metadata_version: u64,
-    name: &str,
-) -> Result<u64, FileError> {
-    let rows = transaction
-        .query(
-            "WITH old AS (SELECT * FROM folders WHERE id = $1 FOR UPDATE)
-            UPDATE folders new
-            SET
-                name = $3,
-                metadata_version = 
-                    (CASE
-                    WHEN NOT old.deleted AND old.metadata_version = $2
-                    THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version
-                    END)
-            FROM old WHERE old.id = new.id
-            RETURNING old.deleted AS old_deleted, old.metadata_version AS old_metadata_version, new.*;",
-            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(old_metadata_version as i64), &name],
-        )
-        .await
-        .map_err(FileError::Postgres)?;
-    Ok(rows_to_metadata(&rows, old_metadata_version)?
-        .new
-        .metadata_version)
 }
 
 pub async fn get_public_key(
@@ -388,74 +370,91 @@ pub async fn get_public_key(
     }
 }
 
-struct FileUpdateMetadata {
-    old_deleted: bool,
-    old_metadata_version: u64,
-    old_content_version: u64,
-    new: FileMetadata,
-}
-
-fn rows_to_metadata(
-    rows: &Vec<tokio_postgres::row::Row>,
-    old_metadata_version: u64,
-) -> Result<FileUpdateMetadata, FileError> {
+fn rows_to_row<'a>(
+    rows: &'a Vec<tokio_postgres::row::Row>,
+) -> Result<&'a tokio_postgres::row::Row, FileError> {
     match rows.as_slice() {
         [] => Err(FileError::DoesNotExist),
-        [row] => {
-            let metadata = row_to_metadata(row)?;
-            if metadata.old_deleted {
-                return Err(FileError::Deleted);
-            }
-            if metadata.old_metadata_version != old_metadata_version {
-                return Err(FileError::IncorrectOldVersion(
-                    metadata.old_metadata_version,
-                ));
-            }
-            Ok(metadata)
-        }
+        [row] => Ok(row),
         _ => Err(FileError::Unknown(String::from(
             "unexpected multiple postgres rows",
         ))),
     }
 }
 
-fn row_to_metadata(row: &tokio_postgres::row::Row) -> Result<FileUpdateMetadata, FileError> {
-    Ok(FileUpdateMetadata {
-        old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
-        old_metadata_version: row
-            .try_get::<&str, i64>("old_metadata_version")
+struct FileUpdateResponse {
+    old_deleted: bool,
+    old_metadata_version: u64,
+    old_content_version: u64,
+    new_metadata_version: u64,
+    is_folder: bool,
+}
+
+impl FileUpdateResponse {
+    fn from_row(row: &tokio_postgres::row::Row) -> Result<FileUpdateResponse, FileError> {
+        Ok(FileUpdateResponse {
+            old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
+            old_metadata_version: row
+                .try_get::<&str, i64>("old_metadata_version")
+                .map_err(FileError::Postgres)? as u64,
+            old_content_version: row
+                .try_get::<&str, i64>("old_content_version")
+                .map_err(FileError::Postgres)? as u64,
+            new_metadata_version: row
+                .try_get::<&str, i64>("new_metadata_version")
+                .map_err(FileError::Postgres)? as u64,
+            is_folder: row.try_get("is_folder").map_err(FileError::Postgres)?,
+        })
+    }
+
+    fn validate(
+        self,
+        expected_old_metadata_version: u64,
+        expected_file_type: FileType,
+    ) -> Result<FileUpdateResponse, FileError> {
+        if self.is_folder != (expected_file_type == FileType::Folder) {
+            Err(FileError::WrongFileType)
+        } else if self.old_metadata_version != expected_old_metadata_version {
+            Err(FileError::IncorrectOldVersion)
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+fn row_to_document_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, FileError> {
+    Ok(FileMetadata {
+        id: serde_json::from_str(
+            row.try_get::<&str, &str>("id")
+                .map_err(FileError::Postgres)?,
+        )
+        .map_err(FileError::Deserialize)?,
+        file_type: FileType::Document,
+        parent: serde_json::from_str(
+            row.try_get::<&str, &str>("parent")
+                .map_err(FileError::Postgres)?,
+        )
+        .map_err(FileError::Deserialize)?,
+        name: row.try_get("name").map_err(FileError::Postgres)?,
+        owner: row.try_get("owner").map_err(FileError::Postgres)?,
+        signature: serde_json::from_str(
+            row.try_get::<&str, &str>("signature")
+                .map_err(FileError::Postgres)?,
+        )
+        .map_err(FileError::Deserialize)?,
+        metadata_version: row
+            .try_get::<&str, i64>("metadata_version")
             .map_err(FileError::Postgres)? as u64,
-        old_content_version: match row.try_get::<&str, i64>("old_content_version") {
-            Ok(v) => v as u64,
-            Err(_) => 0,
-        },
-        new: FileMetadata {
-            id: serde_json::from_str(
-                row.try_get::<&str, &str>("id")
-                    .map_err(FileError::Postgres)?,
-            )
-            .map_err(FileError::Deserialize)?,
-            parent: serde_json::from_str(
-                row.try_get::<&str, &str>("parent")
-                    .map_err(FileError::Postgres)?,
-            )
-            .map_err(FileError::Deserialize)?,
-            name: row.try_get("name").map_err(FileError::Postgres)?,
-            signature: serde_json::from_str(
-                row.try_get::<&str, &str>("signature")
-                    .map_err(FileError::Postgres)?,
-            )
-            .map_err(FileError::Deserialize)?,
-            metadata_version: row
-                .try_get::<&str, i64>("metadata_version")
-                .map_err(FileError::Postgres)? as u64,
-            content_version: row
-                .try_get::<&str, i64>("content_version")
-                .map_err(FileError::Postgres)? as u64,
-            deleted: row.try_get("deleted").map_err(FileError::Postgres)?,
-            user_access_keys: Default::default(),   // todo
-            folder_access_keys: Default::default(), // todo
-        },
+        content_version: row
+            .try_get::<&str, i64>("content_version")
+            .map_err(FileError::Postgres)? as u64,
+        deleted: row.try_get("deleted").map_err(FileError::Postgres)?,
+        user_access_keys: Default::default(), // todo
+        folder_access_keys: serde_json::from_str(
+            row.try_get::<&str, &str>("parent_access_key")
+                .map_err(FileError::Postgres)?,
+        )
+        .map_err(FileError::Deserialize)?,
     })
 }
 
@@ -466,14 +465,13 @@ pub async fn get_updates(
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
         .query(
-            "SELECT id, file_name, file_path, file_content_version, file_metadata_version, deleted
-    FROM files WHERE username = $1 AND file_metadata_version > $2",
+            "SELECT * FROM files WHERE username = $1 AND file_metadata_version > $2",
             &[&username, &(metadata_version as i64)],
         )
         .await
         .map_err(FileError::Postgres)?
         .iter()
-        .map(|row| Ok(row_to_metadata(row)?.new))
+        .map(row_to_document_metadata)
         .collect()
 }
 
@@ -484,7 +482,7 @@ pub async fn new_account(
 ) -> Result<(), AccountError> {
     transaction
         .execute(
-            "INSERT INTO users (username, public_key) VALUES ($1, $2);",
+            "INSERT INTO accounts (username, public_key) VALUES ($1, $2);",
             &[&username, &public_key],
         )
         .await?;
