@@ -2,6 +2,7 @@ use crate::files_db;
 use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::*;
+use lockbook_core::model::client_file_metadata::FileType;
 
 pub fn username_is_valid(username: &str) -> bool {
     username.chars().all(|x| x.is_digit(36)) && username.to_lowercase() == *username
@@ -30,7 +31,7 @@ pub async fn change_document_content(
     .await;
     let (old_content_version, new_version) = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => ChangeDocumentContentError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
         index_db::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
         _ => {
             println!("Internal server error! {:?}", e);
@@ -87,13 +88,15 @@ pub async fn create_document(
         }
     };
 
-    let index_result = index_db::create_document(
+    let index_result = index_db::create_file(
         &transaction,
         request.id,
         request.parent,
+        FileType::Document,
         &request.name,
         &request.username,
         &request.signature,
+        &request.parent_access_key,
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
@@ -144,10 +147,10 @@ pub async fn delete_document(
     };
 
     let index_result =
-        index_db::delete_document(&transaction, request.id, request.old_metadata_version).await;
+        index_db::delete_file(&transaction, request.id, request.old_metadata_version, FileType::Document).await;
     let (old_content_version, new_version) = index_result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => DeleteDocumentError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
         index_db::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
         _ => {
             println!("Internal server error! {:?}", e);
@@ -192,16 +195,17 @@ pub async fn move_document(
         }
     };
 
-    let result = index_db::move_document(
+    let result = index_db::move_file(
         &transaction,
         request.id,
         request.old_metadata_version,
+        FileType::Document,
         request.new_parent,
     )
     .await;
     let new_version = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => MoveDocumentError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
         index_db::FileError::Deleted => MoveDocumentError::DocumentDeleted,
         index_db::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
         _ => {
@@ -236,16 +240,17 @@ pub async fn rename_document(
         }
     };
 
-    let result = index_db::rename_document(
+    let result = index_db::rename_file(
         &transaction,
         request.id,
         request.old_metadata_version,
+        FileType::Document,
         &request.new_name,
     )
     .await;
     let new_version = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => RenameDocumentError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
         index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
         _ => {
             println!("Internal server error! {:?}", e);
@@ -324,10 +329,10 @@ pub async fn delete_folder(
     };
 
     let result =
-        index_db::delete_folder(&transaction, request.id, request.old_metadata_version).await;
-    let new_version = result.map_err(|e| match e {
+        index_db::delete_file(&transaction, request.id, request.old_metadata_version, FileType::Folder).await;
+    let (_, new_version) = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => DeleteFolderError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
         index_db::FileError::Deleted => DeleteFolderError::FolderDeleted,
         _ => {
             println!("Internal server error! {:?}", e);
@@ -361,16 +366,17 @@ pub async fn move_folder(
         }
     };
 
-    let result = index_db::move_folder(
+    let result = index_db::move_file(
         &transaction,
         request.id,
         request.old_metadata_version,
+        FileType::Folder,
         request.new_parent,
     )
     .await;
     let new_version = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => MoveFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => MoveFolderError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => MoveFolderError::EditConflict,
         index_db::FileError::Deleted => MoveFolderError::FolderDeleted,
         index_db::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         _ => {
@@ -405,16 +411,17 @@ pub async fn rename_folder(
         }
     };
 
-    let result = index_db::rename_folder(
+    let result = index_db::rename_file(
         &transaction,
         request.id,
         request.old_metadata_version,
+        FileType::Folder,
         &request.new_name,
     )
     .await;
     let new_version = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion(_) => RenameFolderError::EditConflict,
+        index_db::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
         index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
         _ => {
             println!("Internal server error! {:?}", e);

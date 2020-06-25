@@ -179,6 +179,7 @@ impl<
                     &client.name,
                     client.parent_id,
                     FileDb::get(&db, client.id)?.content,
+                    client.folder_access_keys.access_key.clone(),
                 )?;
 
                 client.content_version = new_version;

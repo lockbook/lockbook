@@ -57,6 +57,7 @@ pub trait Client {
         name: &str,
         parent: Uuid,
         content: EncryptedValueWithNonce,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>>;
     fn delete_document(
         username: &str,
@@ -84,6 +85,7 @@ pub trait Client {
         id: Uuid,
         name: &str,
         parent: Uuid,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
         username: &str,
@@ -161,6 +163,7 @@ impl Client for ClientImpl {
         name: &str,
         parent: Uuid,
         content: EncryptedValueWithNonce,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
             "create-document",
@@ -171,6 +174,7 @@ impl Client for ClientImpl {
                 name: String::from(name),
                 parent: parent,
                 content: content,
+                parent_access_key: parent_access_key,
             },
         )
         .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
@@ -236,6 +240,7 @@ impl Client for ClientImpl {
         id: Uuid,
         name: &str,
         parent: Uuid,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             "create-folder",
@@ -245,6 +250,7 @@ impl Client for ClientImpl {
                 id: id,
                 name: String::from(name),
                 parent: parent,
+                parent_access_key: parent_access_key,
             },
         )
         .map(|r: CreateFolderResponse| r.new_metadata_version)
