@@ -33,7 +33,7 @@ pub struct AesKey {
 }
 
 impl AesKey {
-    pub(crate) fn to_decrypted_value(&self) -> DecryptedValue {
+    pub fn to_decrypted_value(&self) -> DecryptedValue {
         DecryptedValue {
             secret: self.key.clone(),
         }
@@ -54,6 +54,6 @@ pub struct FolderAccessInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct EncryptedFile {
+pub struct Document {
     pub content: EncryptedValueWithNonce,
 }

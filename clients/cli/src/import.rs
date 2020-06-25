@@ -12,7 +12,7 @@ pub fn import() {
     println!(
         "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import \
-    or xclip -selection clipboard -o | lockbook import."
+    or xclip -selection clipboard -o | lockbook import"
     );
 
     let mut account_string = String::new();

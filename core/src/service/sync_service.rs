@@ -11,8 +11,8 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::Error as MetadataError;
 use crate::service;
 
+use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::repo::file_repo::FileRepo;
 
 use crate::model::account::Account;
 use crate::model::api::{
@@ -44,7 +44,7 @@ error_enum! {
         RetrievalError(repo::account_repo::Error),
         FileRetievalError(repo::file_metadata_repo::DbError),
         FileMetadataError(repo::file_metadata_repo::Error),
-        FileContentError(repo::file_repo::Error),
+        FileContentError(repo::document_repo::Error),
         GetUpdatesError(client::Error<GetUpdatesError>),
         CreateFileError(client::Error<CreateDocumentError>),
         GetFileError(client::Error<()>),
@@ -79,7 +79,7 @@ pub struct WorkCalculated {
 
 pub struct FileSyncService<
     FileMetadataDb: FileMetadataRepo,
-    FileDb: FileRepo,
+    FileDb: DocumentRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
     Auth: AuthService,
@@ -93,7 +93,7 @@ pub struct FileSyncService<
 
 impl<
         FileMetadataDb: FileMetadataRepo,
-        FileDb: FileRepo,
+        FileDb: DocumentRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
         Auth: AuthService,
@@ -114,7 +114,7 @@ impl<
         ApiClient::get_updates(&account.username, "junk auth :(", last_sync)?
             .into_iter()
             .for_each(|file| {
-                server_dirty_files.insert(file.clone().id, file.clone());
+                server_dirty_files.insert(file.id, file.clone());
                 if file.metadata_version > most_recent_update_from_server {
                     most_recent_update_from_server = file.metadata_version;
                 }
@@ -293,7 +293,7 @@ impl<
                 ApiClient::delete_document(
                     &account.username,
                     &Auth::generate_auth(&account)?,
-                    client.clone().id,
+                    client.id,
                     client.metadata_version,
                 )?; // TODO the thing you're not handling is EditConflict!
 

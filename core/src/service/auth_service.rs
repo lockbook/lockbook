@@ -80,8 +80,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         Crypto::verify(&public_key, &signed_val)?;
 
         let mut auth_comp = signed_val.content.split(',');
-
-        if &String::from(auth_comp.next().ok_or(())?) != username {
+        if auth_comp.next().ok_or(())? != username {
             return Err(InvalidUsername);
         }
 

@@ -67,10 +67,10 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         let mut args = command_unprocessed
             .split_whitespace()
             .collect::<Vec<&str>>();
-        args.push(file_location.as_str());
+        args.push(file_location);
         args
     } else {
-        vec![file_location.as_str()]
+        vec![file_location]
     };
 
     Command::new(command)
