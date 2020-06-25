@@ -41,6 +41,7 @@ pub struct CreateDocumentRequest {
     pub name: String,
     pub parent: Uuid,
     pub content: EncryptedValueWithNonce,
+    pub parent_access_key: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -148,6 +149,7 @@ pub struct CreateFolderRequest {
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
+    pub parent_access_key: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -293,6 +295,7 @@ pub struct FileMetadata {
     pub file_type: FileType,
     pub parent: Uuid,
     pub name: String,
+    pub owner: String,
     pub signature: SignedValue,
     pub metadata_version: u64,
     pub content_version: u64,
