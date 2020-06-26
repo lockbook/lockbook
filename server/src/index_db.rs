@@ -414,6 +414,8 @@ impl FileUpdateResponse {
     ) -> Result<FileUpdateResponse, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
+        } else if self.old_deleted {
+            Err(FileError::Deleted)
         } else if self.old_metadata_version != expected_old_metadata_version {
             Err(FileError::IncorrectOldVersion)
         } else {
