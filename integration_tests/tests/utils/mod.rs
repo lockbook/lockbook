@@ -1,15 +1,6 @@
 use std::env;
-
 use uuid::Uuid;
-
-use lockbook_core::client::change_file_content;
-use lockbook_core::client::create_file;
-use lockbook_core::client::delete_file;
-use lockbook_core::client::get_public_key;
-use lockbook_core::client::get_updates;
-use lockbook_core::client::move_file;
-use lockbook_core::client::new_account;
-use lockbook_core::client::rename_file;
+use lockbook_core::model::api::*;
 use lockbook_core::model::account::Account;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
 
@@ -40,10 +31,6 @@ pub fn generate_username() -> String {
         .collect()
 }
 
-pub fn generate_file_id() -> String {
-    Uuid::new_v4().to_string()
-}
-
 macro_rules! assert_matches (
     ($actual:expr, $expected:pat) => {
         // Only compute actual once
@@ -57,60 +44,88 @@ macro_rules! assert_matches (
 
 #[derive(Debug)]
 pub enum TestError {
-    NewAccountError(new_account::Error),
-    CreateFileError(create_file::Error),
-    ChangeDocumentContentError(change_file_content::Error),
-    RenameFileError(rename_file::Error),
-    MoveFileError(move_file::Error),
-    DeleteFileError(delete_file::Error),
-    GetUpdatesError(get_updates::Error),
-    GetPublicKeyError(get_public_key::Error),
+    ChangeDocumentContentError(ChangeDocumentContentError),
+    CreateDocumentError(CreateDocumentError),
+    DeleteDocumentError(DeleteDocumentError),
+    MoveDocumentError(MoveDocumentError),
+    RenameDocumentError(RenameDocumentError),
+    CreateFolderError(CreateFolderError),
+    DeleteFolderError(DeleteFolderError),
+    MoveFolderError(MoveFolderError),
+    RenameFolderError(RenameFolderError),
+    GetPublicKeyError(GetPublicKeyError),
+    GetUpdatesError(GetUpdatesError),
+    NewAccountError(NewAccountError),
 }
 
-impl From<new_account::Error> for TestError {
-    fn from(e: new_account::Error) -> TestError {
-        TestError::NewAccountError(e)
-    }
-}
-
-impl From<create_file::Error> for TestError {
-    fn from(e: create_file::Error) -> TestError {
-        TestError::CreateFileError(e)
-    }
-}
-
-impl From<change_file_content::Error> for TestError {
-    fn from(e: change_file_content::Error) -> TestError {
+impl From<ChangeDocumentContentError> for TestError {
+    fn from<ChangeDocumentContentError>(e: ChangeDocumentContentError) {
         TestError::ChangeDocumentContentError(e)
     }
 }
 
-impl From<rename_file::Error> for TestError {
-    fn from(e: rename_file::Error) -> TestError {
-        TestError::RenameFileError(e)
+impl From<CreateDocumentError> for TestError {
+    fn from<CreateDocumentError>(e: CreateDocumentError) {
+        TestError::CreateDocumentError(e)
     }
 }
 
-impl From<move_file::Error> for TestError {
-    fn from(e: move_file::Error) -> TestError {
-        TestError::MoveFileError(e)
+impl From<DeleteDocumentError> for TestError {
+    fn from<DeleteDocumentError>(e: DeleteDocumentError) {
+        TestError::DeleteDocumentError(e)
     }
 }
 
-impl From<delete_file::Error> for TestError {
-    fn from(e: delete_file::Error) -> TestError {
-        TestError::DeleteFileError(e)
+impl From<MoveDocumentError> for TestError {
+    fn from<MoveDocumentError>(e: MoveDocumentError) {
+        TestError::MoveDocumentError(e)
     }
 }
 
-impl From<get_updates::Error> for TestError {
-    fn from(e: get_updates::Error) -> TestError {
+impl From<RenameDocumentError> for TestError {
+    fn from<RenameDocumentError>(e: RenameDocumentError) {
+        TestError::RenameDocumentError(e)
+    }
+}
+
+impl From<CreateFolderError> for TestError {
+    fn from<CreateFolderError>(e: CreateFolderError) {
+        TestError::CreateFolderError(e)
+    }
+}
+
+impl From<DeleteFolderError> for TestError {
+    fn from<DeleteFolderError>(e: DeleteFolderError) {
+        TestError::DeleteFolderError(e)
+    }
+}
+
+impl From<MoveFolderError> for TestError {
+    fn from<MoveFolderError>(e: MoveFolderError) {
+        TestError::MoveFolderError(e)
+    }
+}
+
+impl From<RenameFolderError> for TestError {
+    fn from<RenameFolderError>(e: RenameFolderError) {
+        TestError::RenameFolderError(e)
+    }
+}
+
+impl From<GetPublicKeyError> for TestError {
+    fn from<GetPublicKeyError>(e: GetPublicKeyError) {
+        TestError::GetPublicKeyError(e)
+    }
+}
+
+impl From<GetUpdatesError> for TestError {
+    fn from<GetUpdatesError>(e: GetUpdatesError) {
         TestError::GetUpdatesError(e)
     }
 }
 
-impl From<get_public_key::Error> for TestError {
-    fn from(e: get_public_key::Error) -> TestError {
-        TestError::GetPublicKeyError(e)
+impl From<NewAccountError> for TestError {
+    fn from<NewAccountError>(e: NewAccountError) {
+        TestError::NewAccountError(e)
     }
 }

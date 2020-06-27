@@ -1,26 +1,24 @@
-use lockbook_core::client;
-use lockbook_core::client::new_account;
-use lockbook_core::model::account::Account;
-use lockbook_core::model::api::{NewAccountError, NewAccountRequest};
-
 #[macro_use]
 pub mod utils;
+
+use lockbook_core::client::{Client, ClientImpl};
+use lockbook_core::model::account::Account;
+use lockbook_core::model::api::{NewAccountError};
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
-use rsa::{BigUint, RSAPrivateKey};
-use utils::{api_loc, generate_account, generate_username, TestError};
+use rsa::{BigUint, RSAPrivateKey, RsaPublicKey};
+use utils::{generate_account, generate_username, TestError};
+use uuid::Uuid;
 
 fn new_account() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
     Ok(())
@@ -34,22 +32,18 @@ fn test_new_account() {
 fn new_account_duplicate() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
     Ok(())
@@ -68,22 +62,18 @@ fn test_new_account_duplicate() {
 fn new_account_case_insensitive_username() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.to_uppercase(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username.to_uppercase(),
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
     Ok(())
@@ -105,13 +95,11 @@ fn new_account_alphanumeric_username(username: String) -> Result<(), TestError> 
         keys: RsaImpl::generate_key().unwrap(),
     };
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
     Ok(())
@@ -167,13 +155,11 @@ fn new_account_invalid_public_key() -> Result<(), TestError> {
         ],
     );
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-            public_key: serde_json::to_string(&fake_private_key.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        fake_private_key.to_public_key(),
+        Uuid::new_v4(),
     )?;
 
     Ok(())
@@ -192,13 +178,11 @@ fn test_new_account_invalid_public_key() {
 fn new_account_invalid_auth() -> Result<(), TestError> {
     let account = generate_account();
 
-    client::new_account::send(
-        api_loc(),
-        &NewAccountRequest {
-            username: account.username.clone(),
-            auth: "glitch!".to_string(),
-            public_key: serde_json::to_string(&account.keys.to_public_key()).unwrap(),
-        },
+    ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        RsaPublicKey{},
+        Uuid::new_v4(),
     )?;
 
     Ok(())

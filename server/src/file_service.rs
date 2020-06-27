@@ -494,14 +494,14 @@ pub async fn new_account(
         }
     };
 
-    let result = index_db::new_account(
+    let new_account_result = index_db::new_account(
         &transaction,
         &request.username,
         &serde_json::to_string(&request.public_key)
             .map_err(|_| NewAccountError::InvalidPublicKey)?,
     )
     .await;
-    result.map_err(|e| match e {
+    new_account_result.map_err(|e| match e {
         index_db::AccountError::UsernameTaken => NewAccountError::UsernameTaken,
         _ => {
             println!("Internal server error! {:?}", e);
@@ -509,8 +509,17 @@ pub async fn new_account(
         }
     })?;
 
+    let create_folder_result = index_db::create_folder(&transaction, request.folder_id, request.folder_id, &request.username, &request.username, &request.signature).await;
+    let new_version = create_folder_result.map_err(|e| match e {
+        index_db::FileError::IdTaken => NewAccountError::FileIdTaken,
+        _ => {
+            println!("Internal server error! {:?}", e);
+            NewAccountError::InternalError
+        }
+    })?;
+
     match transaction.commit().await {
-        Ok(()) => Ok(NewAccountResponse {}),
+        Ok(()) => Ok(NewAccountResponse {folder_metadata_version: new_version}),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(NewAccountError::InternalError)

@@ -91,14 +91,12 @@ impl<
         AccountDb::insert_account(db, &account)?;
 
         info!("Generating Root Folder");
-        // @tvanderstad you want to take this guy
-        let file_metadata = FileCrypto::create_metadata_for_root_folder(&account)?;
+        let mut file_metadata = FileCrypto::create_metadata_for_root_folder(&account)?;
 
         info!("Sending username & public key to server");
         let auth = Auth::generate_auth(&account)?;
 
-        // @tvanderstad this should return ServerFM with versions that I can save for now I'll store the one I created
-        ApiClient::new_account(&account.username, &auth, account.keys.to_public_key())?;
+        file_metadata.metadata_version = ApiClient::new_account(&account.username, &auth, account.keys.to_public_key(), file_metadata.id)?;
         info!("Account creation success!");
 
         FileMetadata::insert(&db, &file_metadata)?;
@@ -122,7 +120,7 @@ impl<
         info!("Account String seems valid, saving now");
         AccountDb::insert_account(db, &account)?;
 
-        // TODO fetch root folder? Kick off sycn
+        // TODO fetch root folder? Kick off sync
 
         info!("Account imported successfully");
         Ok(account)
