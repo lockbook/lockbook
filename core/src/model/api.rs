@@ -308,11 +308,14 @@ pub struct FileMetadata {
 pub struct NewAccountRequest {
     pub username: Username,
     pub signature: String,
-    pub public_key: RSAPublicKey, // @tvanderstad you probably want to add filemetadata here
+    pub public_key: RSAPublicKey,
+    pub folder_id: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct NewAccountResponse {} // @tvanderstad you want to return a FileMetadata here -- with version numbers
+pub struct NewAccountResponse {
+    pub folder_metadata_version: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {
@@ -322,4 +325,5 @@ pub enum NewAccountError {
     UsernameTaken,
     InvalidPublicKey,
     InvalidUsername,
+    FileIdTaken,
 }
