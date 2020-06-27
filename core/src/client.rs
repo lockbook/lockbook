@@ -19,13 +19,14 @@ pub enum Error<ApiError> {
 }
 
 pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: DeserializeOwned>(
+    api_location: &str,
     endpoint: &str,
     request: &Request,
 ) -> Result<Response, Error<ApiError>> {
     let client = ReqwestClient::new();
     let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
     let serialized_response = client
-        .post(format!("{}/{}", API_LOC, endpoint).as_str())
+        .post(format!("{}/{}", api_location, endpoint).as_str())
         .body(serialized_request)
         .send()
         .map_err(Error::SendFailed)?
@@ -111,8 +112,9 @@ pub trait Client {
     fn new_account(
         username: &str,
         signature: &str,
-        public_key: RSAPublicKey, // @tvanderstad add a metadata struct here
-    ) -> Result<(), Error<NewAccountError>>;
+        public_key: RSAPublicKey,
+        folder_id: Uuid,
+    ) -> Result<u64, Error<NewAccountError>>;
 }
 
 pub struct ClientImpl;
@@ -140,6 +142,7 @@ impl Client for ClientImpl {
         new_content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<ChangeDocumentContentError>> {
         api_request(
+            API_LOC,
             "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
@@ -161,6 +164,7 @@ impl Client for ClientImpl {
         parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
+            API_LOC,
             "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
@@ -181,6 +185,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteDocumentError>> {
         api_request(
+            API_LOC,
             "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
@@ -199,6 +204,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveDocumentError>> {
         api_request(
+            API_LOC,
             "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
@@ -218,6 +224,7 @@ impl Client for ClientImpl {
         new_name: &str,
     ) -> Result<u64, Error<RenameDocumentError>> {
         api_request(
+            API_LOC,
             "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
@@ -238,6 +245,7 @@ impl Client for ClientImpl {
         parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
+            API_LOC,
             "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
@@ -257,6 +265,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteFolderError>> {
         api_request(
+            API_LOC,
             "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
@@ -275,6 +284,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveFolderError>> {
         api_request(
+            API_LOC,
             "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
@@ -294,6 +304,7 @@ impl Client for ClientImpl {
         new_name: &str,
     ) -> Result<u64, Error<RenameFolderError>> {
         api_request(
+            API_LOC,
             "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
@@ -307,6 +318,7 @@ impl Client for ClientImpl {
     }
     fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
         api_request(
+            API_LOC,
             "get-public-key",
             &GetPublicKeyRequest {
                 username: String::from(username),
@@ -320,6 +332,7 @@ impl Client for ClientImpl {
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
         api_request(
+            API_LOC,
             "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
@@ -333,15 +346,18 @@ impl Client for ClientImpl {
         username: &str,
         signature: &str,
         public_key: RSAPublicKey,
-    ) -> Result<(), Error<NewAccountError>> {
+        folder_id: Uuid,
+    ) -> Result<u64, Error<NewAccountError>> {
         api_request(
+            API_LOC,
             "new-account",
             &NewAccountRequest {
                 username: String::from(username),
                 signature: String::from(signature),
                 public_key: public_key,
+                folder_id: folder_id,
             },
         )
-        .map(|_r: NewAccountResponse| ())
+        .map(|r: NewAccountResponse| r.folder_metadata_version)
     }
 }
