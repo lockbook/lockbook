@@ -96,7 +96,12 @@ impl<
         info!("Sending username & public key to server");
         let auth = Auth::generate_auth(&account)?;
 
-        file_metadata.metadata_version = ApiClient::new_account(&account.username, &auth, account.keys.to_public_key(), file_metadata.id)?;
+        file_metadata.metadata_version = ApiClient::new_account(
+            &account.username,
+            &auth,
+            account.keys.to_public_key(),
+            file_metadata.id,
+        )?;
         info!("Account creation success!");
 
         FileMetadata::insert(&db, &file_metadata)?;
