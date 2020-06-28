@@ -16,14 +16,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-    - name: Pull older image for cache
-      run: make core_pull
     - name: Build container
-      run: make core_cached
-    - name: Publish container
-      run: make core_push
+      run: make core
     - name: Compile and run tests
       run: make core_test
     - name: Check Formatting
@@ -45,14 +39,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-    - name: Pull older image for cache
-      run: make server_pull
     - name: Build container
-      run: make server_cached
-    - name: Publish container
-      run: make server_push
+      run: make server
     - name: Compile and run tests
       run: make server_test
     - name: Check Formatting
@@ -74,14 +62,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-    - name: Pull older image for cache
-      run: make cli_pull
     - name: Build container
-      run: make cli_cached
-    - name: Publish container
-      run: make cli_push
+      run: make cli
     - name: Compile and run tests
       run: make cli_test
     - name: Check Formatting
@@ -103,14 +85,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Login
-        run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-      - name: Pull older image for cache
-        run: make android_pull
       - name: Build container
-        run: make android_cached
-      - name: Publish container
-        run: make android_push
+        run: make android
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
         with:
@@ -126,18 +102,10 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Login
-      run: docker login docker.pkg.github.com -u Github_Actions -p $GH_TOKEN
-    - name: Pull older server image for cache
-      run: make server_pull
     - name: Build server container
-      run: make server_cached
-    - name: Pull older test image for cache
-      run: make integration_tests_pull
+      run: make server
     - name: Build test container
-      run: make integration_tests_cached
-    - name: Publish container
-      run: make integration_tests_push
+      run: make integration_tests
     - name: Compile and run tests
       run: make integration_tests_run
     - name: Check Formatting
