@@ -17,19 +17,24 @@ class ImportAccount : AppCompatActivity() {
         setContentView(R.layout.import_account)
 
         import_lockbook.setOnClickListener {
-            when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
-                success -> startActivity(Intent(applicationContext, ListFiles::class.java))
-                accountStringInvalid -> Toast.makeText(
-                    applicationContext,
-                    "Account String invalid!",
-                    Toast.LENGTH_LONG
-                ).show()
-                else -> Toast.makeText(
-                    applicationContext,
-                    "Unexpected error occured, please create a bug report (settings)",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+
+        }
+
+    }
+
+    fun isAccountStringValid() {
+        when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
+            success -> startActivity(Intent(applicationContext, ListFiles::class.java))
+            accountStringInvalid -> Toast.makeText(
+                applicationContext,
+                "Account String invalid!",
+                Toast.LENGTH_LONG
+            ).show()
+            else -> Toast.makeText(
+                applicationContext,
+                "Unexpected error occured, please create a bug report (settings)",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 }
