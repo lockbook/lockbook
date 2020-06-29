@@ -3,10 +3,11 @@ use std::io;
 use sled::Db;
 use tempfile::tempdir;
 
-use crate::DB_NAME;
 use crate::model::state::Config;
+use crate::DB_NAME;
 
-enum Error {
+#[derive(Debug)]
+pub enum Error {
     SledError(sled::Error),
     TempFileError(io::Error),
 }
