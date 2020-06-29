@@ -1,14 +1,12 @@
-use crate::error_enum;
-use crate::model::crypto::*;
 use sled::Db;
 use uuid::Uuid;
 
-error_enum! {
-    enum Error {
-        SledError(sled::Error),
-        SerdeError(serde_json::Error),
-        FileRowMissing(()) // TODO remove from insert
-    }
+use crate::model::crypto::*;
+
+enum Error {
+    SledError(sled::Error),
+    SerdeError(serde_json::Error),
+    FileRowMissing(()), // TODO remove from insert
 }
 
 pub trait DocumentRepo {
@@ -21,34 +19,35 @@ pub struct DocumentRepoImpl;
 
 impl DocumentRepo for DocumentRepoImpl {
     fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents")?;
-        tree.insert(id.as_bytes(), serde_json::to_vec(document)?)?;
+        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
+        tree.insert(id.as_bytes(), serde_json::to_vec(document).map_err(Error::SerdeError)?).map_err(Error::SledError)?;
         Ok(())
     }
 
     fn get(db: &Db, id: Uuid) -> Result<Document, Error> {
-        let tree = db.open_tree(b"documents")?;
-        let maybe_value = tree.get(id.as_bytes())?;
-        let value = maybe_value.ok_or(())?;
-        let document: Document = serde_json::from_slice(value.as_ref())?;
+        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
+        let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
+        let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
+        let document: Document = serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(document)
     }
 
     fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents")?;
-        tree.remove(id.as_bytes())?;
+        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
+        tree.remove(id.as_bytes()).map_err(Error::SledError)?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod unit_tests {
+    use uuid::Uuid;
+
     use crate::model::crypto::*;
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
-    use uuid::Uuid;
 
     type DefaultDbProvider = TempBackedDB;
 
@@ -74,7 +73,7 @@ mod unit_tests {
             document.content,
             EncryptedValueWithNonce {
                 garbage: "something".to_string(),
-                nonce: "nonce1".to_string()
+                nonce: "nonce1".to_string(),
             }
         );
 
@@ -88,7 +87,7 @@ mod unit_tests {
                 },
             },
         )
-        .unwrap();
+            .unwrap();
 
         let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
 
