@@ -89,7 +89,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
         Err(err) => {
-            error!("DB connection failed! Error: {:?}", err);
+            error!("DB connection failed! Error: {:?}", err); // TEMP HERE
             None
         }
     }
