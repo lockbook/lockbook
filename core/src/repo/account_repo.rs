@@ -1,14 +1,11 @@
 use sled::Db;
 
-use crate::error_enum;
 use crate::model::account::Account;
 
-error_enum! {
-    enum Error {
-        SledError(sled::Error),
-        SerdeError(serde_json::Error),
-        AccountMissing(()),
-    }
+pub(crate) enum Error {
+    SledError(sled::Error),
+    SerdeError(serde_json::Error),
+    AccountMissing(()),
 }
 
 pub trait AccountRepo {
@@ -22,16 +19,16 @@ static ACCOUNT: &str = "account";
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
-        let tree = db.open_tree(ACCOUNT)?;
-        tree.insert("you", serde_json::to_vec(account)?)?;
+        let tree = db.open_tree(ACCOUNT).map_err(Error::SledError)?;
+        tree.insert("you", serde_json::to_vec(account).map_err(Error::SerdeError)?).map_err(Error::SledError)?;
         Ok(())
     }
 
     fn get_account(db: &Db) -> Result<Account, Error> {
-        let tree = db.open_tree(ACCOUNT)?;
-        let maybe_value = tree.get("you")?;
-        let val = maybe_value.ok_or(())?;
-        let account: Account = serde_json::from_slice(val.as_ref())?;
+        let tree = db.open_tree(ACCOUNT).map_err(Error::SledError)?;
+        let maybe_value = tree.get("you").map_err(Error::SledError)?;
+        let val = maybe_value.ok_or(()).map_err(Error::AccountMissing)?;
+        let account: Account = serde_json::from_slice(val.as_ref()).map_err(Error::SerdeError)?;
         Ok(account)
     }
 }
