@@ -3,45 +3,45 @@ use std::collections::HashMap;
 use serde::export::PhantomData;
 use uuid::Uuid;
 
-use crate::error_enum;
 use crate::model::account::Account;
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::client_file_metadata::FileType::Folder;
+use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
 };
 
-enum KeyDecryptionFailure {
+#[derive(Debug)]
+pub enum KeyDecryptionFailure {
     ClientMetadataMissing(()),
     AesDecryptionFailed(AesDecryptionFailed),
     PKDecryptionFailed(DecryptionFailed),
 }
 
-enum RootFolderCreationError {
+#[derive(Debug)]
+pub enum RootFolderCreationError {
     FailedToPKEncryptAccessKey(rsa::errors::Error),
     FailedToAesEncryptAccessKey(AesEncryptionFailed),
 }
 
-
-enum FileCreationError {
+#[derive(Debug)]
+pub enum FileCreationError {
     ParentKeyDecryptionFailed(KeyDecryptionFailure),
     AesEncryptionFailed(AesEncryptionFailed),
 }
 
-
-enum FileWriteError {
+#[derive(Debug)]
+pub enum FileWriteError {
     FileKeyDecryptionFailed(KeyDecryptionFailure),
     AesEncryptionFailed(AesEncryptionFailed),
 }
 
-enum UnableToReadFile {
+#[derive(Debug)]
+pub enum UnableToReadFile {
     FileKeyDecryptionFailed(KeyDecryptionFailure),
     AesDecryptionFailed(AesDecryptionFailed),
-
 }
-
 
 pub trait FileEncryptionService {
     fn decrypt_key_for_file(
@@ -85,14 +85,17 @@ pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryp
 }
 
 impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
-for FileEncryptionServiceImpl<PK, AES>
+    for FileEncryptionServiceImpl<PK, AES>
 {
     fn decrypt_key_for_file(
         account: &Account,
         id: Uuid,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<AesKey, KeyDecryptionFailure> {
-        let access_key = parents.get(&id).ok_or(()).map_err(KeyDecryptionFailure::ClientMetadataMissing)?;
+        let access_key = parents
+            .get(&id)
+            .ok_or(())
+            .map_err(KeyDecryptionFailure::ClientMetadataMissing)?;
         match access_key.user_access_keys.get(&account.username) {
             None => {
                 let folder_access = access_key.folder_access_keys.clone();
@@ -100,12 +103,16 @@ for FileEncryptionServiceImpl<PK, AES>
                 let decrypted_parent =
                     Self::decrypt_key_for_file(account, folder_access.folder_id, parents)?;
 
-                let key = AES::decrypt(&decrypted_parent, &folder_access.access_key).map_err(KeyDecryptionFailure::AesDecryptionFailed)?.secret;
+                let key = AES::decrypt(&decrypted_parent, &folder_access.access_key)
+                    .map_err(KeyDecryptionFailure::AesDecryptionFailed)?
+                    .secret;
 
                 Ok(AesKey { key })
             }
             Some(user_access) => {
-                let key = PK::decrypt(&account.keys, &user_access.access_key).map_err(KeyDecryptionFailure::AesDecryptionFailed)?.secret;
+                let key = PK::decrypt(&account.keys, &user_access.access_key)
+                    .map_err(KeyDecryptionFailure::PKDecryptionFailed)?
+                    .secret;
                 Ok(AesKey { key })
             }
         }
@@ -119,8 +126,10 @@ for FileEncryptionServiceImpl<PK, AES>
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<ClientFileMetadata, FileCreationError> {
         let secret = AES::generate_key().key;
-        let parent_key = Self::decrypt_key_for_file(&account, parent_id, parents).map_err(FileCreationError::ParentKeyDecryptionFailed)?;
-        let access_key = AES::encrypt(&parent_key, &DecryptedValue { secret }).map_err(FileCreationError::AesEncryptionFailed)?;
+        let parent_key = Self::decrypt_key_for_file(&account, parent_id, parents)
+            .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
+        let access_key = AES::encrypt(&parent_key, &DecryptedValue { secret })
+            .map_err(FileCreationError::AesEncryptionFailed)?;
         let id = Uuid::new_v4();
 
         Ok(ClientFileMetadata {
@@ -153,7 +162,8 @@ for FileEncryptionServiceImpl<PK, AES>
             &DecryptedValue {
                 secret: key.key.clone(),
             },
-        ).map_err(RootFolderCreationError::FailedToPKEncryptAccessKey)?;
+        )
+        .map_err(RootFolderCreationError::FailedToPKEncryptAccessKey)?;
         let use_access_key = UserAccessInfo {
             username: account.username.clone(),
             public_key,
@@ -182,7 +192,8 @@ for FileEncryptionServiceImpl<PK, AES>
                     &DecryptedValue {
                         secret: key.key.clone(),
                     },
-                ).map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
+                )
+                .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
             },
         })
     }
@@ -193,7 +204,8 @@ for FileEncryptionServiceImpl<PK, AES>
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<Document, FileWriteError> {
-        let key = Self::decrypt_key_for_file(&account, metadata.id, parents).map_err(FileWriteError::FileKeyDecryptionFailed)?;
+        let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
+            .map_err(FileWriteError::FileKeyDecryptionFailed)?;
 
         Ok(Document {
             content: AES::encrypt(&key, &content).map_err(FileWriteError::AesEncryptionFailed)?,
@@ -206,7 +218,8 @@ for FileEncryptionServiceImpl<PK, AES>
         metadata: &ClientFileMetadata,
         parents: HashMap<Uuid, ClientFileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile> {
-        let key = Self::decrypt_key_for_file(&account, metadata.id, parents).map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
+        let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
+            .map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
 
         Ok(AES::decrypt(&key, &file.content).map_err(UnableToReadFile::AesDecryptionFailed)?)
     }
@@ -216,12 +229,12 @@ for FileEncryptionServiceImpl<PK, AES>
 mod unit_tests {
     use std::collections::HashMap;
 
-    use crate::{DefaultCrypto, DefaultFileEncryptionService};
     use crate::model::account::Account;
     use crate::model::client_file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::{DefaultCrypto, DefaultFileEncryptionService};
 
     #[test]
     fn test_root_folder() {
@@ -249,7 +262,7 @@ mod unit_tests {
             &account,
             parents.clone(),
         )
-            .unwrap();
+        .unwrap();
         parents.insert(sub_child.id, sub_child.clone());
 
         let sub_sub_child = DefaultFileEncryptionService::create_file_metadata(
@@ -259,7 +272,7 @@ mod unit_tests {
             &account,
             parents.clone(),
         )
-            .unwrap();
+        .unwrap();
         parents.insert(sub_sub_child.id, sub_sub_child.clone());
 
         let deep_file = DefaultFileEncryptionService::create_file_metadata(
@@ -269,7 +282,7 @@ mod unit_tests {
             &account,
             parents.clone(),
         )
-            .unwrap();
+        .unwrap();
         parents.insert(deep_file.id, deep_file.clone());
 
         let public_content = DefaultFileEncryptionService::write_to_document(
@@ -280,7 +293,7 @@ mod unit_tests {
             &deep_file,
             parents.clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let private_content = DefaultFileEncryptionService::read_document(
             &account,
@@ -288,7 +301,7 @@ mod unit_tests {
             &deep_file,
             parents.clone(),
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(private_content.secret, "test content");
     }
