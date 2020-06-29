@@ -27,7 +27,6 @@ use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
 
 pub mod client;
-pub mod error_enum;
 pub mod model;
 pub mod repo;
 pub mod service;

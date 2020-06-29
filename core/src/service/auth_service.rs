@@ -47,11 +47,9 @@ impl From<serde_json::error::Error> for VerificationError {
     }
 }
 
-error_enum! {
-    enum AuthGenError {
-        RsaError(rsa::errors::Error),
-        AuthSerializationError(serde_json::error::Error)
-    }
+enum AuthGenError {
+    RsaError(rsa::errors::Error),
+    AuthSerializationError(serde_json::error::Error),
 }
 
 pub trait AuthService {
@@ -100,7 +98,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         Ok(serde_json::to_string(&Crypto::sign(
             &account.keys,
             &to_sign,
-        )?)?)
+        ).map_err(AuthGenError::RsaError)?).map_err(AuthGenError::AuthSerializationError)?)
     }
 }
 
@@ -168,7 +166,7 @@ mod unit_tests {
                 &String::from("Hamza"),
                 100,
             )
-            .unwrap_err(),
+                .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 
