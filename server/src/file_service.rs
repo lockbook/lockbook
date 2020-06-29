@@ -146,8 +146,13 @@ pub async fn delete_document(
         }
     };
 
-    let index_result =
-        index_db::delete_file(&transaction, request.id, request.old_metadata_version, FileType::Document).await;
+    let index_result = index_db::delete_file(
+        &transaction,
+        request.id,
+        request.old_metadata_version,
+        FileType::Document,
+    )
+    .await;
     let (old_content_version, new_version) = index_result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
         index_db::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
@@ -328,8 +333,13 @@ pub async fn delete_folder(
         }
     };
 
-    let result =
-        index_db::delete_file(&transaction, request.id, request.old_metadata_version, FileType::Folder).await;
+    let result = index_db::delete_file(
+        &transaction,
+        request.id,
+        request.old_metadata_version,
+        FileType::Folder,
+    )
+    .await;
     let (_, new_version) = result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
         index_db::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
@@ -509,7 +519,15 @@ pub async fn new_account(
         }
     })?;
 
-    let create_folder_result = index_db::create_folder(&transaction, request.folder_id, request.folder_id, &request.username, &request.username, &request.signature).await;
+    let create_folder_result = index_db::create_folder(
+        &transaction,
+        request.folder_id,
+        request.folder_id,
+        &request.username,
+        &request.username,
+        &request.signature,
+    )
+    .await;
     let new_version = create_folder_result.map_err(|e| match e {
         index_db::FileError::IdTaken => NewAccountError::FileIdTaken,
         _ => {
@@ -519,7 +537,9 @@ pub async fn new_account(
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(NewAccountResponse {folder_metadata_version: new_version}),
+        Ok(()) => Ok(NewAccountResponse {
+            folder_metadata_version: new_version,
+        }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(NewAccountError::InternalError)
