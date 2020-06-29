@@ -11,12 +11,15 @@ class Welcome : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        new_lockbook.setOnClickListener {
-            startActivity(Intent(applicationContext, NewAccount::class.java))
-        }
 
-        import_lockbook.setOnClickListener {
-            startActivity(Intent(applicationContext, ImportAccount::class.java))
-        }
     }
+
+    fun launchNewAccount() {
+        startActivity(Intent(applicationContext, NewAccount::class.java))
+    }
+
+    fun launchImportAccount() {
+        startActivity(Intent(applicationContext, ImportAccount::class.java))
+    }
+
 }

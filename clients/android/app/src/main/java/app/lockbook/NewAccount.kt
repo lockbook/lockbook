@@ -17,21 +17,22 @@ class NewAccount : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.new_account)
 
-        create_lockbook.setOnClickListener {
-            when (createAccount(filesDir.absolutePath, username.text.toString())) {
-                success -> startActivity(Intent(applicationContext, ListFiles::class.java))
-                usernameTaken -> username.error = "Username Taken!"
-                networkError -> Toast.makeText(
-                    applicationContext,
-                    "Network Unavailable",
-                    Toast.LENGTH_LONG
-                ).show()
-                else -> Toast.makeText(
-                    applicationContext,
-                    "Unexpected error occured, please create a bug report (settings)",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+    }
+
+    fun createAccount() {
+        when (createAccount(filesDir.absolutePath, username.text.toString())) {
+            success -> startActivity(Intent(applicationContext, ListFiles::class.java))
+            usernameTaken -> username.error = "Username Taken!"
+            networkError -> Toast.makeText(
+                applicationContext,
+                "Network Unavailable",
+                Toast.LENGTH_LONG
+            ).show()
+            else -> Toast.makeText(
+                applicationContext,
+                "Unexpected error occured, please create a bug report (settings)",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 }

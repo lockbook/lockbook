@@ -4,7 +4,7 @@
 
     <data>
         <variable
-            name="importAccount"
+            name="importAccountActivity"
             type="app.lockbook.ImportAccount" />
     </data>
 
@@ -48,7 +48,7 @@
             android:backgroundTint="?attr/colorPrimary"
             android:text="Import"
             android:textColor="#000000"
-            android:onClick="@{() -> }"/>
+            android:onClick="@{() -> importAccountActivity.isAccountStringValid()}"/>
 
 
     </LinearLayout>

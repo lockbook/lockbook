@@ -16,9 +16,6 @@ class ImportAccount : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.import_account)
 
-        import_lockbook.setOnClickListener {
-
-        }
 
     }
 
