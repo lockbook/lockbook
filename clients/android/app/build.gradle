@@ -40,7 +40,6 @@ android {
     buildFeatures{
         dataBinding = true
     }
-
 }
 
 dependencies {
@@ -62,7 +61,7 @@ dependencies {
     implementation "androidx.navigation:navigation-fragment-ktx:$navigation_version"
     implementation "androidx.navigation:navigation-ui-ktx:$navigation_version"
 
-    // Tests & Logs
+    // Testing Libraries
     testImplementation "junit:junit:$junit_version"
     androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
     androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
