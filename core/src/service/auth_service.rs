@@ -3,7 +3,6 @@ use std::num::ParseIntError;
 use rsa::RSAPublicKey;
 use serde::export::PhantomData;
 
-use crate::error_enum;
 use crate::model::account::Account;
 use crate::model::crypto::*;
 use crate::service::auth_service::VerificationError::{
@@ -47,7 +46,8 @@ impl From<serde_json::error::Error> for VerificationError {
     }
 }
 
-enum AuthGenError {
+#[derive(Debug)]
+pub enum AuthGenError {
     RsaError(rsa::errors::Error),
     AuthSerializationError(serde_json::error::Error),
 }
@@ -95,10 +95,10 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
     fn generate_auth(account: &Account) -> Result<String, AuthGenError> {
         let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
 
-        Ok(serde_json::to_string(&Crypto::sign(
-            &account.keys,
-            &to_sign,
-        ).map_err(AuthGenError::RsaError)?).map_err(AuthGenError::AuthSerializationError)?)
+        Ok(serde_json::to_string(
+            &Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?,
+        )
+        .map_err(AuthGenError::AuthSerializationError)?)
     }
 }
 
@@ -166,7 +166,7 @@ mod unit_tests {
                 &String::from("Hamza"),
                 100,
             )
-                .unwrap_err(),
+            .unwrap_err(),
         );
         let error = discriminant(&VerificationError::InvalidUsername);
 

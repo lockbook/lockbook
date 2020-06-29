@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::error_enum;
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
-pub(crate) enum DbError {
+#[derive(Debug)]
+pub enum DbError {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
 }
 
-enum Error {
+#[derive(Debug)]
+pub enum Error {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
     FileRowMissing(()),
@@ -52,11 +53,19 @@ static LAST_UPDATED: &[u8; 12] = b"last_updated";
 impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
-        tree.insert(&file.id.as_bytes(), serde_json::to_vec(&file).map_err(DbError::SerdeError)?).map_err(DbError::SledError)?;
+        tree.insert(
+            &file.id.as_bytes(),
+            serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
+        )
+        .map_err(DbError::SledError)?;
         if file.id == file.parent_id {
             let root = db.open_tree(ROOT).map_err(DbError::SledError)?;
             debug!("saving root folder: {:?}", &file.id);
-            root.insert(ROOT, serde_json::to_vec(&file.id).map_err(DbError::SerdeError)?).map_err(DbError::SledError)?;
+            root.insert(
+                ROOT,
+                serde_json::to_vec(&file.id).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::SledError)?;
         }
         Ok(())
     }
@@ -67,7 +76,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         match maybe_value {
             None => Ok(None),
             Some(value) => {
-                let id: Uuid = serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
+                let id: Uuid =
+                    serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
                 Self::maybe_get(&db, id)
             }
         }
@@ -77,7 +87,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
         let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
         let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
+        let file_metadata: ClientFileMetadata =
+            serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(file_metadata)
     }
@@ -88,7 +99,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         match maybe_value {
             None => Ok(None),
             Some(value) => {
-                let file_metadata: ClientFileMetadata = serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
+                let file_metadata: ClientFileMetadata =
+                    serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
                 Ok(Some(file_metadata))
             }
         }
@@ -230,7 +242,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
         debug!("Setting last updated to: {}", last_updated);
         let tree = db.open_tree(LAST_UPDATED).map_err(Error::SledError)?;
-        tree.insert(LAST_UPDATED, serde_json::to_vec(&last_updated).map_err(Error::SerdeError)?).map_err(Error::SledError)?;
+        tree.insert(
+            LAST_UPDATED,
+            serde_json::to_vec(&last_updated).map_err(Error::SerdeError)?,
+        )
+        .map_err(Error::SledError)?;
         Ok(())
     }
 

@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 use crate::model::crypto::*;
 
-enum Error {
+#[derive(Debug)]
+pub enum Error {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
     FileRowMissing(()), // TODO remove from insert
@@ -20,7 +21,11 @@ pub struct DocumentRepoImpl;
 impl DocumentRepo for DocumentRepoImpl {
     fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error> {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        tree.insert(id.as_bytes(), serde_json::to_vec(document).map_err(Error::SerdeError)?).map_err(Error::SledError)?;
+        tree.insert(
+            id.as_bytes(),
+            serde_json::to_vec(document).map_err(Error::SerdeError)?,
+        )
+        .map_err(Error::SledError)?;
         Ok(())
     }
 
@@ -28,7 +33,8 @@ impl DocumentRepo for DocumentRepoImpl {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
         let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
         let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let document: Document = serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
+        let document: Document =
+            serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(document)
     }
@@ -87,7 +93,7 @@ mod unit_tests {
                 },
             },
         )
-            .unwrap();
+        .unwrap();
 
         let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
 

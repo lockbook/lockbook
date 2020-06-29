@@ -2,7 +2,8 @@ use sled::Db;
 
 use crate::model::account::Account;
 
-pub(crate) enum Error {
+#[derive(Debug)]
+pub enum Error {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
     AccountMissing(()),
@@ -20,7 +21,11 @@ static ACCOUNT: &str = "account";
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
         let tree = db.open_tree(ACCOUNT).map_err(Error::SledError)?;
-        tree.insert("you", serde_json::to_vec(account).map_err(Error::SerdeError)?).map_err(Error::SledError)?;
+        tree.insert(
+            "you",
+            serde_json::to_vec(account).map_err(Error::SerdeError)?,
+        )
+        .map_err(Error::SledError)?;
         Ok(())
     }
 

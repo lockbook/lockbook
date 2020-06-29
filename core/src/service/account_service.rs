@@ -10,11 +10,12 @@ use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::service::auth_service::AuthService;
+use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
-use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
 
-enum AccountCreationError {
+#[derive(Debug)]
+pub enum AccountCreationError {
     KeyGenerationError(rsa::errors::Error),
     PersistenceError(account_repo::Error),
     FolderError(RootFolderCreationError),
@@ -24,20 +25,18 @@ enum AccountCreationError {
     AuthGenFailure(AuthGenError),
 }
 
-
-enum AccountImportError {
+#[derive(Debug)]
+pub enum AccountImportError {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
     PersistenceError(account_repo::Error),
     InvalidPrivateKey(rsa::errors::Error),
 }
 
-
-enum AccountExportError {
+pub enum AccountExportError {
     KeyRetrievalError(account_repo::Error),
     AccountStringFailedToSerialize(bincode::Error),
 }
-
 
 pub trait AccountService {
     fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError>;
@@ -62,14 +61,14 @@ pub struct AccountServiceImpl<
 }
 
 impl<
-    Crypto: PubKeyCryptoService,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-    FileCrypto: FileEncryptionService,
-    FileMetadata: FileMetadataRepo,
-> AccountService
-for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetadata>
+        Crypto: PubKeyCryptoService,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+        FileCrypto: FileEncryptionService,
+        FileMetadata: FileMetadataRepo,
+    > AccountService
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetadata>
 {
     fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError> {
         info!("Creating new account for {}", username);
@@ -86,7 +85,8 @@ for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetad
         AccountDb::insert_account(db, &account).map_err(AccountCreationError::PersistenceError)?;
 
         info!("Generating Root Folder");
-        let mut file_metadata = FileCrypto::create_metadata_for_root_folder(&account).map_err(AccountCreationError::FolderError)?;
+        let mut file_metadata = FileCrypto::create_metadata_for_root_folder(&account)
+            .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
         let auth = Auth::generate_auth(&account).map_err(AccountCreationError::AuthGenFailure)?;
@@ -96,25 +96,35 @@ for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetad
             &auth,
             account.keys.to_public_key(),
             file_metadata.id,
-        ).map_err(AccountCreationError::ApiError)?;
+        )
+        .map_err(AccountCreationError::ApiError)?;
         info!("Account creation success!");
 
-        FileMetadata::insert(&db, &file_metadata).map_err(AccountCreationError::MetadataRepoError)?;
+        FileMetadata::insert(&db, &file_metadata)
+            .map_err(AccountCreationError::MetadataRepoError)?;
 
-        debug!("{}", serde_json::to_string(&account).map_err(AccountCreationError::KeySerializationError)?);
+        debug!(
+            "{}",
+            serde_json::to_string(&account).map_err(AccountCreationError::KeySerializationError)?
+        );
         Ok(account)
     }
 
     fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError> {
         info!("Importing account string: {}", &account_string);
 
-        let decoded = base64::decode(&account_string).map_err(AccountImportError::AccountStringCorrupted)?;
+        let decoded =
+            base64::decode(&account_string).map_err(AccountImportError::AccountStringCorrupted)?;
         debug!("Key is valid base64 string");
 
-        let account: Account = bincode::deserialize(&decoded[..]).map_err(AccountImportError::AccountStringFailedToDeserialize)?;
+        let account: Account = bincode::deserialize(&decoded[..])
+            .map_err(AccountImportError::AccountStringFailedToDeserialize)?;
         debug!("Key was valid bincode");
 
-        account.keys.validate().map_err(AccountImportError::InvalidPrivateKey)?;
+        account
+            .keys
+            .validate()
+            .map_err(AccountImportError::InvalidPrivateKey)?;
         debug!("RSA says the key is valid");
 
         info!("Account String seems valid, saving now");
@@ -127,8 +137,10 @@ for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetad
     }
 
     fn export_account(db: &Db) -> Result<String, AccountExportError> {
-        let account = &AccountDb::get_account(&db).map_err(AccountExportError::KeyRetrievalError)?;
-        let encoded: Vec<u8> = bincode::serialize(&account).map_err(AccountExportError::AccountStringFailedToSerialize)?;
+        let account =
+            &AccountDb::get_account(&db).map_err(AccountExportError::KeyRetrievalError)?;
+        let encoded: Vec<u8> = bincode::serialize(&account)
+            .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))
     }
 }
@@ -139,17 +151,17 @@ mod unit_tests {
 
     use rsa::{BigUint, RSAPrivateKey};
 
-    use crate::{DefaultFileEncryptionService, DefaultFileMetadataRepo};
     use crate::client::ClientImpl;
     use crate::model::account::Account;
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::service::account_service::{AccountService, AccountServiceImpl};
     use crate::service::account_service::AccountImportError;
+    use crate::service::account_service::{AccountService, AccountServiceImpl};
     use crate::service::auth_service::AuthServiceImpl;
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::RsaImpl;
+    use crate::{DefaultFileEncryptionService, DefaultFileMetadataRepo};
 
     type DefaultClock = ClockImpl;
     type DefaultCrypto = RsaImpl;
@@ -192,7 +204,7 @@ mod unit_tests {
                 &db,
                 &DefaultAccountService::export_account(&db).unwrap(),
             )
-                .unwrap_err(),
+            .unwrap_err(),
         );
         let err = discriminant(&AccountImportError::InvalidPrivateKey(
             rsa::errors::Error::InvalidModulus,
