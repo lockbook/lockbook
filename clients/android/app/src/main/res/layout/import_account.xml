@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<layout>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <data>
+
         <variable
             name="importAccountActivity"
             type="app.lockbook.ImportAccount" />
     </data>
 
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
@@ -46,9 +47,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:backgroundTint="?attr/colorPrimary"
+            android:onClick="@{() -> importAccountActivity.isAccountStringValid()}"
             android:text="Import"
-            android:textColor="#000000"
-            android:onClick="@{() -> importAccountActivity.isAccountStringValid()}"/>
+            android:textColor="#000000" />
 
 
     </LinearLayout>

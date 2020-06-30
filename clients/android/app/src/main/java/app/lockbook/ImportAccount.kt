@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import app.lockbook.core.importAccount
-import app.lockbook.databinding.ActivityMainBinding
 import app.lockbook.databinding.ImportAccountBinding
 import kotlinx.android.synthetic.main.import_account.*
 
@@ -24,7 +23,12 @@ class ImportAccount : AppCompatActivity() {
 
     fun isAccountStringValid() {
         when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
-            success -> startActivity(Intent(applicationContext, ListFiles::class.java))
+            success -> {
+                val intent = Intent(applicationContext, ListFiles::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                finish()
+            }
             accountStringInvalid -> Toast.makeText(
                 applicationContext,
                 "Account String invalid!",
