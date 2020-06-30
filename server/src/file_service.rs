@@ -34,7 +34,7 @@ pub async fn change_document_content(
         index_db::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
         index_db::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot change document content version in Postgres: {:?}", e);
             ChangeDocumentContentError::InternalError
         }
     })?;
@@ -47,7 +47,7 @@ pub async fn change_document_content(
     )
     .await;
     if create_result.is_err() {
-        println!("Internal server error! {:?}", create_result);
+        error!("Internal server error! Cannot create file in S3: {:?}", create_result);
         return Err(ChangeDocumentContentError::InternalError);
     };
 
@@ -58,7 +58,7 @@ pub async fn change_document_content(
     )
     .await;
     if delete_result.is_err() {
-        println!("Internal server error! {:?}", delete_result);
+        error!("Internal server error! Cannot delete file in S3: {:?}", delete_result);
         return Err(ChangeDocumentContentError::InternalError);
     };
 
@@ -103,7 +103,7 @@ pub async fn create_document(
         index_db::FileError::IdTaken => CreateDocumentError::FileIdTaken,
         index_db::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot create document in Postgres: {:?}", e);
             CreateDocumentError::InternalError
         }
     })?;
@@ -116,7 +116,7 @@ pub async fn create_document(
     )
     .await;
     if files_result.is_err() {
-        println!("Internal server error! {:?}", files_result);
+        error!("Internal server error! Cannot create file in S3: {:?}", files_result);
         return Err(CreateDocumentError::InternalError);
     };
 
@@ -158,7 +158,7 @@ pub async fn delete_document(
         index_db::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
         index_db::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot delete document in Postgres: {:?}", e);
             DeleteDocumentError::InternalError
         }
     })?;
@@ -170,7 +170,7 @@ pub async fn delete_document(
     )
     .await;
     if files_result.is_err() {
-        println!("Internal server error! {:?}", files_result);
+        error!("Internal server error! Cannot delete file in S3: {:?}", files_result);
         return Err(DeleteDocumentError::InternalError);
     };
 
@@ -214,7 +214,7 @@ pub async fn move_document(
         index_db::FileError::Deleted => MoveDocumentError::DocumentDeleted,
         index_db::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot move document in Postgres: {:?}", e);
             MoveDocumentError::InternalError
         }
     })?;
@@ -258,7 +258,7 @@ pub async fn rename_document(
         index_db::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
         index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot rename document in Postgres: {:?}", e);
             RenameDocumentError::InternalError
         }
     })?;
@@ -289,21 +289,22 @@ pub async fn create_folder(
         }
     };
 
-    let result = index_db::create_folder(
+    let result = index_db::create_file(
         &transaction,
         request.id,
         request.parent,
+        FileType::Folder,
         &request.name,
         &request.username,
         &request.signature,
-        request.parent_access_key,
+        &request.parent_access_key,
     )
     .await;
     let new_version = result.map_err(|e| match e {
         index_db::FileError::IdTaken => CreateFolderError::FileIdTaken,
         index_db::FileError::PathTaken => CreateFolderError::FolderPathTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot create folder in Postgres: {:?}", e);
             CreateFolderError::InternalError
         }
     })?;
@@ -346,7 +347,7 @@ pub async fn delete_folder(
         index_db::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
         index_db::FileError::Deleted => DeleteFolderError::FolderDeleted,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot delete folder in Postgres: {:?}", e);
             DeleteFolderError::InternalError
         }
     })?;
@@ -391,7 +392,7 @@ pub async fn move_folder(
         index_db::FileError::Deleted => MoveFolderError::FolderDeleted,
         index_db::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot move folder in Postgres: {:?}", e);
             MoveFolderError::InternalError
         }
     })?;
@@ -435,7 +436,7 @@ pub async fn rename_folder(
         index_db::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
         index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot rename folder in Postgres: {:?}", e);
             RenameFolderError::InternalError
         }
     })?;
@@ -472,7 +473,7 @@ pub async fn get_updates(
     )
     .await;
     let updates = result.map_err(|e| {
-        error!("Internal server error! {:?}", e);
+        error!("Internal server error! Cannot get updates from Postgres: {:?}", e);
         GetUpdatesError::InternalError
     })?;
 
@@ -515,25 +516,26 @@ pub async fn new_account(
     new_account_result.map_err(|e| match e {
         index_db::AccountError::UsernameTaken => NewAccountError::UsernameTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot create account in Postgres: {:?}", e);
             NewAccountError::InternalError
         }
     })?;
 
-    let create_folder_result = index_db::create_folder(
+    let create_folder_result = index_db::create_file(
         &transaction,
         request.folder_id,
         request.folder_id,
+        FileType::Folder,
         &request.username,
         &request.username,
         &request.signature,
-        request.parent_access_key,
+        &request.parent_access_key,
     )
     .await;
     let new_version = create_folder_result.map_err(|e| match e {
         index_db::FileError::IdTaken => NewAccountError::FileIdTaken,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot create account root folder in Postgres: {:?}", e);
             NewAccountError::InternalError
         }
     })?;
@@ -567,7 +569,7 @@ pub async fn get_public_key(
     let key = result.map_err(|e| match e {
         index_db::PublicKeyError::UserNotFound => GetPublicKeyError::UserNotFound,
         _ => {
-            println!("Internal server error! {:?}", e);
+            error!("Internal server error! Cannot get public key from Postgres: {:?}", e);
             GetPublicKeyError::InternalError
         }
     })?;

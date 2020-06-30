@@ -83,7 +83,7 @@ pub trait Client {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: FolderAccessInfo,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
         username: &str,
@@ -116,7 +116,7 @@ pub trait Client {
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
-        parent_access_key: FolderAccessInfo,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<NewAccountError>>;
 }
 
@@ -130,8 +130,9 @@ impl Client for ClientImpl {
             .map_err(Error::SendFailed)?;
         let status = response.status().as_u16();
         let response_body = response.text().map_err(Error::ReceiveFailed)?;
-        let encrypted_file: Document = // server says this is encryptedvaluewithnonce
-            serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?;
+        let encrypted_file: Document = Document{
+            content: serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?
+        };
         match status {
             200..=299 => Ok(encrypted_file),
             _ => Err(Error::Api(())),
@@ -250,7 +251,7 @@ impl Client for ClientImpl {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: FolderAccessInfo,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             API_LOC,
@@ -361,7 +362,7 @@ impl Client for ClientImpl {
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
-        parent_access_key: FolderAccessInfo,
+        parent_access_key: EncryptedValueWithNonce,
     ) -> Result<u64, Error<NewAccountError>> {
         api_request(
             API_LOC,
