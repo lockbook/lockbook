@@ -54,12 +54,12 @@ pub enum AuthGenError {
 
 pub trait AuthService {
     fn verify_auth(
-        auth: &str,
+        auth: &SignedValue,
         public_key: &RSAPublicKey,
         username: &str,
         max_auth_delay: u128,
     ) -> Result<(), VerificationError>;
-    fn generate_auth(account: &Account) -> Result<String, AuthGenError>;
+    fn generate_auth(account: &Account) -> Result<SignedValue, AuthGenError>;
 }
 
 pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
@@ -69,15 +69,14 @@ pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
 
 impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
     fn verify_auth(
-        auth: &str,
+        auth: &SignedValue,
         public_key: &RSAPublicKey,
         username: &str,
         max_auth_delay: u128,
     ) -> Result<(), VerificationError> {
-        let signed_val = serde_json::from_str::<SignedValue>(&String::from(auth))?;
-        Crypto::verify(&public_key, &signed_val)?;
+        Crypto::verify(&public_key, auth)?;
 
-        let mut auth_comp = signed_val.content.split(',');
+        let mut auth_comp = auth.content.split(',');
         if auth_comp.next().ok_or(())? != username {
             return Err(InvalidUsername);
         }
@@ -92,13 +91,9 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         Ok(())
     }
 
-    fn generate_auth(account: &Account) -> Result<String, AuthGenError> {
+    fn generate_auth(account: &Account) -> Result<SignedValue, AuthGenError> {
         let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
-
-        Ok(serde_json::to_string(
-            &Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?,
-        )
-        .map_err(AuthGenError::AuthSerializationError)?)
+        Ok(Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?)
     }
 }
 
