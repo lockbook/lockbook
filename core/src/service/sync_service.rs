@@ -12,7 +12,7 @@ use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::model::client_file_metadata::FileType::Document;
-use crate::model::crypto::{SignedValue, FolderAccessInfo};
+use crate::model::crypto::{FolderAccessInfo, SignedValue};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
@@ -110,7 +110,8 @@ impl<
         let mut server_dirty_files = HashMap::new();
         ApiClient::get_updates(
             &account.username,
-            &SignedValue { // junk auth :(
+            &SignedValue {
+                // junk auth :(
                 content: String::default(),
                 signature: String::default(),
             },
@@ -238,7 +239,7 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: FolderAccessInfo{
+                                    folder_access_keys: FolderAccessInfo {
                                         folder_id: new_metadata.parent,
                                         access_key: new_metadata.folder_access_keys,
                                     },
@@ -355,7 +356,7 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: FolderAccessInfo{
+                                    folder_access_keys: FolderAccessInfo {
                                         folder_id: new_metadata.parent,
                                         access_key: new_metadata.folder_access_keys,
                                     },
@@ -445,7 +446,8 @@ fn calculate_work_across_server_and_client(
     let local_edit = client.document_edited;
     let local_move = client.metadata_changed;
     let server_delete = server.deleted;
-    let server_content_change = server.content_version != client.content_version && client.file_type == Document;
+    let server_content_change =
+        server.content_version != client.content_version && client.file_type == Document;
     // We could consider diffing across name & path instead of doing this
     let server_move = server.metadata_version != client.metadata_version;
 
