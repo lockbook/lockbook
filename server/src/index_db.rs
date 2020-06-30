@@ -353,7 +353,7 @@ pub async fn get_public_key(
 ) -> Result<RSAPublicKey, PublicKeyError> {
     match transaction
         .query(
-            "SELECT public_key FROM users WHERE username = $1;",
+            "SELECT public_key FROM accounts WHERE name = $1;",
             &[&username],
         )
         .await
@@ -468,7 +468,7 @@ pub async fn get_updates(
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
         .query(
-            "SELECT * FROM files WHERE username = $1 AND file_metadata_version > $2",
+            "SELECT * FROM files WHERE owner = $1 AND metadata_version > $2",
             &[&username, &(metadata_version as i64)],
         )
         .await
@@ -485,7 +485,7 @@ pub async fn new_account(
 ) -> Result<(), AccountError> {
     transaction
         .execute(
-            "INSERT INTO accounts (username, public_key) VALUES ($1, $2);",
+            "INSERT INTO accounts (name, public_key) VALUES ($1, $2);",
             &[&username, &public_key],
         )
         .await?;
