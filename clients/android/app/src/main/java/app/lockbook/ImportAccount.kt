@@ -4,7 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.databinding.DataBindingUtil
 import app.lockbook.core.importAccount
+import app.lockbook.databinding.ActivityMainBinding
+import app.lockbook.databinding.ImportAccountBinding
 import kotlinx.android.synthetic.main.import_account.*
 
 class ImportAccount : AppCompatActivity() {
@@ -14,9 +17,9 @@ class ImportAccount : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.import_account)
 
-
+        val binding: ImportAccountBinding = DataBindingUtil.setContentView(this, R.layout.import_account)
+        binding.importAccountActivity = this
     }
 
     fun isAccountStringValid() {
