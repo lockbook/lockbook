@@ -149,7 +149,7 @@ pub struct CreateFolderRequest {
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub parent_access_key: FolderAccessInfo,
+    pub parent_access_key: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -301,7 +301,7 @@ pub struct FileMetadata {
     pub content_version: u64,
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: FolderAccessInfo,
+    pub folder_access_keys: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -310,7 +310,7 @@ pub struct NewAccountRequest {
     pub signature: SignedValue,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
-    pub parent_access_key: FolderAccessInfo,
+    pub parent_access_key: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
