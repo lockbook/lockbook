@@ -310,7 +310,7 @@ pub struct NewAccountRequest {
     pub signature: String,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
-    pub parent_access_key: FolderAccessInfo
+    pub parent_access_key: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
