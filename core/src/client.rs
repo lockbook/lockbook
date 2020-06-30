@@ -81,7 +81,7 @@ pub trait Client {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
         username: &str,
@@ -114,6 +114,7 @@ pub trait Client {
         signature: &str,
         public_key: RSAPublicKey,
         folder_id: Uuid,
+        parent_access_key: FolderAccessInfo
     ) -> Result<u64, Error<NewAccountError>>;
 }
 
@@ -242,7 +243,7 @@ impl Client for ClientImpl {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             API_LOC,
@@ -347,6 +348,7 @@ impl Client for ClientImpl {
         signature: &str,
         public_key: RSAPublicKey,
         folder_id: Uuid,
+        parent_access_key: FolderAccessInfo
     ) -> Result<u64, Error<NewAccountError>> {
         api_request(
             API_LOC,
@@ -356,6 +358,7 @@ impl Client for ClientImpl {
                 signature: String::from(signature),
                 public_key: public_key,
                 folder_id: folder_id,
+                parent_access_key: parent_access_key
             },
         )
         .map(|r: NewAccountResponse| r.folder_metadata_version)
