@@ -24,6 +24,7 @@
 		EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */; };
 		EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEA244D0C580017A402 /* DebugView.swift */; };
 		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
+		EA717D9F24844A4B007F2DF9 /* ItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA717D9E24844A4B007F2DF9 /* ItemView.swift */; };
 		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -76,6 +77,7 @@
 		EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Coordinator.swift; sourceTree = "<group>"; };
 		EA6CEBEA244D0C580017A402 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
 		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
+		EA717D9E24844A4B007F2DF9 /* ItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemView.swift; sourceTree = "<group>"; };
 		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios.entitlements; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
@@ -239,6 +241,7 @@
 			children = (
 				EAF04892247C5C700021FE6F /* AppDelegate.swift */,
 				EAF04894247C5C700021FE6F /* ContentView.swift */,
+				EA717D9E24844A4B007F2DF9 /* ItemView.swift */,
 				EAF04896247C5C720021FE6F /* Assets.xcassets */,
 				EAF0489B247C5C720021FE6F /* Main.storyboard */,
 				EAF0489E247C5C720021FE6F /* Info.plist */,
@@ -354,7 +357,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1150;
-				LastUpgradeCheck = 1150;
+				LastUpgradeCheck = 1200;
 				ORGANIZATIONNAME = Lockbook;
 				TargetAttributes = {
 					87BD615C23E3B9CB00945B25 = {
@@ -463,6 +466,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EAF04895247C5C700021FE6F /* ContentView.swift in Sources */,
+				EA717D9F24844A4B007F2DF9 /* ItemView.swift in Sources */,
 				EAF04893247C5C700021FE6F /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -552,6 +556,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -612,6 +617,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
