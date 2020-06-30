@@ -9,11 +9,9 @@ use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api::FileMetadata as ServerFileMetadata;
-use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, DeleteDocumentError, GetUpdatesError,
-    MoveDocumentError, RenameDocumentError,
-};
+use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
+use crate::model::crypto::SignedValue;
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
@@ -108,15 +106,22 @@ impl<
         let mut most_recent_update_from_server: u64 = last_sync;
 
         let mut server_dirty_files = HashMap::new();
-        ApiClient::get_updates(&account.username, "junk auth :(", last_sync)
-            .map_err(CalculateWorkError::GetUpdatesError)?
-            .into_iter()
-            .for_each(|file| {
-                server_dirty_files.insert(file.id, file.clone());
-                if file.metadata_version > most_recent_update_from_server {
-                    most_recent_update_from_server = file.metadata_version;
-                }
-            });
+        ApiClient::get_updates(
+            &account.username,
+            &SignedValue { // junk auth :(
+                content: String::default(),
+                signature: String::default(),
+            },
+            last_sync,
+        )
+        .map_err(CalculateWorkError::GetUpdatesError)?
+        .into_iter()
+        .for_each(|file| {
+            server_dirty_files.insert(file.id, file.clone());
+            if file.metadata_version > most_recent_update_from_server {
+                most_recent_update_from_server = file.metadata_version;
+            }
+        });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
