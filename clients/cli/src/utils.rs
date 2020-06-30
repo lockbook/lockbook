@@ -97,16 +97,18 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 }
 
 pub fn print_last_successful_sync(db: &Db) {
-    let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
-        .expect("Failed to retrieve content from FileMetadataRepo");
+    if atty::is(atty::Stream::Stdout) {
+        let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
+            .expect("Failed to retrieve content from FileMetadataRepo");
 
-    let duration = if last_updated != 0 {
-        let duration =
-            Duration::milliseconds((DefaultClock::get_time() as u64 - last_updated) as i64);
-        duration.format_human().to_string()
-    } else {
-        "never".to_string()
-    };
+        let duration = if last_updated != 0 {
+            let duration =
+                Duration::milliseconds((DefaultClock::get_time() as u64 - last_updated) as i64);
+            duration.format_human().to_string()
+        } else {
+            "never".to_string()
+        };
 
-    println!("Last successful sync: {}", duration);
+        println!("Last successful sync: {}", duration);
+    }
 }
