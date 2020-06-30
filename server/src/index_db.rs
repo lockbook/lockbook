@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::api::FileMetadata;
 use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_core::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo};
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
@@ -334,13 +334,14 @@ pub async fn create_folder(
     parent: Uuid,
     name: &str,
     owner: &str,
-    signature: &str,
+    signature: &str, // TODO this doesn't need to be an str
+    parent_access_keys: FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction.query_one(
-        "INSERT INTO folders (id, parent, name, owner, signature, metadata_version, content_version, deleted)
-        VALUES ($1, $2, $3, $4, $5, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
+        "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, metadata_version, content_version, deleted)
+        VALUES ($1, $2, $3, true, $4, $5, $6, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
         RETURNING *;",
-        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
+        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &(serde_json::to_string(&parent_access_keys).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
