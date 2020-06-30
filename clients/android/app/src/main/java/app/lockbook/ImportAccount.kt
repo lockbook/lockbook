@@ -24,10 +24,8 @@ class ImportAccount : AppCompatActivity() {
     fun isAccountStringValid() {
         when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
             success -> {
-                val intent = Intent(applicationContext, ListFiles::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                finish()
+                startActivity(Intent(applicationContext, ListFiles::class.java))
+                finishAffinity()
             }
             accountStringInvalid -> Toast.makeText(
                 applicationContext,
