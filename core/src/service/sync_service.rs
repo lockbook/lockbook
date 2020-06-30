@@ -11,6 +11,7 @@ use crate::model::account::Account;
 use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
+use crate::model::client_file_metadata::FileType::Document;
 use crate::model::crypto::{SignedValue, FolderAccessInfo};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
@@ -64,6 +65,7 @@ pub trait SyncService {
     fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
+#[derive(Debug)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
@@ -396,6 +398,8 @@ impl<
         let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
         let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
+        debug!("Work calculated: {:?}", work_calculated);
+
         if work_calculated.work_units.is_empty() {
             info!("Done syncing");
             FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)
@@ -441,7 +445,7 @@ fn calculate_work_across_server_and_client(
     let local_edit = client.document_edited;
     let local_move = client.metadata_changed;
     let server_delete = server.deleted;
-    let server_content_change = server.content_version != client.content_version;
+    let server_content_change = server.content_version != client.content_version && client.file_type == Document;
     // We could consider diffing across name & path instead of doing this
     let server_move = server.metadata_version != client.metadata_version;
 
