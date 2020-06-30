@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::api::FileMetadata;
 use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
+use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue};
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
@@ -74,7 +74,7 @@ impl From<PostgresError> for FileError {
             }
             (Some(error_code), error_string)
                 if error_code == &SqlState::UNIQUE_VIOLATION
-                    && error_string.contains("unique_file_path") =>
+                    && error_string.contains("uk_files_name_parent") =>
             {
                 FileError::PathTaken
             }
@@ -200,8 +200,7 @@ pub async fn create_file(
                 &serde_json::to_string(&signature).map_err(FileError::Serialize)?,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
@@ -326,32 +325,6 @@ pub async fn rename_file(
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
-}
-
-pub async fn create_folder(
-    transaction: &Transaction<'_>,
-    id: Uuid,
-    parent: Uuid,
-    name: &str,
-    owner: &str,
-    signature: &SignedValue,
-    parent_access_keys: FolderAccessInfo,
-) -> Result<u64, FileError> {
-    let row = transaction.query_one(
-        "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, metadata_version, content_version, deleted)
-        VALUES ($1, $2, $3, true, $4, $5, $6, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
-        RETURNING *;",
-        &[
-            &serde_json::to_string(&id).map_err(FileError::Serialize)?,
-            &(serde_json::to_string(&parent).map_err(FileError::Serialize)?),
-            &(serde_json::to_string(&parent_access_keys).map_err(FileError::Serialize)?),
-            &name,
-            &owner,
-            &(serde_json::to_string(&signature).map_err(FileError::Serialize)?),
-        ]).await.map_err(FileError::Postgres)?;
-    Ok(row
-        .try_get::<&str, i64>("metadata_version")
-        .map_err(FileError::Postgres)? as u64)
 }
 
 pub async fn get_public_key(

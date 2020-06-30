@@ -11,7 +11,7 @@ use crate::model::account::Account;
 use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
-use crate::model::crypto::SignedValue;
+use crate::model::crypto::{SignedValue, FolderAccessInfo};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
@@ -236,7 +236,10 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: new_metadata.folder_access_keys,
+                                    folder_access_keys: FolderAccessInfo{
+                                        folder_id: new_metadata.parent,
+                                        access_key: new_metadata.folder_access_keys,
+                                    },
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,
@@ -350,7 +353,10 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: new_metadata.folder_access_keys,
+                                    folder_access_keys: FolderAccessInfo{
+                                        folder_id: new_metadata.parent,
+                                        access_key: new_metadata.folder_access_keys,
+                                    },
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,
