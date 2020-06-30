@@ -25,10 +25,8 @@ class NewAccount : AppCompatActivity() {
     fun createAccount() {
         when (createAccount(filesDir.absolutePath, username.text.toString())) {
             success -> {
-                val intent = Intent(applicationContext, ListFiles::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                finish()
+                startActivity(Intent(applicationContext, ListFiles::class.java))
+                finishAffinity()
             }
             usernameTaken -> username.error = "Username Taken!"
             networkError -> Toast.makeText(
