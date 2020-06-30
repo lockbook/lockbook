@@ -127,7 +127,7 @@ impl<
     ) -> Result<ClientFileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
-            .split("/")
+            .split('/')
             .collect::<Vec<&str>>()
             .into_iter()
             .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
