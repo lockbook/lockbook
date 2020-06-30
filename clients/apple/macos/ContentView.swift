@@ -9,9 +9,17 @@
 import SwiftUI
 
 struct ContentView: View {
+    var items: [String] = ["Hey", "Hi", "Ho"]
     var body: some View {
-        Text("Hello, World!")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        NavigationView {
+            List {
+                ForEach(items, id: \.self) { item in
+                    NavigationLink(destination: ItemView()) {
+                        Text("Word: \(item)")
+                    }
+                }
+            }
+        }
     }
 }
 
