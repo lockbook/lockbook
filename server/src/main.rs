@@ -119,7 +119,7 @@ async fn route(
             handle(&mut s, request, file_service::new_account).await
         }
         _ => {
-            warn!("Request matched no endpoints");
+            warn!("Request matched no endpoints: {} {}", request.method(), request.uri().path());
             hyper::Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(hyper::Body::empty())
