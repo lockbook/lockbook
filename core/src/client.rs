@@ -43,14 +43,14 @@ pub trait Client {
     fn get_document(id: Uuid, content_version: u64) -> Result<Document, Error<()>>;
     fn change_document_content(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_content: EncryptedValueWithNonce,
     ) -> Result<u64, Error<ChangeDocumentContentError>>;
     fn create_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -59,27 +59,27 @@ pub trait Client {
     ) -> Result<u64, Error<CreateDocumentError>>;
     fn delete_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteDocumentError>>;
     fn move_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveDocumentError>>;
     fn rename_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
     ) -> Result<u64, Error<RenameDocumentError>>;
     fn create_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -87,20 +87,20 @@ pub trait Client {
     ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteFolderError>>;
     fn move_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
     ) -> Result<u64, Error<MoveFolderError>>;
     fn rename_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -108,12 +108,12 @@ pub trait Client {
     fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>>;
     fn get_updates(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>>;
     fn new_account(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
@@ -130,7 +130,7 @@ impl Client for ClientImpl {
             .map_err(Error::SendFailed)?;
         let status = response.status().as_u16();
         let response_body = response.text().map_err(Error::ReceiveFailed)?;
-        let encrypted_file: Document =
+        let encrypted_file: Document = // server says this is encryptedvaluewithnonce
             serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?;
         match status {
             200..=299 => Ok(encrypted_file),
@@ -139,7 +139,7 @@ impl Client for ClientImpl {
     }
     fn change_document_content(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_content: EncryptedValueWithNonce,
@@ -150,7 +150,7 @@ impl Client for ClientImpl {
             "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_content: new_content,
@@ -160,7 +160,7 @@ impl Client for ClientImpl {
     }
     fn create_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -173,7 +173,7 @@ impl Client for ClientImpl {
             "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 name: String::from(name),
                 parent: parent,
@@ -185,7 +185,7 @@ impl Client for ClientImpl {
     }
     fn delete_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteDocumentError>> {
@@ -195,7 +195,7 @@ impl Client for ClientImpl {
             "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -204,7 +204,7 @@ impl Client for ClientImpl {
     }
     fn move_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -215,7 +215,7 @@ impl Client for ClientImpl {
             "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -225,7 +225,7 @@ impl Client for ClientImpl {
     }
     fn rename_document(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -236,7 +236,7 @@ impl Client for ClientImpl {
             "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
@@ -246,7 +246,7 @@ impl Client for ClientImpl {
     }
     fn create_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -258,7 +258,7 @@ impl Client for ClientImpl {
             "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 name: String::from(name),
                 parent: parent,
@@ -269,7 +269,7 @@ impl Client for ClientImpl {
     }
     fn delete_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, Error<DeleteFolderError>> {
@@ -279,7 +279,7 @@ impl Client for ClientImpl {
             "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -288,7 +288,7 @@ impl Client for ClientImpl {
     }
     fn move_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -299,7 +299,7 @@ impl Client for ClientImpl {
             "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -309,7 +309,7 @@ impl Client for ClientImpl {
     }
     fn rename_folder(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -320,7 +320,7 @@ impl Client for ClientImpl {
             "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
@@ -341,7 +341,7 @@ impl Client for ClientImpl {
     }
     fn get_updates(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
         api_request(
@@ -350,7 +350,7 @@ impl Client for ClientImpl {
             "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 since_metadata_version: since_metadata_version,
             },
         )
@@ -358,7 +358,7 @@ impl Client for ClientImpl {
     }
     fn new_account(
         username: &str,
-        signature: &str,
+        signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
@@ -369,7 +369,7 @@ impl Client for ClientImpl {
             "new-account",
             &NewAccountRequest {
                 username: String::from(username),
-                signature: String::from(signature),
+                signature: signature.clone(),
                 public_key: public_key,
                 folder_id: folder_id,
                 parent_access_key: parent_access_key,

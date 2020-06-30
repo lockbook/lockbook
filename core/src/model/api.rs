@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_content: EncryptedValueWithNonce,
@@ -36,7 +36,7 @@ pub enum ChangeDocumentContentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -64,7 +64,7 @@ pub enum CreateDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -90,7 +90,7 @@ pub enum DeleteDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveDocumentRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -118,7 +118,7 @@ pub enum MoveDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -145,7 +145,7 @@ pub enum RenameDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -172,7 +172,7 @@ pub enum CreateFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -198,7 +198,7 @@ pub enum DeleteFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveFolderRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -226,7 +226,7 @@ pub enum MoveFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -270,7 +270,7 @@ pub enum GetPublicKeyError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
-    pub signature: String,
+    pub signature: SignedValue,
     pub since_metadata_version: u64,
 }
 
@@ -307,7 +307,7 @@ pub struct FileMetadata {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
-    pub signature: String,
+    pub signature: SignedValue,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: FolderAccessInfo,

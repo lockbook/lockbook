@@ -296,7 +296,7 @@ pub async fn create_folder(
         &request.name,
         &request.username,
         &request.signature,
-        request.parent_access_key
+        request.parent_access_key,
     )
     .await;
     let new_version = result.map_err(|e| match e {
@@ -527,7 +527,7 @@ pub async fn new_account(
         &request.username,
         &request.username,
         &request.signature,
-        request.parent_access_key
+        request.parent_access_key,
     )
     .await;
     let new_version = create_folder_result.map_err(|e| match e {

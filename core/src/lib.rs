@@ -7,12 +7,10 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::Path;
 
-use serde_json::{json, Error};
+use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::model::account::Account;
-use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::model::client_file_metadata::FileType::Document;
 use crate::model::crypto::DecryptedValue;
 use crate::model::state::Config;
@@ -23,8 +21,8 @@ use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
-use crate::service::crypto_service::{AesImpl, PubKeyCryptoService, RsaImpl};
-use crate::service::file_encryption_service::{FileEncryptionService, FileEncryptionServiceImpl};
+use crate::service::crypto_service::{AesImpl, RsaImpl};
+use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
 use uuid::Uuid;
