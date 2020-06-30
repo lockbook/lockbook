@@ -73,8 +73,18 @@ struct CoreApi: LockbookApi {
         return []
     }
     
+    private func getRoot() -> String {
+        let result = get_root(documentsDirectory)
+        let resultString = String(cString: result!)
+        release_pointer(UnsafeMutablePointer(mutating: result))
+        
+        return resultString
+    }
+    
     func createFile(name: String) -> Optional<FileMetadata> {
-        let result = create_file(documentsDirectory, name, "")
+        let rootId = getRoot()
+        print(rootId)
+        let result = create_file(documentsDirectory, name, rootId)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
@@ -111,9 +121,9 @@ struct CoreApi: LockbookApi {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", path: "/", updatedAt: 0, version: 0, status: .Synced),
-        FileMetadata(id: "bbbb", name: "another_file.md", path: "/", updatedAt: 1000, version: 1000, status: .Synced),
-        FileMetadata(id: "cccc", name: "third_file.md", path: "/", updatedAt: 1500, version: 1500, status: .Local),
+        FileMetadata(id: "aaaa", name: "first_file.md", parentId: "root", contentVersion: 0, metadataVersion: 0),
+        FileMetadata(id: "bbbb", name: "another_file.md", parentId: "root", contentVersion: 1000, metadataVersion: 1000),
+        FileMetadata(id: "cccc", name: "third_file.md", parentId: "root", contentVersion: 1500, metadataVersion: 1500),
     ]
     
     func getAccount() -> Optional<String> {
@@ -136,7 +146,7 @@ struct FakeApi: LockbookApi {
     func createFile(name: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
 
-        return Optional.some(FileMetadata(id: "new", name: name, path: "", updatedAt: Int(now), version: Int(now), status: .Local))
+        return Optional.some(FileMetadata(id: "new", name: name, parentId: "", contentVersion: Int(now), metadataVersion: Int(now)))
     }
     
     func getFile(id: String) -> Optional<DecryptedValue> {
