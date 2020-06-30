@@ -5,6 +5,7 @@ use rsa::RSAPublicKey;
 
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
+use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
@@ -20,13 +21,14 @@ pub enum Error<ApiError> {
 
 pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: DeserializeOwned>(
     api_location: &str,
+    method: Method,
     endpoint: &str,
     request: &Request,
 ) -> Result<Response, Error<ApiError>> {
     let client = ReqwestClient::new();
     let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
     let serialized_response = client
-        .post(format!("{}/{}", api_location, endpoint).as_str())
+        .request(method, format!("{}/{}", api_location, endpoint).as_str())
         .body(serialized_request)
         .send()
         .map_err(Error::SendFailed)?
@@ -144,6 +146,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<ChangeDocumentContentError>> {
         api_request(
             API_LOC,
+            Method::PUT,
             "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
@@ -166,6 +169,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
             API_LOC,
+            Method::POST,
             "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
@@ -187,6 +191,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<DeleteDocumentError>> {
         api_request(
             API_LOC,
+            Method::DELETE,
             "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
@@ -206,6 +211,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<MoveDocumentError>> {
         api_request(
             API_LOC,
+            Method::PUT,
             "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
@@ -226,6 +232,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<RenameDocumentError>> {
         api_request(
             API_LOC,
+            Method::PUT,
             "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
@@ -247,6 +254,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             API_LOC,
+            Method::POST,
             "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
@@ -267,6 +275,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<DeleteFolderError>> {
         api_request(
             API_LOC,
+            Method::DELETE,
             "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
@@ -286,6 +295,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<MoveFolderError>> {
         api_request(
             API_LOC,
+            Method::PUT,
             "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
@@ -306,6 +316,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<RenameFolderError>> {
         api_request(
             API_LOC,
+            Method::PUT,
             "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
@@ -320,6 +331,7 @@ impl Client for ClientImpl {
     fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
         api_request(
             API_LOC,
+            Method::GET,
             "get-public-key",
             &GetPublicKeyRequest {
                 username: String::from(username),
@@ -334,6 +346,7 @@ impl Client for ClientImpl {
     ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
         api_request(
             API_LOC,
+            Method::GET,
             "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
@@ -352,6 +365,7 @@ impl Client for ClientImpl {
     ) -> Result<u64, Error<NewAccountError>> {
         api_request(
             API_LOC,
+            Method::POST,
             "new-account",
             &NewAccountRequest {
                 username: String::from(username),
