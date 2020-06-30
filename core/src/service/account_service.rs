@@ -33,6 +33,7 @@ pub enum AccountImportError {
     InvalidPrivateKey(rsa::errors::Error),
 }
 
+#[derive(Debug)]
 pub enum AccountExportError {
     KeyRetrievalError(account_repo::Error),
     AccountStringFailedToSerialize(bincode::Error),
@@ -96,6 +97,7 @@ impl<
             &auth,
             account.keys.to_public_key(),
             file_metadata.id,
+            file_metadata.folder_access_keys.clone()
         )
         .map_err(AccountCreationError::ApiError)?;
         info!("Account creation success!");
