@@ -1,5 +1,4 @@
 use lockbook_core::repo::account_repo::{AccountRepo, Error};
-
 use lockbook_core::DefaultAccountRepo;
 
 use crate::utils::connect_to_db;

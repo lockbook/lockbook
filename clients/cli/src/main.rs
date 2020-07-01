@@ -1,5 +1,6 @@
-use lockbook_core::init_logger_safely;
 use structopt::StructOpt;
+
+use lockbook_core::init_logger_safely;
 
 mod edit;
 mod export;
@@ -7,6 +8,7 @@ mod import;
 mod init;
 mod list;
 mod new;
+mod print;
 mod status;
 mod sync;
 mod utils;
@@ -52,6 +54,9 @@ enum Lockbook {
     /// Export your private key
     Export,
 
+    /// Print the contents of a file
+    Print,
+
     /// Display lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
@@ -74,5 +79,6 @@ fn main() {
         Lockbook::Nuke => unimplemented!(),
         Lockbook::Export => export::export(),
         Lockbook::WhoAmI => whoami::whoami(),
+        Lockbook::Print => print::print(),
     }
 }

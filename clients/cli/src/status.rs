@@ -1,7 +1,8 @@
-use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
 use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::DefaultSyncService;
+
+use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
 
 pub fn status() {
     let db = connect_to_db();

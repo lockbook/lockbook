@@ -1,11 +1,10 @@
 use std::io;
+use std::process::exit;
 
 use lockbook_core::service::account_service::{AccountImportError, AccountService};
-
 use lockbook_core::DefaultAccountService;
 
 use crate::utils::connect_to_db;
-use std::process::exit;
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
