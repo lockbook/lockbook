@@ -1,4 +1,4 @@
-use lockbook_core::repo::account_repo::{Error, AccountRepo};
+use lockbook_core::repo::account_repo::{AccountRepo, Error};
 
 use lockbook_core::DefaultAccountRepo;
 
@@ -12,6 +12,6 @@ pub fn whoami() {
         Err(err) => match err {
             Error::SledError(_) | Error::SerdeError(_) => eprintln!("Sled error: {:?}", err),
             Error::AccountMissing(_) => eprintln!("No account found, run init, import or help."),
-        }
+        },
     }
 }
