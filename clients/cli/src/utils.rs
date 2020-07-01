@@ -1,22 +1,22 @@
+use std::env::VarError;
+use std::process::Command;
+use std::thread::sleep;
 use std::{env, time};
 
-use lockbook_core::model::state::Config;
-
-use lockbook_core::repo::db_provider::DbProvider;
-
-use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
+
 use lockbook_core::model::account::Account;
+use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::{AccountRepo, Error};
+use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
 };
-use std::env::VarError;
-use std::process::Command;
-use std::thread::sleep;
+
+use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 
 pub fn connect_to_db() -> Db {
     // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
