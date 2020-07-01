@@ -19,7 +19,10 @@ pub fn edit() {
     let mut file_handle = File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
 
-    print!("Enter a filepath: "); // TODO say this sort of thing only if TTY
+    if atty::is(atty::Stream::Stdout) {
+        print!("Enter a filepath: ");
+    }
+
     io::stdout().flush().unwrap();
     let mut file_name = String::new();
     io::stdin()
@@ -72,10 +75,7 @@ pub fn edit() {
 
         println!("Sync successful, cleaning up.")
     } else {
-        eprintln!(
-            "{} indicated a problem, aborting and cleaning up",
-            get_editor()
-        );
+        eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
     fs::remove_file(&temp_file_path)

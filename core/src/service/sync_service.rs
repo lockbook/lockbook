@@ -125,6 +125,7 @@ impl<
                 most_recent_update_from_server = file.metadata_version;
             }
         });
+        debug!("server dirty files: {:?}", server_dirty_files);
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
