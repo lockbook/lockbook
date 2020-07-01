@@ -1,17 +1,18 @@
 #[macro_use]
 pub mod utils;
 
-use lockbook_core::client::{Client, ClientImpl};
+use lockbook_core::client::{Client, ClientImpl, Error};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::api::{NewAccountError};
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RsaImpl};
-use rsa::{BigUint, RSAPrivateKey, RsaPublicKey};
-use utils::{generate_account, generate_username, TestError};
+use rsa::{BigUint, RSAPrivateKey};
+use utils::{generate_account, generate_username};
 use uuid::Uuid;
 
-fn new_account() -> Result<(), TestError> {
+#[test]
+fn new_account() {
     let account = generate_account();
 
     ClientImpl::new_account(
@@ -19,17 +20,11 @@ fn new_account() -> Result<(), TestError> {
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
+    ).expect("failed to make new account");
 }
 
 #[test]
-fn test_new_account() {
-    assert_matches!(new_account(), Ok(_));
-}
-
-fn new_account_duplicate() -> Result<(), TestError> {
+fn new_account_duplicate() {
     let account = generate_account();
 
     ClientImpl::new_account(
@@ -37,29 +32,18 @@ fn new_account_duplicate() -> Result<(), TestError> {
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
+    ).expect("failed to make new account");
 
-    ClientImpl::new_account(
+    assert_matches!(ClientImpl::new_account(
         &account.username,
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
 }
 
 #[test]
-fn test_new_account_duplicate() {
-    assert_matches!(
-        new_account_duplicate(),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::UsernameTaken
-        )))
-    );
-}
-
-fn new_account_case_insensitive_username() -> Result<(), TestError> {
+fn new_account_case_insensitive_username() {
     let account = generate_account();
 
     ClientImpl::new_account(
@@ -67,133 +51,122 @@ fn new_account_case_insensitive_username() -> Result<(), TestError> {
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
+    ).expect("failed to make new account");
 
-    ClientImpl::new_account(
+    assert_matches!(ClientImpl::new_account(
         &account.username.to_uppercase(),
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
 }
 
 #[test]
-fn test_new_account_case_insensitive_username() {
-    assert_matches!(
-        new_account_case_insensitive_username(),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-}
-
-fn new_account_alphanumeric_username(username: String) -> Result<(), TestError> {
+fn new_account_invalid_username_special() {
     let account = Account {
-        username: username,
+        username: String::from("Smail&$@"),
         keys: RsaImpl::generate_key().unwrap(),
     };
 
-    ClientImpl::new_account(
+    assert_matches!(ClientImpl::new_account(
         &account.username,
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
         account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
 }
 
 #[test]
-fn test_new_account_alphanumeric_username() {
-    assert_matches!(
-        new_account_alphanumeric_username("Smail&$@".to_string()),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-    assert_matches!(
-        new_account_alphanumeric_username("漢字".to_string()),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-    assert_matches!(
-        new_account_alphanumeric_username("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ".to_string()),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-    assert_matches!(
-        new_account_alphanumeric_username("😀😁😂😃😄".to_string()),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-    assert_matches!(
-        new_account_alphanumeric_username("ãÁêì".to_string()),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidUsername
-        )))
-    );
-}
-
-fn new_account_invalid_public_key() -> Result<(), TestError> {
+fn new_account_invalid_username_chinese() {
     let account = Account {
-        username: generate_username(),
+        username: String::from("漢字"),
         keys: RsaImpl::generate_key().unwrap(),
     };
 
-    let fake_private_key = RSAPrivateKey::from_components(
-        BigUint::from_bytes_be(b"a"),
-        BigUint::from_bytes_be(b"a"),
-        BigUint::from_bytes_be(b"a"),
-        vec![
-            BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
-            BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
-        ],
-    );
-
-    ClientImpl::new_account(
+    assert_matches!(ClientImpl::new_account(
         &account.username,
         &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-        fake_private_key.to_public_key(),
+        account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
 }
 
 #[test]
-fn test_new_account_invalid_public_key() {
-    assert_matches!(
-        new_account_invalid_public_key(),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidPublicKey
-        )))
-    );
+fn new_account_invalid_username_nonsense() {
+    let account = Account {
+        username: String::from("øπåß∂ƒ©˙∆˚¬≈ç√∫˜µ"),
+        keys: RsaImpl::generate_key().unwrap(),
+    };
+
+    assert_matches!(ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
 }
 
-fn new_account_invalid_auth() -> Result<(), TestError> {
+#[test]
+fn new_account_invalid_username_emoji() {
+    let account = Account {
+        username: String::from("😀😁😂😃😄"),
+        keys: RsaImpl::generate_key().unwrap(),
+    };
+
+    assert_matches!(ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
+}
+
+#[test]
+fn new_account_invalid_username_accents() {
+    let account = Account {
+        username: String::from("ãÁêì"),
+        keys: RsaImpl::generate_key().unwrap(),
+    };
+
+    assert_matches!(ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
+    ), Err(Error::Api(NewAccountError::UsernameTaken)));
+}
+
+#[test]
+fn new_account_invalid_public_key() {
+    let account = Account {
+        username: generate_username(),
+        keys: RSAPrivateKey::from_components(
+            BigUint::from_bytes_be(b"a"),
+            BigUint::from_bytes_be(b"a"),
+            BigUint::from_bytes_be(b"a"),
+            vec![
+                BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
+                BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
+            ],
+        ),
+    };
+
+    assert_matches!(ClientImpl::new_account(
+        &account.username,
+        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
+        account.keys.to_public_key(),
+        Uuid::new_v4(),
+    ), Err(Error::Api(NewAccountError::InvalidPublicKey)));
+}
+
+#[test]
+fn new_account_invalid_signature() {
     let account = generate_account();
 
-    ClientImpl::new_account(
+    assert_matches!(ClientImpl::new_account(
         &account.username,
-        &AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap(),
-        RsaPublicKey{},
+        "",
+        account.keys.to_public_key(),
         Uuid::new_v4(),
-    )?;
-
-    Ok(())
-}
-
-#[test]
-fn test_new_account_invalid_auth() {
-    assert_matches!(
-        new_account_invalid_auth(),
-        Err(TestError::NewAccountError(new_account::Error::API(
-            NewAccountError::InvalidAuth
-        )))
-    );
+    ), Err(Error::Api(NewAccountError::InvalidAuth)));
 }

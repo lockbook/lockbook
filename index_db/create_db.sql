@@ -8,8 +8,8 @@ CREATE TABLE accounts (
 CREATE TABLE files (
 	id					TEXT NOT NULL,
 	parent				TEXT NOT NULL,
-    parent_access_key   TEXT NOT NULL,
-	is_folder			BOOLEAN,
+	parent_access_key   TEXT NOT NULL,
+	is_folder			BOOLEAN NOT NULL,
 	name				TEXT NOT NULL,
 	owner				TEXT NOT NULL,
 	signature			TEXT NOT NULL,

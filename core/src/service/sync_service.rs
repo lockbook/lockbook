@@ -1,69 +1,62 @@
+use std::cmp::max;
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use sled::Db;
+use uuid::Uuid;
 
+use crate::client;
 use crate::client::Client;
-use crate::model::api::FileMetadata as ServerFileMetadata;
-
-use crate::model::client_file_metadata::ClientFileMetadata;
-use crate::repo;
-use crate::repo::account_repo::AccountRepo;
-use crate::repo::file_metadata_repo::Error as MetadataError;
-use crate::service;
-
-use crate::repo::document_repo::DocumentRepo;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
-
 use crate::model::account::Account;
-use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, DeleteDocumentError, GetUpdatesError,
-    MoveDocumentError, RenameDocumentError,
-};
+use crate::model::api::FileMetadata as ServerFileMetadata;
+use crate::model::api::*;
+use crate::model::client_file_metadata::ClientFileMetadata;
+use crate::model::client_file_metadata::FileType::Document;
+use crate::model::crypto::{FolderAccessInfo, SignedValue};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
     PushFileContent, PushMetadata, PushNewFile, UpdateLocalMetadata,
 };
+use crate::repo;
+use crate::repo::account_repo::AccountRepo;
+use crate::repo::document_repo::DocumentRepo;
+use crate::repo::file_metadata_repo::Error as MetadataError;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
+use crate::service;
 use crate::service::auth_service::AuthService;
-use crate::{client, error_enum};
-use std::cmp::max;
-use std::collections::HashMap;
-use uuid::Uuid;
 
-error_enum! {
-    enum CalculateWorkError {
-        AccountRetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::DbError),
-        FileMetadataError(repo::file_metadata_repo::Error),
-        GetUpdatesError(client::Error<GetUpdatesError>),
-    }
+#[derive(Debug)]
+pub enum CalculateWorkError {
+    AccountRetrievalError(repo::account_repo::Error),
+    FileRetievalError(repo::file_metadata_repo::DbError),
+    FileMetadataError(repo::file_metadata_repo::Error),
+    GetUpdatesError(client::Error<GetUpdatesError>),
 }
 
-error_enum! {
-    enum WorkExecutionError {
-        RetrievalError(repo::account_repo::Error),
-        FileRetievalError(repo::file_metadata_repo::DbError),
-        FileMetadataError(repo::file_metadata_repo::Error),
-        FileContentError(repo::document_repo::Error),
-        GetUpdatesError(client::Error<GetUpdatesError>),
-        CreateFileError(client::Error<CreateDocumentError>),
-        GetFileError(client::Error<()>),
-        RenameFileError(client::Error<RenameDocumentError>),
-        MoveFileError(client::Error<MoveDocumentError>),
-        DeleteFileError(client::Error<DeleteDocumentError>),
-        ChangeDocumentContentError(client::Error<ChangeDocumentContentError>),
-        AuthError(service::auth_service::AuthGenError),
-        SerdeError(serde_json::Error),
-    }
+#[derive(Debug)]
+pub enum WorkExecutionError {
+    RetrievalError(repo::account_repo::Error),
+    FileRetievalError(repo::file_metadata_repo::DbError),
+    FileMetadataError(repo::file_metadata_repo::Error),
+    FileContentError(repo::document_repo::Error),
+    GetUpdatesError(client::Error<GetUpdatesError>),
+    CreateFileError(client::Error<CreateDocumentError>),
+    GetFileError(client::Error<()>),
+    RenameFileError(client::Error<RenameDocumentError>),
+    MoveFileError(client::Error<MoveDocumentError>),
+    DeleteFileError(client::Error<DeleteDocumentError>),
+    ChangeDocumentContentError(client::Error<ChangeDocumentContentError>),
+    AuthError(service::auth_service::AuthGenError),
+    SerdeError(serde_json::Error),
 }
 
-error_enum! {
-    enum SyncError {
-        AccountRetrievalError(repo::account_repo::Error),
-        CalculateWorkError(CalculateWorkError),
-        WorkExecutionError(WorkExecutionError),
-        MetadataUpdateError(repo::file_metadata_repo::Error),
-    }
+#[derive(Debug)]
+pub enum SyncError {
+    AccountRetrievalError(repo::account_repo::Error),
+    CalculateWorkError(CalculateWorkError),
+    WorkExecutionError(WorkExecutionError),
+    MetadataUpdateError(repo::file_metadata_repo::Error),
 }
 
 pub trait SyncService {
@@ -72,6 +65,7 @@ pub trait SyncService {
     fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
+#[derive(Debug)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
@@ -102,23 +96,35 @@ impl<
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating work");
 
-        let account = AccountDb::get_account(&db)?;
-        let local_dirty_files = FileMetadataDb::get_all_dirty(&db)?;
+        let account =
+            AccountDb::get_account(&db).map_err(CalculateWorkError::AccountRetrievalError)?;
+        let local_dirty_files =
+            FileMetadataDb::get_all_dirty(&db).map_err(CalculateWorkError::FileMetadataError)?;
         debug!("local dirty files: {:?}", local_dirty_files);
 
-        let last_sync = FileMetadataDb::get_last_updated(&db)?;
+        let last_sync =
+            FileMetadataDb::get_last_updated(&db).map_err(CalculateWorkError::FileMetadataError)?;
         debug!("Last sync: {}", last_sync);
         let mut most_recent_update_from_server: u64 = last_sync;
 
         let mut server_dirty_files = HashMap::new();
-        ApiClient::get_updates(&account.username, "junk auth :(", last_sync)?
-            .into_iter()
-            .for_each(|file| {
-                server_dirty_files.insert(file.id, file.clone());
-                if file.metadata_version > most_recent_update_from_server {
-                    most_recent_update_from_server = file.metadata_version;
-                }
-            });
+        ApiClient::get_updates(
+            &account.username,
+            &SignedValue {
+                // junk auth :(
+                content: String::default(),
+                signature: String::default(),
+            },
+            last_sync,
+        )
+        .map_err(CalculateWorkError::GetUpdatesError)?
+        .into_iter()
+        .for_each(|file| {
+            server_dirty_files.insert(file.id, file.clone());
+            if file.metadata_version > most_recent_update_from_server {
+                most_recent_update_from_server = file.metadata_version;
+            }
+        });
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -174,23 +180,28 @@ impl<
                 let mut client = client;
                 let new_version = ApiClient::create_document(
                     &account.username,
-                    &Auth::generate_auth(&account)?,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     &client.name,
                     client.parent_id,
-                    FileDb::get(&db, client.id)?.content,
+                    FileDb::get(&db, client.id)
+                        .map_err(WorkExecutionError::FileContentError)?
+                        .content,
                     client.folder_access_keys.access_key.clone(),
-                )?;
+                )
+                .map_err(WorkExecutionError::CreateFileError)?;
 
                 client.content_version = new_version;
                 client.new = false;
                 client.document_edited = false;
 
-                FileMetadataDb::insert(&db, &client)?;
+                FileMetadataDb::insert(&db, &client)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
-                let mut old_file_metadata = FileMetadataDb::get(&db, server_meta.id)?;
+                let mut old_file_metadata = FileMetadataDb::get(&db, server_meta.id)
+                    .map_err(WorkExecutionError::FileMetadataError)?;
 
                 old_file_metadata.name = server_meta.name;
                 old_file_metadata.parent_id = server_meta.parent;
@@ -199,18 +210,22 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::insert(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
                 Ok(())
             }
             PullFileContent(new_metadata) => {
-                let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
+                let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)
+                    .map_err(WorkExecutionError::GetFileError)?;
 
-                FileDb::insert(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)
+                    .map_err(WorkExecutionError::FileContentError)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::insert(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)
+                            .map_err(WorkExecutionError::FileRetievalError)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
@@ -224,13 +239,17 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: new_metadata.folder_access_keys,
+                                    folder_access_keys: FolderAccessInfo {
+                                        folder_id: new_metadata.parent,
+                                        access_key: new_metadata.folder_access_keys,
+                                    },
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,
                                     deleted: false,
                                 },
-                            )?;
+                            )
+                            .map_err(WorkExecutionError::FileRetievalError)?;
                         }
                         _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
@@ -239,8 +258,9 @@ impl<
                 Ok(())
             }
             DeleteLocally(client) => {
-                FileMetadataDb::actually_delete(&db, client.id)?;
-                FileDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)
+                    .map_err(WorkExecutionError::FileMetadataError)?;
+                FileDb::delete(&db, client.id).map_err(WorkExecutionError::FileContentError)?;
                 Ok(())
             }
             PushMetadata(client) => {
@@ -249,42 +269,48 @@ impl<
                 // TODO we don't know what changed so we'll send both for now, name and path a vote for combining name and path
                 ApiClient::rename_document(
                     &account.username,
-                    &Auth::generate_auth(&account)?,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     client.metadata_version,
                     &metadata.name,
-                )?; // TODO the thing you're not handling is EditConflict!
+                )
+                .map_err(WorkExecutionError::RenameFileError)?; // TODO the thing you're not handling is EditConflict!
 
                 ApiClient::move_document(
                     &account.username,
-                    &Auth::generate_auth(&account)?,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     metadata.id,
                     client.metadata_version,
                     metadata.parent_id,
-                )?; // TODO the thing you're not handling is EditConflict!
+                )
+                .map_err(WorkExecutionError::MoveFileError)?; // TODO the thing you're not handling is EditConflict!
 
                 metadata.metadata_changed = false;
-                FileMetadataDb::insert(&db, &metadata)?;
+                FileMetadataDb::insert(&db, &metadata)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
 
                 Ok(())
             }
             PushFileContent(client) => {
                 // TODO until we're diffing this is just going to spin on conflicts
                 let mut old_file_metadata = client.clone();
-                let file_content = FileDb::get(&db, client.id)?;
+                let file_content =
+                    FileDb::get(&db, client.id).map_err(WorkExecutionError::FileContentError)?;
 
                 let new_version = ApiClient::change_document_content(
                     &account.username,
-                    &Auth::generate_auth(&account)?,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     client.content_version,
                     file_content.content,
-                )?; // TODO the thing you're not handling is EditConflict!
+                )
+                .map_err(WorkExecutionError::ChangeDocumentContentError)?; // TODO the thing you're not handling is EditConflict!
 
                 old_file_metadata.content_version = new_version;
                 old_file_metadata.document_edited = false;
 
-                FileMetadataDb::insert(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
 
                 Ok(())
             }
@@ -292,26 +318,31 @@ impl<
                 // TODO until we're diffing this is just going to spin on conflicts
                 ApiClient::delete_document(
                     &account.username,
-                    &Auth::generate_auth(&account)?,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     client.metadata_version,
-                )?; // TODO the thing you're not handling is EditConflict!
+                )
+                .map_err(WorkExecutionError::DeleteFileError)?; // TODO the thing you're not handling is EditConflict!
 
-                FileMetadataDb::actually_delete(&db, client.id)?;
-                FileDb::delete(&db, client.id)?;
+                FileMetadataDb::actually_delete(&db, client.id)
+                    .map_err(WorkExecutionError::FileMetadataError)?;
+                FileDb::delete(&db, client.id).map_err(WorkExecutionError::FileContentError)?;
 
                 Ok(())
             }
             PullMergePush(new_metadata) => {
                 // TODO until we're diffing, this is just going to be a pull file
-                let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)?;
+                let file = ApiClient::get_document(new_metadata.id, new_metadata.content_version)
+                    .map_err(WorkExecutionError::GetFileError)?;
 
-                FileDb::insert(&db, new_metadata.id, &file)?;
+                FileDb::insert(&db, new_metadata.id, &file)
+                    .map_err(WorkExecutionError::FileContentError)?;
 
                 match FileMetadataDb::get(&db, new_metadata.id) {
                     Ok(mut old_meta) => {
                         old_meta.content_version = new_metadata.content_version;
-                        FileMetadataDb::insert(&db, &old_meta)?;
+                        FileMetadataDb::insert(&db, &old_meta)
+                            .map_err(WorkExecutionError::FileRetievalError)?;
                     }
                     Err(err) => match err {
                         MetadataError::FileRowMissing(_) => {
@@ -325,13 +356,17 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: new_metadata.folder_access_keys,
+                                    folder_access_keys: FolderAccessInfo {
+                                        folder_id: new_metadata.parent,
+                                        access_key: new_metadata.folder_access_keys,
+                                    },
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,
                                     deleted: false,
                                 },
-                            )?;
+                            )
+                            .map_err(WorkExecutionError::FileRetievalError)?;
                         }
                         _ => return Err(WorkExecutionError::FileMetadataError(err)),
                     },
@@ -341,7 +376,8 @@ impl<
             }
             MergeMetadataAndPushMetadata(server_meta) => {
                 // TODO we can't tell who changed what so this just going to be an UpdateLocalMetadata for now:
-                let mut old_file_metadata = FileMetadataDb::get(&db, server_meta.id)?;
+                let mut old_file_metadata = FileMetadataDb::get(&db, server_meta.id)
+                    .map_err(WorkExecutionError::FileMetadataError)?;
 
                 old_file_metadata.name = server_meta.name;
                 old_file_metadata.parent_id = server_meta.parent;
@@ -350,7 +386,8 @@ impl<
                     old_file_metadata.metadata_version,
                 );
 
-                FileMetadataDb::insert(&db, &old_file_metadata)?;
+                FileMetadataDb::insert(&db, &old_file_metadata)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
                 Ok(())
             }
         }
@@ -359,12 +396,15 @@ impl<
     // TODO add a maximum number of iterations
     fn sync(db: &Db) -> Result<(), SyncError> {
         info!("Syncing");
-        let account = AccountDb::get_account(&db)?;
-        let work_calculated = Self::calculate_work(&db)?;
+        let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
+        let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+
+        debug!("Work calculated: {:?}", work_calculated);
 
         if work_calculated.work_units.is_empty() {
             info!("Done syncing");
-            FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)?;
+            FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)
+                .map_err(SyncError::MetadataUpdateError)?;
             return Ok(());
         }
 
@@ -406,7 +446,8 @@ fn calculate_work_across_server_and_client(
     let local_edit = client.document_edited;
     let local_move = client.metadata_changed;
     let server_delete = server.deleted;
-    let server_content_change = server.content_version != client.content_version;
+    let server_content_change =
+        server.content_version != client.content_version && client.file_type == Document;
     // We could consider diffing across name & path instead of doing this
     let server_move = server.metadata_version != client.metadata_version;
 

@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::api::FileMetadata;
 use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue};
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
@@ -74,7 +74,7 @@ impl From<PostgresError> for FileError {
             }
             (Some(error_code), error_string)
                 if error_code == &SqlState::UNIQUE_VIOLATION
-                    && error_string.contains("unique_file_path") =>
+                    && error_string.contains("uk_files_name_parent") =>
             {
                 FileError::PathTaken
             }
@@ -181,7 +181,7 @@ pub async fn create_file(
     file_type: FileType,
     name: &str,
     owner: &str,
-    signature: &str,
+    signature: &SignedValue,
     access_key: &EncryptedValueWithNonce,
 ) -> Result<u64, FileError> {
     let row = transaction
@@ -200,8 +200,7 @@ pub async fn create_file(
                 &serde_json::to_string(&signature).map_err(FileError::Serialize)?,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     Ok(row
         .try_get::<&str, i64>("metadata_version")
         .map_err(FileError::Postgres)? as u64)
@@ -328,31 +327,13 @@ pub async fn rename_file(
     Ok(metadata.new_metadata_version)
 }
 
-pub async fn create_folder(
-    transaction: &Transaction<'_>,
-    id: Uuid,
-    parent: Uuid,
-    name: &str,
-    owner: &str,
-    signature: &str,
-) -> Result<u64, FileError> {
-    let row = transaction.query_one(
-        "INSERT INTO folders (id, parent, name, owner, signature, metadata_version, content_version, deleted)
-        VALUES ($1, $2, $3, $4, $5, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), false)
-        RETURNING *;",
-        &[&serde_json::to_string(&id).map_err(FileError::Serialize)?, &(serde_json::to_string(&parent).map_err(FileError::Serialize)?), &name, &owner, &signature]).await.map_err(FileError::Postgres)?;
-    Ok(row
-        .try_get::<&str, i64>("metadata_version")
-        .map_err(FileError::Postgres)? as u64)
-}
-
 pub async fn get_public_key(
     transaction: &Transaction<'_>,
     username: &str,
 ) -> Result<RSAPublicKey, PublicKeyError> {
     match transaction
         .query(
-            "SELECT public_key FROM users WHERE username = $1;",
+            "SELECT public_key FROM accounts WHERE name = $1;",
             &[&username],
         )
         .await
@@ -467,7 +448,7 @@ pub async fn get_updates(
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
         .query(
-            "SELECT * FROM files WHERE username = $1 AND file_metadata_version > $2",
+            "SELECT * FROM files WHERE owner = $1 AND metadata_version > $2",
             &[&username, &(metadata_version as i64)],
         )
         .await
@@ -484,7 +465,7 @@ pub async fn new_account(
 ) -> Result<(), AccountError> {
     transaction
         .execute(
-            "INSERT INTO accounts (username, public_key) VALUES ($1, $2);",
+            "INSERT INTO accounts (name, public_key) VALUES ($1, $2);",
             &[&username, &public_key],
         )
         .await?;

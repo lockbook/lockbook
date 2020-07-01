@@ -1,8 +1,5 @@
-use lockbook_core::client;
-use lockbook_core::client::create_file;
-use lockbook_core::model::api::CreateFileError;
-use lockbook_core::model::api::CreateFileRequest;
-use lockbook_core::model::api::NewAccountRequest;
+use lockbook_core::client::{Client, ClientImpl, Error};
+use lockbook_core::model::api::{NewAccountError, CreateDocumentError};
 
 #[macro_use]
 pub mod utils;

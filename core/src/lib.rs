@@ -25,16 +25,16 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
+use uuid::Uuid;
 
 pub mod client;
-pub mod error_enum;
 pub mod model;
 pub mod repo;
 pub mod service;
 
 mod android;
 
-pub static API_LOC: &str = "http://lockbook.app:8000";
+pub static API_LOC: &str = "http://localhost:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
@@ -74,6 +74,8 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
+static FAILURE_ROOT_GET: &str = "FAILURE<ROOT_GET>";
+static FAILURE_UUID_UNWRAP: &str = "FAILURE<UUID_UNWRAP>";
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
@@ -90,7 +92,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
         Err(err) => {
-            error!("DB connection failed! Error: {:?}", err);
+            error!("DB connection failed! Error: {:?}", err); // TEMP HERE
             None
         }
     }
@@ -180,6 +182,25 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_root(c_path: *const c_char) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+
+    let out = match DefaultFileMetadataRepo::get_root(&db) {
+        Ok(Some(root)) => root.id.to_string(),
+        Ok(None) => FAILURE_ROOT_GET.to_string(),
+        Err(err) => {
+            error!("Failed to get root! Error: {:?}", err);
+            FAILURE_ROOT_GET.to_string()
+        }
+    };
+
+    CString::new(out.as_str()).unwrap().into_raw()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
@@ -192,10 +213,18 @@ pub unsafe extern "C" fn create_file(
     let file_name = string_from_ptr(c_file_name);
     let file_parent_id = string_from_ptr(c_file_parent_id);
 
+    let file_parent_uuid: Uuid = match Uuid::parse_str(&file_parent_id) {
+        Ok(uuid) => uuid,
+        Err(err) => {
+            error!("Failed to create file metadata! Error: {:?}", err);
+            return CString::new(FAILURE_UUID_UNWRAP).unwrap().into_raw();
+        }
+    };
+
     match DefaultFileService::create(
         &db,
         &file_name,
-        serde_json::from_str(&file_parent_id).unwrap(),
+        file_parent_uuid,
         Document, // TODO @raayan
     ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
