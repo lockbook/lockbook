@@ -1,7 +1,7 @@
-use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-
 use lockbook_core::DefaultFileMetadataRepo;
+
+use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
 
 pub fn list() {
     let db = connect_to_db();

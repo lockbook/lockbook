@@ -1,14 +1,17 @@
-use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::{fs, io};
+
+use uuid::Uuid;
+
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
-use std::{fs, io};
-use uuid::Uuid;
+
+use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
 
 pub fn edit() {
     let db = connect_to_db();
