@@ -11,7 +11,7 @@ use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
 
-use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
+use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
 pub fn new() {
     let db = connect_to_db();
