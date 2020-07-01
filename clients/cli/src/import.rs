@@ -29,7 +29,9 @@ pub fn import() {
         match DefaultAccountService::import_account(&db, &account_string) {
             Ok(_) => println!("Account imported successfully!"),
             Err(err) => match err {
-                AccountImportError::AccountStringCorrupted(_) => eprintln!("Account String corrupted!"),
+                AccountImportError::AccountStringCorrupted(_) => {
+                    eprintln!("Account String corrupted!")
+                }
                 AccountImportError::PersistenceError(_) => eprintln!("Could not persist data!"),
                 AccountImportError::InvalidPrivateKey(_) => eprintln!("Invalid private key!"),
                 AccountImportError::AccountStringFailedToDeserialize(_) => {

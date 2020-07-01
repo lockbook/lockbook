@@ -73,6 +73,6 @@ fn main() {
         Lockbook::Status => status::status(),
         Lockbook::Nuke => unimplemented!(),
         Lockbook::Export => export::export(),
-        Lockbook::WhoAmI => whoami::whoami()
+        Lockbook::WhoAmI => whoami::whoami(),
     }
 }
