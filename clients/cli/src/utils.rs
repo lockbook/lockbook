@@ -1,5 +1,3 @@
-use std::env::VarError;
-use std::process::Command;
 use std::thread::sleep;
 use std::{env, time};
 
