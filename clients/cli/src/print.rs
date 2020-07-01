@@ -1,14 +1,11 @@
+use std::io;
 use std::io::Write;
-use std::path::Path;
-use std::{fs, io};
-
-use uuid::Uuid;
 
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 
-use crate::utils::{connect_to_db, get_account, get_editor};
+use crate::utils::{connect_to_db, get_account};
 
 pub fn print() {
     let db = connect_to_db();
