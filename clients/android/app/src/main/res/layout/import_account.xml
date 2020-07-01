@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools">
 
     <data>
 
         <variable
             name="importAccountActivity"
-            type="app.lockbook.ImportAccount" />
+            type="app.lockbook.login.ImportAccount" />
     </data>
 
     <LinearLayout
@@ -19,7 +20,6 @@
         tools:context=".Welcome">
 
         <TextView
-            android:id="@+id/textView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
@@ -28,6 +28,12 @@
             android:textColor="#FFFFFF"
             android:textSize="40sp" />
 
+
+        <ImageButton
+            android:id="@+id/qr_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:srcCompat="@drawable/baseline_qr_code_scanner_black_48dp" />
 
         <EditText
             android:id="@+id/account_string"
@@ -47,7 +53,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:backgroundTint="?attr/colorPrimary"
-            android:onClick="@{() -> importAccountActivity.isAccountStringValid()}"
+            android:onClick="@{() -> importAccountActivity.importAccountFromAccountString()}"
             android:text="Import"
             android:textColor="#000000" />
 

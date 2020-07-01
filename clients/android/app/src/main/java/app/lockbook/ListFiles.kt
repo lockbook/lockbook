@@ -18,13 +18,13 @@ class ListFiles : AppCompatActivity() {
     override fun onBackPressed() {
         if(exit) {
             finish()
-            exitProcess(1) // may be changed
+            exitProcess(0)
         } else {
             Toast.makeText(this, "Press back again to exit.", Toast.LENGTH_SHORT).show()
             exit = true
             Handler().postDelayed({
                 exit = false
-            }, 3000)
+            }, 2500)
         }
     }
 }

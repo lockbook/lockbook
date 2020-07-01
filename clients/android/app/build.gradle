@@ -53,7 +53,6 @@ dependencies {
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
     implementation "androidx.appcompat:appcompat:$appcompat_version"
 
-
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
 
@@ -65,6 +64,9 @@ dependencies {
     testImplementation "junit:junit:$junit_version"
     androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
     androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
+
+    // Miscellaneous
+
 
     implementation project(':core')
 }

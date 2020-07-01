@@ -6,7 +6,7 @@
     <data>
         <variable
             name="newAccountActivity"
-            type="app.lockbook.NewAccount" />
+            type="app.lockbook.login.NewAccount" />
     </data>
 
     <LinearLayout

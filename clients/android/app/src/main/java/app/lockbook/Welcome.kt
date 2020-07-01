@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import app.lockbook.databinding.ActivityMainBinding
+import app.lockbook.login.ImportAccount
+import app.lockbook.login.NewAccount
 
 class Welcome : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

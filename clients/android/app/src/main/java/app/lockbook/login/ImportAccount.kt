@@ -1,10 +1,12 @@
-package app.lockbook
+package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import app.lockbook.ListFiles
+import app.lockbook.R
 import app.lockbook.core.importAccount
 import app.lockbook.databinding.ImportAccountBinding
 import kotlinx.android.synthetic.main.import_account.*
@@ -17,11 +19,13 @@ class ImportAccount : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val binding: ImportAccountBinding = DataBindingUtil.setContentView(this, R.layout.import_account)
+        val binding: ImportAccountBinding = DataBindingUtil.setContentView(this,
+            R.layout.import_account
+        )
         binding.importAccountActivity = this
     }
 
-    fun isAccountStringValid() {
+    fun importAccountFromAccountString() {
         when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
             success -> {
                 startActivity(Intent(applicationContext, ListFiles::class.java))
@@ -39,4 +43,6 @@ class ImportAccount : AppCompatActivity() {
             ).show()
         }
     }
+
+
 }
