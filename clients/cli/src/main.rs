@@ -10,6 +10,7 @@ mod new;
 mod status;
 mod sync;
 mod utils;
+mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -50,6 +51,10 @@ enum Lockbook {
 
     /// Export your private key
     Export,
+
+    /// Display lockbook username
+    #[structopt(name = "whoami")]
+    WhoAmI,
 }
 
 fn main() {
@@ -68,5 +73,6 @@ fn main() {
         Lockbook::Status => status::status(),
         Lockbook::Nuke => unimplemented!(),
         Lockbook::Export => export::export(),
+        Lockbook::WhoAmI => whoami::whoami()
     }
 }
