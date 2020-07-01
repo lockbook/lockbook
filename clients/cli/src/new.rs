@@ -61,10 +61,7 @@ pub fn new() {
 
         println!("Sync successful, cleaning up.")
     } else {
-        eprintln!(
-            "{} indicated a problem, aborting and cleaning up",
-            get_editor()
-        );
+        eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
     fs::remove_file(&temp_file_path)
