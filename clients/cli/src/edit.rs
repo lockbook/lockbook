@@ -25,6 +25,7 @@ pub fn edit() {
     io::stdin()
         .read_line(&mut file_name)
         .expect("Failed to read from stdin");
+    file_name.retain(|c| !c.is_whitespace());
 
     let mut file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
         .expect("Could not search files ")

@@ -1,30 +1,30 @@
 extern crate rand;
 extern crate rsa;
 
+use std::string::FromUtf8Error;
+
+use aead::{generic_array::GenericArray, Aead, NewAead};
+use aes_gcm::Aes256Gcm;
+use sha2::{Digest, Sha256};
+
+use crate::model::crypto::*;
+
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-use crate::error_enum;
-use crate::model::crypto::*;
-use aead::{generic_array::GenericArray, Aead, NewAead};
-use aes_gcm::Aes256Gcm;
-use sha2::{Digest, Sha256};
-use std::string::FromUtf8Error;
 
-error_enum! {
-    enum DecryptionFailed {
-        ValueCorrupted(base64::DecodeError),
-        DecryptionFailed(rsa::errors::Error),
-        DecryptedValueMalformed(FromUtf8Error),
-    }
+#[derive(Debug)]
+pub enum DecryptionFailed {
+    ValueCorrupted(base64::DecodeError),
+    DecryptionFailed(rsa::errors::Error),
+    DecryptedValueMalformed(FromUtf8Error),
 }
 
-error_enum! {
-    enum SignatureVerificationFailed {
-        SignatureCorrupted(base64::DecodeError),
-        VerificationFailed(rsa::errors::Error),
-    }
+#[derive(Debug)]
+pub enum SignatureVerificationFailed {
+    SignatureCorrupted(base64::DecodeError),
+    VerificationFailed(rsa::errors::Error),
 }
 
 pub trait PubKeyCryptoService {
@@ -86,23 +86,29 @@ impl PubKeyCryptoService for RsaImpl {
         signed_value: &SignedValue,
     ) -> Result<(), SignatureVerificationFailed> {
         let digest = Sha256::digest(signed_value.content.as_bytes()).to_vec();
-        let signature = base64::decode(&signed_value.signature)?;
+        let signature = base64::decode(&signed_value.signature)
+            .map_err(SignatureVerificationFailed::SignatureCorrupted)?;
 
-        Ok(public_key.verify(
-            PaddingScheme::PKCS1v15,
-            Some(&Hashes::SHA2_256),
-            &digest,
-            &signature,
-        )?)
+        Ok(public_key
+            .verify(
+                PaddingScheme::PKCS1v15,
+                Some(&Hashes::SHA2_256),
+                &digest,
+                &signature,
+            )
+            .map_err(SignatureVerificationFailed::VerificationFailed)?)
     }
 
     fn decrypt(
         private_key: &RSAPrivateKey,
         encrypted: &EncryptedValue,
     ) -> Result<DecryptedValue, DecryptionFailed> {
-        let data = base64::decode(&encrypted.garbage)?;
-        let secret = private_key.decrypt(PaddingScheme::PKCS1v15, &data)?;
-        let string = String::from_utf8(secret.to_vec())?;
+        let data = base64::decode(&encrypted.garbage).map_err(DecryptionFailed::ValueCorrupted)?;
+        let secret = private_key
+            .decrypt(PaddingScheme::PKCS1v15, &data)
+            .map_err(DecryptionFailed::DecryptionFailed)?;
+        let string = String::from_utf8(secret.to_vec())
+            .map_err(DecryptionFailed::DecryptedValueMalformed)?;
 
         Ok(DecryptedValue { secret: string })
     }
@@ -153,19 +159,17 @@ mod unit_test_pubkey {
     }
 }
 
-error_enum! {
-    enum AesEncryptionFailed {
-        KeyCorrupted(base64::DecodeError),
-        EncryptionFailed(aead::Error),
-    }
+#[derive(Debug)]
+pub enum AesEncryptionFailed {
+    KeyCorrupted(base64::DecodeError),
+    EncryptionFailed(aead::Error),
 }
 
-error_enum! {
-    enum AesDecryptionFailed {
-        DecryptionFailed(aead::Error),
-        DecryptedValueMalformed(FromUtf8Error),
-        ValueCorrupted(base64::DecodeError),
-    }
+#[derive(Debug)]
+pub enum AesDecryptionFailed {
+    DecryptionFailed(aead::Error),
+    DecryptedValueMalformed(FromUtf8Error),
+    ValueCorrupted(base64::DecodeError),
 }
 
 pub trait SymmetricCryptoService {
@@ -196,7 +200,7 @@ impl SymmetricCryptoService for AesImpl {
         aes_key: &AesKey,
         secret: &DecryptedValue,
     ) -> Result<EncryptedValueWithNonce, AesEncryptionFailed> {
-        let key_bytes = base64::decode(&aes_key.key)?;
+        let key_bytes = base64::decode(&aes_key.key).map_err(AesEncryptionFailed::KeyCorrupted)?;
         let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
         let key = Aes256Gcm::new(key_bytes_array);
 
@@ -205,7 +209,9 @@ impl SymmetricCryptoService for AesImpl {
         let nonce = GenericArray::from_slice(&nonce_bytes);
 
         let secret = secret.secret.as_bytes();
-        let cipher_text = key.encrypt(&nonce, secret)?;
+        let cipher_text = key
+            .encrypt(&nonce, secret)
+            .map_err(AesEncryptionFailed::EncryptionFailed)?;
 
         Ok(EncryptedValueWithNonce {
             garbage: base64::encode(&cipher_text),
@@ -221,12 +227,17 @@ impl SymmetricCryptoService for AesImpl {
         let key_bytes_array = GenericArray::clone_from_slice(&key_bytes);
         let key = Aes256Gcm::new(key_bytes_array);
 
-        let decoded_nonce = base64::decode(&encrypted.nonce)?;
+        let decoded_nonce =
+            base64::decode(&encrypted.nonce).map_err(AesDecryptionFailed::ValueCorrupted)?;
 
         let nonce = GenericArray::clone_from_slice(&decoded_nonce);
-        let ciphertext = base64::decode(&encrypted.garbage)?;
-        let secret = key.decrypt(&nonce, ciphertext.as_ref())?;
-        let string = String::from_utf8(secret.to_vec())?;
+        let ciphertext =
+            base64::decode(&encrypted.garbage).map_err(AesDecryptionFailed::ValueCorrupted)?;
+        let secret = key
+            .decrypt(&nonce, ciphertext.as_ref())
+            .map_err(AesDecryptionFailed::DecryptionFailed)?;
+        let string = String::from_utf8(secret.to_vec())
+            .map_err(AesDecryptionFailed::DecryptedValueMalformed)?;
 
         Ok(DecryptedValue { secret: string })
     }

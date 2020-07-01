@@ -790,6 +790,7 @@ dependencies = [
 name = "lockbook"
 version = "0.1.0"
 dependencies = [
+ "atty",
  "chrono",
  "chrono-human-duration",
  "lockbook_core",
