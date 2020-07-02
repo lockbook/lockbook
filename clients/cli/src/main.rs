@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 
 use lockbook_core::init_logger_safely;
 
+mod copy;
 mod edit;
 mod export;
 mod import;
@@ -36,7 +39,7 @@ enum Lockbook {
     List,
 
     /// Bring a file from your computer into Lockbook
-    Copy,
+    Copy { file: PathBuf },
 
     /// Create a new Lockbook account
     Init,
@@ -72,7 +75,6 @@ fn main() {
         Lockbook::Remove => unimplemented!(),
         Lockbook::Move => unimplemented!(),
         Lockbook::List => list::list(),
-        Lockbook::Copy => unimplemented!(),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
@@ -80,5 +82,6 @@ fn main() {
         Lockbook::Export => export::export(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Print => print::print(),
+        Lockbook::Copy { file: path } => copy::copy(path),
     }
 }
