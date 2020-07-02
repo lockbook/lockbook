@@ -73,9 +73,6 @@ pub fn edit() {
         println!("Updating local state.");
         DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
 
-        println!("Syncing");
-        DefaultSyncService::sync(&db).expect("Failed to sync");
-
         println!("Sync successful, cleaning up.")
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
