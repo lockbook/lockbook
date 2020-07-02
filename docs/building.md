@@ -36,6 +36,8 @@ Android targets for cargo:
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 ```
 
+Download the android ndk through android studio or directly online from the android developers website. Extract it and set the environment variable `ANDROID_NDK_HOME` to its location.
+
 `make android` in the `core` folder.
 
 ## iOS, iPadOS, and macOS
