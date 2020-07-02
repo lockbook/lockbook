@@ -33,9 +33,6 @@ enum Lockbook {
     /// Search and delete a file
     Remove,
 
-    /// Rename a file
-    Move,
-
     /// List all your files
     List,
 
@@ -51,9 +48,6 @@ enum Lockbook {
     /// Displays: which files need to be pushed or pulled.
     /// If conflicts need to be resolved. And when the last successful sync was.
     Status,
-
-    /// Delete the Lockbook data directory from this device
-    Nuke,
 
     /// Export your private key
     Export,
@@ -74,12 +68,10 @@ fn main() {
         Lockbook::Sync => sync::sync(),
         Lockbook::Edit => edit::edit(),
         Lockbook::Remove => remove::remove(),
-        Lockbook::Move => unimplemented!(),
         Lockbook::List => list::list(),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
-        Lockbook::Nuke => unimplemented!(),
         Lockbook::Export => export::export(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Print => print::print(),
