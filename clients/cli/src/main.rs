@@ -14,8 +14,9 @@ mod new;
 mod print;
 mod status;
 mod sync;
-mod utils;
 mod whoami;
+mod remove;
+mod utils;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -72,7 +73,7 @@ fn main() {
         Lockbook::New => new::new(),
         Lockbook::Sync => sync::sync(),
         Lockbook::Edit => edit::edit(),
-        Lockbook::Remove => unimplemented!(),
+        Lockbook::Remove => remove::remove(),
         Lockbook::Move => unimplemented!(),
         Lockbook::List => list::list(),
         Lockbook::Init => init::init(),
