@@ -1,14 +1,16 @@
-use crate::utils::{connect_to_db, edit_file_with_editor, get_account, get_editor};
-use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::FileService;
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
+
 use uuid::Uuid;
+
+use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+use lockbook_core::service::file_service::FileService;
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+
+use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
 pub fn edit() {
     let db = connect_to_db();
@@ -19,7 +21,10 @@ pub fn edit() {
     let mut file_handle = File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
 
-    print!("Enter a filepath: "); // TODO say this sort of thing only if TTY
+    if atty::is(atty::Stream::Stdout) {
+        print!("Enter a filepath: ");
+    }
+
     io::stdout().flush().unwrap();
     let mut file_name = String::new();
     io::stdin()
@@ -67,15 +72,9 @@ pub fn edit() {
         println!("Updating local state.");
         DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
 
-        println!("Syncing");
-        DefaultSyncService::sync(&db).expect("Failed to sync");
-
         println!("Sync successful, cleaning up.")
     } else {
-        eprintln!(
-            "{} indicated a problem, aborting and cleaning up",
-            get_editor()
-        );
+        eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
     fs::remove_file(&temp_file_path)
