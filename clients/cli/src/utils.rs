@@ -24,7 +24,7 @@ pub fn connect_to_db() -> Db {
         );
 
     let config = Config {
-        writeable_path: path.clone(),
+        writeable_path: path
     };
 
     // Try to connect 3 times waiting 10ms and 150ms
