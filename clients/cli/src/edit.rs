@@ -8,8 +8,7 @@ use uuid::Uuid;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
