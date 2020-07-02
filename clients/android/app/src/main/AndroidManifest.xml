@@ -35,7 +35,7 @@
         <activity
             android:name=".login.ImportAccount"
             android:theme="@style/Dark.NoActionBar" />
-
+        <activity android:name=".Settings"/>
     </application>
 
 </manifest>

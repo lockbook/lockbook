@@ -26,7 +26,7 @@ class NewAccount : AppCompatActivity() {
         binding.newAccountActivity = this
     }
 
-    fun createAccount() {
+    fun createAccount() { // add an invalid string choice, as an empty textview will call an error
         when (createAccount(filesDir.absolutePath, username.text.toString())) {
             success -> {
                 startActivity(Intent(applicationContext, ListFiles::class.java))
