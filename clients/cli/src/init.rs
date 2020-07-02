@@ -1,13 +1,12 @@
+use std::io;
 use std::io::Write;
 
-use std::io;
-
-use lockbook_core::service::account_service::{AccountCreationError, AccountService};
-
-use crate::utils::connect_to_db;
 use lockbook_core::client::Error;
 use lockbook_core::model::api::NewAccountError;
+use lockbook_core::service::account_service::{AccountCreationError, AccountService};
 use lockbook_core::DefaultAccountService;
+
+use crate::utils::connect_to_db;
 
 pub fn init() {
     let db = connect_to_db();

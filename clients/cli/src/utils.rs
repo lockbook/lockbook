@@ -1,19 +1,20 @@
-use std::env;
-
-use lockbook_core::model::state::Config;
-
-use lockbook_core::repo::db_provider::DbProvider;
+use std::thread::sleep;
+use std::{env, time};
 
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
+
 use lockbook_core::model::account::Account;
+use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::{AccountRepo, Error};
+use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
 };
-use std::process::Command;
+
+use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 
 pub fn connect_to_db() -> Db {
     // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
@@ -22,10 +23,29 @@ pub fn connect_to_db() -> Db {
             .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
         );
 
-    DefaultDbProvider::connect_to_db(&Config {
-        writeable_path: path.clone(),
-    })
-    .expect(&format!("Could not connect to db at path: {}", path))
+    let config = Config {
+        writeable_path: path
+    };
+
+    // Try to connect 3 times waiting 10ms and 150ms
+    // Sometimes when you do something like list | fzf | edit the db lock is not released in time
+    // TODO you may not need to do this, look at tree.flush()
+    match DefaultDbProvider::connect_to_db(&config) {
+        Ok(db) => db,
+        Err(_) => {
+            sleep(time::Duration::from_millis(10));
+            match DefaultDbProvider::connect_to_db(&config) {
+                Ok(db) => db,
+                Err(_) => {
+                    sleep(time::Duration::from_millis(100));
+                    match DefaultDbProvider::connect_to_db(&config) {
+                        Ok(db) => db,
+                        Err(err) => panic!("Could not connect to db! Error: {:?}", err),
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn get_account(db: &Db) -> Account {
@@ -45,54 +65,54 @@ pub fn get_account(db: &Db) -> Account {
     }
 }
 
-pub fn get_editor() -> String {
-    env::var("VISUAL").unwrap_or_else(|_| env::var("EDITOR").unwrap_or_else(|_| "vi".to_string()))
+// In order of superiority
+pub enum SupportedEditors {
+    Vim,
+    Emacs,
+    Nano,
+    Sublime,
+    Code,
+}
+
+pub fn get_editor() -> SupportedEditors {
+    match env::var("LOCKBOOK_EDITOR") {
+        Ok(editor) => match editor.to_lowercase().as_str() {
+            "vim" => Vim,
+            "emacs" => Emacs,
+            "nano" => Nano,
+            "subl" | "sublime" => Sublime,
+            "code" => Code,
+            _ => {
+                eprintln!(
+                    "{} is not yet supported, make a github issue! Falling back to vim",
+                    editor
+                );
+                Vim
+            }
+        },
+        Err(_) => {
+            eprintln!("LOCKBOOK_EDITOR not set, assuming vim");
+            Vim
+        }
+    }
 }
 
 pub fn edit_file_with_editor(file_location: &str) -> bool {
-    let command_unprocessed = get_editor();
-
-    let command = if command_unprocessed.contains(' ') {
-        command_unprocessed
-            .split_whitespace()
-            .next()
-            .unwrap()
-            .to_string()
-    } else {
-        command_unprocessed.clone()
+    let command = match get_editor() {
+        Vim => format!("</dev/tty vim {}", file_location),
+        Emacs => format!("</dev/tty emacs {}", file_location),
+        Nano => format!("</dev/tty nano {}", file_location),
+        Sublime => format!("subl --wait {}", file_location),
+        Code => format!("code --wait {}", file_location),
     };
 
-    // If your environment variable has args, handle that here
-    let args = if command_unprocessed.clone().contains(' ') {
-        let mut args = command_unprocessed
-            .split_whitespace()
-            .collect::<Vec<&str>>();
-        args.push(file_location);
-        args
-    } else {
-        vec![file_location]
-    };
-
-    Command::new(command)
-        .args(args)
+    std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(command)
         .spawn()
-        .expect(
-            format!(
-                "Failed to spawn: {}, content location: {}",
-                get_editor(),
-                &file_location
-            )
-            .as_str(),
-        )
+        .expect("Error: Failed to run editor")
         .wait()
-        .expect(
-            format!(
-                "Failed to wait for spawned process: {}, content location: {}",
-                get_editor(),
-                &file_location
-            )
-            .as_str(),
-        )
+        .unwrap()
         .success()
 }
 
