@@ -246,6 +246,7 @@ mod unit_tests {
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
+    use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
@@ -253,7 +254,6 @@ mod unit_tests {
         init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
     };
-    use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
 
     #[test]
     fn file_service_runthrough() {
@@ -321,7 +321,9 @@ mod unit_tests {
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
@@ -334,7 +336,9 @@ mod unit_tests {
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             2
         );
         assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
@@ -455,7 +459,9 @@ mod unit_tests {
             "username"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
@@ -465,15 +471,21 @@ mod unit_tests {
             "test.txt"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             2
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
@@ -483,23 +495,37 @@ mod unit_tests {
             "test2.txt"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             6
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
+                .unwrap()
+                .len(),
             2
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
             2
         );
-        println!("{:?}", DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap());
+        println!(
+            "{:?}",
+            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
+        );
         let file =
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/test3.txt").unwrap();
-        println!("{:?}", DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap());
+        println!(
+            "{:?}",
+            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
+        );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, None)
+                .unwrap()
+                .len(),
             7
         );
         assert_eq!(file.name, "test3.txt");
@@ -516,11 +542,15 @@ mod unit_tests {
             Folder
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
+                .unwrap()
+                .len(),
             3
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
             3
         );
 
@@ -531,11 +561,15 @@ mod unit_tests {
             Folder
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
+                .unwrap()
+                .len(),
             3
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly)).unwrap().len(),
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
             4
         );
     }
