@@ -85,7 +85,7 @@ server_fmt:
 
 .PHONY: server_lint
 server_lint:
-	docker run server:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run server:$(branch) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 .PHONY: server_test
 server_test:
