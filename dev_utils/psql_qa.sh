@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# brew install postgresql
+
 set -a
 . ../containers/qa.env
 
