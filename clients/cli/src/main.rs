@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use lockbook_core::init_logger_safely;
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
 
 mod copy;
 mod edit;
@@ -12,11 +13,11 @@ mod init;
 mod list;
 mod new;
 mod print;
+mod remove;
 mod status;
 mod sync;
-mod whoami;
-mod remove;
 mod utils;
+mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -35,6 +36,14 @@ enum Lockbook {
 
     /// List all your files
     List,
+
+    /// List all your files
+    #[structopt(name = "list-docs")]
+    ListDocs,
+
+    /// List all your files
+    #[structopt(name = "list-all")]
+    ListAll,
 
     /// Bring a file from your computer into Lockbook
     Copy { file: PathBuf },
@@ -68,7 +77,9 @@ fn main() {
         Lockbook::Sync => sync::sync(),
         Lockbook::Edit => edit::edit(),
         Lockbook::Remove => remove::remove(),
-        Lockbook::List => list::list(),
+        Lockbook::List => list::list(Some(LeafNodesOnly)),
+        Lockbook::ListAll => list::list(None),
+        Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),

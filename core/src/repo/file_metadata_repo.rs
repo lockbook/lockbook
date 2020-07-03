@@ -4,6 +4,7 @@ use sled::Db;
 use uuid::Uuid;
 
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+use crate::model::client_file_metadata::FileType::Document;
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
 #[derive(Debug)]
@@ -25,6 +26,11 @@ pub enum FindingParentsFailed {
     DbError(DbError),
 }
 
+pub enum Filter {
+    DocumentsOnly,
+    LeafNodesOnly,
+}
+
 pub trait FileMetadataRepo {
     fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError>;
     fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError>;
@@ -36,7 +42,7 @@ pub trait FileMetadataRepo {
         id: Uuid,
     ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed>;
     fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
-    fn get_all_paths(db: &Db) -> Result<Vec<String>, FindingParentsFailed>;
+    fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError>;
@@ -57,7 +63,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             &file.id.as_bytes(),
             serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
         )
-        .map_err(DbError::SledError)?;
+            .map_err(DbError::SledError)?;
         if file.id == file.parent_id {
             let root = db.open_tree(ROOT).map_err(DbError::SledError)?;
             debug!("saving root folder: {:?}", &file.id);
@@ -65,7 +71,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 ROOT,
                 serde_json::to_vec(&file.id).map_err(DbError::SerdeError)?,
             )
-            .map_err(DbError::SledError)?;
+                .map_err(DbError::SledError)?;
         }
         Ok(())
     }
@@ -188,7 +194,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(value)
     }
 
-    fn get_all_paths(db: &Db) -> Result<Vec<String>, FindingParentsFailed> {
+    fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed> {
         let mut cache = HashMap::new();
         let mut path_cache = HashMap::new();
 
@@ -204,7 +210,35 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             saturate_path_cache(&meta, &cache, &mut path_cache)?;
         }
 
-        Ok(path_cache.values().cloned().collect())
+        let paths = match filter {
+            None => path_cache.values().cloned().collect(),
+            Some(filter) => match filter {
+                Filter::DocumentsOnly => {
+                    let mut paths = vec![];
+                    for (_, meta) in cache {
+                        if meta.file_type == Document {
+                            path_cache
+                                .get(&meta.id)
+                                .map(|path| paths.push(path.to_owned()));
+                        }
+                    }
+                    paths
+                }
+                Filter::LeafNodesOnly => {
+                    let mut paths = vec![];
+                    for (_, meta) in &cache {
+                        if is_leaf_node(meta.id, &cache) {
+                            path_cache
+                                .get(&meta.id)
+                                .map(|path| paths.push(path.to_owned()));
+                        }
+                    }
+                    paths
+                }
+            },
+        };
+
+        Ok(paths)
     }
 
     fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
@@ -246,7 +280,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             LAST_UPDATED,
             serde_json::to_vec(&last_updated).map_err(Error::SerdeError)?,
         )
-        .map_err(Error::SledError)?;
+            .map_err(Error::SledError)?;
         Ok(())
     }
 
@@ -281,6 +315,27 @@ fn saturate_path_cache(
             };
             paths.insert(client.id, path.clone());
             Ok(path)
+        }
+    }
+}
+
+fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
+    match ids.get(&id) {
+        None => {
+            error!("is_leaf_node was requested an id that wasn't in the list of ids to compute on. id: {:?}, all-ids: {:?}", &id, &ids);
+            false
+        }
+        Some(meta) => {
+            if meta.file_type == Document {
+                return true;
+            }
+
+            for (_, value) in ids {
+                if value.parent_id == id {
+                    return false;
+                }
+            }
+            true
         }
     }
 }
