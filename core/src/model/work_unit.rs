@@ -4,8 +4,11 @@ use serde::Serialize;
 
 #[derive(Serialize, Debug, Clone)]
 pub enum WorkUnit {
-    /// File was created locally and doesn't exist anywhere else, push this file to the server
-    PushNewFile(ClientFileMetadata),
+    /// Document was created locally and doesn't exist anywhere else, push this file to the server
+    PushNewDocument(ClientFileMetadata),
+
+    /// Folder was created locally and doesn't exist anywhere else, push this file to the server
+    PushNewFolder(ClientFileMetadata),
 
     /// Server has changed metadata, lookup the corresponding ClientMetadata and apply Server's
     /// metadata transformations.
@@ -37,7 +40,7 @@ pub enum WorkUnit {
 
 pub fn get_verb(work: &WorkUnit) -> String {
     match work {
-        WorkUnit::PushNewFile(client) => format!("Pushing file: {}", client.name),
+        WorkUnit::PushNewDocument(client) => format!("Pushing new document: {}", client.name),
         WorkUnit::UpdateLocalMetadata(server) => format!("Updating metadata for: {}", server.name),
         WorkUnit::PullFileContent(server) => format!("Pulling file: {}", server.name),
         WorkUnit::DeleteLocally(client) => format!("Deleting file: {}", client.name),
@@ -48,5 +51,6 @@ pub fn get_verb(work: &WorkUnit) -> String {
         WorkUnit::MergeMetadataAndPushMetadata(server) => {
             format!("Merging metadata for: {}", server.name)
         }
+        WorkUnit::PushNewFolder(client) => format!("Pushing new metadata: {}", client.name)
     }
 }

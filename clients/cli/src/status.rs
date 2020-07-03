@@ -13,8 +13,8 @@ pub fn status() {
         .work_units
         .into_iter()
         .for_each(|work| match work {
-            WorkUnit::PushNewFile(client) => {
-                println!("{} has local changes that need to be pushed", client.name)
+            WorkUnit::PushNewDocument(client) => {
+                println!("{} is a new file that need to be pushed", client.name)
             }
             WorkUnit::UpdateLocalMetadata(server) => {
                 println!("{} has been moved or renamed on the server", server.name)
@@ -37,6 +37,9 @@ pub fn status() {
                 "{} has been moved or renamed locally and on the server",
                 server.name
             ),
+            WorkUnit::PushNewFolder(client) => {
+                println!("{} is a new folder that needs to be pushed", client.name)
+            }
         });
 
     print_last_successful_sync(&db);

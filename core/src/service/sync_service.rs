@@ -11,13 +11,10 @@ use crate::model::account::Account;
 use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
-use crate::model::client_file_metadata::FileType::Document;
+use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::crypto::{FolderAccessInfo, SignedValue};
 use crate::model::work_unit::WorkUnit;
-use crate::model::work_unit::WorkUnit::{
-    DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
-    PushFileContent, PushMetadata, PushNewFile, UpdateLocalMetadata,
-};
+use crate::model::work_unit::WorkUnit::{DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete, PushFileContent, PushMetadata, PushNewDocument, UpdateLocalMetadata, PushNewFolder};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
@@ -25,6 +22,8 @@ use crate::repo::file_metadata_repo::Error as MetadataError;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service;
 use crate::service::auth_service::AuthService;
+use crate::service::sync_service::WorkExecutionError::CreateFolderError;
+use crate::model::api;
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -41,7 +40,8 @@ pub enum WorkExecutionError {
     FileMetadataError(repo::file_metadata_repo::Error),
     FileContentError(repo::document_repo::Error),
     GetUpdatesError(client::Error<GetUpdatesError>),
-    CreateFileError(client::Error<CreateDocumentError>),
+    CreateDocumentError(client::Error<CreateDocumentError>),
+    CreateFolderError(client::Error<api::CreateFolderError>),
     GetFileError(client::Error<()>),
     RenameFileError(client::Error<RenameDocumentError>),
     MoveFileError(client::Error<MoveDocumentError>),
@@ -100,7 +100,7 @@ impl<
             AccountDb::get_account(&db).map_err(CalculateWorkError::AccountRetrievalError)?;
         let local_dirty_files =
             FileMetadataDb::get_all_dirty(&db).map_err(CalculateWorkError::FileMetadataError)?;
-        debug!("local dirty files: {:?}", local_dirty_files);
+        debug!("local dirty files: {:#?}", local_dirty_files);
 
         let last_sync =
             FileMetadataDb::get_last_updated(&db).map_err(CalculateWorkError::FileMetadataError)?;
@@ -125,7 +125,7 @@ impl<
                 most_recent_update_from_server = file.metadata_version;
             }
         });
-        debug!("server dirty files: {:?}", server_dirty_files);
+        debug!("server dirty files: {:#?}", server_dirty_files);
 
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -177,7 +177,27 @@ impl<
     // Doing this off the DB would also allow you to automatically update the last_synced
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
         match work {
-            PushNewFile(client) => {
+            WorkUnit::PushNewFolder(client) => {
+                let mut client = client;
+                let new_version = ApiClient::create_folder(
+                    &account.username,
+                    &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
+                    client.id,
+                    &client.name,
+                    client.parent_id,
+                    client.folder_access_keys.access_key.clone()
+                 ).map_err(CreateFolderError)?;
+
+                client.content_version = new_version;
+                client.new = false;
+                client.metadata_version = new_version;
+
+                FileMetadataDb::insert(&db, &client)
+                    .map_err(WorkExecutionError::FileRetievalError)?;
+
+                Ok(())
+            },
+            PushNewDocument(client) => {
                 let mut client = client;
                 let new_version = ApiClient::create_document(
                     &account.username,
@@ -190,7 +210,7 @@ impl<
                         .content,
                     client.folder_access_keys.access_key.clone(),
                 )
-                .map_err(WorkExecutionError::CreateFileError)?;
+                .map_err(WorkExecutionError::CreateDocumentError)?;
 
                 client.content_version = new_version;
                 client.new = false;
@@ -400,7 +420,7 @@ impl<
         let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
         let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
-        debug!("Work calculated: {:?}", work_calculated);
+        debug!("Work calculated: {:#?}", work_calculated);
 
         if work_calculated.work_units.is_empty() {
             info!("Done syncing");
@@ -411,7 +431,7 @@ impl<
 
         for work_unit in work_calculated.work_units {
             match Self::execute_work(&db, &account, work_unit.clone()) {
-                Ok(_) => debug!("{:?} executed successfully", work_unit),
+                Ok(_) => debug!("{:#?} executed successfully", work_unit),
                 Err(err) => {
                     error!("{:?} failed: {:?}", work_unit, err);
                     return Err(SyncError::WorkExecutionError(err));
@@ -425,17 +445,19 @@ impl<
 
 fn calculate_work_for_local_changes(client: ClientFileMetadata) -> Vec<WorkUnit> {
     match (
+        client.file_type.clone(),
         client.new,
         client.deleted,
         client.document_edited,
         client.metadata_changed,
     ) {
-        (_, true, _, _) => vec![DeleteLocally(client)],
-        (true, _, _, _) => vec![PushNewFile(client)],
-        (_, _, true, false) => vec![PushFileContent(client)],
-        (_, _, false, true) => vec![PushMetadata(client)],
-        (_, _, true, true) => vec![PushFileContent(client.clone()), PushMetadata(client)],
-        (false, false, false, false) => vec![],
+        (_, _, true, _, _) => vec![DeleteLocally(client)],
+        (Folder, true, _, _, _) => vec![PushNewFolder(client)],
+        (Document, true, _, _, _) => vec![PushNewDocument(client)],
+        (_, _, _, true, false) => vec![PushFileContent(client)],
+        (_, _, _, false, true) => vec![PushMetadata(client)],
+        (_, _, _, true, true) => vec![PushFileContent(client.clone()), PushMetadata(client)],
+        (_, false, false, false, false) => vec![],
     }
 }
 
