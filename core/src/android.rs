@@ -12,6 +12,8 @@ use jni::sys::{jboolean, jint};
 use jni::JNIEnv;
 use sled::Db;
 use std::path::Path;
+use crate::repo::file_metadata_repo::{FileMetadataRepoImpl, FileMetadataRepo};
+use uuid::Uuid;
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -145,4 +147,74 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
             AccountImportError::InvalidPrivateKey(_) => account_string_invalid,
         },
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString
+) -> JString {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+    
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let root = FileMetadataRepoImpl::get_root(&db).expect("Couldn't access DB's root despite db being present!");
+
+    env.new_string(serde_json::to_string(&root)).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jparentuuid: JString
+) -> JString {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let parent_uuid: String = env
+        .get_string(jparentuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let uuid: Uuid = serde_json::from_str(&parent_uuid).expect("Couldn't deserialize Uuid!");
+
+    let children = FileMetadataRepoImpl::get_children(&db, uuid).expect("Could not read DB to get children!");
+
+    env.new_string(serde_json::to_string(&children)).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jfileuuid: JString
+) -> JString {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let file_uuid: String = env
+        .get_string(jfileuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+
+    let file = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
+
+    env.new_string(serde_json::to_string(&file)).expect("Couldn't create JString from rust string!")
 }
