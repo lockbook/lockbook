@@ -217,20 +217,20 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                     let mut paths = vec![];
                     for (_, meta) in cache {
                         if meta.file_type == Document {
-                            path_cache
-                                .get(&meta.id)
-                                .map(|path| paths.push(path.to_owned()));
+                            if let Some(path) = path_cache.get(&meta.id) {
+                                paths.push(path.to_owned())
+                            }
                         }
                     }
                     paths
                 }
                 Filter::LeafNodesOnly => {
                     let mut paths = vec![];
-                    for (_, meta) in &cache {
+                    for meta in cache.values() {
                         if is_leaf_node(meta.id, &cache) {
-                            path_cache
-                                .get(&meta.id)
-                                .map(|path| paths.push(path.to_owned()));
+                            if let Some(path) = path_cache.get(&meta.id) {
+                                paths.push(path.to_owned())
+                            }
                         }
                     }
                     paths
@@ -330,7 +330,7 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
                 return true;
             }
 
-            for (_, value) in ids {
+            for value in ids.values() {
                 if value.parent_id == id {
                     return false;
                 }
