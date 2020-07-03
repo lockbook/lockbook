@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::client_file_metadata::FileType::Document;
+use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
 #[derive(Debug)]
@@ -63,7 +63,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             &file.id.as_bytes(),
             serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
         )
-            .map_err(DbError::SledError)?;
+        .map_err(DbError::SledError)?;
         if file.id == file.parent_id {
             let root = db.open_tree(ROOT).map_err(DbError::SledError)?;
             debug!("saving root folder: {:?}", &file.id);
@@ -71,7 +71,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 ROOT,
                 serde_json::to_vec(&file.id).map_err(DbError::SerdeError)?,
             )
-                .map_err(DbError::SledError)?;
+            .map_err(DbError::SledError)?;
         }
         Ok(())
     }
@@ -280,7 +280,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             LAST_UPDATED,
             serde_json::to_vec(&last_updated).map_err(Error::SerdeError)?,
         )
-            .map_err(Error::SledError)?;
+        .map_err(Error::SledError)?;
         Ok(())
     }
 
