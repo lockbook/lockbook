@@ -51,6 +51,6 @@ pub fn get_verb(work: &WorkUnit) -> String {
         WorkUnit::MergeMetadataAndPushMetadata(server) => {
             format!("Merging metadata for: {}", server.name)
         }
-        WorkUnit::PushNewFolder(client) => format!("Pushing new metadata: {}", client.name)
+        WorkUnit::PushNewFolder(client) => format!("Pushing new metadata: {}", client.name),
     }
 }

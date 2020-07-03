@@ -8,13 +8,17 @@ use uuid::Uuid;
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
+use crate::model::api;
 use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::crypto::{FolderAccessInfo, SignedValue};
 use crate::model::work_unit::WorkUnit;
-use crate::model::work_unit::WorkUnit::{DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete, PushFileContent, PushMetadata, PushNewDocument, UpdateLocalMetadata, PushNewFolder};
+use crate::model::work_unit::WorkUnit::{
+    DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
+    PushFileContent, PushMetadata, PushNewDocument, PushNewFolder, UpdateLocalMetadata,
+};
 use crate::repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
@@ -23,7 +27,6 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service;
 use crate::service::auth_service::AuthService;
 use crate::service::sync_service::WorkExecutionError::CreateFolderError;
-use crate::model::api;
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -185,8 +188,9 @@ impl<
                     client.id,
                     &client.name,
                     client.parent_id,
-                    client.folder_access_keys.access_key.clone()
-                 ).map_err(CreateFolderError)?;
+                    client.folder_access_keys.access_key.clone(),
+                )
+                .map_err(CreateFolderError)?;
 
                 client.content_version = new_version;
                 client.new = false;
@@ -196,7 +200,7 @@ impl<
                     .map_err(WorkExecutionError::FileRetievalError)?;
 
                 Ok(())
-            },
+            }
             PushNewDocument(client) => {
                 let mut client = client;
                 let new_version = ApiClient::create_document(
@@ -420,14 +424,18 @@ impl<
         for _ in 0..10 {
             info!("Syncing");
             let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
-            let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+            let work_calculated =
+                Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
             debug!("Work calculated: {:#?}", work_calculated);
 
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
-                FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)
-                    .map_err(SyncError::MetadataUpdateError)?;
+                FileMetadataDb::set_last_updated(
+                    &db,
+                    work_calculated.most_recent_update_from_server,
+                )
+                .map_err(SyncError::MetadataUpdateError)?;
                 return Ok(());
             }
 
