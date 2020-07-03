@@ -7,6 +7,6 @@ mod account_tests {
     #[test]
     fn create_account_successfully() {
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, random_username()).unwrap();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
     }
 }

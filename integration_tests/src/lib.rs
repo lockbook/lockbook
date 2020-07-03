@@ -12,6 +12,6 @@ pub fn test_db() -> Db {
     TempBackedDB::connect_to_db(&config).unwrap()
 }
 
-pub fn random_username() -> &str {
-    Uuid::new_v4().to_string().as_str()
+pub fn random_username() -> String {
+    Uuid::new_v4().to_string()
 }
