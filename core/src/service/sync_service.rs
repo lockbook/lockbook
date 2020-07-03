@@ -55,7 +55,7 @@ pub enum WorkExecutionError {
 pub enum SyncError {
     AccountRetrievalError(repo::account_repo::Error),
     CalculateWorkError(CalculateWorkError),
-    WorkExecutionError(WorkExecutionError),
+    WorkExecutionError(Vec<WorkExecutionError>),
     MetadataUpdateError(repo::file_metadata_repo::Error),
 }
 
@@ -414,32 +414,39 @@ impl<
         }
     }
 
-    // TODO add a maximum number of iterations
     fn sync(db: &Db) -> Result<(), SyncError> {
-        info!("Syncing");
-        let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
-        let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+        let mut sync_errors = vec![];
 
-        debug!("Work calculated: {:#?}", work_calculated);
+        for _ in 0..10 {
+            info!("Syncing");
+            let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
+            let work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
-        if work_calculated.work_units.is_empty() {
-            info!("Done syncing");
-            FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)
-                .map_err(SyncError::MetadataUpdateError)?;
-            return Ok(());
-        }
+            debug!("Work calculated: {:#?}", work_calculated);
 
-        for work_unit in work_calculated.work_units {
-            match Self::execute_work(&db, &account, work_unit.clone()) {
-                Ok(_) => debug!("{:#?} executed successfully", work_unit),
-                Err(err) => {
-                    error!("{:?} failed: {:?}", work_unit, err);
-                    return Err(SyncError::WorkExecutionError(err));
+            if work_calculated.work_units.is_empty() {
+                info!("Done syncing");
+                FileMetadataDb::set_last_updated(&db, work_calculated.most_recent_update_from_server)
+                    .map_err(SyncError::MetadataUpdateError)?;
+                return Ok(());
+            }
+
+            for work_unit in work_calculated.work_units {
+                match Self::execute_work(&db, &account, work_unit.clone()) {
+                    Ok(_) => debug!("{:#?} executed successfully", work_unit),
+                    Err(err) => {
+                        error!("{:?} failed: {:?}", work_unit, err);
+                        sync_errors.push(err);
+                    }
                 }
             }
         }
 
-        Self::sync(&db)
+        if sync_errors.is_empty() {
+            Ok(())
+        } else {
+            Err(SyncError::WorkExecutionError(sync_errors))
+        }
     }
 }
 
