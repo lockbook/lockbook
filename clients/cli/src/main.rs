@@ -54,8 +54,7 @@ enum Lockbook {
     /// Import an existing Lockbook
     Import,
 
-    /// Displays: which files need to be pushed or pulled.
-    /// If conflicts need to be resolved. And when the last successful sync was.
+    /// What operations a sync would perform
     Status,
 
     /// Export your private key
