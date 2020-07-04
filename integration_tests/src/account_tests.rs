@@ -46,7 +46,7 @@ mod account_tests {
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::Api(api_api_err) => {
                     match api_api_err {
-                        NewAccountError::InvalidUsername => return,
+                        NewAccountError::InvalidUsername => return, // Test passed
                         _ => {}
                     }
                 },
