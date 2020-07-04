@@ -37,10 +37,10 @@ class ListFilesFragment: Fragment() {
         binding.filesFolders.layoutManager = LinearLayoutManager(context)
 
         listFilesViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
-            if(it[0] == null) {
+            if(it.isEmpty()) {
                 adapter.filesFolders = listOf()
             } else {
-                adapter.filesFolders =
+                adapter.filesFolders = it
             }
         })
 
