@@ -48,7 +48,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=debug cargo run \
+        RUST_LOG=lockbook_server=debug cargo run \
       '
   integration_tests:
     image: integration_tests:$BRANCH
