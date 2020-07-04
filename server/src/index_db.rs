@@ -1,11 +1,13 @@
 use crate::config::IndexDbConfig;
+use lockbook_core::model::account::Username;
 use lockbook_core::model::api::FileMetadata;
 use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue};
+use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue, UserAccessInfo};
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
 use rsa::RSAPublicKey;
+use std::collections::HashMap;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::Client as PostgresClient;
@@ -441,7 +443,32 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             .try_get::<&str, i64>("content_version")
             .map_err(FileError::Postgres)? as u64,
         deleted: row.try_get("deleted").map_err(FileError::Postgres)?,
-        user_access_keys: Default::default(), // todo
+        user_access_keys: {
+            let username: Username = row.try_get("name").map_err(FileError::Postgres)?;
+            let encrypted_key_res = row.try_get::<&str, &str>("encrypted_key");
+            let public_key_res = row.try_get::<&str, &str>("public_key");
+
+            let mut user_access_keys: HashMap<Username, UserAccessInfo> = HashMap::new();
+
+            match (encrypted_key_res, public_key_res) {
+                (Ok(encrypted_key), Ok(public_key)) => {
+                    user_access_keys.insert(
+                        username.clone(),
+                        UserAccessInfo {
+                            username: username.clone(),
+                            public_key: serde_json::from_str(public_key)
+                                .map_err(FileError::Deserialize)?,
+                            access_key: serde_json::from_str(encrypted_key)
+                                .map_err(FileError::Deserialize)?,
+                        },
+                    );
+                    ()
+                }
+                _ => {}
+            }
+
+            user_access_keys
+        },
         folder_access_keys: serde_json::from_str(
             row.try_get::<&str, &str>("parent_access_key")
                 .map_err(FileError::Postgres)?,
@@ -457,7 +484,11 @@ pub async fn get_updates(
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
         .query(
-            "SELECT * FROM files WHERE owner = $1 AND metadata_version > $2",
+            "SELECT * FROM files fi
+                        LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
+                        LEFT JOIN accounts a ON fi.owner = a.name
+                        WHERE owner = $1
+                        AND metadata_version > $2;",
             &[&username, &(metadata_version as i64)],
         )
         .await
