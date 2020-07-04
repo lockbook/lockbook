@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
@@ -28,11 +29,20 @@ class ListFilesFragment: Fragment() {
         val listFilesViewModel: ListFilesViewModel = ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
 
         binding.listFilesViewModel = listFilesViewModel
-        binding.filesFolders.adapter = ListFilesAdapter()
+        val adapter = ListFilesAdapter()
+        binding.filesFolders.adapter = adapter
 
         binding.lifecycleOwner = this
 
         binding.filesFolders.layoutManager = LinearLayoutManager(context)
+
+        listFilesViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
+            if(it[0] == null) {
+                adapter.filesFolders = listOf()
+            } else {
+                adapter.filesFolders =
+            }
+        })
 
         return binding.root
     }
