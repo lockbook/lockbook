@@ -462,7 +462,6 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
                                 .map_err(FileError::Deserialize)?,
                         },
                     );
-                    ()
                 }
                 _ => {}
             }
