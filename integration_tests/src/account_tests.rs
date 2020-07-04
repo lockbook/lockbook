@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::client::Error;
-    use lockbook_core::DefaultAccountService;
     use lockbook_core::model::api::NewAccountError::UsernameTaken;
     use lockbook_core::service::account_service::{AccountCreationError, AccountService};
+    use lockbook_core::DefaultAccountService;
 
     use crate::{random_username, test_db};
     use lockbook_core::model::api::NewAccountError;
@@ -26,10 +26,10 @@ mod account_tests {
                     match api_api_err {
                         UsernameTaken => {
                             return; // Test passed
-                        },
+                        }
                         _ => {}
                     }
-                },
+                }
                 _ => {}
             },
             _ => {}
@@ -37,7 +37,6 @@ mod account_tests {
 
         panic!("This username should have been taken.")
     }
-
 
     #[test]
     fn invalid_username_test() {
@@ -49,7 +48,7 @@ mod account_tests {
                         NewAccountError::InvalidUsername => return, // Test passed
                         _ => {}
                     }
-                },
+                }
                 _ => {}
             },
             _ => {}
