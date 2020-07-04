@@ -5,7 +5,10 @@ use lockbook_core::model::api::*;
 use lockbook_core::model::client_file_metadata::FileType;
 
 pub fn username_is_valid(username: &str) -> bool {
-    username.chars().all(|x| x.is_digit(36)) && username.to_lowercase() == *username
+    username
+        .to_lowercase()
+        .chars()
+        .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
 }
 
 pub async fn change_document_content(
@@ -538,6 +541,7 @@ pub async fn new_account(
     //     .map_err(|_| NewAccountError::InvalidAuth)?;
     // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
     if !username_is_valid(&request.username) {
+        debug!("{} is not a valid username", request.username);
         return Err(NewAccountError::InvalidUsername);
     }
     let transaction = match server_state.index_db_client.transaction().await {
