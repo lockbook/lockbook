@@ -42,7 +42,6 @@ mod account_tests {
     #[test]
     fn invalid_username_test() {
         let db = test_db();
-        let username = &random_username();
         match DefaultAccountService::create_account(&db, "💩").unwrap_err() {
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::Api(api_api_err) => {
