@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::client::new_account::Error;
+use crate::client::Error;
 use crate::model::api::NewAccountError;
 use crate::model::state::Config;
 use crate::repo::db_provider::DbProvider;
@@ -13,9 +13,9 @@ use jni::JNIEnv;
 use sled::Db;
 use std::path::Path;
 
-fn connect_db(path: String) -> Option<Db> {
+fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
-        writeable_path: path,
+        writeable_path: String::from(path),
     };
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
@@ -79,7 +79,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         .expect("Couldn't read path out of JNI!")
         .into();
 
-    let db = match connect_db(path) {
+    let db = match connect_db(&path) {
         None => return no_db,
         Some(db) => db,
     };
@@ -90,20 +90,19 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
             error! {"Error while generating account! {:?}", &err}
             match err {
                 AccountCreationError::KeyGenerationError(_) => crypto_error,
-
                 AccountCreationError::PersistenceError(_) => io_error,
-
                 AccountCreationError::ApiError(api_err) => match api_err {
-                    Error::SendFailed(_) => network_error,
-                    Error::API(real_api_error) => match real_api_error {
+                    Error::<NewAccountError>::SendFailed(_) => network_error,
+                    Error::<NewAccountError>::Api(real_api_error) => match real_api_error {
                         NewAccountError::UsernameTaken => username_taken,
                         _ => unexpected_error,
                     },
                     _ => unexpected_error,
                 },
                 AccountCreationError::KeySerializationError(_) => unexpected_error,
-
                 AccountCreationError::AuthGenFailure(_) => unexpected_error,
+                AccountCreationError::FolderError(_) => unexpected_error, // TODO added during files and folders (unhandled)
+                AccountCreationError::MetadataRepoError(_) => unexpected_error, // TODO added during files and folders (unhandled)
             }
         }
     }
@@ -132,7 +131,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
         .expect("Couldn't read path out of JNI!")
         .into();
 
-    let db = match connect_db(path) {
+    let db = match connect_db(&path) {
         None => return no_db,
         Some(db) => db,
     };

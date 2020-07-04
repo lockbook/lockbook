@@ -8,8 +8,8 @@
 
 import Foundation
 
-func intEpochToString(micros: Int) -> String {
-    let date = Date(timeIntervalSince1970: TimeInterval(micros/1000000))
+func intEpochToString(epoch: Int) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(epoch/1000))
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy/MM/dd hh:mm a"
     return formatter.string(from: date)

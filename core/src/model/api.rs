@@ -1,50 +1,56 @@
+use crate::model::account::Username;
+use crate::model::client_file_metadata::FileType;
+use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ChangeFileContentRequest {
+pub struct ChangeDocumentContentRequest {
     pub username: String,
-    pub auth: String,
-    pub file_id: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_file_content: String,
+    pub new_content: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ChangeFileContentResponse {
-    pub current_metadata_and_content_version: u64,
+pub struct ChangeDocumentContentResponse {
+    pub new_metadata_and_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum ChangeFileContentError {
+pub enum ChangeDocumentContentError {
     InternalError,
     InvalidAuth,
     InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
-    FileNotFound,
+    DocumentNotFound,
     EditConflict,
-    FileDeleted,
+    DocumentDeleted,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CreateFileRequest {
+pub struct CreateDocumentRequest {
     pub username: String,
-    pub auth: String,
-    pub file_id: String,
-    pub file_name: String,
-    pub file_path: String,
-    pub file_content: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub name: String,
+    pub parent: Uuid,
+    pub content: EncryptedValueWithNonce,
+    pub parent_access_key: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CreateFileResponse {
-    pub current_metadata_and_content_version: u64,
+pub struct CreateDocumentResponse {
+    pub new_metadata_and_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CreateFileError {
+pub enum CreateDocumentError {
     InternalError,
     InvalidAuth,
     InvalidUsername,
@@ -52,33 +58,196 @@ pub enum CreateFileError {
     NotPermissioned,
     UserNotFound,
     FileIdTaken,
-    FilePathTaken,
+    DocumentPathTaken,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteFileRequest {
+pub struct DeleteDocumentRequest {
     pub username: String,
-    pub auth: String,
-    pub file_id: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
     pub old_metadata_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteFileResponse {
-    pub current_metadata_and_content_version: u64,
+pub struct DeleteDocumentResponse {
+    pub new_metadata_and_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum DeleteFileError {
+pub enum DeleteDocumentError {
     InternalError,
     InvalidAuth,
     InvalidUsername,
     ExpiredAuth,
     NotPermissioned,
     UserNotFound,
-    FileNotFound,
+    DocumentNotFound,
     EditConflict,
-    FileDeleted,
+    DocumentDeleted,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct MoveDocumentRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub old_metadata_version: u64,
+    pub new_parent: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct MoveDocumentResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum MoveDocumentError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    DocumentNotFound,
+    EditConflict,
+    DocumentDeleted,
+    DocumentPathTaken,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RenameDocumentRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub old_metadata_version: u64,
+    pub new_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RenameDocumentResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum RenameDocumentError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    DocumentNotFound,
+    DocumentDeleted,
+    EditConflict,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CreateFolderRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub name: String,
+    pub parent: Uuid,
+    pub parent_access_key: EncryptedValueWithNonce,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CreateFolderResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum CreateFolderError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    FileIdTaken,
+    FolderPathTaken,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct DeleteFolderRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub old_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct DeleteFolderResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum DeleteFolderError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    FolderNotFound,
+    EditConflict,
+    FolderDeleted,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct MoveFolderRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub old_metadata_version: u64,
+    pub new_parent: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct MoveFolderResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum MoveFolderError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    FolderNotFound,
+    EditConflict,
+    FolderDeleted,
+    FolderPathTaken,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RenameFolderRequest {
+    pub username: String,
+    pub signature: SignedValue,
+    pub id: Uuid,
+    pub old_metadata_version: u64,
+    pub new_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RenameFolderResponse {
+    pub new_metadata_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum RenameFolderError {
+    InternalError,
+    InvalidAuth,
+    InvalidUsername,
+    ExpiredAuth,
+    NotPermissioned,
+    UserNotFound,
+    FolderNotFound,
+    FolderDeleted,
+    EditConflict,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -101,7 +270,7 @@ pub enum GetPublicKeyError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
-    pub auth: String,
+    pub signature: SignedValue,
     pub since_metadata_version: u64,
 }
 
@@ -122,51 +291,33 @@ pub enum GetUpdatesError {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadata {
-    pub file_id: String,
-    pub file_name: String,
-    pub file_path: String,
-    pub file_content_version: u64,
-    pub file_metadata_version: u64,
+    pub id: Uuid,
+    pub file_type: FileType,
+    pub parent: Uuid,
+    pub name: String,
+    pub owner: String,
+    pub signature: SignedValue,
+    pub metadata_version: u64,
+    pub content_version: u64,
     pub deleted: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MoveFileRequest {
-    pub username: String,
-    pub auth: String,
-    pub file_id: String,
-    pub old_metadata_version: u64,
-    pub new_file_path: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MoveFileResponse {
-    pub current_metadata_version: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MoveFileError {
-    InternalError,
-    InvalidAuth,
-    InvalidUsername,
-    ExpiredAuth,
-    NotPermissioned,
-    UserNotFound,
-    FileNotFound,
-    EditConflict,
-    FileDeleted,
-    FilePathTaken,
+    pub user_access_keys: HashMap<Username, UserAccessInfo>,
+    pub folder_access_keys: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
-    pub username: String,
-    pub auth: String,
-    pub public_key: String,
+    pub username: Username,
+    pub signature: SignedValue,
+    pub public_key: RSAPublicKey,
+    pub folder_id: Uuid,
+    pub parent_access_key: EncryptedValueWithNonce,
+    pub user_access_key: EncryptedValue,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct NewAccountResponse {}
+pub struct NewAccountResponse {
+    pub folder_metadata_version: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {
@@ -175,32 +326,7 @@ pub enum NewAccountError {
     ExpiredAuth,
     UsernameTaken,
     InvalidPublicKey,
+    InvalidUserAccessKey,
     InvalidUsername,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RenameFileRequest {
-    pub username: String,
-    pub auth: String,
-    pub file_id: String,
-    pub old_metadata_version: u64,
-    pub new_file_name: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RenameFileResponse {
-    pub current_metadata_version: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum RenameFileError {
-    InternalError,
-    InvalidAuth,
-    InvalidUsername,
-    ExpiredAuth,
-    NotPermissioned,
-    UserNotFound,
-    FileNotFound,
-    FileDeleted,
-    EditConflict,
+    FileIdTaken,
 }
