@@ -1,4 +1,6 @@
+use serde::export::PhantomData;
 use sled::Db;
+use uuid::Uuid;
 
 use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
@@ -14,13 +16,13 @@ use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
-use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError, FailedToWriteFileContent};
+use crate::service::file_service::NewFileError::{
+    FailedToSaveMetadata, FailedToWriteFileContent, FileCryptoError,
+};
 use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, InvalidRootFolder, NoRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
-use serde::export::PhantomData;
-use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -119,15 +121,16 @@ impl<
 
         FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
 
-        Self::write_document(
-            &db,
-            new_metadata.id,
-            &DecryptedValue {
-                secret: "".to_string(),
-            },
-        )
-        .map_err(FailedToWriteFileContent)?;
-
+        if file_type == Document {
+            Self::write_document(
+                &db,
+                new_metadata.id,
+                &DecryptedValue {
+                    secret: "".to_string(),
+                },
+            )
+            .map_err(FailedToWriteFileContent)?;
+        }
         Ok(new_metadata)
     }
 
