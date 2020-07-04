@@ -14,9 +14,9 @@ class ListFilesViewModel(var path: File) : ViewModel() {
 
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
-    private val _filesFolders = MutableLiveData<List<ClientFileMetadata>?>()
+    private val _filesFolders = MutableLiveData<List<ClientFileMetadata>>()
 
-    val filesFolders: LiveData<List<ClientFileMetadata>?>
+    val filesFolders: LiveData<List<ClientFileMetadata>>
         get() = _filesFolders
 
     fun getRootFilesFolders() {
@@ -28,7 +28,7 @@ class ListFilesViewModel(var path: File) : ViewModel() {
     private suspend fun getRoot() {
         withContext(Dispatchers.IO) {
             val maybeRootSerialized = getRoot(path.absolutePath)
-            val root: List<ClientFileMetadata>? = Klaxon().parse(maybeRootSerialized)!!
+            val root: List<ClientFileMetadata> = listOf((Klaxon().parse(maybeRootSerialized)!!)!!)
             _filesFolders.value = root
         }
     }
@@ -42,13 +42,17 @@ class ListFilesViewModel(var path: File) : ViewModel() {
     private suspend fun getChildren(parentUuid: String) {
         withContext(Dispatchers.IO) {
             val childrenSerialized = getChildren(path.absolutePath, parentUuid)
-            val children: List<ClientFileMetadata>? = Klaxon().parse(childrenSerialized)!!
+            val children: List<ClientFileMetadata> = Klaxon().parse(childrenSerialized)!!
             _filesFolders.value = children
         }
     }
 
-    init {
+    fun getFileFilesFolders(fileUuid: String) {
 
+    }
+
+    init {
+        getRootFilesFolders()
     }
 
 
