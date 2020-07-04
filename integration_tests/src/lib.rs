@@ -13,5 +13,9 @@ pub fn test_db() -> Db {
 }
 
 pub fn random_username() -> String {
-    Uuid::new_v4().to_string()
+    Uuid::new_v4()
+        .to_string()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
 }
