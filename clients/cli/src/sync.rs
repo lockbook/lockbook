@@ -1,10 +1,9 @@
-use crate::utils::{connect_to_db, get_account};
-
 use lockbook_core::model::work_unit::get_verb;
-
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::{DefaultFileMetadataRepo, DefaultSyncService};
+
+use crate::utils::{connect_to_db, get_account};
 
 pub fn sync() {
     let db = connect_to_db();
@@ -15,9 +14,9 @@ pub fn sync() {
 
     while !work_calculated.work_units.is_empty() {
         for work_unit in work_calculated.work_units {
-            print!("{}... ", get_verb(&work_unit));
+            println!("{}", get_verb(&work_unit));
             match DefaultSyncService::execute_work(&db, &account, work_unit) {
-                Ok(_) => println!("Done."),
+                Ok(_) => println!("Success."),
                 Err(error) => eprintln!("Failed: {:?}", error),
             }
         }

@@ -24,7 +24,7 @@ struct FileRow: View {
                         Spacer()
                     }
                     HStack {
-                        Text("Last synced \(intEpochToString(micros: metadata.version))")
+                        Text("Last synced \(intEpochToString(epoch: metadata.metadataVersion))")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -42,20 +42,22 @@ struct FileRow: View {
     
     init(metadata: FileMetadata) {
         self.metadata = metadata
-        switch metadata.status {
-            case .New:
-                self.color = Color.purple
-                self.image = Image(systemName: "plus")
-            case .Local:
-                self.color = Color.blue
-                self.image = Image(systemName: "tray.and.arrow.up")
-            case .Remote:
-                self.color = Color.red
-                self.image = Image(systemName: "tray.and.arrow.down")
-            case .Synced:
-                self.color = Color.green
-                self.image = Image(systemName: "arrow.2.circlepath")
-        }
+        self.color = Color.green
+        self.image = Image(systemName: "arrow.2.circlepath")
+//        switch metadata.status {
+//            case .New:
+//                self.color = Color.purple
+//                self.image = Image(systemName: "plus")
+//            case .Local:
+//                self.color = Color.blue
+//                self.image = Image(systemName: "tray.and.arrow.up")
+//            case .Remote:
+//                self.color = Color.red
+//                self.image = Image(systemName: "tray.and.arrow.down")
+//            case .Synced:
+//                self.color = Color.green
+//                self.image = Image(systemName: "arrow.2.circlepath")
+//        }
     }
     
 }
