@@ -541,7 +541,7 @@ pub async fn new_account(
     //     .map_err(|_| NewAccountError::InvalidAuth)?;
     // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
     if !username_is_valid(&request.username) {
-        debug!("{} is not a valid username",  request.username);
+        debug!("{} is not a valid username", request.username);
         return Err(NewAccountError::InvalidUsername);
     }
     let transaction = match server_state.index_db_client.transaction().await {
