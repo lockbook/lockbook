@@ -11,11 +11,13 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
+use crate::model::client_file_metadata::FileType::Document;
+use crate::model::crypto::DecryptedValue;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
+use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
-use crate::repo::file_repo::{FileRepo, FileRepoImpl};
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
@@ -23,16 +25,16 @@ use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
 use crate::service::sync_service::{FileSyncService, SyncService};
+use uuid::Uuid;
 
 pub mod client;
-pub mod error_enum;
 pub mod model;
 pub mod repo;
 pub mod service;
 
 mod android;
 
-pub static API_LOC: &str = "http://lockbook.app:8000";
+pub static API_LOC: &str = "http://lockbook_server:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
@@ -43,21 +45,27 @@ pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-pub type DefaultAccountService =
-    AccountServiceImpl<DefaultCrypto, DefaultAccountRepo, DefaultClient, DefaultAuthService>;
+pub type DefaultAccountService = AccountServiceImpl<
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+    DefaultFileEncryptionService,
+    DefaultFileMetadataRepo,
+>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultFileRepo = FileRepoImpl;
+pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
-    DefaultFileRepo,
+    DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,
     DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
-    DefaultFileRepo,
+    DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
@@ -66,6 +74,8 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
+static FAILURE_ROOT_GET: &str = "FAILURE<ROOT_GET>";
+static FAILURE_UUID_UNWRAP: &str = "FAILURE<UUID_UNWRAP>";
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
@@ -82,7 +92,7 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => Some(db),
         Err(err) => {
-            error!("DB connection failed! Error: {:?}", err);
+            error!("DB connection failed! Error: {:?}", err); // TEMP HERE
             None
         }
     }
@@ -163,28 +173,76 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
     };
 
     match DefaultSyncService::sync(&db) {
-        Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+        Ok(_) => match DefaultFileMetadataRepo::get_root(&db) {
+            Ok(Some(root)) => match DefaultFileMetadataRepo::get_children(&db, root.id) {
+                Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+                Err(err3) => {
+                    error!("Failed retrieving root: {:?}", err3);
+                    CString::new(json!([]).to_string()).unwrap().into_raw()
+                }
+            },
+            Ok(_) => {
+                error!("No root found, you likely don't have an account!");
+                CString::new(json!([]).to_string()).unwrap().into_raw()
+            }
+            Err(err2) => {
+                error!("Failed retrieving root: {:?}", err2);
+                CString::new(json!([]).to_string()).unwrap().into_raw()
+            }
+        },
         Err(err) => {
-            error!("Update metadata failed with error: {:?}", err);
+            error!("Sync failed with error: {:?}", err);
             CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_root(c_path: *const c_char) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+
+    let out = match DefaultFileMetadataRepo::get_root(&db) {
+        Ok(Some(root)) => root.id.to_string(),
+        Ok(None) => FAILURE_ROOT_GET.to_string(),
+        Err(err) => {
+            error!("Failed to get root! Error: {:?}", err);
+            FAILURE_ROOT_GET.to_string()
+        }
+    };
+
+    CString::new(out.as_str()).unwrap().into_raw()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
-    c_file_path: *const c_char,
+    c_file_parent_id: *const c_char, // TODO @raayan add type?
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
         Some(db) => db,
     };
     let file_name = string_from_ptr(c_file_name);
-    let file_path = string_from_ptr(c_file_path);
+    let file_parent_id = string_from_ptr(c_file_parent_id);
 
-    match DefaultFileService::create(&db, &file_name, &file_path) {
+    let file_parent_uuid: Uuid = match Uuid::parse_str(&file_parent_id) {
+        Ok(uuid) => uuid,
+        Err(err) => {
+            error!("Failed to create file metadata! Error: {:?}", err);
+            return CString::new(FAILURE_UUID_UNWRAP).unwrap().into_raw();
+        }
+    };
+
+    match DefaultFileService::create(
+        &db,
+        &file_name,
+        file_parent_uuid,
+        Document, // TODO @raayan
+    ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to create file metadata! Error: {:?}", err);
@@ -201,7 +259,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::get(&db, &file_id) {
+    match DefaultFileService::read_document(&db, Uuid::parse_str(file_id.as_str()).unwrap()) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to get file! Error: {:?}", err);
@@ -221,9 +279,15 @@ pub unsafe extern "C" fn update_file(
         Some(db) => db,
     };
     let file_id = string_from_ptr(c_file_id);
-    let file_content = string_from_ptr(c_file_content);
+    let file_content = DecryptedValue {
+        secret: string_from_ptr(c_file_content),
+    };
 
-    match DefaultFileService::update(&db, &file_id, &file_content) {
+    match DefaultFileService::write_document(
+        &db,
+        Uuid::parse_str(file_id.as_str()).unwrap(),
+        &file_content,
+    ) {
         Ok(_) => 1,
         Err(err) => {
             error!("Failed to update file! Error: {:?}", err);
@@ -240,8 +304,8 @@ pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     };
     match DefaultFileMetadataRepo::get_all(&db) {
         Ok(metas) => metas.into_iter().for_each(|meta| {
-            DefaultFileMetadataRepo::delete(&db, &meta.file_id).unwrap();
-            DefaultFileRepo::delete(&db, &meta.file_id).unwrap();
+            DefaultFileMetadataRepo::actually_delete(&db, meta.id).unwrap();
+            DefaultDocumentRepo::delete(&db, meta.id).unwrap();
         }),
         Err(err) => error!("Failed to delete file! Error: {:?}", err),
     }
