@@ -48,7 +48,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        cargo run \
+        RUST_LOG=info cargo run \
       '
   integration_tests:
     image: integration_tests:$BRANCH
