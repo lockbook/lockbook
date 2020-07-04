@@ -450,22 +450,18 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
 
             let mut user_access_keys: HashMap<Username, UserAccessInfo> = HashMap::new();
 
-            match (encrypted_key_res, public_key_res) {
-                (Ok(encrypted_key), Ok(public_key)) => {
-                    user_access_keys.insert(
-                        username.clone(),
-                        UserAccessInfo {
-                            username: username.clone(),
-                            public_key: serde_json::from_str(public_key)
-                                .map_err(FileError::Deserialize)?,
-                            access_key: serde_json::from_str(encrypted_key)
-                                .map_err(FileError::Deserialize)?,
-                        },
-                    );
-                }
-                _ => {}
-            }
-
+            if let (Ok(encrypted_key), Ok(public_key)) = (encrypted_key_res, public_key_res) {
+                user_access_keys.insert(
+                    username.clone(),
+                    UserAccessInfo {
+                        username,
+                        public_key: serde_json::from_str(public_key)
+                            .map_err(FileError::Deserialize)?,
+                        access_key: serde_json::from_str(encrypted_key)
+                            .map_err(FileError::Deserialize)?,
+                    },
+                );
+            };
             user_access_keys
         },
         folder_access_keys: serde_json::from_str(

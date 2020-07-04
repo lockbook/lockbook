@@ -599,14 +599,12 @@ pub async fn new_account(
             .map_err(|_| NewAccountError::InvalidUserAccessKey)?,
     )
     .await;
-    new_user_access_key_result.map_err(|e| match e {
-        _ => {
-            error!(
-                "Internal server error! Cannot create account root folder in Postgres: {:?}",
-                e
-            );
-            NewAccountError::InternalError
-        }
+    new_user_access_key_result.map_err(|e| {
+        error!(
+            "Internal server error! Cannot create access keys for user in Postgres: {:?}",
+            e
+        );
+        NewAccountError::InternalError
     })?;
 
     match transaction.commit().await {
