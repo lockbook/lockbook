@@ -3,7 +3,8 @@ use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::Db;
 use uuid::Uuid;
 
-mod account_tests;
+mod account_service_tests;
+mod sync_service_tests;
 
 pub fn test_db() -> Db {
     let config = Config {
