@@ -28,6 +28,7 @@ pub enum NewFileError {
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::FileCreationError),
     FailedToSaveMetadata(file_metadata_repo::DbError),
+    FailedToWriteFileContent(DocumentUpdateError),
 }
 
 #[derive(Debug)]
@@ -117,6 +118,15 @@ impl<
                 .map_err(FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
+
+        Self::write_document(
+            &db,
+            new_metadata.id,
+            &DecryptedValue {
+                secret: "".to_string(),
+            },
+        )
+        .map_err(FailedToCreateChild)?;
 
         Ok(new_metadata)
     }
