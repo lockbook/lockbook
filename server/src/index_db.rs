@@ -480,3 +480,22 @@ pub async fn new_account(
         .await?;
     Ok(())
 }
+
+pub async fn create_user_access_key(
+    transaction: &Transaction<'_>,
+    username: &str,
+    folder_id: Uuid,
+    user_access_key: &str,
+) -> Result<(), AccountError> {
+    transaction
+        .execute(
+            "INSERT INTO user_access_keys (file_id, sharee_id, encrypted_key) VALUES ($1, $2, $3);",
+            &[
+                &serde_json::to_string(&folder_id).map_err(AccountError::Serialization)?,
+                &username,
+                &user_access_key,
+            ],
+        )
+        .await?;
+    Ok(())
+}
