@@ -14,7 +14,7 @@ use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
-use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError};
+use crate::service::file_service::NewFileError::{FailedToSaveMetadata, FileCryptoError, FailedToWriteFileContent};
 use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, InvalidRootFolder, NoRoot,
 };
@@ -126,7 +126,7 @@ impl<
                 secret: "".to_string(),
             },
         )
-        .map_err(FailedToCreateChild)?;
+        .map_err(FailedToWriteFileContent)?;
 
         Ok(new_metadata)
     }
