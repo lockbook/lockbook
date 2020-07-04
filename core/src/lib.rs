@@ -34,7 +34,7 @@ pub mod service;
 
 mod android;
 
-pub static API_LOC: &str = "http://lockbook_server:8000";
+pub static API_LOC: &str = "http://localhost:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
@@ -173,9 +173,25 @@ pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> *mut c_char {
     };
 
     match DefaultSyncService::sync(&db) {
-        Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+        Ok(_) => match DefaultFileMetadataRepo::get_root(&db) {
+            Ok(Some(root)) => match DefaultFileMetadataRepo::get_children(&db, root.id) {
+                Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+                Err(err3) => {
+                    error!("Failed retrieving root: {:?}", err3);
+                    CString::new(json!([]).to_string()).unwrap().into_raw()
+                }
+            },
+            Ok(_) => {
+                error!("No root found, you likely don't have an account!");
+                CString::new(json!([]).to_string()).unwrap().into_raw()
+            }
+            Err(err2) => {
+                error!("Failed retrieving root: {:?}", err2);
+                CString::new(json!([]).to_string()).unwrap().into_raw()
+            }
+        },
         Err(err) => {
-            error!("Update metadata failed with error: {:?}", err);
+            error!("Sync failed with error: {:?}", err);
             CString::new(json!([]).to_string()).unwrap().into_raw()
         }
     }
@@ -243,7 +259,7 @@ pub unsafe extern "C" fn get_file(c_path: *const c_char, c_file_id: *const c_cha
     };
     let file_id = string_from_ptr(c_file_id);
 
-    match DefaultFileService::read_document(&db, serde_json::from_str(&file_id).unwrap()) {
+    match DefaultFileService::read_document(&db, Uuid::parse_str(file_id.as_str()).unwrap()) {
         Ok(file) => CString::new(json!(&file).to_string()).unwrap().into_raw(),
         Err(err) => {
             error!("Failed to get file! Error: {:?}", err);
@@ -269,7 +285,7 @@ pub unsafe extern "C" fn update_file(
 
     match DefaultFileService::write_document(
         &db,
-        serde_json::from_str(&file_id).unwrap(),
+        Uuid::parse_str(file_id.as_str()).unwrap(),
         &file_content,
     ) {
         Ok(_) => 1,
