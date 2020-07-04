@@ -2,8 +2,8 @@ use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+use crate::model::client_file_metadata::FileType::{Document, Folder};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -98,11 +98,11 @@ pub struct FileServiceImpl<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: DocumentRepo,
-        AccountDb: AccountRepo,
-        FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+    FileMetadataDb: FileMetadataRepo,
+    FileDb: DocumentRepo,
+    AccountDb: AccountRepo,
+    FileCrypto: FileEncryptionService,
+> FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
 {
     fn create(
         db: &Db,
@@ -129,7 +129,7 @@ impl<
                     secret: "".to_string(),
                 },
             )
-            .map_err(FailedToWriteFileContent)?;
+                .map_err(FailedToWriteFileContent)?;
         }
         Ok(new_metadata)
     }
@@ -217,7 +217,9 @@ impl<
         let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
             .map_err(DocumentUpdateError::FileCryptoError)?;
 
-        file_metadata.document_edited = true;
+        if !file_metadata.new {
+            file_metadata.document_edited = true;
+        }
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
@@ -252,6 +254,10 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
+    use crate::{
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService, init_logger_safely,
+    };
     use crate::model::account::Account;
     use crate::model::client_file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
@@ -263,10 +269,6 @@ mod unit_tests {
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{
-        init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService,
-    };
 
     #[test]
     fn file_service_runthrough() {
@@ -302,7 +304,7 @@ mod unit_tests {
                 secret: "5 folders deep".to_string(),
             },
         )
-        .unwrap();
+            .unwrap();
 
         assert_eq!(
             DefaultFileService::read_document(&db, file.id)
@@ -418,15 +420,15 @@ mod unit_tests {
             &db,
             "username/TestFolder1/TestFolder2/test3.text",
         )
-        .unwrap()
-        .is_some());
+            .unwrap()
+            .is_some());
         assert_eq!(
             DefaultFileMetadataRepo::get_by_path(
                 &db,
                 "username/TestFolder1/TestFolder2/test3.text",
             )
-            .unwrap()
-            .unwrap(),
+                .unwrap()
+                .unwrap(),
             file
         );
 
