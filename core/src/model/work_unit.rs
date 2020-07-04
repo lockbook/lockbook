@@ -2,10 +2,13 @@ use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use serde::Serialize;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub enum WorkUnit {
-    /// File was created locally and doesn't exist anywhere else, push this file to the server
-    PushNewFile(ClientFileMetadata),
+    /// Document was created locally and doesn't exist anywhere else, push this file to the server
+    PushNewDocument(ClientFileMetadata),
+
+    /// Folder was created locally and doesn't exist anywhere else, push this file to the server
+    PushNewFolder(ClientFileMetadata),
 
     /// Server has changed metadata, lookup the corresponding ClientMetadata and apply Server's
     /// metadata transformations.
@@ -37,18 +40,17 @@ pub enum WorkUnit {
 
 pub fn get_verb(work: &WorkUnit) -> String {
     match work {
-        WorkUnit::PushNewFile(client) => format!("Pushing file: {}", client.file_name),
-        WorkUnit::UpdateLocalMetadata(server) => {
-            format!("Updating metadata for: {}", server.file_name)
-        }
-        WorkUnit::PullFileContent(server) => format!("Pulling file: {}", server.file_name),
-        WorkUnit::DeleteLocally(client) => format!("Deleting file: {}", client.file_name),
-        WorkUnit::PushMetadata(client) => format!("Pushing metadata: {}", client.file_name),
-        WorkUnit::PushFileContent(client) => format!("Pushing file: {}", client.file_name),
-        WorkUnit::PushDelete(client) => format!("Sending delete: {}", client.file_name),
-        WorkUnit::PullMergePush(server) => format!("Merging file: {}", server.file_name),
+        WorkUnit::PushNewDocument(client) => format!("Pushing new document: {}", client.name),
+        WorkUnit::UpdateLocalMetadata(server) => format!("Updating metadata for: {}", server.name),
+        WorkUnit::PullFileContent(server) => format!("Pulling file: {}", server.name),
+        WorkUnit::DeleteLocally(client) => format!("Deleting file: {}", client.name),
+        WorkUnit::PushMetadata(client) => format!("Pushing metadata: {}", client.name),
+        WorkUnit::PushFileContent(client) => format!("Pushing file: {}", client.name),
+        WorkUnit::PushDelete(client) => format!("Sending delete: {}", client.name),
+        WorkUnit::PullMergePush(server) => format!("Merging file: {}", server.name),
         WorkUnit::MergeMetadataAndPushMetadata(server) => {
-            format!("Merging metadata for: {}", server.file_name)
+            format!("Merging metadata for: {}", server.name)
         }
+        WorkUnit::PushNewFolder(client) => format!("Pushing new metadata: {}", client.name),
     }
 }

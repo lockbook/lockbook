@@ -1,15 +1,23 @@
-use lockbook_core::init_logger_safely;
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 
+use lockbook_core::init_logger_safely;
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
+
+mod copy;
 mod edit;
 mod export;
 mod import;
 mod init;
 mod list;
 mod new;
+mod print;
+mod remove;
 mod status;
 mod sync;
 mod utils;
+mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -23,26 +31,22 @@ enum Lockbook {
     /// Search and edit a file
     Edit,
 
-    /// Browse your files interactively
-    Browse,
-
     /// Search and delete a file
     Remove,
-
-    /// Rename a file
-    Move,
-
-    /// Search for a file and see file metadata
-    Find,
 
     /// List all your files
     List,
 
-    /// Bring a file from your computer into Lockbook
-    Copy,
+    /// List all your files
+    #[structopt(name = "list-docs")]
+    ListDocs,
 
-    /// Share a file with a collaborator
-    Share,
+    /// List all your files
+    #[structopt(name = "list-all")]
+    ListAll,
+
+    /// Bring a file from your computer into Lockbook
+    Copy { file: PathBuf },
 
     /// Create a new Lockbook account
     Init,
@@ -50,15 +54,18 @@ enum Lockbook {
     /// Import an existing Lockbook
     Import,
 
-    /// Displays: which files need to be pushed or pulled.
-    /// If conflicts need to be resolved. And when the last successful sync was.
+    /// What operations a sync would perform
     Status,
-
-    /// Delete the Lockbook data directory from this device
-    Nuke,
 
     /// Export your private key
     Export,
+
+    /// Print the contents of a file
+    Print,
+
+    /// Display lockbook username
+    #[structopt(name = "whoami")]
+    WhoAmI,
 }
 
 fn main() {
@@ -68,17 +75,16 @@ fn main() {
         Lockbook::New => new::new(),
         Lockbook::Sync => sync::sync(),
         Lockbook::Edit => edit::edit(),
-        Lockbook::Browse => unimplemented!(),
-        Lockbook::Remove => unimplemented!(),
-        Lockbook::Move => unimplemented!(),
-        Lockbook::Find => unimplemented!(),
-        Lockbook::List => list::list(),
-        Lockbook::Copy => unimplemented!(),
-        Lockbook::Share => unimplemented!(),
+        Lockbook::Remove => remove::remove(),
+        Lockbook::List => list::list(Some(LeafNodesOnly)),
+        Lockbook::ListAll => list::list(None),
+        Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
-        Lockbook::Nuke => unimplemented!(),
         Lockbook::Export => export::export(),
+        Lockbook::WhoAmI => whoami::whoami(),
+        Lockbook::Print => print::print(),
+        Lockbook::Copy { file: path } => copy::copy(path),
     }
 }

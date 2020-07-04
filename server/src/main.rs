@@ -7,20 +7,17 @@ extern crate tokio;
 extern crate log;
 
 pub mod config;
+pub mod file_service;
 pub mod files_db;
 pub mod index_db;
-pub mod services;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Method, Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use services::{
-    change_file_content, create_file, delete_file, get_public_key, get_updates, move_file,
-    new_account, rename_file,
-};
 use std::convert::Infallible;
+use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -57,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         async move {
             Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
                 let server_state = server_state.clone();
-                handle(server_state, req)
+                route(server_state, req)
             }))
         }
     });
@@ -67,75 +64,88 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn handle(
+async fn route(
     server_state: Arc<Mutex<ServerState>>,
     request: Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     let mut s = server_state.lock().await;
     match (request.method(), request.uri().path()) {
-        (&Method::PUT, "/change-file-content") => {
+        (&Method::PUT, "/change-document-content") => {
             info!("Request matched PUT /change-file-content");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(change_file_content::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::change_document_content).await
         }
-        (&Method::POST, "/create-file") => {
+        (&Method::POST, "/create-document") => {
             info!("Request matched POST /create-file");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(create_file::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::create_document).await
         }
-        (&Method::DELETE, "/delete-file") => {
+        (&Method::DELETE, "/delete-document") => {
             info!("Request matched DELETE /delete-file");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(delete_file::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::delete_document).await
+        }
+        (&Method::PUT, "/move-document") => {
+            info!("Request matched PUT /move-file");
+            handle(&mut s, request, file_service::move_document).await
+        }
+        (&Method::PUT, "/rename-document") => {
+            info!("Request matched PUT /rename-file");
+            handle(&mut s, request, file_service::rename_document).await
+        }
+        (&Method::POST, "/create-folder") => {
+            info!("Request matched POST /create-file");
+            handle(&mut s, request, file_service::create_folder).await
+        }
+        (&Method::DELETE, "/delete-folder") => {
+            info!("Request matched DELETE /delete-file");
+            handle(&mut s, request, file_service::delete_folder).await
+        }
+        (&Method::PUT, "/move-folder") => {
+            info!("Request matched PUT /move-file");
+            handle(&mut s, request, file_service::move_folder).await
+        }
+        (&Method::PUT, "/rename-folder") => {
+            info!("Request matched PUT /rename-file");
+            handle(&mut s, request, file_service::rename_folder).await
         }
         (&Method::GET, "/get-public-key") => {
             info!("Request matched GET /get-public-key");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(get_public_key::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::get_public_key).await
         }
         (&Method::GET, "/get-updates") => {
             info!("Request matched GET /get-updates");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(get_updates::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
-        }
-        (&Method::PUT, "/move-file") => {
-            info!("Request matched PUT /move-file");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(move_file::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::get_updates).await
         }
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(new_account::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
-        }
-        (&Method::PUT, "/rename-file") => {
-            info!("Request matched PUT /rename-file");
-            serialize(match deserialize(request).await {
-                Ok(req) => Ok(rename_file::handle(&mut s, req).await),
-                Err(err) => Err(err),
-            })
+            handle(&mut s, request, file_service::new_account).await
         }
         _ => {
-            warn!("Request matched no endpoints");
+            warn!(
+                "Request matched no endpoints: {} {}",
+                request.method(),
+                request.uri().path()
+            );
             hyper::Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(hyper::Body::empty())
         }
     }
+}
+
+async fn handle<'a, Request, Response, ResponseError, Fut>(
+    server_state: &'a mut ServerState,
+    request: hyper::Request<Body>,
+    endpoint_handle: impl FnOnce(&'a mut ServerState, Request) -> Fut,
+) -> Result<hyper::Response<Body>, hyper::http::Error>
+where
+    Fut: Future<Output = Result<Response, ResponseError>>,
+    Request: DeserializeOwned,
+    Response: Serialize,
+    ResponseError: Serialize,
+{
+    serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
+        Ok(req) => Ok(endpoint_handle(server_state, req).await),
+        Err(err) => Err(err),
+    })
 }
 
 #[derive(Debug)]
