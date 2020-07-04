@@ -1,11 +1,11 @@
-CREATE TABLE accounts (
+CREATE TABLE IF NOT EXISTS accounts (
 	name		TEXT NOT NULL,
 	public_key	TEXT NOT NULL,
 	CONSTRAINT pk_accounts		PRIMARY KEY (name),
 	CONSTRAINT uk_public_key	UNIQUE (public_key)
 );
 
-CREATE TABLE files (
+CREATE TABLE IF NOT EXISTS files (
 	id					TEXT NOT NULL,
 	parent				TEXT NOT NULL,
 	parent_access_key   TEXT NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE files (
 	CONSTRAINT fk_files_owner_accounts_name	FOREIGN KEY (owner) REFERENCES accounts(name)
 );
 
-CREATE TABLE user_access_keys (
+CREATE TABLE IF NOT EXISTS user_access_keys (
 	file_id			TEXT NOT NULL,
 	sharee_id		TEXT NOT NULL,
 	encrypted_key	TEXT NOT NULL,

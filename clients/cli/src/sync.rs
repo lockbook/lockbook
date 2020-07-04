@@ -14,9 +14,9 @@ pub fn sync() {
 
     while !work_calculated.work_units.is_empty() {
         for work_unit in work_calculated.work_units {
-            print!("{}... ", get_verb(&work_unit));
+            println!("{}", get_verb(&work_unit));
             match DefaultSyncService::execute_work(&db, &account, work_unit) {
-                Ok(_) => println!("Done."),
+                Ok(_) => println!("Success."),
                 Err(error) => eprintln!("Failed: {:?}", error),
             }
         }
