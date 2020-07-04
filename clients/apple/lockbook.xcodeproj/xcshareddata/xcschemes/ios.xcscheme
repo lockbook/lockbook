@@ -58,8 +58,8 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "RUST_LOG"
-            value = "debug"
-            isEnabled = "NO">
+            value = "info"
+            isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>

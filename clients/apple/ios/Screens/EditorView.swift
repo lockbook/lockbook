@@ -20,8 +20,8 @@ struct EditorView: View {
             VStack(alignment: .leading) {
                 Text("id: \(metadata.id)")
                 Text("path: \(metadata.parentId)")
-                Text("updatedAt: \(intEpochToString(micros: metadata.contentVersion))")
-                Text("version: \(intEpochToString(micros: metadata.metadataVersion))")
+                Text("updatedAt: \(intEpochToString(epoch: metadata.contentVersion))")
+                Text("version: \(intEpochToString(epoch: metadata.metadataVersion))")
             }
         }
         .alert(isPresented: $showingAlert) {
