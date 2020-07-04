@@ -68,11 +68,7 @@ pub fn edit() {
             .expect("Unexpected error while updating internal state");
 
         file_metadata.document_edited = true;
-
-        println!("Updating local state.");
         DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
-
-        println!("Sync successful, cleaning up.")
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }

@@ -2,8 +2,8 @@ use std::io;
 use std::io::Write;
 use std::process::exit;
 
-use lockbook_core::DefaultFileMetadataRepo;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+use lockbook_core::DefaultFileMetadataRepo;
 
 use crate::utils::{connect_to_db, get_account};
 

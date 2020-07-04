@@ -8,8 +8,7 @@ use uuid::Uuid;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService};
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
@@ -30,7 +29,6 @@ pub fn new() {
         .read_line(&mut file_name)
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
-    println!("Creating file {}", &file_name);
 
     let file_metadata = match DefaultFileService::create_at_path(&db, &file_name) {
         Ok(file_metadata) => file_metadata,
@@ -51,13 +49,7 @@ pub fn new() {
         DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
             .expect("Unexpected error while updating internal state");
 
-        println!("Updating local state.");
         DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
-
-        println!("Syncing");
-        DefaultSyncService::sync(&db).expect("Failed to sync");
-
-        println!("Sync successful, cleaning up.")
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
