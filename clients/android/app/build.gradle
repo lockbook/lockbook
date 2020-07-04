@@ -65,8 +65,12 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
     androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
 
-    // Miscellaneous
+    // Coroutines
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutine_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutine_version"
 
+    // Miscellaneous
+    implementation "com.beust:klaxon:$json_parser_version"
 
     implementation project(':core')
 }
