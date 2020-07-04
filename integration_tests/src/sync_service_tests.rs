@@ -19,24 +19,40 @@ mod sync_tests {
 
         let work_units = DefaultSyncService::calculate_work(&db).unwrap();
 
-        assert!(work_units.work_units.clone().into_iter().any(|wu| match wu {
-            WorkUnit::PushNewDocument(doc) => doc == file,
-            _ => false,
-        }));
+        assert!(work_units
+            .work_units
+            .clone()
+            .into_iter()
+            .any(|wu| match wu {
+                WorkUnit::PushNewDocument(doc) => doc == file,
+                _ => false,
+            }));
 
-        assert!(work_units.work_units.clone().into_iter().any(|wu| match wu {
-             WorkUnit::PushNewFolder(folder) => folder.name == "a",
-            _ => false,
-        }));
+        assert!(work_units
+            .work_units
+            .clone()
+            .into_iter()
+            .any(|wu| match wu {
+                WorkUnit::PushNewFolder(folder) => folder.name == "a",
+                _ => false,
+            }));
 
-        assert!(work_units.work_units.clone().into_iter().any(|wu| match wu {
-             WorkUnit::PushNewFolder(folder) => folder.name == "b",
-            _ => false,
-        }));
+        assert!(work_units
+            .work_units
+            .clone()
+            .into_iter()
+            .any(|wu| match wu {
+                WorkUnit::PushNewFolder(folder) => folder.name == "b",
+                _ => false,
+            }));
 
-        assert!(work_units.work_units.clone().into_iter().any(|wu| match wu {
-             WorkUnit::PushNewFolder(folder) => folder.name == "c",
-            _ => false,
-        }));
+        assert!(work_units
+            .work_units
+            .clone()
+            .into_iter()
+            .any(|wu| match wu {
+                WorkUnit::PushNewFolder(folder) => folder.name == "c",
+                _ => false,
+            }));
     }
 }
