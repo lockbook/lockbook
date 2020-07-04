@@ -15,7 +15,9 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
             notifyDataSetChanged()
         }
 
-    inner class ListFilesViewHolder(val textView: TextView): RecyclerView.ViewHolder(textView)
+    inner class ListFilesViewHolder(val textView: TextView): RecyclerView.ViewHolder(textView) {
+        lateinit var clientFileMetadata: ClientFileMetadata
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
@@ -29,6 +31,7 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
     override fun onBindViewHolder(holder: ListFilesViewHolder, position: Int) {
         val item = filesFolders[position]
 
+        holder.clientFileMetadata = item
         holder.textView.text = item.name
     }
 }
