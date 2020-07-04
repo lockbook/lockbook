@@ -34,7 +34,7 @@ pub mod service;
 
 mod android;
 
-pub static API_LOC: &str = "http://lockbook-server:8000";
+pub static API_LOC: &str = "http://lockbook_server:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
