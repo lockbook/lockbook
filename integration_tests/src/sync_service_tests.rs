@@ -54,5 +54,11 @@ mod sync_tests {
                 WorkUnit::PushNewFolder(folder) => folder.name == "c",
                 _ => false,
             }));
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        let work_units = DefaultSyncService::calculate_work(&db).unwrap();
+
+        assert!(work_units.work_units.is_empty());
     }
 }
