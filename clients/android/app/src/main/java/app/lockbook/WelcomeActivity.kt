@@ -5,10 +5,10 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import app.lockbook.databinding.ActivityMainBinding
-import app.lockbook.login.ImportAccount
-import app.lockbook.login.NewAccount
+import app.lockbook.login.ImportAccountActivity
+import app.lockbook.login.NewAccountActivity
 
-class Welcome : AppCompatActivity() {
+class WelcomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -17,11 +17,11 @@ class Welcome : AppCompatActivity() {
     }
 
     fun launchNewAccount() {
-        startActivity(Intent(applicationContext, NewAccount::class.java))
+        startActivity(Intent(applicationContext, NewAccountActivity::class.java))
     }
 
     fun launchImportAccount() {
-        startActivity(Intent(applicationContext, ImportAccount::class.java))
+        startActivity(Intent(applicationContext, ImportAccountActivity::class.java))
     }
 
 }

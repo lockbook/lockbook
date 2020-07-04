@@ -150,11 +150,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
     jpath: JString
-) -> JString {
+) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
         .expect("Couldn't read path out of JNI!")
@@ -164,16 +164,21 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
 
     let root = FileMetadataRepoImpl::get_root(&db).expect("Couldn't access DB's root despite db being present!");
 
-    env.new_string(serde_json::to_string(&root)).expect("Couldn't create JString from rust string!")
+    let serialized_string = match serde_json::to_string(&root) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
     jparentuuid: JString
-) -> JString {
+) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
         .expect("Couldn't read path out of JNI!")
@@ -190,16 +195,21 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
 
     let children = FileMetadataRepoImpl::get_children(&db, uuid).expect("Could not read DB to get children!");
 
-    env.new_string(serde_json::to_string(&children)).expect("Couldn't create JString from rust string!")
+    let serialized_string = match serde_json::to_string(&children) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
     jfileuuid: JString
-) -> JString {
+) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
         .expect("Couldn't read path out of JNI!")
@@ -216,5 +226,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile(
 
     let file = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
 
-    env.new_string(serde_json::to_string(&file)).expect("Couldn't create JString from rust string!")
+    let serialized_string = match serde_json::to_string(&file) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    println!("{}", serialized_string);
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
 }

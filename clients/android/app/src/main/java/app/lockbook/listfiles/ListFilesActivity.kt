@@ -1,4 +1,4 @@
-package app.lockbook
+package app.lockbook.listfiles
 
 import android.content.Intent
 import android.os.Bundle
@@ -7,15 +7,17 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import app.lockbook.R
+import app.lockbook.SettingsActivity
 import kotlin.system.exitProcess
 
-class ListFiles : AppCompatActivity() {
+class ListFilesActivity : AppCompatActivity() {
 
     private var exit = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.list_files)
+        setContentView(R.layout.activity_list_files)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -26,7 +28,7 @@ class ListFiles : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when(item.itemId) {
             R.id.settings -> {
-                startActivity(Intent(applicationContext, Settings::class.java))
+                startActivity(Intent(applicationContext, SettingsActivity::class.java))
                 true
             }
             else -> false

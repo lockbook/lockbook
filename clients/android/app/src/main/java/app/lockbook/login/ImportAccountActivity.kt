@@ -5,13 +5,13 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import app.lockbook.ListFiles
+import app.lockbook.listfiles.ListFilesActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
 import app.lockbook.databinding.ImportAccountBinding
-import kotlinx.android.synthetic.main.import_account.*
+import kotlinx.android.synthetic.main.activity_import_account.*
 
-class ImportAccount : AppCompatActivity() {
+class ImportAccountActivity : AppCompatActivity() {
 
     private val success = 0                 // should handle
     private val accountStringInvalid = 2    // should handle
@@ -20,7 +20,7 @@ class ImportAccount : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         val binding: ImportAccountBinding = DataBindingUtil.setContentView(this,
-            R.layout.import_account
+            R.layout.activity_import_account
         )
         binding.importAccountActivity = this
     }
@@ -28,7 +28,7 @@ class ImportAccount : AppCompatActivity() {
     fun importAccountFromAccountString() {
         when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
             success -> {
-                startActivity(Intent(applicationContext, ListFiles::class.java))
+                startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                 finishAffinity()
             }
             accountStringInvalid -> Toast.makeText(
@@ -38,7 +38,7 @@ class ImportAccount : AppCompatActivity() {
             ).show()
             else -> Toast.makeText(
                 applicationContext,
-                "Unexpected error occured, please create a bug report (settings)",
+                "Unexpected error occured, please create a bug report (activity_settings)",
                 Toast.LENGTH_LONG
             ).show()
         }

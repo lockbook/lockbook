@@ -5,13 +5,13 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import app.lockbook.ListFiles
+import app.lockbook.listfiles.ListFilesActivity
 import app.lockbook.R
 import app.lockbook.core.createAccount
 import app.lockbook.databinding.NewAccountBinding
-import kotlinx.android.synthetic.main.new_account.*
+import kotlinx.android.synthetic.main.activity_new_account.*
 
-class NewAccount : AppCompatActivity() {
+class NewAccountActivity : AppCompatActivity() {
 
     private val success = 0 // should handle
     private val networkError = 4 // should handle
@@ -21,7 +21,7 @@ class NewAccount : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         val binding: NewAccountBinding = DataBindingUtil.setContentView(this,
-            R.layout.new_account
+            R.layout.activity_new_account
         )
         binding.newAccountActivity = this
     }
@@ -29,7 +29,7 @@ class NewAccount : AppCompatActivity() {
     fun createAccount() { // add an invalid string choice, as an empty textview will call an error
         when (createAccount(filesDir.absolutePath, username.text.toString())) {
             success -> {
-                startActivity(Intent(applicationContext, ListFiles::class.java))
+                startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                 finishAffinity()
             }
             usernameTaken -> username.error = "Username Taken!"
@@ -40,7 +40,7 @@ class NewAccount : AppCompatActivity() {
             ).show()
             else -> Toast.makeText(
                 applicationContext,
-                "Unexpected error occured, please create a bug report (settings)",
+                "Unexpected error occured, please create a bug report (activity_settings)",
                 Toast.LENGTH_LONG
             ).show()
         }
