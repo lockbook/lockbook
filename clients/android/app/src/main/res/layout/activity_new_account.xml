@@ -6,7 +6,7 @@
     <data>
         <variable
             name="newAccountActivity"
-            type="app.lockbook.login.NewAccount" />
+            type="app.lockbook.login.NewAccountActivity" />
     </data>
 
     <LinearLayout
@@ -15,7 +15,7 @@
         android:gravity="center"
         android:orientation="vertical"
         android:paddingHorizontal="25dp"
-        tools:context=".Welcome">
+        tools:context=".WelcomeActivity">
 
 
         <TextView
