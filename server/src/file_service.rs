@@ -5,7 +5,10 @@ use lockbook_core::model::api::*;
 use lockbook_core::model::client_file_metadata::FileType;
 
 pub fn username_is_valid(username: &str) -> bool {
-    username.chars().all(|x| x.is_digit(36)) && username.to_lowercase() == *username
+    username
+        .to_lowercase()
+        .chars()
+        .all(|c| (c > 'a' && c < 'z') || (c > '0' && c < '9'))
 }
 
 pub async fn change_document_content(
