@@ -405,14 +405,23 @@ impl FileUpdateResponse {
     }
 }
 
-fn row_to_document_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, FileError> {
+fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, FileError> {
     Ok(FileMetadata {
         id: serde_json::from_str(
             row.try_get::<&str, &str>("id")
                 .map_err(FileError::Postgres)?,
         )
         .map_err(FileError::Deserialize)?,
-        file_type: FileType::Document,
+        file_type: {
+            if row
+                .try_get::<&str, bool>("is_folder")
+                .map_err(FileError::Postgres)?
+            {
+                FileType::Folder
+            } else {
+                FileType::Document
+            }
+        },
         parent: serde_json::from_str(
             row.try_get::<&str, &str>("parent")
                 .map_err(FileError::Postgres)?,
@@ -454,7 +463,7 @@ pub async fn get_updates(
         .await
         .map_err(FileError::Postgres)?
         .iter()
-        .map(row_to_document_metadata)
+        .map(row_to_file_metadata)
         .collect()
 }
 
