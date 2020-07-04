@@ -591,6 +591,23 @@ pub async fn new_account(
             NewAccountError::InternalError
         }
     })?;
+    let new_user_access_key_result = index_db::create_user_access_key(
+        &transaction,
+        &request.username,
+        request.folder_id,
+        &serde_json::to_string(&request.user_access_key)
+            .map_err(|_| NewAccountError::InvalidUserAccessKey)?,
+    )
+    .await;
+    new_user_access_key_result.map_err(|e| match e {
+        _ => {
+            error!(
+                "Internal server error! Cannot create account root folder in Postgres: {:?}",
+                e
+            );
+            NewAccountError::InternalError
+        }
+    })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(NewAccountResponse {
