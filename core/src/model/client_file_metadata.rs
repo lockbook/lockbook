@@ -4,7 +4,7 @@ use std::clone::Clone;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
     Document,
     Folder,
