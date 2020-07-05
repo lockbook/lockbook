@@ -12,10 +12,13 @@ protocol LockbookApi {
     func getAccount() -> Optional<String>
     func createAccount(username: String) -> Bool
     func importAccount(accountString: String) -> Bool
-    func updateMetadata() -> [FileMetadata]
+    func sync() -> [FileMetadata]
+    func getRoot() -> UUID
+    func listFiles(dirId: UUID) -> [FileMetadata]
     func createFile(name: String) -> Optional<FileMetadata>
-    func getFile(id: String) -> Optional<DecryptedValue>
-    func updateFile(id: String, content: String) -> Bool
+    func getFile(id: UUID) -> Optional<DecryptedValue>
+    func updateFile(id: UUID, content: String) -> Bool
+    func markFileForDeletion(id: UUID) -> Bool
     func purgeLocal() -> Bool
 }
 
@@ -55,36 +58,45 @@ struct CoreApi: LockbookApi {
         return false
     }
     
-    func updateMetadata() -> [FileMetadata] {
+    func sync() -> [FileMetadata] {
         if (isDbPresent()) {
             let result = sync_files(documentsDirectory)
             let resultString = String(cString: result!)
             // We need to release the pointer once we have the result string
             release_pointer(UnsafeMutablePointer(mutating: result))
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
             
             if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
                 return resultMetas
-            } else {
-                return [FileMetadata].init()
             }
         }
-        return []
+        return [FileMetadata].init()
     }
     
-    private func getRoot() -> String {
+    func getRoot() -> UUID {
         let result = get_root(documentsDirectory)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
-        return resultString
+        return UUID(uuidString: resultString)!
     }
     
+    func listFiles(dirId: UUID) -> [FileMetadata] {
+        if (isDbPresent()) {
+            let result = list_files(documentsDirectory, dirId.uuidString)
+            let resultString = String(cString: result!)
+            release_pointer(UnsafeMutablePointer(mutating: result))
+            
+            if let files: [FileMetadata] = deserialize(jsonStr: resultString) {
+                return files
+            }
+        }
+        return [FileMetadata].init()
+    }
+
     func createFile(name: String) -> Optional<FileMetadata> {
         let rootId = getRoot()
         print(rootId)
-        let result = create_file(documentsDirectory, name, rootId)
+        let result = create_file(documentsDirectory, name, rootId.uuidString)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
@@ -92,8 +104,8 @@ struct CoreApi: LockbookApi {
         return resultMeta
     }
     
-    func getFile(id: String) -> Optional<DecryptedValue> {
-        let result = get_file(documentsDirectory, id)
+    func getFile(id: UUID) -> Optional<DecryptedValue> {
+        let result = get_file(documentsDirectory, id.uuidString)
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
@@ -101,8 +113,16 @@ struct CoreApi: LockbookApi {
         return resultFile
     }
     
-    func updateFile(id: String, content: String) -> Bool {
-        let result = update_file(documentsDirectory, id, content)
+    func updateFile(id: UUID, content: String) -> Bool {
+        let result = update_file(documentsDirectory, id.uuidString, content)
+        if (result == 1) {
+            return true
+        }
+        return false
+    }
+    
+    func markFileForDeletion(id: UUID) -> Bool {
+        let result = mark_file_for_deletion(documentsDirectory, id.uuidString)
         if (result == 1) {
             return true
         }
@@ -121,9 +141,10 @@ struct CoreApi: LockbookApi {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", parentId: "root", contentVersion: 0, metadataVersion: 0),
-        FileMetadata(id: "bbbb", name: "another_file.md", parentId: "root", contentVersion: 1000, metadataVersion: 1000),
-        FileMetadata(id: "cccc", name: "third_file.md", parentId: "root", contentVersion: 1500, metadataVersion: 1500),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: false, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: true, metadataChanged: false, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: true, deleted: false),
+        FileMetadata(fileType: .Folder, id: UUID(uuidString: "cdcb3342-7373-4b11-96e9-eb25a703febb").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: false, deleted: false),
     ]
     
     func getAccount() -> Optional<String> {
@@ -138,22 +159,33 @@ struct FakeApi: LockbookApi {
         false
     }
     
-    func updateMetadata() -> [FileMetadata] {
+    func sync() -> [FileMetadata] {
         var rander = SystemRandomNumberGenerator()
         return fakeMetadatas.shuffled(using: &rander)
     }
     
-    func createFile(name: String) -> Optional<FileMetadata> {
-        let now = Date().timeIntervalSince1970
-
-        return Optional.some(FileMetadata(id: "new", name: name, parentId: "", contentVersion: Int(now), metadataVersion: Int(now)))
+    func getRoot() -> UUID {
+        UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
     }
     
-    func getFile(id: String) -> Optional<DecryptedValue> {
+    func listFiles(dirId: UUID) -> [FileMetadata] {
+        return sync()
+    }
+    
+    func createFile(name: String) -> Optional<FileMetadata> {
+        let now = Date().timeIntervalSince1970
+        return Optional.some(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "new_file.md", contentVersion: Int(now), metadataVersion: Int(now), new: true, documentEdited: false, metadataChanged: false, deleted: false))
+    }
+    
+    func getFile(id: UUID) -> Optional<DecryptedValue> {
         Optional.none
     }
     
-    func updateFile(id: String, content: String) -> Bool {
+    func updateFile(id: UUID, content: String) -> Bool {
+        false
+    }
+    
+    func markFileForDeletion(id: UUID) -> Bool {
         false
     }
     

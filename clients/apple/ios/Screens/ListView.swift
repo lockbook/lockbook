@@ -15,33 +15,42 @@ struct ListView: View {
         GeometryReader{ geometry in
             NavigationView {
                 PullDownView(width: geometry.size.width, height: geometry.size.height)
-                    .navigationBarTitle("\(self.coordinator.username)'s Files")
-                    .navigationBarItems(
-                        leading: NavigationLink(destination: DebugView()) {
-                            Image(systemName: "circle.grid.hex")
-                        },
-                        trailing: NavigationLink(destination: CreateFileView()) {
-                            Image(systemName: "plus")
-                        }
-                    )
             }
         }
     }
 }
 
 struct SwiftUIList: View {
+    var dirId: UUID
+    var dirName: String
     @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         List {
-            ForEach(coordinator.files){ file in
-                FileRow(metadata: file)
+            ForEach(coordinator.listFiles(dirId: dirId)){ file in
+                if (file.fileType == .Folder) {
+                    FolderRow(metadata: file)
+                } else {
+                    DocumentRow(metadata: file)
+                }
+                
             }
             .onDelete { offset in
-                let meta = self.coordinator.files.remove(at: offset.first!)
-                print("Deleting", meta)
+                let meta = coordinator.files[offset.first!]
+                coordinator.markFileForDeletion(id: meta.id)
             }
         }
+        .navigationBarTitle(dirName)
+        .navigationBarItems(
+            trailing: HStack {
+                NavigationLink(destination: DebugView()) {
+                    Image(systemName: "circle.grid.hex")
+                }
+                NavigationLink(destination: CreateFileView()) {
+                    Image(systemName: "plus")
+                }
+            }
+        )
     }
 }
 
@@ -59,7 +68,7 @@ struct PullDownView : UIViewRepresentable {
         let control = UIScrollView()
         control.refreshControl = UIRefreshControl()
         control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
-        let childView = UIHostingController(rootView: SwiftUIList().environmentObject(self.coordinator))
+        let childView = UIHostingController(rootView: SwiftUIList(dirId: self.coordinator.getRoot(), dirName: "\(coordinator.username)'s Files").environmentObject(self.coordinator))
         childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
         
         control.addSubview(childView.view)
@@ -85,6 +94,6 @@ struct PullDownView : UIViewRepresentable {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        ListView().environmentObject(Coordinator())
+        ListView().preferredColorScheme(.dark).environmentObject(Coordinator())
     }
 }

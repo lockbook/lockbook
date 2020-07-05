@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct FileRow: View {
+struct DocumentRow: View {
     var metadata: FileMetadata
     var color: Color
     var image: Image
@@ -42,22 +42,23 @@ struct FileRow: View {
     
     init(metadata: FileMetadata) {
         self.metadata = metadata
-        self.color = Color.green
-        self.image = Image(systemName: "arrow.2.circlepath")
-//        switch metadata.status {
-//            case .New:
-//                self.color = Color.purple
-//                self.image = Image(systemName: "plus")
-//            case .Local:
-//                self.color = Color.blue
-//                self.image = Image(systemName: "tray.and.arrow.up")
-//            case .Remote:
-//                self.color = Color.red
-//                self.image = Image(systemName: "tray.and.arrow.down")
-//            case .Synced:
-//                self.color = Color.green
-//                self.image = Image(systemName: "arrow.2.circlepath")
-//        }
+        switch (metadata.new, metadata.documentEdited, metadata.metadataChanged, metadata.deleted) {
+            case (true, _, _, _):
+                self.color = Color.green
+                self.image = Image(systemName: "plus")
+            case (_, true, _, _):
+                self.color = Color.purple
+                self.image = Image(systemName: "tray.and.arrow.down")
+            case (_, _, true, _):
+                self.color = Color.blue
+                self.image = Image(systemName: "tray.and.arrow.up")
+            case (_, _, _, true):
+                self.color = Color.red
+                self.image = Image(systemName: "trash")
+            case (_, _, _, _):
+                self.color = Color.primary
+                self.image = Image(systemName: "arrow.2.circlepath")
+        }
     }
     
 }
@@ -65,10 +66,11 @@ struct FileRow: View {
 struct FileRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ForEach(FakeApi().updateMetadata()) { meta in
-                FileRow(metadata: meta)
+            ForEach(FakeApi().sync()) { meta in
+                DocumentRow(metadata: meta)
             }
         }
         .previewLayout(.fixed(width: 300, height: 50))
+        .environmentObject(Coordinator())
     }
 }

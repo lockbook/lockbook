@@ -74,6 +74,7 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
+static FAILURE_FILE_LIST: &str = "FAILURE<FILE_LIST>";
 static FAILURE_ROOT_GET: &str = "FAILURE<ROOT_GET>";
 static FAILURE_UUID_UNWRAP: &str = "FAILURE<UUID_UNWRAP>";
 
@@ -217,6 +218,38 @@ pub unsafe extern "C" fn get_root(c_path: *const c_char) -> *mut c_char {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn list_files(
+    c_path: *const c_char,
+    c_parent_id: *const c_char,
+) -> *mut c_char {
+    let db = match connect_db(c_path) {
+        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
+        Some(db) => db,
+    };
+    let parent_id = string_from_ptr(c_parent_id);
+
+    match Uuid::parse_str(parent_id.as_str()) {
+        Ok(parent_uuid) => match DefaultFileMetadataRepo::get_children(&db, parent_uuid) {
+            Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
+            Err(err) => {
+                error!(
+                    "Failure while get children of {}! Error: {:?}",
+                    parent_uuid, err
+                );
+                CString::new(FAILURE_FILE_LIST).unwrap().into_raw()
+            }
+        },
+        Err(uuid_parse_error) => {
+            error!(
+                "Failure parsing {} into UUID! Error: {:?}",
+                parent_id, uuid_parse_error
+            );
+            CString::new(FAILURE_UUID_UNWRAP).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
@@ -296,6 +329,27 @@ pub unsafe extern "C" fn update_file(
     }
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn mark_file_for_deletion(
+    c_path: *const c_char,
+    c_file_id: *const c_char,
+) -> c_int {
+    let _ = match connect_db(c_path) {
+        None => return 0,
+        Some(db) => db,
+    };
+    let file_id = string_from_ptr(c_file_id);
+
+    error!(
+        "You tried to delete {} but we don't support that right now!",
+        file_id
+    );
+
+    // TODO: @raayan implement this when there's a good way to delete files
+    return 0;
+}
+
+/// DEBUG FUNCTIONS
 #[no_mangle]
 pub unsafe extern "C" fn purge_files(c_path: *const c_char) -> c_int {
     let db = match connect_db(c_path) {
