@@ -9,6 +9,7 @@ use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
+use crate::model::file_metadata::FileMetadata;
 
 #[derive(Debug)]
 pub enum Error<ApiError> {

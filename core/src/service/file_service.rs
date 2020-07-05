@@ -2,8 +2,8 @@ use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::client_file_metadata::FileType::{Document, Folder};
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+use crate::model::file_metadata::FileType::{Document, Folder};
+use crate::model::file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -255,7 +255,7 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::client_file_metadata::FileType::{Document, Folder};
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
     use crate::model::state::Config;
     use crate::repo::account_repo::AccountRepo;

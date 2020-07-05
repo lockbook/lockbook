@@ -4,8 +4,8 @@ use serde::export::PhantomData;
 use uuid::Uuid;
 
 use crate::model::account::Account;
-use crate::model::client_file_metadata::FileType::Folder;
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+use crate::model::file_metadata::FileType::Folder;
+use crate::model::file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
@@ -230,7 +230,7 @@ mod unit_tests {
     use std::collections::HashMap;
 
     use crate::model::account::Account;
-    use crate::model::client_file_metadata::FileType::{Document, Folder};
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;

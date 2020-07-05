@@ -9,10 +9,10 @@ use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api;
-use crate::model::api::FileMetadata as ServerFileMetadata;
+use crate::model::file_metadata::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
-use crate::model::client_file_metadata::ClientFileMetadata;
-use crate::model::client_file_metadata::FileType::{Document, Folder};
+use crate::model::file_metadata::ClientFileMetadata;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::crypto::{FolderAccessInfo, SignedValue};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{

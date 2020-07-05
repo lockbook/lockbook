@@ -11,7 +11,7 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::model::client_file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::Document;
 use crate::model::crypto::DecryptedValue;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -34,7 +34,7 @@ pub mod service;
 
 mod android;
 
-pub static API_LOC: &str = "http://lockbook_server:8000";
+pub static API_LOC: &str = "http://localhost:8000";
 pub static BUCKET_LOC: &str = "https://locked.nyc3.digitaloceanspaces.com";
 static DB_NAME: &str = "lockbook.sled";
 
