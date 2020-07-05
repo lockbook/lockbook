@@ -117,6 +117,7 @@ pub trait Client {
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: EncryptedValueWithNonce,
+        user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>>;
 }
 
@@ -363,6 +364,7 @@ impl Client for ClientImpl {
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: EncryptedValueWithNonce,
+        user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>> {
         api_request(
             API_LOC,
@@ -374,6 +376,7 @@ impl Client for ClientImpl {
                 public_key: public_key,
                 folder_id: folder_id,
                 parent_access_key: parent_access_key,
+                user_access_key: user_access_key,
             },
         )
         .map(|r: NewAccountResponse| r.folder_metadata_version)

@@ -162,7 +162,11 @@ impl<
             .filter(|(id, _)| !local_dirty_files_keys.contains(id))
             .for_each(|(id, server)| match FileMetadataDb::maybe_get(&db, id) {
                 Ok(maybe_value) => match maybe_value {
-                    None => work_units.extend(vec![PullFileContent(server)]),
+                    None => work_units.extend(if server.file_type == Document {
+                        vec![PullFileContent(server)]
+                    } else {
+                        vec![UpdateLocalMetadata(server)]
+                    }),
                     Some(client) => {
                         work_units.extend(calculate_work_across_server_and_client(server, client))
                     }
@@ -225,18 +229,46 @@ impl<
                 Ok(())
             }
             UpdateLocalMetadata(server_meta) => {
-                let mut old_file_metadata = FileMetadataDb::get(&db, server_meta.id)
-                    .map_err(WorkExecutionError::FileMetadataError)?;
-
-                old_file_metadata.name = server_meta.name;
-                old_file_metadata.parent_id = server_meta.parent;
-                old_file_metadata.metadata_version = max(
-                    server_meta.metadata_version,
-                    old_file_metadata.metadata_version,
-                );
-
-                FileMetadataDb::insert(&db, &old_file_metadata)
+                let maybe_old_file_metadata = FileMetadataDb::maybe_get(&db, server_meta.id)
                     .map_err(WorkExecutionError::FileRetievalError)?;
+
+                match maybe_old_file_metadata {
+                    None => {
+                        FileMetadataDb::insert(
+                            &db,
+                            &ClientFileMetadata {
+                                id: server_meta.id,
+                                file_type: server_meta.file_type,
+                                name: server_meta.name,
+                                parent_id: server_meta.parent,
+                                content_version: server_meta.content_version,
+                                metadata_version: server_meta.metadata_version,
+                                user_access_keys: server_meta.user_access_keys,
+                                folder_access_keys: FolderAccessInfo {
+                                    folder_id: server_meta.parent,
+                                    access_key: server_meta.folder_access_keys,
+                                },
+                                new: false,
+                                document_edited: false,
+                                metadata_changed: false,
+                                deleted: false,
+                            },
+                        )
+                        .map_err(WorkExecutionError::FileRetievalError)?;
+                    }
+                    Some(mut old_file_metadata) => {
+                        old_file_metadata.name = server_meta.name;
+                        old_file_metadata.parent_id = server_meta.parent;
+                        old_file_metadata.metadata_version = max(
+                            server_meta.metadata_version,
+                            old_file_metadata.metadata_version,
+                        );
+
+                        FileMetadataDb::insert(&db, &old_file_metadata)
+                            .map_err(WorkExecutionError::FileRetievalError)?;
+                    }
+                }
+
                 Ok(())
             }
             PullFileContent(new_metadata) => {
@@ -460,7 +492,7 @@ impl<
 
 fn calculate_work_for_local_changes(client: ClientFileMetadata) -> Vec<WorkUnit> {
     match (
-        client.file_type.clone(),
+        client.file_type,
         client.new,
         client.deleted,
         client.document_edited,
