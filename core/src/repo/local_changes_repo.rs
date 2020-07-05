@@ -365,5 +365,11 @@ mod unit_tests {
                 deleted: true
             })
         );
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            5
+        );
     }
 }
