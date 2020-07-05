@@ -1,5 +1,5 @@
-use crate::model::file_metadata::FileMetadata as ServerFileMetadata;
 use crate::model::file_metadata::ClientFileMetadata;
+use crate::model::file_metadata::FileMetadata as ServerFileMetadata;
 use serde::Serialize;
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
