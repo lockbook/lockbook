@@ -184,8 +184,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         let value = tree
             .iter()
             .map(|s| {
-                let meta: FileMetadata =
-                    serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
+                let meta: FileMetadata = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
                 meta
             })
             .collect::<Vec<FileMetadata>>();
@@ -325,8 +324,8 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
+    use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
@@ -352,7 +351,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         let config = Config {
@@ -397,8 +399,8 @@ mod unit_tests {
             deleted: false,
             signature: SignedValue {
                 content: "".to_string(),
-                signature: "".to_string()
-            }
+                signature: "".to_string(),
+            },
         };
         let test_meta_updated = FileMetadata {
             file_type: FileType::Document,
@@ -417,7 +419,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         let config = Config {
@@ -467,7 +472,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         let test_file = &FileMetadata {
@@ -487,7 +495,10 @@ mod unit_tests {
                 },
             },
             deleted: true,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         let test_folder = &FileMetadata {
@@ -507,7 +518,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         let test_file2 = &FileMetadata {
@@ -527,7 +541,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
         let test_file3 = &FileMetadata {
             file_type: FileType::Document,
@@ -546,7 +563,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
         let test_file4 = &FileMetadata {
             file_type: FileType::Document,
@@ -565,7 +585,10 @@ mod unit_tests {
                 },
             },
             deleted: false,
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         };
 
         FileMetadataRepoImpl::insert(&db, &root).unwrap();

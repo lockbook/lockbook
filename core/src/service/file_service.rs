@@ -2,9 +2,9 @@ use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
+use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
-use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo;
@@ -71,10 +71,7 @@ pub trait FileService {
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError>;
 
-    fn create_at_path(
-        db: &Db,
-        path_and_name: &str,
-    ) -> Result<FileMetadata, NewFileFromPathError>;
+    fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError>;
 
     fn write_document(
         db: &Db,
@@ -134,10 +131,7 @@ impl<
         Ok(new_metadata)
     }
 
-    fn create_at_path(
-        db: &Db,
-        path_and_name: &str,
-    ) -> Result<FileMetadata, NewFileFromPathError> {
+    fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
@@ -253,8 +247,8 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::Config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
@@ -543,9 +537,7 @@ mod unit_tests {
         );
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
-            DefaultFileMetadataRepo::get(&db, file.parent)
-                .unwrap()
-                .name,
+            DefaultFileMetadataRepo::get(&db, file.parent).unwrap().name,
             "folder2"
         );
         assert_eq!(

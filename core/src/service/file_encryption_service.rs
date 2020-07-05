@@ -4,9 +4,9 @@ use serde::export::PhantomData;
 use uuid::Uuid;
 
 use crate::model::account::Account;
+use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::Folder;
 use crate::model::file_metadata::{FileMetadata, FileType};
-use crate::model::crypto::*;
 use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
@@ -146,7 +146,10 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
                 folder_id: parent_id,
                 access_key,
             },
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() } // TODO do this here?
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            }, // TODO do this here?
         })
     }
 
@@ -192,7 +195,10 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
                 )
                 .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
             },
-            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string(),
+            },
         })
     }
 
@@ -228,8 +234,8 @@ mod unit_tests {
     use std::collections::HashMap;
 
     use crate::model::account::Account;
-    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::{DefaultCrypto, DefaultFileEncryptionService};

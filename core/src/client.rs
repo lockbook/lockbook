@@ -3,13 +3,13 @@ use crate::model::crypto::*;
 use crate::{API_LOC, BUCKET_LOC};
 use rsa::RSAPublicKey;
 
+use crate::model::file_metadata::FileMetadata;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
-use crate::model::file_metadata::FileMetadata;
 
 #[derive(Debug)]
 pub enum Error<ApiError> {

@@ -1,9 +1,6 @@
-
-
 use std::marker::PhantomData;
 
 use sled::Db;
-
 
 use crate::client;
 use crate::client::Client;
@@ -11,8 +8,6 @@ use crate::model::account::Account;
 use crate::model::api;
 
 use crate::model::api::*;
-
-
 
 use crate::model::work_unit::WorkUnit;
 
@@ -23,7 +18,6 @@ use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service;
 use crate::service::auth_service::AuthService;
-
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -97,7 +91,11 @@ impl<
         unimplemented!()
     }
 
-    fn execute_work(_db: &Db, _account: &Account, _work: WorkUnit) -> Result<(), WorkExecutionError> {
+    fn execute_work(
+        _db: &Db,
+        _account: &Account,
+        _work: WorkUnit,
+    ) -> Result<(), WorkExecutionError> {
         unimplemented!()
     }
 
