@@ -4,7 +4,7 @@ use sled::Db;
 use uuid::Uuid;
 
 use crate::model::file_metadata::FileType::Document;
-use crate::model::file_metadata::{ClientFileMetadata, FileType};
+use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
 #[derive(Debug)]
@@ -32,20 +32,19 @@ pub enum Filter {
 }
 
 pub trait FileMetadataRepo {
-    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError>;
-    fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError>;
-    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error>;
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError>;
-    fn get_by_path(db: &Db, path: &str) -> Result<Option<ClientFileMetadata>, DbError>;
+    fn insert(db: &Db, file: &FileMetadata) -> Result<(), DbError>;
+    fn get_root(db: &Db) -> Result<Option<FileMetadata>, DbError>;
+    fn get(db: &Db, id: Uuid) -> Result<FileMetadata, Error>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<FileMetadata>, DbError>;
+    fn get_by_path(db: &Db, path: &str) -> Result<Option<FileMetadata>, DbError>;
     fn get_with_all_parents(
         db: &Db,
         id: Uuid,
-    ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed>;
-    fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError>;
+    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
+    fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
-    fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error>;
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
-    fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError>;
+    fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
     fn get_last_updated(db: &Db) -> Result<u64, Error>;
 }
@@ -57,7 +56,7 @@ static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(db: &Db, file: &ClientFileMetadata) -> Result<(), DbError> {
+    fn insert(db: &Db, file: &FileMetadata) -> Result<(), DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
         tree.insert(
             &file.id.as_bytes(),
@@ -76,7 +75,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(())
     }
 
-    fn get_root(db: &Db) -> Result<Option<ClientFileMetadata>, DbError> {
+    fn get_root(db: &Db) -> Result<Option<FileMetadata>, DbError> {
         let tree = db.open_tree(ROOT).map_err(DbError::SledError)?;
         let maybe_value = tree.get(ROOT).map_err(DbError::SledError)?;
         match maybe_value {
@@ -89,30 +88,30 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<ClientFileMetadata, Error> {
+    fn get(db: &Db, id: Uuid) -> Result<FileMetadata, Error> {
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
         let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
         let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let file_metadata: ClientFileMetadata =
+        let file_metadata: FileMetadata =
             serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(file_metadata)
     }
 
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<ClientFileMetadata>, DbError> {
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
         let maybe_value = tree.get(id.as_bytes()).map_err(DbError::SledError)?;
         match maybe_value {
             None => Ok(None),
             Some(value) => {
-                let file_metadata: ClientFileMetadata =
+                let file_metadata: FileMetadata =
                     serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
                 Ok(Some(file_metadata))
             }
         }
     }
 
-    fn get_by_path(db: &Db, path: &str) -> Result<Option<ClientFileMetadata>, DbError> {
+    fn get_by_path(db: &Db, path: &str) -> Result<Option<FileMetadata>, DbError> {
         debug!("Path: {}", path);
         let root = match Self::get_root(&db)? {
             None => return Ok(None),
@@ -158,7 +157,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn get_with_all_parents(
         db: &Db,
         id: Uuid,
-    ) -> Result<HashMap<Uuid, ClientFileMetadata>, FindingParentsFailed> {
+    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed> {
         let mut parents = HashMap::new();
         let mut current_id = id;
         debug!("Finding parents for: {}", current_id);
@@ -180,16 +179,16 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn get_all(db: &Db) -> Result<Vec<ClientFileMetadata>, DbError> {
+    fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
         let value = tree
             .iter()
             .map(|s| {
-                let meta: ClientFileMetadata =
+                let meta: FileMetadata =
                     serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
                 meta
             })
-            .collect::<Vec<ClientFileMetadata>>();
+            .collect::<Vec<FileMetadata>>();
 
         Ok(value)
     }
@@ -241,24 +240,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(paths)
     }
 
-    fn get_all_dirty(db: &Db) -> Result<Vec<ClientFileMetadata>, Error> {
-        let tree = db.open_tree(b"file_metadata").map_err(Error::SledError)?;
-        let all_files = tree
-            .iter()
-            .map(|s| {
-                let meta: ClientFileMetadata =
-                    serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
-                meta
-            })
-            .collect::<Vec<ClientFileMetadata>>();
-        Ok(all_files
-            .into_iter()
-            .filter(|file| {
-                file.new || file.document_edited || file.metadata_changed || file.deleted
-            })
-            .collect::<Vec<ClientFileMetadata>>())
-    }
-
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
         // TODO should this be recursive?
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
@@ -266,11 +247,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
-    fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError> {
+    fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
             .filter(|file| file.parent == id && file.parent != file.id)
-            .collect::<Vec<ClientFileMetadata>>())
+            .collect::<Vec<FileMetadata>>())
     }
 
     fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
@@ -295,8 +276,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 }
 
 fn saturate_path_cache(
-    client: &ClientFileMetadata,
-    ids: &HashMap<Uuid, ClientFileMetadata>,
+    client: &FileMetadata,
+    ids: &HashMap<Uuid, FileMetadata>,
     paths: &mut HashMap<Uuid, String>,
 ) -> Result<String, FindingParentsFailed> {
     match paths.get(&client.id) {
@@ -319,7 +300,7 @@ fn saturate_path_cache(
     }
 }
 
-fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
+fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
     match ids.get(&id) {
         None => {
             error!("is_leaf_node was requested an id that wasn't in the list of ids to compute on. id: {:?}, all-ids: {:?}", &id, &ids);
@@ -344,8 +325,8 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::file_metadata::{ClientFileMetadata, FileType};
-    use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo};
+    use crate::model::file_metadata::{FileMetadata, FileType};
+    use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
@@ -354,10 +335,11 @@ mod unit_tests {
 
     #[test]
     fn insert_file_metadata() {
-        let test_file_metadata = ClientFileMetadata {
+        let test_file_metadata = FileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test".to_string(),
+            owner: "".to_string(),
             parent: Default::default(),
             content_version: 0,
             metadata_version: 0,
@@ -369,10 +351,8 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
         let config = Config {
@@ -398,10 +378,11 @@ mod unit_tests {
     fn update_file_metadata() {
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
-        let test_meta = ClientFileMetadata {
+        let test_meta = FileMetadata {
             file_type: FileType::Document,
             id,
             name: "".to_string(),
+            owner: "".to_string(),
             parent: parent,
             content_version: 0,
             metadata_version: 0,
@@ -413,15 +394,17 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue {
+                content: "".to_string(),
+                signature: "".to_string()
+            }
         };
-        let test_meta_updated = ClientFileMetadata {
+        let test_meta_updated = FileMetadata {
             file_type: FileType::Document,
             id,
             name: "".to_string(),
+            owner: "".to_string(),
             parent: parent,
             content_version: 1000,
             metadata_version: 1000,
@@ -433,10 +416,8 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
         let config = Config {
@@ -469,10 +450,11 @@ mod unit_tests {
 
         let root_id = Uuid::new_v4();
 
-        let root = &ClientFileMetadata {
+        let root = &FileMetadata {
             file_type: FileType::Folder,
             id: root_id,
             name: "root_folder".to_string(),
+            owner: "".to_string(),
             parent: root_id,
             content_version: 0,
             metadata_version: 0,
@@ -484,16 +466,15 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
-        let test_file = &ClientFileMetadata {
+        let test_file = &FileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
+            owner: "".to_string(),
             parent: root.id,
             content_version: 0,
             metadata_version: 0,
@@ -505,16 +486,15 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: true,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
-        let test_folder = &ClientFileMetadata {
+        let test_folder = &FileMetadata {
             file_type: FileType::Folder,
             id: Uuid::new_v4(),
             name: "tests".to_string(),
+            owner: "".to_string(),
             parent: root.id,
             content_version: 0,
             metadata_version: 0,
@@ -526,16 +506,15 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: true,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
-        let test_file2 = &ClientFileMetadata {
+        let test_file2 = &FileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
+            owner: "".to_string(),
             parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
@@ -547,15 +526,14 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
-        let test_file3 = &ClientFileMetadata {
+        let test_file3 = &FileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
+            owner: "".to_string(),
             parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
@@ -567,15 +545,14 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: false,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
-        let test_file4 = &ClientFileMetadata {
+        let test_file4 = &FileMetadata {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
+            owner: "".to_string(),
             parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
@@ -587,10 +564,8 @@ mod unit_tests {
                     nonce: "".to_string(),
                 },
             },
-            new: false,
-            document_edited: true,
-            metadata_changed: false,
             deleted: false,
+            signature: SignedValue { content: "".to_string(), signature: "".to_string() }
         };
 
         FileMetadataRepoImpl::insert(&db, &root).unwrap();
@@ -599,8 +574,6 @@ mod unit_tests {
         FileMetadataRepoImpl::insert(&db, &test_file2).unwrap();
         FileMetadataRepoImpl::insert(&db, &test_file3).unwrap();
         FileMetadataRepoImpl::insert(&db, &test_file4).unwrap();
-
-        assert_eq!(FileMetadataRepoImpl::get_all_dirty(&db).unwrap().len(), 3);
 
         let parents = FileMetadataRepoImpl::get_with_all_parents(&db, test_file4.id).unwrap();
 
