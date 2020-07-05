@@ -3,7 +3,7 @@ use sled::Db;
 use uuid::Uuid;
 
 use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::file_metadata::{ClientFileMetadata, FileType};
+use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::crypto::*;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -69,12 +69,12 @@ pub trait FileService {
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<ClientFileMetadata, NewFileError>;
+    ) -> Result<FileMetadata, NewFileError>;
 
     fn create_at_path(
         db: &Db,
         path_and_name: &str,
-    ) -> Result<ClientFileMetadata, NewFileFromPathError>;
+    ) -> Result<FileMetadata, NewFileFromPathError>;
 
     fn write_document(
         db: &Db,
@@ -109,7 +109,7 @@ impl<
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<ClientFileMetadata, NewFileError> {
+    ) -> Result<FileMetadata, NewFileError> {
         let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, parent)
@@ -137,7 +137,7 @@ impl<
     fn create_at_path(
         db: &Db,
         path_and_name: &str,
-    ) -> Result<ClientFileMetadata, NewFileFromPathError> {
+    ) -> Result<FileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
@@ -203,7 +203,7 @@ impl<
         let account =
             AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
-        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DbError)?
             .ok_or(CouldNotFindFile)?;
 
@@ -217,9 +217,7 @@ impl<
         let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
             .map_err(DocumentUpdateError::FileCryptoError)?;
 
-        if !file_metadata.new {
-            file_metadata.document_edited = true;
-        }
+        // TODO track change here
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
