@@ -2,7 +2,7 @@ use crate::model::api::FileMetadata as ServerFileMetadata;
 use crate::model::client_file_metadata::ClientFileMetadata;
 use serde::Serialize;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub enum WorkUnit {
     /// Document was created locally and doesn't exist anywhere else, push this file to the server
     PushNewDocument(ClientFileMetadata),
