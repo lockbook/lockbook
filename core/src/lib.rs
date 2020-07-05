@@ -60,6 +60,7 @@ pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
+    DefaultLocalChangesRepo,
     DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,

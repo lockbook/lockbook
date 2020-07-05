@@ -124,7 +124,8 @@ impl<
                 .map_err(FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
-        ChangesDb::track_new_file(&db, new_metadata.id).map_err(NewFileError::FailedToRecordChange)?;
+        ChangesDb::track_new_file(&db, new_metadata.id)
+            .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
             Self::write_document(
@@ -219,10 +220,10 @@ impl<
         let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
             .map_err(DocumentUpdateError::FileCryptoError)?;
 
-
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
         FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
-        ChangesDb::track_edit(&db, file_metadata.id).map_err(DocumentUpdateError::FailedToRecordChange)?;
+        ChangesDb::track_edit(&db, file_metadata.id)
+            .map_err(DocumentUpdateError::FailedToRecordChange)?;
 
         Ok(())
     }
