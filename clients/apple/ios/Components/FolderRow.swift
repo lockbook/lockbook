@@ -13,7 +13,7 @@ struct FolderRow: View {
     @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
-        NavigationLink(destination: SwiftUIList(dirId: metadata.id, dirName: metadata.name)) {
+        NavigationLink(destination: FolderList(dirId: metadata.id, dirName: metadata.name)) {
             HStack {
                 Image(systemName: "folder")
                     .foregroundColor(.blue)
