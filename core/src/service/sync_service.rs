@@ -191,7 +191,7 @@ impl<
                     &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     &client.name,
-                    client.parent_id,
+                    client.parent,
                     client.folder_access_keys.clone(),
                 )
                 .map_err(CreateFolderError)?;
@@ -212,7 +212,7 @@ impl<
                     &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     client.id,
                     &client.name,
-                    client.parent_id,
+                    client.parent,
                     FileDb::get(&db, client.id)
                         .map_err(WorkExecutionError::FileContentError)?
                         .content,
@@ -240,7 +240,7 @@ impl<
                                 id: server_meta.id,
                                 file_type: server_meta.file_type,
                                 name: server_meta.name,
-                                parent_id: server_meta.parent,
+                                parent: server_meta.parent,
                                 content_version: server_meta.content_version,
                                 metadata_version: server_meta.metadata_version,
                                 user_access_keys: server_meta.user_access_keys,
@@ -255,7 +255,7 @@ impl<
                     }
                     Some(mut old_file_metadata) => {
                         old_file_metadata.name = server_meta.name;
-                        old_file_metadata.parent_id = server_meta.parent;
+                        old_file_metadata.parent = server_meta.parent;
                         old_file_metadata.metadata_version = max(
                             server_meta.metadata_version,
                             old_file_metadata.metadata_version,
@@ -289,7 +289,7 @@ impl<
                                     id: new_metadata.id,
                                     file_type: new_metadata.file_type,
                                     name: new_metadata.name,
-                                    parent_id: new_metadata.parent,
+                                    parent: new_metadata.parent,
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
@@ -332,7 +332,7 @@ impl<
                     &Auth::generate_auth(&account).map_err(WorkExecutionError::AuthError)?,
                     metadata.id,
                     client.metadata_version,
-                    metadata.parent_id,
+                    metadata.parent,
                 )
                 .map_err(WorkExecutionError::MoveFileError)?; // TODO the thing you're not handling is EditConflict!
 
@@ -403,7 +403,7 @@ impl<
                                     id: new_metadata.id,
                                     file_type: new_metadata.file_type,
                                     name: new_metadata.name,
-                                    parent_id: new_metadata.parent,
+                                    parent: new_metadata.parent,
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
@@ -428,7 +428,7 @@ impl<
                     .map_err(WorkExecutionError::FileMetadataError)?;
 
                 old_file_metadata.name = server_meta.name;
-                old_file_metadata.parent_id = server_meta.parent;
+                old_file_metadata.parent = server_meta.parent;
                 old_file_metadata.metadata_version = max(
                     server_meta.metadata_version,
                     old_file_metadata.metadata_version,
