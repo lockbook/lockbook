@@ -56,7 +56,7 @@ pub trait Client {
         name: &str,
         parent: Uuid,
         content: EncryptedValueWithNonce,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateDocumentError>>;
     fn delete_document(
         username: &str,
@@ -84,7 +84,7 @@ pub trait Client {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateFolderError>>;
     fn delete_folder(
         username: &str,
@@ -117,7 +117,7 @@ pub trait Client {
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>>;
 }
@@ -168,7 +168,7 @@ impl Client for ClientImpl {
         name: &str,
         parent: Uuid,
         content: EncryptedValueWithNonce,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateDocumentError>> {
         api_request(
             API_LOC,
@@ -253,7 +253,7 @@ impl Client for ClientImpl {
         id: Uuid,
         name: &str,
         parent: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
     ) -> Result<u64, Error<CreateFolderError>> {
         api_request(
             API_LOC,
@@ -364,7 +364,7 @@ impl Client for ClientImpl {
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
-        parent_access_key: EncryptedValueWithNonce,
+        parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>> {
         api_request(
