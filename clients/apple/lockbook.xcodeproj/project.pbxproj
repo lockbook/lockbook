@@ -17,7 +17,7 @@
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
 		EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; platformFilter = ios; };
-		EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* FileRow.swift */; };
+		EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
 		EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */; };
@@ -25,6 +25,7 @@
 		EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEA244D0C580017A402 /* DebugView.swift */; };
 		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
 		EA717D9F24844A4B007F2DF9 /* ItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA717D9E24844A4B007F2DF9 /* ItemView.swift */; };
+		EAA65C7E24B23FB9004C29EF /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA65C7D24B23FB9004C29EF /* FolderRow.swift */; };
 		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -70,7 +71,7 @@
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		87BD616E23E3B9CB00945B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
-		EA6A0D6F2443652A0072E2B3 /* FileRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRow.swift; sourceTree = "<group>"; };
+		EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
 		EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
@@ -78,6 +79,7 @@
 		EA6CEBEA244D0C580017A402 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
 		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
 		EA717D9E24844A4B007F2DF9 /* ItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemView.swift; sourceTree = "<group>"; };
+		EAA65C7D24B23FB9004C29EF /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
 		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios.entitlements; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
@@ -137,9 +139,10 @@
 		8733C23B23F0D300000681E0 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				EAA65C7D24B23FB9004C29EF /* FolderRow.swift */,
 				8733C23C23F0D418000681E0 /* MonokaiButton.swift */,
 				8733C23E23F0DC7B000681E0 /* Monokai.swift */,
-				EA6A0D6F2443652A0072E2B3 /* FileRow.swift */,
+				EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -439,7 +442,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA6A0D702443652A0072E2B3 /* FileRow.swift in Sources */,
+				EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */,
 				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
 				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
@@ -453,6 +456,7 @@
 				EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
 				EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */,
+				EAA65C7E24B23FB9004C29EF /* FolderRow.swift in Sources */,
 				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
