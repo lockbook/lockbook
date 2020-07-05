@@ -17,6 +17,8 @@
 		87BD616A23E3B9CB00945B25 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616923E3B9CB00945B25 /* Preview Assets.xcassets */; };
 		87BD616D23E3B9CB00945B25 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */; };
 		EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; platformFilter = ios; };
+		EA04FD4F24B26D58003CB6BF /* FolderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD4E24B26D58003CB6BF /* FolderList.swift */; };
+		EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD5024B26EF1003CB6BF /* TextEditor.swift */; };
 		EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
@@ -26,10 +28,10 @@
 		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
 		EA717D9F24844A4B007F2DF9 /* ItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA717D9E24844A4B007F2DF9 /* ItemView.swift */; };
 		EAA65C7E24B23FB9004C29EF /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA65C7D24B23FB9004C29EF /* FolderRow.swift */; };
-		EAC93E70244267F400FFC629 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* ListView.swift */; };
+		EAC93E70244267F400FFC629 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* FileBrowserView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
-		EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E7724428E6800FFC629 /* EditorView.swift */; };
+		EAC93E7824428E6800FFC629 /* FileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E7724428E6800FFC629 /* FileView.swift */; };
 		EAF04893247C5C700021FE6F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF04892247C5C700021FE6F /* AppDelegate.swift */; };
 		EAF04895247C5C700021FE6F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF04894247C5C700021FE6F /* ContentView.swift */; };
 		EAF04897247C5C720021FE6F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EAF04896247C5C720021FE6F /* Assets.xcassets */; };
@@ -71,6 +73,8 @@
 		87BD616C23E3B9CB00945B25 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		87BD616E23E3B9CB00945B25 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
+		EA04FD4E24B26D58003CB6BF /* FolderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderList.swift; sourceTree = "<group>"; };
+		EA04FD5024B26EF1003CB6BF /* TextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEditor.swift; sourceTree = "<group>"; };
 		EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
@@ -81,10 +85,10 @@
 		EA717D9E24844A4B007F2DF9 /* ItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemView.swift; sourceTree = "<group>"; };
 		EAA65C7D24B23FB9004C29EF /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
 		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios.entitlements; sourceTree = "<group>"; };
-		EAC93E6F244267F400FFC629 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
+		EAC93E6F244267F400FFC629 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
-		EAC93E7724428E6800FFC629 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		EAC93E7724428E6800FFC629 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
 		EAF04890247C5C700021FE6F /* macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EAF04892247C5C700021FE6F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EAF04894247C5C700021FE6F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -136,15 +140,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		8733C23B23F0D300000681E0 /* Views */ = {
+		8733C23B23F0D300000681E0 /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				EAA65C7D24B23FB9004C29EF /* FolderRow.swift */,
 				8733C23C23F0D418000681E0 /* MonokaiButton.swift */,
 				8733C23E23F0DC7B000681E0 /* Monokai.swift */,
 				EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */,
+				EAA65C7D24B23FB9004C29EF /* FolderRow.swift */,
+				EA04FD4E24B26D58003CB6BF /* FolderList.swift */,
+				EA04FD5024B26EF1003CB6BF /* TextEditor.swift */,
 			);
-			path = Views;
+			path = Components;
 			sourceTree = "<group>";
 		};
 		8733C24023F0EA78000681E0 /* Screens */ = {
@@ -155,8 +161,8 @@
 				8733C24123F0EAE9000681E0 /* CreateAccountView.swift */,
 				EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */,
 				EAF7E10C244559AD00E4C8AC /* CreateFileView.swift */,
-				EAC93E6F244267F400FFC629 /* ListView.swift */,
-				EAC93E7724428E6800FFC629 /* EditorView.swift */,
+				EAC93E6F244267F400FFC629 /* FileBrowserView.swift */,
+				EAC93E7724428E6800FFC629 /* FileView.swift */,
 				EA6CEBEA244D0C580017A402 /* DebugView.swift */,
 			);
 			path = Screens;
@@ -192,7 +198,7 @@
 				EAC93E762442896900FFC629 /* Apis */,
 				EAC93E712442810600FFC629 /* Models */,
 				8733C24023F0EA78000681E0 /* Screens */,
-				8733C23B23F0D300000681E0 /* Views */,
+				8733C23B23F0D300000681E0 /* Components */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
 				EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */,
@@ -443,6 +449,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */,
+				EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */,
 				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
 				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
@@ -450,7 +457,8 @@
 				EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */,
 				EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */,
 				EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */,
-				EAC93E70244267F400FFC629 /* ListView.swift in Sources */,
+				EA04FD4F24B26D58003CB6BF /* FolderList.swift in Sources */,
+				EAC93E70244267F400FFC629 /* FileBrowserView.swift in Sources */,
 				EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */,
@@ -461,7 +469,7 @@
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,
-				EAC93E7824428E6800FFC629 /* EditorView.swift in Sources */,
+				EAC93E7824428E6800FFC629 /* FileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
