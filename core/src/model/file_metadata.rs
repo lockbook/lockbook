@@ -1,4 +1,4 @@
-use crate::model::crypto::{FolderAccessInfo, UserAccessInfo, SignedValue, EncryptedValueWithNonce};
+use crate::model::crypto::{FolderAccessInfo, UserAccessInfo, SignedValue};
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -62,5 +62,5 @@ pub struct FileMetadata {
     pub content_version: u64,
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: EncryptedValueWithNonce,
+    pub folder_access_keys: FolderAccessInfo,
 }

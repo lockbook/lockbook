@@ -41,7 +41,7 @@ pub struct CreateDocumentRequest {
     pub name: String,
     pub parent: Uuid,
     pub content: EncryptedValueWithNonce,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -149,7 +149,7 @@ pub struct CreateFolderRequest {
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -295,7 +295,7 @@ pub struct NewAccountRequest {
     pub signature: SignedValue,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
     pub user_access_key: EncryptedValue,
 }
 

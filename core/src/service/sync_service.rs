@@ -13,7 +13,7 @@ use crate::model::file_metadata::FileMetadata as ServerFileMetadata;
 use crate::model::api::*;
 use crate::model::file_metadata::ClientFileMetadata;
 use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::crypto::{FolderAccessInfo, SignedValue};
+use crate::model::crypto::SignedValue;
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{
     DeleteLocally, MergeMetadataAndPushMetadata, PullFileContent, PullMergePush, PushDelete,
@@ -192,7 +192,7 @@ impl<
                     client.id,
                     &client.name,
                     client.parent_id,
-                    client.folder_access_keys.access_key.clone(),
+                    client.folder_access_keys.clone(),
                 )
                 .map_err(CreateFolderError)?;
 
@@ -216,7 +216,7 @@ impl<
                     FileDb::get(&db, client.id)
                         .map_err(WorkExecutionError::FileContentError)?
                         .content,
-                    client.folder_access_keys.access_key.clone(),
+                    client.folder_access_keys.clone(),
                 )
                 .map_err(WorkExecutionError::CreateDocumentError)?;
 
@@ -244,10 +244,7 @@ impl<
                                 content_version: server_meta.content_version,
                                 metadata_version: server_meta.metadata_version,
                                 user_access_keys: server_meta.user_access_keys,
-                                folder_access_keys: FolderAccessInfo {
-                                    folder_id: server_meta.parent,
-                                    access_key: server_meta.folder_access_keys,
-                                },
+                                folder_access_keys: server_meta.folder_access_keys,
                                 new: false,
                                 document_edited: false,
                                 metadata_changed: false,
@@ -296,10 +293,7 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: FolderAccessInfo {
-                                        folder_id: new_metadata.parent,
-                                        access_key: new_metadata.folder_access_keys,
-                                    },
+                                    folder_access_keys: new_metadata.folder_access_keys,
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,
@@ -413,10 +407,7 @@ impl<
                                     content_version: new_metadata.content_version,
                                     metadata_version: new_metadata.metadata_version,
                                     user_access_keys: new_metadata.user_access_keys,
-                                    folder_access_keys: FolderAccessInfo {
-                                        folder_id: new_metadata.parent,
-                                        access_key: new_metadata.folder_access_keys,
-                                    },
+                                    folder_access_keys: new_metadata.folder_access_keys,
                                     new: false,
                                     document_edited: false,
                                     metadata_changed: false,

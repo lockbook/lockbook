@@ -1,6 +1,6 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::account::Username;
-use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue, UserAccessInfo};
+use lockbook_core::model::crypto::{SignedValue, UserAccessInfo, FolderAccessInfo};
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
@@ -184,7 +184,7 @@ pub async fn create_file(
     name: &str,
     owner: &str,
     signature: &SignedValue,
-    access_key: &EncryptedValueWithNonce,
+    access_key: &FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction
         .query_one(
