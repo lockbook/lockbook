@@ -1,11 +1,13 @@
 use crate::config::IndexDbConfig;
+use lockbook_core::model::account::Username;
 use lockbook_core::model::api::FileMetadata;
 use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue};
+use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue, UserAccessInfo};
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
 use rsa::RSAPublicKey;
+use std::collections::HashMap;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::error::SqlState;
 use tokio_postgres::Client as PostgresClient;
@@ -405,14 +407,23 @@ impl FileUpdateResponse {
     }
 }
 
-fn row_to_document_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, FileError> {
+fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, FileError> {
     Ok(FileMetadata {
         id: serde_json::from_str(
             row.try_get::<&str, &str>("id")
                 .map_err(FileError::Postgres)?,
         )
         .map_err(FileError::Deserialize)?,
-        file_type: FileType::Document,
+        file_type: {
+            if row
+                .try_get::<&str, bool>("is_folder")
+                .map_err(FileError::Postgres)?
+            {
+                FileType::Folder
+            } else {
+                FileType::Document
+            }
+        },
         parent: serde_json::from_str(
             row.try_get::<&str, &str>("parent")
                 .map_err(FileError::Postgres)?,
@@ -432,7 +443,27 @@ fn row_to_document_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetada
             .try_get::<&str, i64>("content_version")
             .map_err(FileError::Postgres)? as u64,
         deleted: row.try_get("deleted").map_err(FileError::Postgres)?,
-        user_access_keys: Default::default(), // todo
+        user_access_keys: {
+            let username: Username = row.try_get("name").map_err(FileError::Postgres)?;
+            let encrypted_key_res = row.try_get::<&str, &str>("encrypted_key");
+            let public_key_res = row.try_get::<&str, &str>("public_key");
+
+            let mut user_access_keys: HashMap<Username, UserAccessInfo> = HashMap::new();
+
+            if let (Ok(encrypted_key), Ok(public_key)) = (encrypted_key_res, public_key_res) {
+                user_access_keys.insert(
+                    username.clone(),
+                    UserAccessInfo {
+                        username,
+                        public_key: serde_json::from_str(public_key)
+                            .map_err(FileError::Deserialize)?,
+                        access_key: serde_json::from_str(encrypted_key)
+                            .map_err(FileError::Deserialize)?,
+                    },
+                );
+            };
+            user_access_keys
+        },
         folder_access_keys: serde_json::from_str(
             row.try_get::<&str, &str>("parent_access_key")
                 .map_err(FileError::Postgres)?,
@@ -448,13 +479,17 @@ pub async fn get_updates(
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
         .query(
-            "SELECT * FROM files WHERE owner = $1 AND metadata_version > $2",
+            "SELECT * FROM files fi
+                        LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
+                        LEFT JOIN accounts a ON fi.owner = a.name
+                        WHERE owner = $1
+                        AND metadata_version > $2;",
             &[&username, &(metadata_version as i64)],
         )
         .await
         .map_err(FileError::Postgres)?
         .iter()
-        .map(row_to_document_metadata)
+        .map(row_to_file_metadata)
         .collect()
 }
 
@@ -467,6 +502,25 @@ pub async fn new_account(
         .execute(
             "INSERT INTO accounts (name, public_key) VALUES ($1, $2);",
             &[&username, &public_key],
+        )
+        .await?;
+    Ok(())
+}
+
+pub async fn create_user_access_key(
+    transaction: &Transaction<'_>,
+    username: &str,
+    folder_id: Uuid,
+    user_access_key: &str,
+) -> Result<(), AccountError> {
+    transaction
+        .execute(
+            "INSERT INTO user_access_keys (file_id, sharee_id, encrypted_key) VALUES ($1, $2, $3);",
+            &[
+                &serde_json::to_string(&folder_id).map_err(AccountError::Serialization)?,
+                &username,
+                &user_access_key,
+            ],
         )
         .await?;
     Ok(())
