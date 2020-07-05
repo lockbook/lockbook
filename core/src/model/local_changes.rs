@@ -24,7 +24,9 @@ impl From<String> for Renamed {
 
 impl From<&str> for Renamed {
     fn from(s: &str) -> Self {
-        Renamed { old_value: String::from(s) }
+        Renamed {
+            old_value: String::from(s),
+        }
     }
 }
 
