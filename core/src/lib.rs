@@ -11,8 +11,8 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::model::file_metadata::FileType::Document;
 use crate::model::crypto::DecryptedValue;
+use crate::model::file_metadata::FileType::Document;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
