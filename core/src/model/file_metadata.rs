@@ -23,7 +23,7 @@ pub struct ClientFileMetadata {
     pub name: String,
 
     /// Where this file lives relative to your other files
-    pub parent_id: Uuid,
+    pub parent: Uuid,
 
     /// DB generated timestamp representing the last time the content of a file was updated
     pub content_version: u64,

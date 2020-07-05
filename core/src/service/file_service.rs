@@ -545,13 +545,13 @@ mod unit_tests {
         );
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
-            DefaultFileMetadataRepo::get(&db, file.parent_id)
+            DefaultFileMetadataRepo::get(&db, file.parent)
                 .unwrap()
                 .name,
             "folder2"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get(&db, file.parent_id)
+            DefaultFileMetadataRepo::get(&db, file.parent)
                 .unwrap()
                 .file_type,
             Folder

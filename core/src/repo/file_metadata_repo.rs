@@ -64,7 +64,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
         )
         .map_err(DbError::SledError)?;
-        if file.id == file.parent_id {
+        if file.id == file.parent {
             let root = db.open_tree(ROOT).map_err(DbError::SledError)?;
             debug!("saving root folder: {:?}", &file.id);
             root.insert(
@@ -168,10 +168,10 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 Some(found) => {
                     debug!("Current id exists: {:?}", &found);
                     parents.insert(current_id, found.clone());
-                    if found.id == found.parent_id {
+                    if found.id == found.parent {
                         return Ok(parents);
                     } else {
-                        current_id = found.parent_id;
+                        current_id = found.parent;
                         continue;
                     }
                 }
@@ -269,7 +269,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<ClientFileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
-            .filter(|file| file.parent_id == id && file.parent_id != file.id)
+            .filter(|file| file.parent == id && file.parent != file.id)
             .collect::<Vec<ClientFileMetadata>>())
     }
 
@@ -302,12 +302,12 @@ fn saturate_path_cache(
     match paths.get(&client.id) {
         Some(path) => Ok(path.to_string()),
         None => {
-            if client.id == client.parent_id {
+            if client.id == client.parent {
                 let path = format!("{}/", client.name.clone());
                 paths.insert(client.id, path.clone());
                 return Ok(path);
             }
-            let parent = ids.get(&client.parent_id).ok_or(AncestorMissing)?.clone();
+            let parent = ids.get(&client.parent).ok_or(AncestorMissing)?.clone();
             let parent_path = saturate_path_cache(&parent, ids, paths)?;
             let path = match client.file_type {
                 FileType::Document => format!("{}{}", parent_path, client.name),
@@ -331,7 +331,7 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
             }
 
             for value in ids.values() {
-                if value.parent_id == id {
+                if value.parent == id {
                     return false;
                 }
             }
@@ -358,7 +358,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test".to_string(),
-            parent_id: Default::default(),
+            parent: Default::default(),
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -384,7 +384,7 @@ mod unit_tests {
 
         let db_file_metadata = FileMetadataRepoImpl::get(&db, test_file_metadata.id).unwrap();
         assert_eq!(test_file_metadata.name, db_file_metadata.name);
-        assert_eq!(test_file_metadata.parent_id, db_file_metadata.parent_id);
+        assert_eq!(test_file_metadata.parent, db_file_metadata.parent);
 
         FileMetadataRepoImpl::maybe_get(&db, test_file_metadata.id)
             .unwrap()
@@ -402,7 +402,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id,
             name: "".to_string(),
-            parent_id: parent,
+            parent: parent,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -422,7 +422,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id,
             name: "".to_string(),
-            parent_id: parent,
+            parent: parent,
             content_version: 1000,
             metadata_version: 1000,
             user_access_keys: Default::default(),
@@ -473,7 +473,7 @@ mod unit_tests {
             file_type: FileType::Folder,
             id: root_id,
             name: "root_folder".to_string(),
-            parent_id: root_id,
+            parent: root_id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -494,7 +494,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
-            parent_id: root.id,
+            parent: root.id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -515,7 +515,7 @@ mod unit_tests {
             file_type: FileType::Folder,
             id: Uuid::new_v4(),
             name: "tests".to_string(),
-            parent_id: root.id,
+            parent: root.id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -536,7 +536,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
-            parent_id: test_folder.id,
+            parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -556,7 +556,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
-            parent_id: test_folder.id,
+            parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -576,7 +576,7 @@ mod unit_tests {
             file_type: FileType::Document,
             id: Uuid::new_v4(),
             name: "test.txt".to_string(),
-            parent_id: test_folder.id,
+            parent: test_folder.id,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
