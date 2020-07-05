@@ -136,7 +136,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             file_type,
             id,
             name: name.to_string(),
-            parent_id,
+            parent: parent_id,
             content_version: 0,
             metadata_version: 0,
             new: true,
@@ -177,7 +177,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             file_type: Folder,
             id,
             name: account.username.clone(),
-            parent_id: id,
+            parent: id,
             content_version: 0,
             metadata_version: 0,
             new: false,
@@ -246,7 +246,7 @@ mod unit_tests {
         };
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        assert_eq!(root.id, root.parent_id);
+        assert_eq!(root.id, root.parent);
         assert_eq!(root.file_type, Folder);
         assert!(root.user_access_keys.contains_key("username"));
         assert_eq!(root.folder_access_keys.folder_id, root.id);
