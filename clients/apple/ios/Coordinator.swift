@@ -19,23 +19,23 @@ final class Coordinator: ObservableObject {
     init() {
         self.timer = Timer()
         self.lockbookApi = FakeApi()
-        self._files = Published.init(initialValue: self.lockbookApi.updateMetadata())
+        self._files = Published.init(initialValue: self.lockbookApi.sync())
     }
     
     init(lockbookApi: LockbookApi) {
         self.timer = Timer()
         self.lockbookApi = lockbookApi
-        self._files = Published.init(initialValue: lockbookApi.updateMetadata())
+        self._files = Published.init(initialValue: lockbookApi.sync())
         if let username = lockbookApi.getAccount() {
             self.username = username
         }
         self.timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
-            self.files = lockbookApi.updateMetadata()
+            self.files = lockbookApi.sync()
         })
     }
     
     func sync() -> Void {
-        self.files = self.lockbookApi.updateMetadata()
+        self.files = self.lockbookApi.sync()
     }
     
     func createAccount(username: String) -> Bool {
@@ -56,6 +56,14 @@ final class Coordinator: ObservableObject {
         return false
     }
     
+    func getRoot() -> UUID {
+        self.lockbookApi.getRoot()
+    }
+    
+    func listFiles(dirId: UUID) -> [FileMetadata] {
+        self.lockbookApi.listFiles(dirId: dirId)
+    }
+    
     func createFile(name: String) -> Bool {
         if let file = self.lockbookApi.createFile(name: name) {
             print("File created \(file)")
@@ -64,12 +72,16 @@ final class Coordinator: ObservableObject {
         return false
     }
     
-    func getFile(id: String) -> Optional<DecryptedValue> {
+    func getFile(id: UUID) -> Optional<DecryptedValue> {
         return self.lockbookApi.getFile(id: id)
     }
     
-    func updateFile(id: String, content: String) -> Bool {
+    func updateFile(id: UUID, content: String) -> Bool {
         return self.lockbookApi.updateFile(id: id, content: content)
+    }
+    
+    func markFileForDeletion(id: UUID) -> Void {
+        let _ = self.lockbookApi.markFileForDeletion(id: id)
     }
     
     enum PushedItem {
