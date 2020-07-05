@@ -1,6 +1,6 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::account::Username;
-use lockbook_core::model::crypto::{SignedValue, UserAccessInfo, FolderAccessInfo};
+use lockbook_core::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
