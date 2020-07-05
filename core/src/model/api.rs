@@ -1,9 +1,9 @@
 use crate::model::account::Username;
-use crate::model::client_file_metadata::FileType;
+use crate::model::file_metadata::FileMetadata;
 use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -287,21 +287,6 @@ pub enum GetUpdatesError {
     NotPermissioned,
     UserNotFound,
     InvalidUsername,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FileMetadata {
-    pub id: Uuid,
-    pub file_type: FileType,
-    pub parent: Uuid,
-    pub name: String,
-    pub owner: String,
-    pub signature: SignedValue,
-    pub metadata_version: u64,
-    pub content_version: u64,
-    pub deleted: bool,
-    pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: EncryptedValueWithNonce,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

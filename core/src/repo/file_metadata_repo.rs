@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::client_file_metadata::FileType::Document;
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::{ClientFileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
 #[derive(Debug)]
@@ -344,7 +344,7 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, ClientFileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
+    use crate::model::file_metadata::{ClientFileMetadata, FileType};
     use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo};
     use crate::model::state::Config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
