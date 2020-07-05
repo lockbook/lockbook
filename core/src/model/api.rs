@@ -311,6 +311,7 @@ pub struct NewAccountRequest {
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: EncryptedValueWithNonce,
+    pub user_access_key: EncryptedValue,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -325,6 +326,7 @@ pub enum NewAccountError {
     ExpiredAuth,
     UsernameTaken,
     InvalidPublicKey,
+    InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
 }

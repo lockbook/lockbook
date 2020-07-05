@@ -24,7 +24,7 @@ struct FileRow: View {
                         Spacer()
                     }
                     HStack {
-                        Text("Last synced \(intEpochToString(micros: metadata.metadataVersion))")
+                        Text("Last synced \(intEpochToString(epoch: metadata.metadataVersion))")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()
