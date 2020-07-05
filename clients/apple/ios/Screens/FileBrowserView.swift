@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct FileBrowser: View {
+struct FileBrowserView: View {
     @EnvironmentObject var coordinator: Coordinator
     
     var body: some View {
@@ -34,7 +34,7 @@ struct PullDownView : UIViewRepresentable {
         let control = UIScrollView()
         control.refreshControl = UIRefreshControl()
         control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
-        let childView = UIHostingController(rootView: FolderView(dirId: self.coordinator.getRoot(), dirName: "\(coordinator.username)'s Files").environmentObject(self.coordinator))
+        let childView = UIHostingController(rootView: FolderList(dirId: self.coordinator.getRoot(), dirName: "\(coordinator.username)'s Files").environmentObject(self.coordinator))
         childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
         
         control.addSubview(childView.view)
@@ -60,6 +60,6 @@ struct PullDownView : UIViewRepresentable {
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        FileBrowser().preferredColorScheme(.dark).environmentObject(Coordinator())
+        FileBrowserView().preferredColorScheme(.dark).environmentObject(Coordinator())
     }
 }

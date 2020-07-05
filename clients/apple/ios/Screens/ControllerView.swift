@@ -14,7 +14,7 @@ struct ControllerView: View {
     var body: some View {
         switch coordinator.currentView {
             case .welcomeView: return AnyView(WelcomeView())
-            case .listView: return AnyView(ListView())
+            case .listView: return AnyView(FileBrowserView())
             case .debugView: return AnyView(DebugView())
             case .none: return AnyView(Text("Nothing!"))
         }
