@@ -24,7 +24,8 @@ use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::sync_service::CalculateWorkError::{
-    AccountRetrievalError, GetUpdatesError, LocalChangesRepoError, MetadataRepoError,
+    AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
+    MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
     DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentMoveError,
@@ -36,6 +37,7 @@ use crate::service::sync_service::WorkExecutionError::{
 pub enum CalculateWorkError {
     LocalChangesRepoError(local_changes_repo::DbError),
     MetadataRepoError(file_metadata_repo::Error),
+    GetMetadataError(file_metadata_repo::DbError),
     AccountRetrievalError(account_repo::Error),
     GetUpdatesError(client::Error<api::GetUpdatesError>),
 }
@@ -137,7 +139,14 @@ impl<
                 most_recent_update_from_server = metadata.metadata_version;
             }
 
-            work_units.push(ServerChange { metadata });
+            match FileMetadataDb::maybe_get(&db, metadata.id).map_err(GetMetadataError)? {
+                None => work_units.push(ServerChange { metadata }),
+                Some(local_metadata) => {
+                    if metadata.metadata_version != local_metadata.metadata_version {
+                        work_units.push(ServerChange { metadata })
+                    }
+                }
+            };
         }
 
         let changes = ChangeDb::get_all_local_changes(&db).map_err(LocalChangesRepoError)?;
@@ -182,8 +191,11 @@ impl<
                         if metadata.file_type == Document {
                             DocsDb::delete(&db, metadata.id)
                                 .map_err(SaveDocumentError)?
-                        }                                ChangeDb::delete_if_exists(&db, metadata.id)
+                        }
+
+                        ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::create_document(
@@ -201,6 +213,9 @@ impl<
                         metadata.content_version = version;
 
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                        ChangeDb::delete_if_exists(&db, metadata.id)
+                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::create_folder(
                             &account.username,
@@ -214,6 +229,9 @@ impl<
 
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                        
+                        ChangeDb::delete_if_exists(&db, metadata.id)
+                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
                 } else if !local_change.deleted { // not new and not deleted
                     if local_change.renamed.is_some() {
