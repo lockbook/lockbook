@@ -71,13 +71,13 @@ pub enum SyncError {
 pub trait SyncService {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
+    fn handle_server_change(
+        db: &Db,
+        local_change: &mut FileMetadata,
+    ) -> Result<(), WorkExecutionError>;
     fn handle_local_change(
         db: &Db,
         account: &Account,
-        local_change: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError>;
-    fn handle_server_change(
-        db: &Db,
         local_change: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError>;
     fn sync(db: &Db) -> Result<(), SyncError>;
@@ -174,6 +174,137 @@ impl<
                 Self::handle_server_change(&db, &mut metadata)
             }
         }
+    }
+
+    fn handle_server_change(
+        db: &Db,
+        metadata: &mut FileMetadata,
+    ) -> Result<(), WorkExecutionError> {
+        match FileMetadataDb::maybe_get(&db, metadata.id)
+            .map_err(WorkExecutionError::MetadataRepoError)?
+        {
+            None => {
+                if !metadata.deleted {
+                    // We don't know anything about this file, just do a pull
+                    FileMetadataDb::insert(&db, &metadata)
+                        .map_err(WorkExecutionError::MetadataRepoError)?;
+                    if metadata.file_type == Document {
+                        let document =
+                            ApiClient::get_document(metadata.id, metadata.content_version)
+                                .map_err(GetDocumentError)?;
+
+                        DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
+                    }
+                } else {
+                    debug!(
+                        "Server deleted a file we don't know about, ignored. id: {:?}",
+                        metadata.id
+                    );
+                }
+            }
+            Some(local_metadata) => {
+                // We have this file locally
+                match ChangeDb::get_local_changes(&db, metadata.id)
+                    .map_err(WorkExecutionError::LocalChangesRepoError)?
+                {
+                    None => {
+                        // It has no modifications of any sort, just update it
+                        if metadata.deleted {
+                            // Delete this file, server deleted it and we have no local changes
+                            FileMetadataDb::actually_delete(&db, metadata.id)
+                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
+                            if metadata.file_type == Document {
+                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                            }
+                        } else {
+                            // The normal fast forward case
+                            FileMetadataDb::insert(&db, &metadata)
+                                .map_err(WorkExecutionError::MetadataRepoError)?;
+                            if metadata.file_type == Document
+                                && local_metadata.metadata_version != metadata.metadata_version
+                            {
+                                let document =
+                                    ApiClient::get_document(metadata.id, metadata.content_version)
+                                        .map_err(GetDocumentError)?;
+
+                                DocsDb::insert(&db, metadata.id, &document)
+                                    .map_err(SaveDocumentError)?;
+                            }
+                        }
+                    }
+                    Some(local_changes) => {
+                        // It's dirty, merge changes
+
+                        // Straightforward metadata merge
+                        if !metadata.deleted {
+                            // We renamed it locally
+                            if let Some(renamed_locally) = local_changes.renamed {
+                                // Check if both renamed, if so, server wins
+                                if metadata.name != renamed_locally.old_value {
+                                    ChangeDb::untrack_rename(&db, metadata.id)
+                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                } else {
+                                    metadata.name = local_metadata.name;
+                                }
+                            }
+
+                            // We moved it locally
+                            if let Some(moved_locally) = local_changes.moved {
+                                // Check if both moved, if so server wins
+                                if metadata.parent != moved_locally.old_value {
+                                    ChangeDb::untrack_move(&db, metadata.id)
+                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                } else {
+                                    metadata.parent = local_metadata.parent;
+                                    metadata.folder_access_keys = local_metadata.folder_access_keys;
+                                }
+                            }
+
+                            if local_changes.new {
+                                error!("Server has modified a file this client has marked as new! This should not be possible. id: {}", metadata.id);
+                            }
+
+                            if local_changes.content_edited
+                                && local_metadata.content_version != metadata.content_version
+                            {
+                                error!("Local changes conflict with server changes, implement diffing! unimplemented!() server wins for now");
+                            }
+
+                            // You deleted a file, but you didn't have the most recent content, server wins
+                            if local_changes.deleted
+                                && local_metadata.content_version != metadata.content_version
+                            {
+                                ChangeDb::untrack_delete(&db, metadata.id)
+                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                            }
+
+                            FileMetadataDb::insert(&db, &metadata)
+                                .map_err(WorkExecutionError::MetadataRepoError)?;
+                        } else if !local_changes.content_edited {
+                            FileMetadataDb::actually_delete(&db, metadata.id)
+                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
+
+                            ChangeDb::delete_if_exists(&db, metadata.id)
+                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                            if metadata.file_type == Document {
+                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                            }
+                        } else {
+                            error!("The server deleted this file, and you have local changes! You have to undelete this file unimplemented!() server wins for now");
+                            FileMetadataDb::actually_delete(&db, metadata.id)
+                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
+                            if metadata.file_type == Document {
+                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                            }
+                            ChangeDb::delete_if_exists(&db, metadata.id)
+                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn handle_local_change(
@@ -323,137 +454,6 @@ impl<
                             .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_server_change(
-        db: &Db,
-        metadata: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError> {
-        match FileMetadataDb::maybe_get(&db, metadata.id)
-            .map_err(WorkExecutionError::MetadataRepoError)?
-        {
-            None => {
-                if !metadata.deleted {
-                    // We don't know anything about this file, just do a pull
-                    FileMetadataDb::insert(&db, &metadata)
-                        .map_err(WorkExecutionError::MetadataRepoError)?;
-                    if metadata.file_type == Document {
-                        let document =
-                            ApiClient::get_document(metadata.id, metadata.content_version)
-                                .map_err(GetDocumentError)?;
-
-                        DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
-                    }
-                } else {
-                    debug!(
-                        "Server deleted a file we don't know about, ignored. id: {:?}",
-                        metadata.id
-                    );
-                }
-            }
-            Some(local_metadata) => {
-                // We have this file locally
-                match ChangeDb::get_local_changes(&db, metadata.id)
-                    .map_err(WorkExecutionError::LocalChangesRepoError)?
-                {
-                    None => {
-                        // It has no modifications of any sort, just update it
-                        if metadata.deleted {
-                            // Delete this file, server deleted it and we have no local changes
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                            if metadata.file_type == Document {
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
-                            }
-                        } else {
-                            // The normal fast forward case
-                            FileMetadataDb::insert(&db, &metadata)
-                                .map_err(WorkExecutionError::MetadataRepoError)?;
-                            if metadata.file_type == Document
-                                && local_metadata.metadata_version != metadata.metadata_version
-                            {
-                                let document =
-                                    ApiClient::get_document(metadata.id, metadata.content_version)
-                                        .map_err(GetDocumentError)?;
-
-                                DocsDb::insert(&db, metadata.id, &document)
-                                    .map_err(SaveDocumentError)?;
-                            }
-                        }
-                    }
-                    Some(local_changes) => {
-                        // It's dirty, merge changes
-
-                        // Straightforward metadata merge
-                        if !metadata.deleted {
-                            // We renamed it locally
-                            if let Some(renamed_locally) = local_changes.renamed {
-                                // Check if both renamed, if so, server wins
-                                if metadata.name != renamed_locally.old_value {
-                                    ChangeDb::untrack_rename(&db, metadata.id)
-                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                                } else {
-                                    metadata.name = local_metadata.name;
-                                }
-                            }
-
-                            // We moved it locally
-                            if let Some(moved_locally) = local_changes.moved {
-                                // Check if both moved, if so server wins
-                                if metadata.parent != moved_locally.old_value {
-                                    ChangeDb::untrack_rename(&db, metadata.id)
-                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                                } else {
-                                    metadata.parent = local_metadata.parent;
-                                    metadata.folder_access_keys = local_metadata.folder_access_keys;
-                                }
-                            }
-
-                            if local_changes.new {
-                                error!("Server has modified a file this client has marked as new! This should not be possible. id: {}", metadata.id);
-                            }
-
-                            if local_changes.content_edited
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                error!("Local changes conflict with server changes, implement diffing! unimplemented!() server wins for now");
-                            }
-
-                            // You deleted a file, but you didn't have the most recent content, server wins
-                            if local_changes.deleted
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                ChangeDb::untrack_delete(&db, metadata.id)
-                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                            }
-
-                            FileMetadataDb::insert(&db, &metadata)
-                                .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if !local_changes.content_edited {
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-
-                            ChangeDb::delete_if_exists(&db, metadata.id)
-                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
-
-                            if metadata.file_type == Document {
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
-                            }
-                        } else {
-                            error!("The server deleted this file, and you have local changes! You have to undelete this file unimplemented!() server wins for now");
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                            if metadata.file_type == Document {
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
-                            }
-                            ChangeDb::delete_if_exists(&db, metadata.id)
-                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                        }
                     }
                 }
             }
