@@ -2,6 +2,7 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
@@ -24,7 +25,8 @@ class NewAccountActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val binding: ActivityNewAccountBinding = DataBindingUtil.setContentView(this,
+        val binding: ActivityNewAccountBinding = DataBindingUtil.setContentView(
+            this,
             R.layout.activity_new_account
         )
         binding.newAccountActivity = this
@@ -49,8 +51,10 @@ class NewAccountActivity : AppCompatActivity() {
                         "Unexpected error occured, please create a bug report (activity_settings)",
                         Toast.LENGTH_LONG
                     ).show()
+
                 }
             }
         }
+
     }
 }

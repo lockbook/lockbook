@@ -5,27 +5,29 @@ import java.security.interfaces.RSAPublicKey
 import java.util.*
 import kotlin.collections.HashMap
 
-data class ClientFileMetadata(
+data class FileMetadata(
+
+    val id: UUID,
     @Json(name = "file_type")
     val fileType: FileType,
-    val id: String,
+    val parent: UUID,
     val name: String,
-    @Json(name = "parent_id")
-    val parentId: UUID,
-    @Json(name = "content_version")
-    val contentVersion: Int,
+    val owner: String,
+    val signature: SignedValue,
     @Json(name = "metadata_version")
     val metadataVersion: Int,
-    @Json(name = "user_access_keys", ignored = true)
+    @Json(name = "content_version")
+    val contentVersion: Int,
+    val deleted: Boolean,
+    @Json(name = "user_access_keys")
     val userAccessKeys: HashMap<String, UserAccessInfo>,
-    @Json(name = "folder_access_keys", ignored = true)
-    val folderAccessKeys: FolderAccessInfo,
-    val new: Boolean,
-    @Json(name = "document_edited")
-    val documentEdited: Boolean,
-    @Json(name = "metadata_changed")
-    val metadataChanged: Boolean,
-    val deleted: Boolean
+    @Json(name = "folder_access_keys")
+    val folderAccessKeys: FolderAccessInfo
+)
+
+data class SignedValue(
+    val content: String,
+    val signature: String
 )
 
 data class FolderAccessInfo(
