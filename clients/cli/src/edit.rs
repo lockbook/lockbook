@@ -32,7 +32,7 @@ pub fn edit() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let mut file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
+    let file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
         .expect("Could not search files ")
         .expect("Could not find that file!");
 
@@ -43,20 +43,9 @@ pub fn edit() {
 
     file_handle
         .write_all(&file_content.secret.into_bytes())
-        .expect(
-            format!(
-                "Failed to write decrypted contents to temporary file, check {}",
-                file_location
-            )
-            .as_str(),
-        );
-    file_handle.sync_all().expect(
-        format!(
-            "Failed to write decrypted contents to temporary file, check {}",
-            file_location
-        )
-        .as_str(),
-    );
+        .unwrap_or_else(|_| panic!("Failed to write decrypted contents to temporary file, check {}", file_location));
+
+    file_handle.sync_all().unwrap_or_else(|_| panic!("Failed to write decrypted contents to temporary file, check {}", file_location));
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
@@ -66,9 +55,6 @@ pub fn edit() {
 
         DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
             .expect("Unexpected error while updating internal state");
-
-        file_metadata.document_edited = true;
-        DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
