@@ -72,7 +72,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             id.as_bytes(),
             serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
         )
-            .map_err(DbError::SledError)?;
+        .map_err(DbError::SledError)?;
         Ok(())
     }
 
@@ -94,7 +94,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                    .map_err(DbError::SledError)?;
+                .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => match change.renamed {
@@ -104,7 +104,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                     Ok(())
                 }
                 Some(_) => Ok(()),
@@ -130,7 +130,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                    .map_err(DbError::SledError)?;
+                .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => match change.moved {
@@ -140,7 +140,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                     Ok(())
                 }
                 Some(_) => Ok(()),
@@ -165,7 +165,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                    .map_err(DbError::SledError)?;
+                .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => {
@@ -177,7 +177,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                     Ok(())
                 }
             }
@@ -201,7 +201,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                    .map_err(DbError::SledError)?;
+                .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => {
@@ -213,7 +213,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                     Ok(())
                 }
             }
@@ -245,7 +245,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
 
         match Self::get_local_changes(&db, id)? {
             None => Ok(()),
-            Some(found) => {
+            Some(_) => {
                 tree.remove(id.as_bytes()).map_err(DbError::SledError)?;
                 Ok(())
             }
