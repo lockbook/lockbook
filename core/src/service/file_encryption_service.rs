@@ -179,7 +179,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             file_type: Folder,
             id,
             name: account.username.clone(),
-            owner: "".to_string(),
+            owner: account.username.clone(),
             parent: id,
             content_version: 0,
             metadata_version: 0,
