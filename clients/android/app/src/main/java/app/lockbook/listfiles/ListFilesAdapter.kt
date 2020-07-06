@@ -4,19 +4,19 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import app.lockbook.ClientFileMetadata
+import app.lockbook.FileMetadata
 import app.lockbook.R
 
 class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolder>() {
 
-    var filesFolders = listOf<ClientFileMetadata>()
+    var filesFolders = listOf<FileMetadata>()
         set(value) {
             field = value
             notifyDataSetChanged()
         }
 
     inner class ListFilesViewHolder(val textView: TextView): RecyclerView.ViewHolder(textView) {
-        lateinit var clientFileMetadata: ClientFileMetadata
+        lateinit var fileMetadata: FileMetadata
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
@@ -31,7 +31,7 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
     override fun onBindViewHolder(holder: ListFilesViewHolder, position: Int) {
         val item = filesFolders[position]
 
-        holder.clientFileMetadata = item
+        holder.fileMetadata = item
         holder.textView.text = item.name
     }
 }
