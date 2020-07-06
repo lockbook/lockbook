@@ -12,24 +12,27 @@ final class Coordinator: ObservableObject {
     @Published var currentView: PushedItem?
     @Published var files: [FileMetadata]
     @Published var username: String = "NOUSER"
+    @Published var progress: Optional<(Float, String)>
     private var lockbookApi: LockbookApi
-    private var timer: Timer
+    private var syncTimer: Timer
     
     
     init() {
-        self.timer = Timer()
+        self.syncTimer = Timer()
         self.lockbookApi = FakeApi()
         self._files = Published.init(initialValue: self.lockbookApi.sync())
+        self._progress = Published.init(initialValue: Optional.some((0.0, "Something")))
     }
     
     init(lockbookApi: LockbookApi) {
-        self.timer = Timer()
+        self.syncTimer = Timer()
         self.lockbookApi = lockbookApi
         self._files = Published.init(initialValue: lockbookApi.sync())
+        self._progress = Published.init(initialValue: Optional.none)
         if let username = lockbookApi.getAccount() {
             self.username = username
         }
-        self.timer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
+        self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             self.files = lockbookApi.sync()
         })
     }
@@ -72,8 +75,8 @@ final class Coordinator: ObservableObject {
         return false
     }
     
-    func getFile(id: UUID) -> Optional<DecryptedValue> {
-        return self.lockbookApi.getFile(id: id)
+    func getFile(meta: FileMetadata) -> Optional<DecryptedValue> {
+        return self.lockbookApi.getFile(id: meta.id)
     }
     
     func updateFile(id: UUID, content: String) -> Bool {
@@ -86,7 +89,7 @@ final class Coordinator: ObservableObject {
     
     enum PushedItem {
         case welcomeView
-        case listView
+        case fileBrowserView
         case debugView
     }
 }

@@ -27,14 +27,14 @@ struct FolderList: View {
                 }
             }
             .onDelete { offset in
-                let meta = coordinator.files[offset.first!]
-                coordinator.markFileForDeletion(id: meta.id)
+                let meta = self.coordinator.files[offset.first!]
+                self.coordinator.markFileForDeletion(id: meta.id)
             }
         }
         .navigationBarTitle(dirName)
         .navigationBarItems(
             trailing: HStack {
-                NavigationLink(destination: DebugView()) {
+                NavigationLink(destination: DebugView().environmentObject(coordinator)) {
                     Image(systemName: "circle.grid.hex")
                 }
                 NavigationLink(destination: CreateFileView()) {
@@ -47,9 +47,7 @@ struct FolderList: View {
 
 struct FolderView_Previews: PreviewProvider {
     static var previews: some View {
-        Group {
-            FolderList(dirId: UUID.init(), dirName: "root").environmentObject(Coordinator())
-        }
-        .previewLayout(.sizeThatFits)
+        FolderList(dirId: UUID.init(), dirName: "root").environmentObject(Coordinator())
+            .previewLayout(.sizeThatFits)
     }
 }
