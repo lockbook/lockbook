@@ -19,7 +19,7 @@ pub fn new() {
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     File::create(&temp_file_path)
-        .expect(format!("Could not create temporary file: {}", &file_location).as_str());
+        .unwrap_or_else(|_| panic!("Could not create temporary file: {}", &file_location));
 
     print!("Enter a filepath: ");
     io::stdout().flush().unwrap();
@@ -35,8 +35,8 @@ pub fn new() {
         Err(error) => match error {
             NewFileFromPathError::InvalidRootFolder => panic!("The first component of your file path does not match the name of your root folder!"),
             NewFileFromPathError::DbError(_) |
-            NewFileFromPathError::NoRoot |
-            NewFileFromPathError::FailedToCreateChild(_) => panic!("Unexpected error ocurred: {:?}", error)
+            NewFileFromPathError::NoRoot | NewFileFromPathError::FailedToRecordChange(_) |
+            NewFileFromPathError::FailedToCreateChild(_) => panic!("Unexpected error ocurred: {:?}", error),
         },
     };
 
@@ -55,5 +55,5 @@ pub fn new() {
     }
 
     fs::remove_file(&temp_file_path)
-        .expect(format!("Failed to delete temporary file: {}", &file_location).as_str());
+        .unwrap_or_else(|_| panic!("Failed to delete temporary file: {}", &file_location));
 }
