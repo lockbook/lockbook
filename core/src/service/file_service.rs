@@ -2,15 +2,16 @@ use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::client_file_metadata::FileType::{Document, Folder};
-use crate::model::client_file_metadata::{ClientFileMetadata, FileType};
 use crate::model::crypto::*;
-use crate::repo::account_repo;
+use crate::model::file_metadata::FileType::{Document, Folder};
+use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
+use crate::repo::local_changes_repo::LocalChangesRepo;
+use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
@@ -31,6 +32,7 @@ pub enum NewFileError {
     FileCryptoError(file_encryption_service::FileCreationError),
     FailedToSaveMetadata(file_metadata_repo::DbError),
     FailedToWriteFileContent(DocumentUpdateError),
+    FailedToRecordChange(local_changes_repo::DbError),
 }
 
 #[derive(Debug)]
@@ -39,6 +41,7 @@ pub enum NewFileFromPathError {
     NoRoot,
     InvalidRootFolder,
     FailedToCreateChild(NewFileError),
+    FailedToRecordChange(local_changes_repo::DbError),
 }
 
 #[derive(Debug)]
@@ -50,6 +53,7 @@ pub enum DocumentUpdateError {
     FileCryptoError(file_encryption_service::FileWriteError),
     DocumentWriteError(document_repo::Error),
     DbError(file_metadata_repo::DbError),
+    FailedToRecordChange(local_changes_repo::DbError),
 }
 
 #[derive(Debug)]
@@ -69,12 +73,9 @@ pub trait FileService {
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<ClientFileMetadata, NewFileError>;
+    ) -> Result<FileMetadata, NewFileError>;
 
-    fn create_at_path(
-        db: &Db,
-        path_and_name: &str,
-    ) -> Result<ClientFileMetadata, NewFileFromPathError>;
+    fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError>;
 
     fn write_document(
         db: &Db,
@@ -88,11 +89,13 @@ pub trait FileService {
 pub struct FileServiceImpl<
     FileMetadataDb: FileMetadataRepo,
     FileDb: DocumentRepo,
+    ChangesDb: LocalChangesRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
     files: PhantomData<FileDb>,
+    changes_db: PhantomData<ChangesDb>,
     account: PhantomData<AccountDb>,
     file_crypto: PhantomData<FileCrypto>,
 }
@@ -100,16 +103,17 @@ pub struct FileServiceImpl<
 impl<
         FileMetadataDb: FileMetadataRepo,
         FileDb: DocumentRepo,
+        ChangesDb: LocalChangesRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, AccountDb, FileCrypto>
+    > FileService for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto>
 {
     fn create(
         db: &Db,
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<ClientFileMetadata, NewFileError> {
+    ) -> Result<FileMetadata, NewFileError> {
         let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, parent)
@@ -120,6 +124,8 @@ impl<
                 .map_err(FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
+        ChangesDb::track_new_file(&db, new_metadata.id)
+            .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
             Self::write_document(
@@ -134,10 +140,7 @@ impl<
         Ok(new_metadata)
     }
 
-    fn create_at_path(
-        db: &Db,
-        path_and_name: &str,
-    ) -> Result<ClientFileMetadata, NewFileFromPathError> {
+    fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
@@ -203,7 +206,7 @@ impl<
         let account =
             AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
-        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DbError)?
             .ok_or(CouldNotFindFile)?;
 
@@ -217,13 +220,10 @@ impl<
         let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
             .map_err(DocumentUpdateError::FileCryptoError)?;
 
-        if !file_metadata.new {
-            file_metadata.document_edited = true;
-        }
-
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
-
         FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
+        ChangesDb::track_edit(&db, file_metadata.id)
+            .map_err(DocumentUpdateError::FailedToRecordChange)?;
 
         Ok(())
     }
@@ -255,8 +255,8 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::client_file_metadata::FileType::{Document, Folder};
     use crate::model::crypto::DecryptedValue;
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::Config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
@@ -545,13 +545,11 @@ mod unit_tests {
         );
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
-            DefaultFileMetadataRepo::get(&db, file.parent_id)
-                .unwrap()
-                .name,
+            DefaultFileMetadataRepo::get(&db, file.parent).unwrap().name,
             "folder2"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get(&db, file.parent_id)
+            DefaultFileMetadataRepo::get(&db, file.parent)
                 .unwrap()
                 .file_type,
             Folder
