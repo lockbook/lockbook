@@ -1,8 +1,8 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::account::Username;
-use lockbook_core::model::api::FileMetadata;
-use lockbook_core::model::client_file_metadata::FileType;
-use lockbook_core::model::crypto::{EncryptedValueWithNonce, SignedValue, UserAccessInfo};
+use lockbook_core::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::model::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;
@@ -16,7 +16,7 @@ use tokio_postgres::NoTls;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
 
-// todo:
+// TODO:
 // * update parent metadata
 // * check ownership
 // * better serialization
@@ -184,7 +184,7 @@ pub async fn create_file(
     name: &str,
     owner: &str,
     signature: &SignedValue,
-    access_key: &EncryptedValueWithNonce,
+    access_key: &FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction
         .query_one(
