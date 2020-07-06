@@ -8,7 +8,7 @@ import kotlin.collections.HashMap
 data class ClientFileMetadata(
     @Json(name = "file_type")
     val fileType: FileType,
-    val id: UUID,
+    val id: String,
     val name: String,
     @Json(name = "parent_id")
     val parentId: UUID,

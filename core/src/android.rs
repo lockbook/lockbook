@@ -168,7 +168,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
 
     let serialized_string = match serde_json::to_string(&root) {
         Ok(v) => v,
-        _ => "".to_string()
+        _ => "".to_string() // change
     };
 
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
