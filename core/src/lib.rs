@@ -12,6 +12,7 @@ pub use sled::Db;
 
 use crate::client::ClientImpl;
 use crate::model::crypto::DecryptedValue;
+use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::Document;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
@@ -82,7 +83,6 @@ static FAILURE_DB: &str = "FAILURE<DB_ERROR>";
 static FAILURE_ACCOUNT: &str = "FAILURE<ACCOUNT_MISSING>";
 static FAILURE_META_CREATE: &str = "FAILURE<META_CREATE>";
 static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
-static FAILURE_FILE_LIST: &str = "FAILURE<FILE_LIST>";
 static FAILURE_ROOT_GET: &str = "FAILURE<ROOT_GET>";
 static FAILURE_UUID_UNWRAP: &str = "FAILURE<UUID_UNWRAP>";
 
@@ -117,6 +117,13 @@ unsafe fn connect_db(c_path: *const c_char) -> Option<Db> {
             None
         }
     }
+}
+
+unsafe fn connect(path: String) -> Result<Db, Error> {
+    let config = Config {
+        writeable_path: path,
+    };
+    DefaultDbProvider::connect_to_db(&config).map_err(Error::General)
 }
 
 pub fn init_logger_safely() {
@@ -269,16 +276,15 @@ impl<T: Serialize, E: Debug> From<Result<T, E>> for ResultWrapper {
 #[derive(Debug)]
 enum Error {
     General(repo::db_provider::Error),
+    FileMetadataRepoDb(repo::file_metadata_repo::DbError),
+    UuidParse(uuid::Error),
     Calculation(CalculateWorkError),
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper {
     unsafe fn inner(path: String) -> Result<Vec<WorkUnit>, Error> {
-        let db = DefaultDbProvider::connect_to_db(&Config {
-            writeable_path: path,
-        })
-        .map_err(Error::General)?;
+        let db = connect(path)?;
 
         let work = DefaultSyncService::calculate_work(&db).map_err(Calculation)?;
 
@@ -292,39 +298,23 @@ pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper 
 pub unsafe extern "C" fn list_files(
     c_path: *const c_char,
     c_parent_id: *const c_char,
-) -> *mut c_char {
-    let db = match connect_db(c_path) {
-        None => return CString::new(FAILURE_DB).unwrap().into_raw(),
-        Some(db) => db,
-    };
-    let parent_id = string_from_ptr(c_parent_id);
+) -> ResultWrapper {
+    unsafe fn inner(path: String, parent_id: String) -> Result<Vec<FileMetadata>, Error> {
+        let db = connect(path)?;
 
-    match Uuid::parse_str(parent_id.as_str()) {
-        Ok(parent_uuid) => match DefaultFileMetadataRepo::get_children(&db, parent_uuid) {
-            Ok(metas) => CString::new(json!(&metas).to_string()).unwrap().into_raw(),
-            Err(err) => {
-                error!(
-                    "Failure while get children of {}! Error: {:?}",
-                    parent_uuid, err
-                );
-                CString::new(FAILURE_FILE_LIST).unwrap().into_raw()
-            }
-        },
-        Err(uuid_parse_error) => {
-            error!(
-                "Failure parsing {} into UUID! Error: {:?}",
-                parent_id, uuid_parse_error
-            );
-            CString::new(FAILURE_UUID_UNWRAP).unwrap().into_raw()
-        }
+        let parent_uuid = Uuid::parse_str(parent_id.as_str()).map_err(Error::UuidParse)?;
+
+        DefaultFileMetadataRepo::get_children(&db, parent_uuid).map_err(Error::FileMetadataRepoDb)
     }
+
+    ResultWrapper::from(inner(string_from_ptr(c_path), string_from_ptr(c_parent_id)))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
-    c_file_parent_id: *const c_char, // TODO @raayan add type?
+    c_file_parent_id: *const c_char,
 ) -> *mut c_char {
     let db = match connect_db(c_path) {
         None => return CString::new(FAILURE_DB).unwrap().into_raw(),
@@ -345,7 +335,7 @@ pub unsafe extern "C" fn create_file(
         &db,
         &file_name,
         file_parent_uuid,
-        Document, // TODO @raayan
+        Document, // TODO @raayan make this function work for docs & folders
     ) {
         Ok(meta) => CString::new(json!(&meta).to_string()).unwrap().into_raw(),
         Err(err) => {

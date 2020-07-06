@@ -22,16 +22,21 @@ class CoreApiTests: XCTestCase {
         
         switch result {
             case .success(let workUnits):
-                XCTAssertEqual(workUnits.count, 2)
+                XCTAssertEqual(workUnits.count, 0)
             case .failure(let error):
                 XCTFail(error.message)
         }
     }
     
     func testListFiles() {
-        let files = core.listFiles(dirId: core.getRoot())
+        let result = core.listFiles(dirId: core.getRoot())
         
-        XCTAssertEqual(files.count, 5)
+        switch result {
+            case .success(let files):
+                XCTAssertEqual(files.count, 2)
+            case .failure(let error):
+                XCTFail(error.message)
+        }
     }
 }
 

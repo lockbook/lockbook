@@ -15,7 +15,7 @@ protocol LockbookApi {
     func sync() -> [FileMetadata]
     func calculateWork() -> Result<[WorkUnit], GeneralError>
     func getRoot() -> UUID
-    func listFiles(dirId: UUID) -> [FileMetadata]
+    func listFiles(dirId: UUID) -> Result<[FileMetadata], GeneralError>
     func createFile(name: String) -> Optional<FileMetadata>
     func getFile(id: UUID) -> Optional<DecryptedValue>
     func updateFile(id: UUID, content: String) -> Bool
@@ -88,17 +88,10 @@ struct CoreApi: LockbookApi {
         return UUID(uuidString: resultString)!
     }
     
-    func listFiles(dirId: UUID) -> [FileMetadata] {
-        if (isDbPresent()) {
-            let result = list_files(documentsDirectory, dirId.uuidString)
-            let resultString = String(cString: result!)
-            release_pointer(UnsafeMutablePointer(mutating: result))
-            
-            if let files: [FileMetadata] = try? deserialize(jsonStr: resultString).get() {
-                return files
-            }
-        }
-        return [FileMetadata].init()
+    func listFiles(dirId: UUID) -> Result<[FileMetadata], GeneralError> {
+        let result: Result<[FileMetadata], GeneralError> = fromPrimitiveResult(result: list_files(documentsDirectory, dirId.uuidString))
+        
+        return result
     }
 
     func createFile(name: String) -> Optional<FileMetadata> {
@@ -180,8 +173,8 @@ struct FakeApi: LockbookApi {
         UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
     }
     
-    func listFiles(dirId: UUID) -> [FileMetadata] {
-        return sync()
+    func listFiles(dirId: UUID) -> Result<[FileMetadata], GeneralError> {
+        return Result.success(sync())
     }
     
     func createFile(name: String) -> Optional<FileMetadata> {
