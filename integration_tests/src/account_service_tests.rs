@@ -3,13 +3,15 @@ mod account_tests {
     use lockbook_core::client::Error;
     use lockbook_core::model::api::NewAccountError::UsernameTaken;
     use lockbook_core::service::account_service::{AccountCreationError, AccountService};
-    use lockbook_core::{DefaultAccountService, DefaultSyncService, DefaultFileMetadataRepo, DefaultAccountRepo};
+    use lockbook_core::{
+        DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService,
+    };
 
     use crate::{random_username, test_db};
     use lockbook_core::model::api::NewAccountError;
-    use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::repo::account_repo::AccountRepo;
+    use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+    use lockbook_core::service::sync_service::SyncService;
 
     #[test]
     fn create_account_successfully() {

@@ -2,8 +2,8 @@ use crate::files_db;
 use crate::index_db;
 use crate::ServerState;
 use lockbook_core::model::api::*;
-use lockbook_core::model::file_metadata::FileType;
 use lockbook_core::model::crypto::SignedValue;
+use lockbook_core::model::file_metadata::FileType;
 
 pub fn username_is_valid(username: &str) -> bool {
     username
