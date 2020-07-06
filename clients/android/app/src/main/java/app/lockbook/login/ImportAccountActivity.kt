@@ -8,7 +8,7 @@ import androidx.databinding.DataBindingUtil
 import app.lockbook.listfiles.ListFilesActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
-import app.lockbook.databinding.ImportAccountBinding
+import app.lockbook.databinding.ActivityImportAccountBinding
 import kotlinx.android.synthetic.main.activity_import_account.*
 
 class ImportAccountActivity : AppCompatActivity() {
@@ -19,7 +19,7 @@ class ImportAccountActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val binding: ImportAccountBinding = DataBindingUtil.setContentView(this,
+        val binding: ActivityImportAccountBinding = DataBindingUtil.setContentView(this,
             R.layout.activity_import_account
         )
         binding.importAccountActivity = this

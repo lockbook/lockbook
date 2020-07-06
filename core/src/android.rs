@@ -14,6 +14,8 @@ use sled::Db;
 use std::path::Path;
 use crate::repo::file_metadata_repo::{FileMetadataRepoImpl, FileMetadataRepo};
 use uuid::Uuid;
+use crate::repo::document_repo::{DocumentRepoImpl, DocumentRepo};
+use crate::model::crypto::Document;
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -204,7 +206,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
@@ -224,7 +226,40 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
 
     let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
 
-    let file = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
+    let file_metadata = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
+
+    let serialized_string = match serde_json::to_string(&file_metadata) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    println!("{}", serialized_string);
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jpath: JString,
+    jfileuuid: JString
+) -> JString<'a> {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let file_uuid: String = env
+        .get_string(jfileuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let file = DocumentRepoImpl::get(&db, uuid).expect("Couldn't get the document from db and uuid!");
 
     let serialized_string = match serde_json::to_string(&file) {
         Ok(v) => v,
@@ -234,4 +269,74 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
     println!("{}", serialized_string);
 
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jpath: JString,
+    jfileuuid: JString,
+    jdocument: JString
+) -> jint {
+
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let file_uuid: String = env
+        .get_string(jfileuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let serialized_document: String = env
+        .get_string(jdocument)
+        .expect("Couldn't read the serialized document!")
+        .into();
+
+    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let document: Document = serde_json::from_str(serialized_document.as_str()).expect("Couldn't deserialized document");
+
+    match DocumentRepoImpl::insert(&db, uuid, &document) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jpath: JString,
+    jfileuuid: JString,
+) -> jint {
+
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let file_uuid: String = env
+        .get_string(jfileuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    match DocumentRepoImpl::delete(&db, uuid) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
 }

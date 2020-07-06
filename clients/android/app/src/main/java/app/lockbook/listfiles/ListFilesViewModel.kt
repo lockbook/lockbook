@@ -15,11 +15,12 @@ class ListFilesViewModel(var path: File) : ViewModel() {
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
     private val _filesFolders = MutableLiveData<List<ClientFileMetadata>>()
+    private val json = Klaxon()
 
     val filesFolders: LiveData<List<ClientFileMetadata>>
         get() = _filesFolders
 
-    fun getRootFilesFolders() {
+    fun getRootMetadata() {
         uiScope.launch {
             getRoot()
         }
@@ -28,12 +29,17 @@ class ListFilesViewModel(var path: File) : ViewModel() {
     private suspend fun getRoot() {
         withContext(Dispatchers.IO) {
             val maybeRootSerialized = getRoot(path.absolutePath)
-            val root: List<ClientFileMetadata> = listOf((Klaxon().parse(maybeRootSerialized)!!)!!)
-            _filesFolders.value = root
+            print("Root Data: $maybeRootSerialized")
+            val root: ClientFileMetadata? = json.parse(maybeRootSerialized)
+            if(root == null) {
+                _filesFolders.value = listOf()
+            } else {
+                _filesFolders.value = listOf(root)
+            }
         }
     }
 
-    fun getChildrenFilesFolders(parentUuid: String) {
+    fun getChildrenMetadata(parentUuid: String) {
         uiScope.launch {
             getChildren(parentUuid)
         }
@@ -42,18 +48,35 @@ class ListFilesViewModel(var path: File) : ViewModel() {
     private suspend fun getChildren(parentUuid: String) {
         withContext(Dispatchers.IO) {
             val childrenSerialized = getChildren(path.absolutePath, parentUuid)
-            val children: List<ClientFileMetadata> = Klaxon().parse(childrenSerialized)!!
-            _filesFolders.value = children
+            print("Children Data: $childrenSerialized")
+            val children: List<ClientFileMetadata>? = json.parse(childrenSerialized)
+            if(children == null) {
+                _filesFolders.value = listOf()
+            } else {
+                _filesFolders.value = children
+            }
         }
     }
 
-    fun getFileFilesFolders(fileUuid: String) {
-
-    }
+//    fun getFileMetadata(fileUuid: String) {
+//        uiScope.launch {
+//            getFile(fileUuid)
+//        }
+//    }
+//
+//    private suspend fun getFileMetadata(fileUuid: String) {
+//        withContext(Dispatchers.IO) {
+//            val fileSerialized = getFile(path.absolutePath, fileUuid)
+//            print("File Data: $fileSerialized")
+//            val file: ClientFileMetadata = json.parse(fileSerialized)
+//            if(file == null) {
+//
+//            }
+//        }
+//    }
 
     init {
-        getRootFilesFolders()
+        getRootMetadata()
     }
-
 
 }
