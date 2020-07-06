@@ -8,7 +8,7 @@ import androidx.databinding.DataBindingUtil
 import app.lockbook.listfiles.ListFilesActivity
 import app.lockbook.R
 import app.lockbook.core.createAccount
-import app.lockbook.databinding.NewAccountBinding
+import app.lockbook.databinding.ActivityNewAccountBinding
 import kotlinx.android.synthetic.main.activity_new_account.*
 
 class NewAccountActivity : AppCompatActivity() {
@@ -20,7 +20,7 @@ class NewAccountActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val binding: NewAccountBinding = DataBindingUtil.setContentView(this,
+        val binding: ActivityNewAccountBinding = DataBindingUtil.setContentView(this,
             R.layout.activity_new_account
         )
         binding.newAccountActivity = this
