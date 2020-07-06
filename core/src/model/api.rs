@@ -1,9 +1,9 @@
 use crate::model::account::Username;
-use crate::model::client_file_metadata::FileType;
 use crate::model::crypto::*;
+use crate::model::file_metadata::FileMetadata;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -41,7 +41,7 @@ pub struct CreateDocumentRequest {
     pub name: String,
     pub parent: Uuid,
     pub content: EncryptedValueWithNonce,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -149,7 +149,7 @@ pub struct CreateFolderRequest {
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -290,27 +290,12 @@ pub enum GetUpdatesError {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FileMetadata {
-    pub id: Uuid,
-    pub file_type: FileType,
-    pub parent: Uuid,
-    pub name: String,
-    pub owner: String,
-    pub signature: SignedValue,
-    pub metadata_version: u64,
-    pub content_version: u64,
-    pub deleted: bool,
-    pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: EncryptedValueWithNonce,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
     pub signature: SignedValue,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
-    pub parent_access_key: EncryptedValueWithNonce,
+    pub parent_access_key: FolderAccessInfo,
     pub user_access_key: EncryptedValue,
 }
 

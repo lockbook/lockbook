@@ -49,7 +49,7 @@ pub struct UserAccessInfo {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FolderAccessInfo {
-    pub folder_id: Uuid,
+    pub folder_id: Uuid, // TODO remove this?
     pub access_key: EncryptedValueWithNonce,
 }
 

@@ -11,13 +11,14 @@ use serde_json::json;
 pub use sled::Db;
 
 use crate::client::ClientImpl;
-use crate::model::client_file_metadata::FileType::Document;
 use crate::model::crypto::DecryptedValue;
+use crate::model::file_metadata::FileType::Document;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+use crate::repo::local_changes_repo::LocalChangesRepoImpl;
 use crate::service::account_service::{AccountService, AccountServiceImpl};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
@@ -54,10 +55,12 @@ pub type DefaultAccountService = AccountServiceImpl<
     DefaultFileMetadataRepo,
 >;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
+    DefaultLocalChangesRepo,
     DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,
@@ -66,6 +69,7 @@ pub type DefaultSyncService = FileSyncService<
 pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
     DefaultDocumentRepo,
+    DefaultLocalChangesRepo,
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
