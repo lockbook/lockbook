@@ -43,9 +43,19 @@ pub fn edit() {
 
     file_handle
         .write_all(&file_content.secret.into_bytes())
-        .unwrap_or_else(|_| panic!("Failed to write decrypted contents to temporary file, check {}", file_location));
+        .unwrap_or_else(|_| {
+            panic!(
+                "Failed to write decrypted contents to temporary file, check {}",
+                file_location
+            )
+        });
 
-    file_handle.sync_all().unwrap_or_else(|_| panic!("Failed to write decrypted contents to temporary file, check {}", file_location));
+    file_handle.sync_all().unwrap_or_else(|_| {
+        panic!(
+            "Failed to write decrypted contents to temporary file, check {}",
+            file_location
+        )
+    });
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
