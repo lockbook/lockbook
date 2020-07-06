@@ -72,7 +72,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             id.as_bytes(),
             serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
         )
-        .map_err(DbError::SledError)?;
+            .map_err(DbError::SledError)?;
         Ok(())
     }
 
@@ -94,7 +94,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => match change.renamed {
@@ -104,7 +104,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                    .map_err(DbError::SledError)?;
+                        .map_err(DbError::SledError)?;
                     Ok(())
                 }
                 Some(_) => Ok(()),
@@ -130,7 +130,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => match change.moved {
@@ -140,7 +140,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                    .map_err(DbError::SledError)?;
+                        .map_err(DbError::SledError)?;
                     Ok(())
                 }
                 Some(_) => Ok(()),
@@ -165,7 +165,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => {
@@ -177,7 +177,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                    .map_err(DbError::SledError)?;
+                        .map_err(DbError::SledError)?;
                     Ok(())
                 }
             }
@@ -201,7 +201,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     id.as_bytes(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                 )
-                .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 Ok(())
             }
             Some(mut change) => {
@@ -213,7 +213,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                    .map_err(DbError::SledError)?;
+                        .map_err(DbError::SledError)?;
                     Ok(())
                 }
             }
@@ -240,8 +240,16 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         unimplemented!()
     }
 
-    fn delete_if_exists(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(found) => {
+                tree.remove(id.as_bytes()).map_err(DbError::SledError)?;
+                Ok(())
+            }
+        }
     }
 }
 
@@ -284,7 +292,7 @@ mod unit_tests {
                 moved: None,
                 new: true,
                 content_edited: false,
-                deleted: false
+                deleted: false,
             })
         );
 
@@ -300,7 +308,7 @@ mod unit_tests {
                 moved: None,
                 new: true,
                 content_edited: false,
-                deleted: false
+                deleted: false,
             })
         );
         assert_eq!(
@@ -311,7 +319,7 @@ mod unit_tests {
                 moved: None,
                 new: false,
                 content_edited: false,
-                deleted: false
+                deleted: false,
             })
         );
 
@@ -327,7 +335,7 @@ mod unit_tests {
                 moved: Some(Moved::from(id2)),
                 new: true,
                 content_edited: false,
-                deleted: false
+                deleted: false,
             })
         );
         assert_eq!(
@@ -338,7 +346,7 @@ mod unit_tests {
                 moved: Some(Moved::from(id2)),
                 new: false,
                 content_edited: false,
-                deleted: false
+                deleted: false,
             })
         );
 
@@ -354,7 +362,7 @@ mod unit_tests {
                 moved: Some(Moved::from(id2)),
                 new: true,
                 content_edited: true,
-                deleted: false
+                deleted: false,
             })
         );
         assert_eq!(
@@ -365,7 +373,7 @@ mod unit_tests {
                 moved: None,
                 new: false,
                 content_edited: true,
-                deleted: false
+                deleted: false,
             })
         );
 
@@ -381,7 +389,7 @@ mod unit_tests {
                 moved: Some(Moved::from(id2)),
                 new: true,
                 content_edited: true,
-                deleted: true
+                deleted: true,
             })
         );
         assert_eq!(
@@ -392,7 +400,7 @@ mod unit_tests {
                 moved: None,
                 new: false,
                 content_edited: false,
-                deleted: true
+                deleted: true,
             })
         );
         assert_eq!(
