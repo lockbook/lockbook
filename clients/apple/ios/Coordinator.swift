@@ -64,7 +64,13 @@ final class Coordinator: ObservableObject {
     }
     
     func listFiles(dirId: UUID) -> [FileMetadata] {
-        self.lockbookApi.listFiles(dirId: dirId)
+        switch (self.lockbookApi.listFiles(dirId: dirId)) {
+            case .success(let files):
+                return files
+            case .failure(let err):
+                print(err)
+                return []
+        }
     }
     
     func createFile(name: String) -> Bool {
