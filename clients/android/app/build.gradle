@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-kapt'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'androidx.navigation.safeargs'
 
@@ -36,10 +37,7 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-
-    buildFeatures{
-        dataBinding = true
-    }
+    android.buildFeatures.dataBinding = true
 }
 
 dependencies {
@@ -71,6 +69,7 @@ dependencies {
 
     // Miscellaneous
     implementation "com.beust:klaxon:$json_parser_version"
+    implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
 
     implementation project(':core')
 }
