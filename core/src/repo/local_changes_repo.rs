@@ -220,27 +220,27 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         }
     }
 
-    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn untrack_new_file(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 
-    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn untrack_rename(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 
-    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn untrack_move(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 
-    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn untrack_edit(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 
-    fn untrack_delete(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn untrack_delete(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 
-    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn delete_if_exists(_db: &Db, _id: Uuid) -> Result<(), DbError> {
         unimplemented!()
     }
 }
