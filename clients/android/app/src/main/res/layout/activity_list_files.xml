@@ -9,25 +9,10 @@
     tools:context=".WelcomeActivity">
 
 
-    <TextView
-        android:id="@+id/textView"
+    <fragment
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:text="@string/lockbook"
-        android:textAlignment="center"
-        android:textColor="#FFFFFF"
-        android:textSize="40sp" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:paddingTop="20dp"
-        android:paddingBottom="75dp"
-        android:text="List files"
-        android:textAlignment="center"
-        android:textColor="#FFFFFF"
-        tools:ignore="HardcodedText" />
+        android:layout_height="match_parent"
+        android:name="app.lockbook.listfiles.ListFilesFragment"
+        tools:layout="@layout/fragment_list_files" />
 
 </LinearLayout>
