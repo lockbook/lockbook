@@ -232,8 +232,8 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         unimplemented!()
     }
 
-    fn untrack_edit(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
+        Self::delete_if_exists(&db, id) // TODO temp
     }
 
     fn untrack_delete(_db: &Db, _id: Uuid) -> Result<(), DbError> {
