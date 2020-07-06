@@ -25,7 +25,12 @@ use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
-use crate::service::sync_service::{FileSyncService, SyncService};
+use crate::service::sync_service::{
+    CalculateWorkError, FileSyncService, SyncService, WorkCalculated,
+};
+use crate::Error::Calculation;
+use serde::export::fmt::Debug;
+use serde::Serialize;
 use uuid::Uuid;
 
 pub mod client;
@@ -81,6 +86,18 @@ static FAILURE_FILE_GET: &str = "FAILURE<FILE_GET>";
 static FAILURE_FILE_LIST: &str = "FAILURE<FILE_LIST>";
 static FAILURE_ROOT_GET: &str = "FAILURE<ROOT_GET>";
 static FAILURE_UUID_UNWRAP: &str = "FAILURE<UUID_UNWRAP>";
+
+#[repr(C)]
+pub struct ResultWrapper {
+    is_error: bool,
+    value: Value,
+}
+
+#[repr(C)]
+pub union Value {
+    success: *const c_char,
+    error: *const c_char,
+}
 
 unsafe fn string_from_ptr(c_path: *const c_char) -> String {
     CStr::from_ptr(c_path)
@@ -219,6 +236,57 @@ pub unsafe extern "C" fn get_root(c_path: *const c_char) -> *mut c_char {
     };
 
     CString::new(out.as_str()).unwrap().into_raw()
+}
+
+impl From<&str> for ResultWrapper {
+    fn from(t: &str) -> Self {
+        ResultWrapper {
+            is_error: false,
+            value: Value {
+                success: CString::new(t).unwrap().into_raw(),
+            },
+        }
+    }
+}
+
+impl<T: Serialize, E: Debug> From<Result<T, E>> for ResultWrapper {
+    fn from(result: Result<T, E>) -> Self {
+        ResultWrapper {
+            is_error: result.is_err(),
+            value: {
+                match result {
+                    Ok(value) => Value {
+                        success: CString::new(json!(value).to_string()).unwrap().into_raw(),
+                    },
+                    Err(err) => Value {
+                        error: CString::new(format!("{:?}", err)).unwrap().into_raw(),
+                    },
+                }
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+enum Error {
+    General(repo::db_provider::Error),
+    Calculation(CalculateWorkError),
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper {
+    unsafe fn inner(path: String) -> Result<WorkCalculated, Error> {
+        let db = DefaultDbProvider::connect_to_db(&Config {
+            writeable_path: path,
+        })
+        .map_err(Error::General)?;
+
+        let work = DefaultSyncService::calculate_work(&db).map_err(Calculation)?;
+
+        Ok(work)
+    }
+
+    ResultWrapper::from(inner(string_from_ptr(c_path)))
 }
 
 #[no_mangle]

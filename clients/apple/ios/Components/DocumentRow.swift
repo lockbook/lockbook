@@ -42,7 +42,7 @@ struct DocumentRow: View {
     
     init(metadata: FileMetadata) {
         self.metadata = metadata
-        switch (metadata.new, metadata.documentEdited, metadata.metadataChanged, metadata.deleted) {
+        switch (false, false, false, metadata.deleted) {
             case (true, _, _, _):
                 self.color = Color.green
                 self.image = Image(systemName: "plus")

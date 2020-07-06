@@ -52,11 +52,11 @@ struct DebugView: View {
                 .foregroundColor(.red)
             }
             Button(action: {
-                print("Logging out...")
+                let _ = self.debugger.lockbookApi.calculateWork()
             }) {
                 HStack {
                     Image(systemName: "person.badge.minus")
-                    Text("Logout")
+                    Text("Calculate Work")
                     Image(systemName: "person.badge.minus")
                 }
                 .foregroundColor(.yellow)

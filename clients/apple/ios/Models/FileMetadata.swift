@@ -11,13 +11,11 @@ import Foundation
 struct FileMetadata: Codable, Identifiable {
     var fileType: FileType
     var id: UUID
-    var parentId: UUID
+    var parent: UUID
     var name: String
+    var owner: String
     var contentVersion: Int
     var metadataVersion: Int
-    var new: Bool
-    var documentEdited: Bool
-    var metadataChanged: Bool
     var deleted: Bool
 }
 

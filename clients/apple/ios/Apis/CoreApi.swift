@@ -13,6 +13,7 @@ protocol LockbookApi {
     func createAccount(username: String) -> Bool
     func importAccount(accountString: String) -> Bool
     func sync() -> [FileMetadata]
+    func calculateWork() -> [String]
     func getRoot() -> UUID
     func listFiles(dirId: UUID) -> [FileMetadata]
     func createFile(name: String) -> Optional<FileMetadata>
@@ -70,6 +71,14 @@ struct CoreApi: LockbookApi {
             }
         }
         return [FileMetadata].init()
+    }
+    
+    func calculateWork() -> [String] {
+        let result: Result<String, GeneralError> = fromPrimitiveResult(result: calculate_work(documentsDirectory))
+        
+        print(result)
+
+        return []
     }
     
     func getRoot() -> UUID {
@@ -141,10 +150,10 @@ struct CoreApi: LockbookApi {
 struct FakeApi: LockbookApi {
     var fakeUsername: String = "FakeApi"
     var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: false, deleted: false),
-        FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: true, metadataChanged: false, deleted: false),
-        FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: true, deleted: false),
-        FileMetadata(fileType: .Folder, id: UUID(uuidString: "cdcb3342-7373-4b11-96e9-eb25a703febb").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", contentVersion: 1587384000000, metadataVersion: 1587384000000, new: false, documentEdited: false, metadataChanged: false, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Folder, id: UUID(uuidString: "cdcb3342-7373-4b11-96e9-eb25a703febb").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
     ]
     
     func getAccount() -> Optional<String> {
@@ -164,6 +173,10 @@ struct FakeApi: LockbookApi {
         return fakeMetadatas.shuffled(using: &rander)
     }
     
+    func calculateWork() -> [String] {
+        return []
+    }
+    
     func getRoot() -> UUID {
         UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
     }
@@ -174,7 +187,7 @@ struct FakeApi: LockbookApi {
     
     func createFile(name: String) -> Optional<FileMetadata> {
         let now = Date().timeIntervalSince1970
-        return Optional.some(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parentId: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "new_file.md", contentVersion: Int(now), metadataVersion: Int(now), new: true, documentEdited: false, metadataChanged: false, deleted: false))
+        return Optional.some(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "new_file.md", owner: "jeff", contentVersion: Int(now), metadataVersion: Int(now), deleted: false))
     }
     
     func getFile(id: UUID) -> Optional<DecryptedValue> {

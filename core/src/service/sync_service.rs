@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use serde::Serialize;
 use sled::Db;
 
 use crate::client;
@@ -83,7 +84,7 @@ pub trait SyncService {
     fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
