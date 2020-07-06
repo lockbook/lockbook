@@ -3,6 +3,8 @@ package app.lockbook
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import app.lockbook.core.isDbPresent
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.listfiles.ListFilesActivity

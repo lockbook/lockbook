@@ -3,7 +3,7 @@ package app.lockbook.listfiles
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.ClientFileMetadata
+import app.lockbook.FileMetadata
 import app.lockbook.core.getChildren
 import app.lockbook.core.getRoot
 import com.beust.klaxon.Klaxon
@@ -14,10 +14,10 @@ class ListFilesViewModel(var path: File) : ViewModel() {
 
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
-    private val _filesFolders = MutableLiveData<List<ClientFileMetadata>>()
+    private val _filesFolders = MutableLiveData<List<FileMetadata>>()
     private val json = Klaxon()
 
-    val filesFolders: LiveData<List<ClientFileMetadata>>
+    val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
 
     fun getRootMetadata() {
@@ -30,7 +30,7 @@ class ListFilesViewModel(var path: File) : ViewModel() {
         withContext(Dispatchers.IO) {
             val maybeRootSerialized = getRoot(path.absolutePath)
             print("Root Data: $maybeRootSerialized")
-            val root: ClientFileMetadata? = json.parse(maybeRootSerialized)
+            val root: FileMetadata? = json.parse(maybeRootSerialized)
             if(root == null) {
                 _filesFolders.value = listOf()
             } else {
@@ -49,7 +49,7 @@ class ListFilesViewModel(var path: File) : ViewModel() {
         withContext(Dispatchers.IO) {
             val childrenSerialized = getChildren(path.absolutePath, parentUuid)
             print("Children Data: $childrenSerialized")
-            val children: List<ClientFileMetadata>? = json.parse(childrenSerialized)
+            val children: List<FileMetadata>? = json.parse(childrenSerialized)
             if(children == null) {
                 _filesFolders.value = listOf()
             } else {
