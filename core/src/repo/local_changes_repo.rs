@@ -17,6 +17,12 @@ pub trait LocalChangesRepo {
     fn track_move(db: &Db, id: Uuid, old_parent: Uuid) -> Result<(), DbError>;
     fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn untrack_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError>;
 }
 
 pub struct LocalChangesRepoImpl;
@@ -212,6 +218,30 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 }
             }
         }
+    }
+
+    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
+    }
+
+    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
+    }
+
+    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
+    }
+
+    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
+    }
+
+    fn untrack_delete(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
+    }
+
+    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
+        unimplemented!()
     }
 }
 
