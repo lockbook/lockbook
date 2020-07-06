@@ -28,6 +28,7 @@
 		EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBEC244D0E7B0017A402 /* Debugger.swift */; };
 		EA717D9F24844A4B007F2DF9 /* ItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA717D9E24844A4B007F2DF9 /* ItemView.swift */; };
 		EAA65C7E24B23FB9004C29EF /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA65C7D24B23FB9004C29EF /* FolderRow.swift */; };
+		EAA71C0624B27A560003BDEC /* ProgressWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C0524B27A560003BDEC /* ProgressWidget.swift */; };
 		EAC93E70244267F400FFC629 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* FileBrowserView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -84,6 +85,7 @@
 		EA6CEBEC244D0E7B0017A402 /* Debugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debugger.swift; sourceTree = "<group>"; };
 		EA717D9E24844A4B007F2DF9 /* ItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemView.swift; sourceTree = "<group>"; };
 		EAA65C7D24B23FB9004C29EF /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
+		EAA71C0524B27A560003BDEC /* ProgressWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressWidget.swift; sourceTree = "<group>"; };
 		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios.entitlements; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				EAA65C7D24B23FB9004C29EF /* FolderRow.swift */,
 				EA04FD4E24B26D58003CB6BF /* FolderList.swift */,
 				EA04FD5024B26EF1003CB6BF /* TextEditor.swift */,
+				EAA71C0524B27A560003BDEC /* ProgressWidget.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -450,6 +453,7 @@
 			files = (
 				EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */,
 				EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */,
+				EAA71C0624B27A560003BDEC /* ProgressWidget.swift in Sources */,
 				8733C23F23F0DC7B000681E0 /* Monokai.swift in Sources */,
 				EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */,
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,

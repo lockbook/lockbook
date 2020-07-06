@@ -35,7 +35,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
             if let _ = lockbookApi.getAccount() {
-                coordinator.currentView = .listView
+                coordinator.currentView = .fileBrowserView
             } else {
                 coordinator.currentView = .welcomeView
             }

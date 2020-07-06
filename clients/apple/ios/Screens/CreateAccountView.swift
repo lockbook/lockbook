@@ -24,7 +24,7 @@ struct CreateAccountView: View {
             MonokaiButton(text: "Create Account")
                 .onTapGesture {
                     if (self.coordinator.createAccount(username: self.username)) {
-                        self.coordinator.currentView = .listView
+                        self.coordinator.currentView = .fileBrowserView
                     } else {
                         self.showingAlert = true
                     }

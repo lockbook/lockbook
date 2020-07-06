@@ -51,9 +51,7 @@ struct TextEditor: UIViewRepresentable {
 }
 struct TextView_Previews: PreviewProvider {
     static var previews: some View {
-        Group {
-            TextEditor(text: Binding.constant("Some great text!"))
-        }
-        .previewLayout(.sizeThatFits)
+        TextEditor(text: Binding.constant("Some great text!"))
+            .previewLayout(.sizeThatFits)
     }
 }

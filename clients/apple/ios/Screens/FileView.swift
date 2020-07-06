@@ -17,28 +17,21 @@ struct FileView: View {
     var body: some View {
         VStack {
             TextEditor(text: self.$content)
-            VStack(alignment: .leading) {
-                Text("id: \(metadata.id)")
-                Text("path: \(metadata.parentId)")
-                Text("updatedAt: \(intEpochToString(epoch: metadata.contentVersion))")
-                Text("version: \(intEpochToString(epoch: metadata.metadataVersion))")
-            }
         }
         .alert(isPresented: $showingAlert) {
             Alert(title: Text("Failed to get/update file!"))
         }
         .onAppear {
-            if let file = self.coordinator.getFile(id: self.metadata.id) {
+            if let file = self.coordinator.getFile(meta: self.metadata) {
                 self.content = file.secret
             } else {
                 print("Could not load \(self.metadata)")
             }
         }
         .onDisappear {
-            if let file = self.coordinator.getFile(id: self.metadata.id) {
+            if let file = self.coordinator.getFile(meta: self.metadata) {
                 if file.secret != self.content {
                     if (self.coordinator.updateFile(id: self.metadata.id, content: self.content)) {
-                        print("Updated \(self.metadata)")
                         self.coordinator.sync()
                     } else {
                         self.showingAlert = true
@@ -48,14 +41,16 @@ struct FileView: View {
                 }
             }
         }
+        .navigationBarTitle("\(metadata.name)")
     }
     
     init(coordinator: Coordinator, metadata: FileMetadata) {
         self.metadata = metadata
-        if let file = coordinator.getFile(id: metadata.id) {
+        if let file = coordinator.getFile(meta: metadata) {
             self._content = State.init(initialValue: file.secret)
         } else {
             self._content = State.init(initialValue: "")
+            showingAlert = true
         }
     }
 }

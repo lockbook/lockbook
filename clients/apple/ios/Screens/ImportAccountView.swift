@@ -26,7 +26,7 @@ struct ImportAccountView: View {
                 .onTapGesture {
                     if (self.coordinator.importAccount(accountString: self.accountString)) {
                         self.coordinator.sync()
-                        self.coordinator.currentView = .listView
+                        self.coordinator.currentView = .fileBrowserView
                     } else {
                         self.showingAlert = true
                     }
