@@ -13,33 +13,8 @@ pub fn status() {
         .work_units
         .into_iter()
         .for_each(|work| match work {
-            WorkUnit::PushNewDocument(client) => {
-                println!("{} is a new file that need to be pushed", client.name)
-            }
-            WorkUnit::UpdateLocalMetadata(server) => {
-                println!("{} has been moved or renamed on the server", server.name)
-            }
-            WorkUnit::PullFileContent(server) => {
-                println!("{} has new content available", server.name)
-            }
-            WorkUnit::DeleteLocally(client) => {
-                println!("{} needs to be deleted locally", client.name)
-            }
-            WorkUnit::PushMetadata(client) => println!("{} has been moved locally", client.name),
-            WorkUnit::PushFileContent(client) => {
-                println!("{} has local changes that need to be pushed", client.name)
-            }
-            WorkUnit::PushDelete(client) => println!("{} has been deleted locally", client.name),
-            WorkUnit::PullMergePush(server) => {
-                println!("{} has changes locally and on the server", server.name)
-            }
-            WorkUnit::MergeMetadataAndPushMetadata(server) => println!(
-                "{} has been moved or renamed locally and on the server",
-                server.name
-            ),
-            WorkUnit::PushNewFolder(client) => {
-                println!("{} is a new folder that needs to be pushed", client.name)
-            }
+            WorkUnit::LocalChange { metadata } => println!("{} needs to be pushed", metadata.name),
+            WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
         });
 
     print_last_successful_sync(&db);
