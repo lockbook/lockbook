@@ -4,7 +4,7 @@ extern crate reqwest;
 extern crate log;
 
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_char;
 use std::path::Path;
 
 use serde_json::json;
@@ -117,7 +117,7 @@ impl From<uuid::Error> for Error {
 
 #[derive(Debug)]
 enum Error {
-    Uncategorized, // TODO: ideally nothing is in here, but we know that can be hard
+    // Uncategorized, // TODO: ideally nothing is in here, but we know that can be hard
     Db(repo::db_provider::Error),
     Metas(repo::file_metadata_repo::DbError),
     Uuid(uuid::Error),
@@ -158,18 +158,11 @@ unsafe fn connect(path: String) -> Result<Db, Error> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> c_int {
+pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> bool {
     let path = from_ptr(c_path);
-
     let db_path = path + "/" + DB_NAME;
     debug!("Checking if {:?} exists", db_path);
-    if Path::new(db_path.as_str()).exists() {
-        debug!("DB Exists!");
-        1
-    } else {
-        error!("DB Does not exist!");
-        0
-    }
+    Path::new(db_path.as_str()).exists()
 }
 
 #[no_mangle]
@@ -179,6 +172,8 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     }
     CString::from_raw(s);
 }
+
+/// Account
 
 #[no_mangle]
 pub unsafe extern "C" fn get_account(c_path: *const c_char) -> ResultWrapper {
@@ -204,25 +199,24 @@ pub unsafe extern "C" fn create_account(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<Vec<FileMetadata>, Error> {
+pub unsafe extern "C" fn import_account(
+    c_path: *const c_char,
+    c_account: *const c_char,
+) -> ResultWrapper {
+    unsafe fn inner(path: String, account_string: String) -> Result<Account, Error> {
         let db = connect(path)?;
-        DefaultSyncService::sync(&db).map_err(Error::Sync)?;
-        let root = DefaultFileMetadataRepo::get_root(&db)
-            .map_err(Error::Metas)?
-            .ok_or(Error::NoRoot)?;
-        DefaultFileMetadataRepo::get_children(&db, root.id).map_err(Error::Metas)
+        DefaultAccountService::import_account(&db, &account_string).map_err(Error::AccountImport)
     }
-    ResultWrapper::from(inner(from_ptr(c_path)))
+    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_account)))
 }
 
+/// Work
+
 #[no_mangle]
-pub unsafe extern "C" fn get_root(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<FileMetadata, Error> {
+pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> ResultWrapper {
+    unsafe fn inner(path: String) -> Result<(), Error> {
         let db = connect(path)?;
-        DefaultFileMetadataRepo::get_root(&db)
-            .map_err(Error::Metas)?
-            .ok_or(Error::NoRoot)
+        DefaultSyncService::sync(&db).map_err(Error::Sync)
     }
     ResultWrapper::from(inner(from_ptr(c_path)))
 }
@@ -233,6 +227,19 @@ pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper 
         let db = connect(path)?;
         let work = DefaultSyncService::calculate_work(&db).map_err(Error::Calculation)?;
         Ok(work.work_units)
+    }
+    ResultWrapper::from(inner(from_ptr(c_path)))
+}
+
+/// Directory
+
+#[no_mangle]
+pub unsafe extern "C" fn get_root(c_path: *const c_char) -> ResultWrapper {
+    unsafe fn inner(path: String) -> Result<FileMetadata, Error> {
+        let db = connect(path)?;
+        DefaultFileMetadataRepo::get_root(&db)
+            .map_err(Error::Metas)?
+            .ok_or(Error::NoRoot)
     }
     ResultWrapper::from(inner(from_ptr(c_path)))
 }
@@ -248,6 +255,21 @@ pub unsafe extern "C" fn list_files(
         DefaultFileMetadataRepo::get_children(&db, parent_uuid).map_err(Error::Metas)
     }
     ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_parent_id)))
+}
+
+/// Document
+
+#[no_mangle]
+pub unsafe extern "C" fn get_file(
+    c_path: *const c_char,
+    c_file_id: *const c_char,
+) -> ResultWrapper {
+    unsafe fn inner(path: String, file_id: String) -> Result<DecryptedValue, Error> {
+        let db = connect(path)?;
+        let file_uuid = Uuid::parse_str(file_id.as_str())?;
+        DefaultFileService::read_document(&db, file_uuid).map_err(Error::FileRetrieve)
+    }
+    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
 }
 
 #[no_mangle]
@@ -272,19 +294,6 @@ pub unsafe extern "C" fn create_file(
         from_ptr(c_file_name),
         from_ptr(c_file_parent_id),
     ))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn get_file(
-    c_path: *const c_char,
-    c_file_id: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String) -> Result<DecryptedValue, Error> {
-        let db = connect(path)?;
-        let file_uuid = Uuid::parse_str(file_id.as_str())?;
-        DefaultFileService::read_document(&db, file_uuid).map_err(Error::FileRetrieve)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
 }
 
 #[no_mangle]
@@ -320,16 +329,4 @@ pub unsafe extern "C" fn mark_file_for_deletion(
     }
     // TODO: @raayan implement this when there's a good way to delete files
     ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn import_account(
-    c_path: *const c_char,
-    c_account: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, account_string: String) -> Result<Account, Error> {
-        let db = connect(path)?;
-        DefaultAccountService::import_account(&db, &account_string).map_err(Error::AccountImport)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_account)))
 }
