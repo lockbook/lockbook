@@ -15,16 +15,16 @@ func intEpochToString(epoch: Int) -> String {
     return formatter.string(from: date)
 }
 
-func deserialize<T: Decodable>(jsonStr: String) -> Optional<T> {
+func deserialize<T: Decodable>(jsonStr: String) -> Result<T, Error> {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
+    decoder.dateDecodingStrategy = .millisecondsSince1970
     do {
         let result = try decoder.decode(T.self, from: Data(jsonStr.utf8))
-        return Optional.some(result)
-    } catch {
+        return Result.success(result)
+    } catch let error {
         print("Incoming JSON \(jsonStr)")
-        print("Serialization Error: \(error)")
-        return Optional.none
+        return Result.failure(error)
     }
 }
 
@@ -33,22 +33,18 @@ func fromPrimitiveResult<T: Decodable>(result: ResultWrapper) -> Result<T, Gener
         let successString = String(cString: result.value.success)
         release_pointer(UnsafeMutablePointer(mutating: result.value.success))
         
-        if let success: T = deserialize(jsonStr: successString) {
-            return Result.success(success)
-        } else {
-            return Result.failure(GeneralError.init(message: successString, type: .Success))
+        let result: Result<T, Error> = deserialize(jsonStr: successString)
+        switch result {
+            case .success(let value):
+                return Result.success(value)
+            case .failure(let err):
+                return Result.failure(GeneralError(message: err.localizedDescription, type: .Success))
         }
     } else {
         let errorString = String(cString: result.value.error)
         release_pointer(UnsafeMutablePointer(mutating: result.value.error))
-        
-        if let error: GeneralError = deserialize(jsonStr: errorString) {
-            return Result.failure(error)
-        } else {
-            return Result.failure(GeneralError(message: errorString, type: .Error))
-        }
+        return Result.failure(GeneralError(message: errorString, type: .Error))
     }
-//    return Result.failure(GeneralError())
 }
 
 enum ErrorType: String, Codable {
@@ -56,7 +52,7 @@ enum ErrorType: String, Codable {
     case Error
 }
 
-struct GeneralError: Decodable & Error {
+struct GeneralError: Error, Codable {
     var message: String
     var type: ErrorType
 }

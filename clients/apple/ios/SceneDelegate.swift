@@ -22,6 +22,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
         // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
         
+        #if TESTING
+        print("TESTING... Not loading API")
+        #else
         // Initialize env_logger
         init_logger()
         // Create the Lockbook Core Api with the path all our business happens
@@ -43,6 +46,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             self.window = window
             window.makeKeyAndVisible()
         }
+        #endif
     }
     
     func sceneDidDisconnect(_ scene: UIScene) {

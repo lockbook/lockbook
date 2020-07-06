@@ -14,6 +14,7 @@ use crate::client::ClientImpl;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileType::Document;
 use crate::model::state::Config;
+use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
@@ -25,9 +26,7 @@ use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
-use crate::service::sync_service::{
-    CalculateWorkError, FileSyncService, SyncService, WorkCalculated,
-};
+use crate::service::sync_service::{CalculateWorkError, FileSyncService, SyncService};
 use crate::Error::Calculation;
 use serde::export::fmt::Debug;
 use serde::Serialize;
@@ -275,7 +274,7 @@ enum Error {
 
 #[no_mangle]
 pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<WorkCalculated, Error> {
+    unsafe fn inner(path: String) -> Result<Vec<WorkUnit>, Error> {
         let db = DefaultDbProvider::connect_to_db(&Config {
             writeable_path: path,
         })
@@ -283,7 +282,7 @@ pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper 
 
         let work = DefaultSyncService::calculate_work(&db).map_err(Calculation)?;
 
-        Ok(work)
+        Ok(work.work_units)
     }
 
     ResultWrapper::from(inner(string_from_ptr(c_path)))
