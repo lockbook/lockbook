@@ -6,6 +6,7 @@ use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
+use crate::model::crypto::SignedValue;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -13,7 +14,6 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::model::crypto::SignedValue;
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -91,7 +91,10 @@ impl<
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
-        let auth = SignedValue{ content: "".to_string(), signature: "".to_string() };
+        let auth = SignedValue {
+            content: "".to_string(),
+            signature: "".to_string(),
+        };
 
         let version = ApiClient::new_account(
             &account.username,
