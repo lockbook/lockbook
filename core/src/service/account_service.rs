@@ -97,7 +97,7 @@ impl<
             &auth,
             account.keys.to_public_key(),
             file_metadata.id,
-            file_metadata.folder_access_keys.access_key.clone(),
+            file_metadata.folder_access_keys.clone(),
             file_metadata
                 .user_access_keys
                 .get(&account.username)
