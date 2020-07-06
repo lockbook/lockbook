@@ -13,7 +13,7 @@ protocol LockbookApi {
     func createAccount(username: String) -> Bool
     func importAccount(accountString: String) -> Bool
     func sync() -> [FileMetadata]
-    func calculateWork() -> [String]
+    func calculateWork() -> Result<[WorkUnit], GeneralError>
     func getRoot() -> UUID
     func listFiles(dirId: UUID) -> [FileMetadata]
     func createFile(name: String) -> Optional<FileMetadata>
@@ -65,20 +65,19 @@ struct CoreApi: LockbookApi {
             let resultString = String(cString: result!)
             // We need to release the pointer once we have the result string
             release_pointer(UnsafeMutablePointer(mutating: result))
+         
             
-            if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
+            if let resultMetas: [FileMetadata] = try? deserialize(jsonStr: resultString).get() {
                 return resultMetas
             }
         }
         return [FileMetadata].init()
     }
     
-    func calculateWork() -> [String] {
-        let result: Result<String, GeneralError> = fromPrimitiveResult(result: calculate_work(documentsDirectory))
+    func calculateWork() -> Result<[WorkUnit], GeneralError> {
+        let result: Result<[WorkUnit], GeneralError> = fromPrimitiveResult(result: calculate_work(documentsDirectory))
         
-        print(result)
-
-        return []
+        return result
     }
     
     func getRoot() -> UUID {
@@ -95,7 +94,7 @@ struct CoreApi: LockbookApi {
             let resultString = String(cString: result!)
             release_pointer(UnsafeMutablePointer(mutating: result))
             
-            if let files: [FileMetadata] = deserialize(jsonStr: resultString) {
+            if let files: [FileMetadata] = try? deserialize(jsonStr: resultString).get() {
                 return files
             }
         }
@@ -109,7 +108,7 @@ struct CoreApi: LockbookApi {
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
-        let resultMeta: Optional<FileMetadata> = deserialize(jsonStr: resultString)
+        let resultMeta: Optional<FileMetadata> = try? deserialize(jsonStr: resultString).get()
         return resultMeta
     }
     
@@ -118,7 +117,7 @@ struct CoreApi: LockbookApi {
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
         
-        let resultFile: Optional<DecryptedValue> = deserialize(jsonStr: resultString)
+        let resultFile: Optional<DecryptedValue> = try? deserialize(jsonStr: resultString).get()
         return resultFile
     }
     
@@ -173,8 +172,8 @@ struct FakeApi: LockbookApi {
         return fakeMetadatas.shuffled(using: &rander)
     }
     
-    func calculateWork() -> [String] {
-        return []
+    func calculateWork() -> Result<[WorkUnit], GeneralError> {
+        return Result.failure(GeneralError.init(message: "Fake api can't calculate work bub.", type: .Error))
     }
     
     func getRoot() -> UUID {
