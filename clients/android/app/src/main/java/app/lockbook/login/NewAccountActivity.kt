@@ -41,20 +41,24 @@ class NewAccountActivity : AppCompatActivity() {
                         finishAffinity()
                     }
                     usernameTaken -> username.error = "Username Taken!"
-                    networkError -> Toast.makeText(
-                        applicationContext,
-                        "Network Unavailable",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    else -> Toast.makeText(
-                        applicationContext,
-                        "Unexpected error occured, please create a bug report (activity_settings)",
-                        Toast.LENGTH_LONG
-                    ).show()
-
+                    networkError -> withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            applicationContext,
+                            "Network Unavailable",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    else -> withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            applicationContext,
+                            "Unexpected error occured, please create a bug report (activity_settings)",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
+
+
             }
         }
-
     }
 }
