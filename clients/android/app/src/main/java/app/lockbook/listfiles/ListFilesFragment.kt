@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -25,7 +26,7 @@ class ListFilesFragment: Fragment() {
 
         val application = requireNotNull(this.activity).application
 
-        val listFilesViewModelFactory = ListFilesViewModelFactory(application.filesDir)
+        val listFilesViewModelFactory = ListFilesViewModelFactory(application.filesDir.absolutePath)
         val listFilesViewModel: ListFilesViewModel = ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
 
         binding.listFilesViewModel = listFilesViewModel
@@ -43,7 +44,6 @@ class ListFilesFragment: Fragment() {
                 adapter.filesFolders = it
             }
         })
-
 
         return binding.root
     }

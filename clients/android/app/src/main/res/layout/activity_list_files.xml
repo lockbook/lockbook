@@ -8,11 +8,11 @@
     android:paddingHorizontal="25dp"
     tools:context=".WelcomeActivity">
 
-
     <fragment
+        android:name="app.lockbook.listfiles.ListFilesFragment"
+        android:id="@+id/files_folders_fragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:name="app.lockbook.listfiles.ListFilesFragment"
         tools:layout="@layout/fragment_list_files" />
 
 </LinearLayout>

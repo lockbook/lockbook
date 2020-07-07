@@ -1,40 +1,31 @@
 package app.lockbook
 
 import com.beust.klaxon.Json
-import java.security.interfaces.RSAPublicKey
-import java.util.*
+import java.util.LinkedHashMap
 import kotlin.collections.HashMap
 
 data class FileMetadata(
-
-    val id: UUID,
-    @Json(name = "file_type")
-    val fileType: FileType,
-    val parent: UUID,
+    val id: String,
+    val file_type: FileType,
+    val parent: String,
     val name: String,
-    val owner: String,
+    val owner: String = "default",
     val signature: SignedValue,
-    @Json(name = "metadata_version")
-    val metadataVersion: Int,
-    @Json(name = "content_version")
-    val contentVersion: Int,
+    val metadata_version: Long,
+    val content_version: Int,
     val deleted: Boolean,
-    @Json(name = "user_access_keys")
-    val userAccessKeys: HashMap<String, UserAccessInfo>,
-    @Json(name = "folder_access_keys")
-    val folderAccessKeys: FolderAccessInfo
+    val user_access_keys: LinkedHashMap<String, UserAccessInfo>,
+    val folder_access_keys: FolderAccessInfo
 )
 
 data class SignedValue(
-    val content: String,
-    val signature: String
+    val content: String = "default",
+    val signature: String = "default"
 )
 
 data class FolderAccessInfo(
-    @Json(name = "folder_id")
-    val folderId: UUID,
-    @Json(name = "access_key")
-    val accessKey: EncryptedValueWithNonce
+    val folder_id: String,
+    val access_key: EncryptedValueWithNonce
 )
 
 data class EncryptedValueWithNonce(
@@ -48,10 +39,8 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    @Json(name = "public_key")
-    val publicKey: RSAPublicKey,
-    @Json(name = "access_key")
-    val accessKey: EncryptedValue
+    val public_key: String = "default",
+    val access_key: EncryptedValue
 )
 
 data class EncryptedValue(
