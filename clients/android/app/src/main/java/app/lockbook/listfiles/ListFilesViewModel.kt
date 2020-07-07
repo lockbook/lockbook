@@ -1,7 +1,5 @@
 package app.lockbook.listfiles
 
-import android.util.Log
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.FileMetadata
@@ -9,7 +7,6 @@ import app.lockbook.core.getChildren
 import app.lockbook.core.getRoot
 import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
-import java.io.File
 
 class ListFilesViewModel(var path: String) : ViewModel() {
 
@@ -17,8 +14,6 @@ class ListFilesViewModel(var path: String) : ViewModel() {
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
     private val json = Klaxon()
     val filesFolders = MutableLiveData<List<FileMetadata>>()
-
-
 
     fun getRootMetadata() {
         uiScope.launch {
