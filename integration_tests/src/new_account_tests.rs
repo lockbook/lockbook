@@ -14,7 +14,7 @@ mod new_account_tests {
         let folder_id = Uuid::new_v4();
         let folder_key = AesImpl::generate_key();
 
-        ClientImpl::new_account(
+        assert_matches!(ClientImpl::new_account(
             &api_loc(),
             &account.username,
             &sign(&account),
@@ -25,6 +25,6 @@ mod new_account_tests {
                 access_key: aes(&folder_key, &folder_key),
             },
             rsa(&account.keys.to_public_key(), &folder_key)
-        ).unwrap();
+        ), Ok(_));
     }
 }
