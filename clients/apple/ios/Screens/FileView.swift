@@ -9,10 +9,10 @@
 import SwiftUI
 
 struct FileView: View {
+    @ObservedObject var coordinator: Coordinator
     let metadata: FileMetadata
     @State var content: String
     @State private var showingAlert = false
-    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -45,6 +45,7 @@ struct FileView: View {
     }
     
     init(coordinator: Coordinator, metadata: FileMetadata) {
+        self.coordinator = coordinator
         self.metadata = metadata
         if let file = coordinator.getFile(meta: metadata) {
             self._content = State.init(initialValue: file.secret)
@@ -58,7 +59,7 @@ struct FileView: View {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            FileView(coordinator: Coordinator(), metadata: FakeApi().fileMetas.first!).environmentObject(Coordinator())
+            FileView(coordinator: Coordinator(), metadata: FakeApi().fileMetas.first!)
         }
     }
 }

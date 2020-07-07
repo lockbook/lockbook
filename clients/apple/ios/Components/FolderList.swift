@@ -14,7 +14,7 @@ struct FolderList: View {
     var dirName: String
     
     var body: some View {
-        let files = self.coordinator.listFiles(dirId: dirId).sorted(by: { (a, b) -> Bool in
+        let files = self.coordinator.files.sorted(by: { (a, b) -> Bool in
             a.name < b.name
         })
         
@@ -23,7 +23,7 @@ struct FolderList: View {
                 if (file.fileType == .Folder) {
                     FolderRow(coordinator: self.coordinator, metadata: file)
                 } else {
-                    DocumentRow(metadata: file)
+                    DocumentRow(coordinator: self.coordinator, metadata: file)
                 }
             }
             .onDelete { offset in
@@ -34,7 +34,7 @@ struct FolderList: View {
         .navigationBarTitle(dirName)
         .navigationBarItems(
             trailing: HStack {
-                NavigationLink(destination: DebugView()) {
+                NavigationLink(destination: DebugView(coordinator: self.coordinator)) {
                     Image(systemName: "circle.grid.hex")
                 }
                 NavigationLink(destination: CreateFileView(coordinator: self.coordinator)) {

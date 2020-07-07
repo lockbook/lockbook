@@ -9,10 +9,10 @@
 import SwiftUI
 
 struct DocumentRow: View {
+    @ObservedObject var coordinator: Coordinator
     var metadata: FileMetadata
     var color: Color
     var image: Image
-    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
         NavigationLink(destination: FileView(coordinator: self.coordinator, metadata: metadata)) {
@@ -40,7 +40,8 @@ struct DocumentRow: View {
         }
     }
     
-    init(metadata: FileMetadata) {
+    init(coordinator: Coordinator, metadata: FileMetadata) {
+        self.coordinator = coordinator
         self.metadata = metadata
         switch (false, false, false, metadata.deleted) {
             case (true, _, _, _):
@@ -67,10 +68,9 @@ struct FileRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             ForEach(FakeApi().fileMetas) { meta in
-                DocumentRow(metadata: meta)
+                DocumentRow(coordinator: Coordinator(), metadata: meta)
             }
         }
         .previewLayout(.fixed(width: 300, height: 50))
-        .environmentObject(Coordinator())
     }
 }

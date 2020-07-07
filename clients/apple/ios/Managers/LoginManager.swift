@@ -17,6 +17,13 @@ class LoginManager: ObservableObject {
     }
     init(lockbookApi: LockbookApi) {
         self.lockbookApi = lockbookApi
+        let result = lockbookApi.getAccount()
+        switch result {
+        case .success(let username):
+            self.account = Account(username: username)
+        case .failure(let error):
+            print("No account! \(error)")
+        }
     }
 
     func createAccount(username: String) -> Account? {

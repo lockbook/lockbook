@@ -10,7 +10,7 @@ import SwiftUI
 
 struct DebugView: View {
     @EnvironmentObject var debugger: Debugger
-    @EnvironmentObject var coordinator: Coordinator
+    @ObservedObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -68,7 +68,7 @@ struct DebugView: View {
 struct DebugView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            DebugView().environmentObject(Coordinator()).environmentObject(Debugger())
+            DebugView(coordinator: Coordinator()).environmentObject(Debugger())
         }
     }
 }
