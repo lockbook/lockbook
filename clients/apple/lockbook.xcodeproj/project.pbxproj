@@ -19,6 +19,7 @@
 		EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; platformFilter = ios; };
 		EA04FD4F24B26D58003CB6BF /* FolderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD4E24B26D58003CB6BF /* FolderList.swift */; };
 		EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD5024B26EF1003CB6BF /* TextEditor.swift */; };
+		EA1BFA3E24B41DDE00975851 /* accountString.txt in Resources */ = {isa = PBXBuildFile; fileRef = EA1BFA3D24B41DDE00975851 /* accountString.txt */; };
 		EA4B8AEB24B4004200DE4F3D /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */; };
 		EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
@@ -90,6 +91,7 @@
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
 		EA04FD4E24B26D58003CB6BF /* FolderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderList.swift; sourceTree = "<group>"; };
 		EA04FD5024B26EF1003CB6BF /* TextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEditor.swift; sourceTree = "<group>"; };
+		EA1BFA3D24B41DDE00975851 /* accountString.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = accountString.txt; sourceTree = "<group>"; };
 		EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
 		EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 				EAA71C1224B361F40003BDEC /* iosTests.swift */,
 				EAA71C1424B361F40003BDEC /* Info.plist */,
 				EAA71C1824B363660003BDEC /* workUnits.json */,
+				EA1BFA3D24B41DDE00975851 /* accountString.txt */,
 			);
 			path = iosTests;
 			sourceTree = "<group>";
@@ -503,6 +506,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EAA71C1924B363660003BDEC /* workUnits.json in Resources */,
+				EA1BFA3E24B41DDE00975851 /* accountString.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
