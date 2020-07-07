@@ -1,5 +1,6 @@
 package app.lockbook.listfiles
 
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -10,15 +11,14 @@ import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
 import java.io.File
 
-class ListFilesViewModel(var path: File) : ViewModel() {
+class ListFilesViewModel(var path: String) : ViewModel() {
 
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
-    private val _filesFolders = MutableLiveData<List<FileMetadata>>()
     private val json = Klaxon()
+    val filesFolders = MutableLiveData<List<FileMetadata>>()
 
-    val filesFolders: LiveData<List<FileMetadata>>
-        get() = _filesFolders
+
 
     fun getRootMetadata() {
         uiScope.launch {
@@ -28,13 +28,14 @@ class ListFilesViewModel(var path: File) : ViewModel() {
 
     private suspend fun getRoot() {
         withContext(Dispatchers.IO) {
-            val maybeRootSerialized = getRoot(path.absolutePath)
+            val maybeRootSerialized = getRoot(path)
             print("Root Data: $maybeRootSerialized")
             val root: FileMetadata? = json.parse(maybeRootSerialized)
             if(root == null) {
-                _filesFolders.value = listOf()
+                filesFolders.postValue(listOf())
             } else {
-                _filesFolders.value = listOf(root)
+
+                filesFolders.postValue(listOf(root))
             }
         }
     }
@@ -47,13 +48,13 @@ class ListFilesViewModel(var path: File) : ViewModel() {
 
     private suspend fun getChildren(parentUuid: String) {
         withContext(Dispatchers.IO) {
-            val childrenSerialized = getChildren(path.absolutePath, parentUuid)
+            val childrenSerialized = getChildren(path, parentUuid)
             print("Children Data: $childrenSerialized")
             val children: List<FileMetadata>? = json.parse(childrenSerialized)
             if(children == null) {
-                _filesFolders.value = listOf()
+                filesFolders.postValue(listOf())
             } else {
-                _filesFolders.value = children
+                filesFolders.postValue(children)
             }
         }
     }
@@ -74,9 +75,5 @@ class ListFilesViewModel(var path: File) : ViewModel() {
 //            }
 //        }
 //    }
-
-    init {
-        getRootMetadata()
-    }
 
 }

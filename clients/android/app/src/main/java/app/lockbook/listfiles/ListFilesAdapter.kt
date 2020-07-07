@@ -3,9 +3,12 @@ package app.lockbook.listfiles
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.FileMetadata
+import app.lockbook.FileType
 import app.lockbook.R
+import kotlinx.android.synthetic.main.recyclerview_content_list_files.view.*
 
 class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolder>() {
 
@@ -15,13 +18,13 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
             notifyDataSetChanged()
         }
 
-    inner class ListFilesViewHolder(val textView: TextView): RecyclerView.ViewHolder(textView) {
+    inner class ListFilesViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
         lateinit var fileMetadata: FileMetadata
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val view = layoutInflater.inflate(R.layout.recyclerview_content_list_files, parent, false) as TextView
+        val view = layoutInflater.inflate(R.layout.recyclerview_content_list_files, parent, false) as CardView
 
         return ListFilesViewHolder(view)
     }
@@ -32,6 +35,12 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
         val item = filesFolders[position]
 
         holder.fileMetadata = item
-        holder.textView.text = item.name
+        holder.cardView.file_folder_name.text = item.name
+        holder.cardView.file_folder_description.text = item.id
+        if(item.file_type == FileType.Document) {
+            holder.cardView.file_folder_icon.setImageResource(R.drawable.ic_file_24)
+        } else {
+            holder.cardView.file_folder_icon.setImageResource(R.drawable.ic_folder_24)
+        }
     }
 }
