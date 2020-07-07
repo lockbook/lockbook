@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
+use crate::API_LOC;
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
@@ -93,6 +94,7 @@ impl<
         let auth = Auth::generate_auth(&account).map_err(AccountCreationError::AuthGenFailure)?;
 
         file_metadata.metadata_version = ApiClient::new_account(
+            API_LOC,
             &account.username,
             &auth,
             account.keys.to_public_key(),
