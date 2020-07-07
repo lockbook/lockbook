@@ -84,5 +84,9 @@ mod account_tests {
         assert!(DefaultFileMetadataRepo::get_root(&db2).unwrap().is_some());
         let home_folders2 = DefaultFileMetadataRepo::get_root(&db2).unwrap().unwrap();
         assert_eq!(home_folders1, home_folders2);
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
     }
 }

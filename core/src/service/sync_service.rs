@@ -11,10 +11,8 @@ use crate::model::api::{
     DeleteFolderError, MoveDocumentError, MoveFolderError, RenameDocumentError, RenameFolderError,
 };
 use crate::model::crypto::SignedValue;
-
-use crate::model::file_metadata::FileType::Document;
-
 use crate::model::file_metadata::FileMetadata;
+use crate::model::file_metadata::FileType::Document;
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
@@ -56,7 +54,8 @@ pub enum WorkExecutionError {
     DocumentChangeError(client::Error<ChangeDocumentContentError>),
     DocumentDeleteError(client::Error<DeleteDocumentError>),
     FolderDeleteError(client::Error<DeleteFolderError>),
-    SaveDocumentError(document_repo::Error), // TODO make more general
+    SaveDocumentError(document_repo::Error),
+    // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
 }
 
@@ -326,7 +325,6 @@ impl<
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
-
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::create_document(
@@ -336,13 +334,12 @@ impl<
                             &metadata.name,
                             metadata.parent,
                             content.content,
-                            metadata.folder_access_keys.clone()
+                            metadata.folder_access_keys.clone(),
                         )
                             .map_err(DocumentCreateError)?;
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
-
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
@@ -354,11 +351,12 @@ impl<
                             metadata.id,
                             &metadata.name,
                             metadata.parent,
-                            metadata.folder_access_keys.clone()
+                            metadata.folder_access_keys.clone(),
                         )
                             .map_err(FolderCreateError)?;
 
                         metadata.metadata_version = version;
+                        metadata.content_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
@@ -367,14 +365,12 @@ impl<
                 } else if !local_change.deleted { // not new and not deleted
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
-                            let version = ApiClient::rename_document(
+                            ApiClient::rename_document(
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 &metadata.name)
-                                .map_err(DocumentRenameError)?;
-                            metadata.content_version = version;
-                            version
+                                .map_err(DocumentRenameError)?
                         } else {
                             ApiClient::rename_folder(
                                 &account.username,
@@ -383,6 +379,7 @@ impl<
                                 &metadata.name)
                                 .map_err(FolderRenameError)?
                         };
+                        metadata.content_version = version;
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
@@ -391,23 +388,23 @@ impl<
 
                     if local_change.moved.is_some() {
                         let version = if metadata.file_type == Document {
-                            let version = ApiClient::move_document(
+                            ApiClient::move_document(
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
-                                metadata.parent
-                            ).map_err(DocumentMoveError)?;
-                            metadata.content_version = version;
-                            version
+                                metadata.parent,
+                            ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
-                                metadata.parent
+                                metadata.parent,
                             ).map_err(FolderMoveError)?
                         };
+
                         metadata.metadata_version = version;
+                        metadata.content_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
@@ -416,10 +413,10 @@ impl<
                     if local_change.content_edited && metadata.file_type == Document {
                         let version = ApiClient::change_document_content(
                             &account.username,
-                            &SignedValue{ content: "".to_string(), signature: "".to_string() },
+                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             metadata.content_version,
-                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content
+                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
                         ).map_err(DocumentChangeError)?;
 
                         metadata.content_version = version;
@@ -434,7 +431,7 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.metadata_version
+                            metadata.metadata_version,
                         ).map_err(DocumentDeleteError)?;
 
                         FileMetadataDb::actually_delete(&db, metadata.id)
@@ -447,7 +444,7 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.metadata_version
+                            metadata.metadata_version,
                         ).map_err(FolderDeleteError)?;
 
                         FileMetadataDb::actually_delete(&db, metadata.id)
