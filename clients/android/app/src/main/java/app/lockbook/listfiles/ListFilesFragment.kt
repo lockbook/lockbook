@@ -44,6 +44,8 @@ class ListFilesFragment: Fragment() {
             }
         })
 
+        listFilesViewModel.getRootMetadata()
+
         return binding.root
     }
 }
