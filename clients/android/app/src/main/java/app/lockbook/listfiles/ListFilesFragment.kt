@@ -19,7 +19,6 @@ class ListFilesFragment: Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-
         val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
             inflater, R.layout.fragment_list_files, container, false
         )
