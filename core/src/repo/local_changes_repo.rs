@@ -450,7 +450,6 @@ mod unit_tests {
             4
         );
 
-
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
             Some(LocalChange {
