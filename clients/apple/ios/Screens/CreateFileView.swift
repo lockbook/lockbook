@@ -11,7 +11,7 @@ import SwiftUI
 struct CreateFileView: View {
     @State private var fileName: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var coordinator: Coordinator
+    @ObservedObject var coordinator: Coordinator
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
 
     var body: some View {
@@ -40,6 +40,6 @@ struct CreateFileView: View {
 
 struct CreateFileView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateFileView()
+        CreateFileView(coordinator: Coordinator())
     }
 }
