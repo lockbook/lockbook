@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use sled::Db;
+use uuid::Uuid;
 
 use crate::client;
 use crate::client::Client;
@@ -15,11 +17,11 @@ use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::Document;
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
+use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
-use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
@@ -63,7 +65,7 @@ pub enum WorkExecutionError {
 pub enum SyncError {
     AccountRetrievalError(account_repo::Error),
     CalculateWorkError(CalculateWorkError),
-    WorkExecutionError(Vec<WorkExecutionError>),
+    WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
     MetadataUpdateError(file_metadata_repo::Error),
 }
 
@@ -105,14 +107,14 @@ pub struct FileSyncService<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
-        ChangeDb: LocalChangesRepo,
-        DocsDb: DocumentRepo,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        Auth: AuthService,
-    > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
+    FileMetadataDb: FileMetadataRepo,
+    ChangeDb: LocalChangesRepo,
+    DocsDb: DocumentRepo,
+    AccountDb: AccountRepo,
+    ApiClient: Client,
+    Auth: AuthService,
+> SyncService
+for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -129,7 +131,7 @@ impl<
             },
             last_sync,
         )
-        .map_err(GetUpdatesError)?;
+            .map_err(GetUpdatesError)?;
         debug!("Server Updates: {:#?}", server_updates);
 
         let mut most_recent_update_from_server: u64 = last_sync;
@@ -459,9 +461,14 @@ impl<
     }
 
     fn sync(db: &Db) -> Result<(), SyncError> {
-        let mut sync_errors = vec![];
+        // If you create a/b/c/file.txt and sync, if it syncs out of order this could cause errors
+        // This isn't an issue as we have a retry policy built in, taking the approach that sync shall
+        // eventually succeed. But there may be genuine errors (renamed to an invalid name) that aren't
+        // simply retryable. Keep track of every error for every file and there's only a problem if we
+        // were never able to sync a file.
+        let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
-        for _ in 0..10 {
+        for _ in 0..10 { // Retry sync n times
             info!("Syncing");
             let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
             let work_calculated =
@@ -471,25 +478,28 @@ impl<
 
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
-                FileMetadataDb::set_last_updated(
-                    &db,
-                    work_calculated.most_recent_update_from_server,
-                )
-                .map_err(SyncError::MetadataUpdateError)?;
                 if sync_errors.is_empty() {
-                    return Ok(())
+                    FileMetadataDb::set_last_updated(
+                        &db,
+                        work_calculated.most_recent_update_from_server,
+                    )
+                        .map_err(SyncError::MetadataUpdateError)?;
+                    return Ok(());
                 } else {
-                    error!("RETURNING ERROR");
-                    return Err(SyncError::WorkExecutionError(sync_errors))
+                    error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
+                    return Err(SyncError::WorkExecutionError(sync_errors));
                 }
             }
 
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
-                    Ok(_) => debug!("{:#?} executed successfully", work_unit),
+                    Ok(_) => {
+                        sync_errors.remove(&work_unit.get_metadata().id);
+                        debug!("{:#?} executed successfully", work_unit)
+                    }
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
-                        sync_errors.push(err);
+                        sync_errors.insert(work_unit.get_metadata().id, err);
                     }
                 }
             }
@@ -498,7 +508,6 @@ impl<
         if sync_errors.is_empty() {
             Ok(())
         } else {
-            error!("RETURNING ERROR");
             Err(SyncError::WorkExecutionError(sync_errors))
         }
     }
