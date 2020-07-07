@@ -100,7 +100,12 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("")).unwrap();
+        DefaultFileService::write_document(
+            &db,
+            file.id,
+            &DecryptedValue::from("meaningful messages"),
+        )
+        .unwrap();
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -131,6 +136,45 @@ mod sync_tests {
                 .work_units
                 .len(),
             0
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            1
+        );
+
+        let edited_file = DefaultFileMetadataRepo::get(&db, file.id).unwrap();
+
+        match DefaultSyncService::calculate_work(&db2)
+            .unwrap()
+            .work_units
+            .get(0)
+            .unwrap()
+            .clone()
+        {
+            WorkUnit::ServerChange { metadata } => assert_eq!(metadata, edited_file),
+            WorkUnit::LocalChange { .. } => {
+                panic!("This should have been a ServerChange with no LocalChange!")
+            }
+        };
+
+        DefaultSyncService::sync(&db2).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+
+        assert_eq!(
+            DefaultFileService::read_document(&db2, edited_file.id)
+                .unwrap()
+                .secret,
+            "meaningful messages".to_string()
         );
     }
 }
