@@ -28,20 +28,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Initialize env_logger
         init_logger()
         // Create the Lockbook Core Api with the path all our business happens
-        print(documentsDirectory)
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
-        let coordinator = Coordinator(lockbookApi: lockbookApi)
-        let debugger = Debugger(lockbookApi: lockbookApi)
-        
+        let loginManager = LoginManager(lockbookApi: lockbookApi)
         // Use a UIHostingController as window root view controller.
-        let controllerView = ControllerView().environmentObject(coordinator).environmentObject(debugger)
+        let controllerView = ControllerView(loginManager: loginManager)
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
-            if let _ = lockbookApi.getAccount() {
-                coordinator.currentView = .fileBrowserView
-            } else {
-                coordinator.currentView = .welcomeView
-            }
             window.rootViewController = UIHostingController(rootView: controllerView)
             self.window = window
             window.makeKeyAndVisible()

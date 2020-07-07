@@ -10,7 +10,8 @@ import XCTest
 @testable import Lockbook
 
 class CoreApiTests: XCTestCase {
-    var core = CoreApi(documentsDirectory: "/Users/raayanpillai/.lockbook")
+//    let core = CoreApi(documentsDirectory: FileManager.default.temporaryDirectory.absoluteString)
+    let core = CoreApi(documentsDirectory: "/Users/raayanpillai/.lockbook")
     
     override class func setUp() {
         // Start logger

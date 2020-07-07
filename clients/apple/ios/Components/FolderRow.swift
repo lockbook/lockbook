@@ -9,11 +9,11 @@
 import SwiftUI
 
 struct FolderRow: View {
+    @ObservedObject var coordinator: Coordinator
     var metadata: FileMetadata
-    @EnvironmentObject var coordinator: Coordinator
 
     var body: some View {
-        NavigationLink(destination: FolderList(dirId: metadata.id, dirName: metadata.name)) {
+        NavigationLink(destination: FolderList(coordinator: self.coordinator, dirId: metadata.id, dirName: metadata.name)) {
             HStack {
                 Image(systemName: "folder")
                     .foregroundColor(.blue)
@@ -39,8 +39,8 @@ struct FolderRow: View {
 struct FolderRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ForEach(FakeApi().sync()) { meta in
-                FolderRow(metadata: meta)
+            ForEach(FakeApi().fileMetas) { meta in
+                FolderRow(coordinator: Coordinator(), metadata: meta)
             }
         }
         .previewLayout(.fixed(width: 300, height: 50))
