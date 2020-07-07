@@ -241,15 +241,13 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 edit.content_edited = false;
 
                 if edit.ready_to_be_deleted() {
-                    println!("Ready to be deleted!");
                     Self::delete_if_exists(&db, edit.id)?
                 } else {
-                tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                )
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                    )
                     .map_err(DbError::SledError)?;
-
                 }
 
                 Ok(())
@@ -398,12 +396,6 @@ mod unit_tests {
             })
         );
 
-        LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
-            None
-        );
-
         let id5 = Uuid::new_v4();
         LocalChangesRepoImpl::track_delete(&db, id).unwrap();
         LocalChangesRepoImpl::track_delete(&db, id5).unwrap();
@@ -435,6 +427,40 @@ mod unit_tests {
                 .unwrap()
                 .len(),
             5
+        );
+
+        LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
+            None
+        );
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            4
+        );
+
+        LocalChangesRepoImpl::untrack_edit(&db, id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            4
+        );
+
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: Some(Renamed::from("old_file")),
+                moved: Some(Moved::from(id2)),
+                new: true,
+                content_edited: false,
+                deleted: true,
+            })
         );
     }
 }
