@@ -58,7 +58,7 @@ struct FileView: View {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            FileView(coordinator: Coordinator(), metadata: FakeApi().fakeMetadatas.first!).environmentObject(Coordinator())
+            FileView(coordinator: Coordinator(), metadata: FakeApi().fileMetas.first!).environmentObject(Coordinator())
         }
     }
 }

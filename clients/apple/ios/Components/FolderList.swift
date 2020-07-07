@@ -9,19 +9,19 @@
 import SwiftUI
 
 struct FolderList: View {
+    @ObservedObject var coordinator: Coordinator
     var dirId: UUID
     var dirName: String
-    @EnvironmentObject var coordinator: Coordinator
     
     var body: some View {
-        let files = coordinator.listFiles(dirId: dirId).sorted(by: { (a, b) -> Bool in
+        let files = self.coordinator.listFiles(dirId: dirId).sorted(by: { (a, b) -> Bool in
             a.name < b.name
         })
         
         return List {
             ForEach(files){ file in
                 if (file.fileType == .Folder) {
-                    FolderRow(metadata: file)
+                    FolderRow(coordinator: self.coordinator, metadata: file)
                 } else {
                     DocumentRow(metadata: file)
                 }
@@ -34,10 +34,10 @@ struct FolderList: View {
         .navigationBarTitle(dirName)
         .navigationBarItems(
             trailing: HStack {
-                NavigationLink(destination: DebugView().environmentObject(coordinator)) {
+                NavigationLink(destination: DebugView()) {
                     Image(systemName: "circle.grid.hex")
                 }
-                NavigationLink(destination: CreateFileView()) {
+                NavigationLink(destination: CreateFileView(coordinator: self.coordinator)) {
                     Image(systemName: "plus")
                 }
             }
@@ -47,7 +47,7 @@ struct FolderList: View {
 
 struct FolderView_Previews: PreviewProvider {
     static var previews: some View {
-        FolderList(dirId: UUID.init(), dirName: "root").environmentObject(Coordinator())
+        FolderList(coordinator: Coordinator(), dirId: UUID.init(), dirName: "root")
             .previewLayout(.sizeThatFits)
     }
 }

@@ -27,7 +27,7 @@ struct DebugView: View {
                 .foregroundColor(.green)
             }
             Button(action: {
-                if let username = self.debugger.lockbookApi.getAccount() {
+                if let username = try? self.debugger.lockbookApi.getAccount().get() {
                     print("Username \(username)")
                 } else {
                     print("Couldn't get username!")
@@ -39,18 +39,16 @@ struct DebugView: View {
                     Image(systemName: "person.circle")
                 }
             }
-            Button(action: {
-                print("Purging and syncing files in localdb...")
-                let _ = self.debugger.lockbookApi.purgeLocal()
-                self.coordinator.sync()
-            }) {
-                HStack {
-                    Image(systemName: "trash")
-                    Text("Purge Local")
-                    Image(systemName: "trash")
-                }
-                .foregroundColor(.red)
-            }
+//            Button(action: {
+//                print("Purging and syncing files in localdb...")
+//            }) {
+//                HStack {
+//                    Image(systemName: "trash")
+//                    Text("Purge Local")
+//                    Image(systemName: "trash")
+//                }
+//                .foregroundColor(.red)
+//            }
             Button(action: {
                 let _ = self.debugger.lockbookApi.calculateWork()
             }) {
