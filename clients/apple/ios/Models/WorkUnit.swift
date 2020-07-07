@@ -8,32 +8,38 @@
 
 import Foundation
 
-enum WorkUnit: Decodable {
-    enum CodingKeys: String, CodingKey {
-        case localChange
-        case serverChange
-    }
-    
-    enum Metakeys: String, CodingKey {
-        case metadata
+enum WorkUnit {
+    case Local(Content)
+    case Server(Content)
+}
+
+extension WorkUnit: Decodable {
+    private enum CodingKeys: CodingKey {
+        case content
+        case tag
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = try container.decode(WorkType.self, forKey: .tag)
+        let content = try container.decode(Content.self, forKey: .content)
         
-        if container.contains(.localChange) {
-            let local = try container.nestedContainer(keyedBy: Metakeys.self, forKey: .localChange)
-            let meta = try local.decode(FileMetadata.self, forKey: .metadata)
-            self = .LocalChange(metadata: meta)
-            return
+        switch tag {
+        case .LocalChange:
+            self = WorkUnit.Local(content)
+        case .ServerChange:
+            self = WorkUnit.Server(content)
         }
-    
-        let server = try container.nestedContainer(keyedBy: Metakeys.self, forKey: .serverChange)
-        let meta = try server.decode(FileMetadata.self, forKey: .metadata)
-        self = .ServerChange(metadata: meta)
-        return
     }
-    
-    case LocalChange(metadata: FileMetadata)
-    case ServerChange(metadata: FileMetadata)
 }
+
+struct Content: Decodable {
+    var metadata: FileMetadata
+}
+
+enum WorkType: String, Decodable {
+    case LocalChange
+    case ServerChange
+}
+
+
