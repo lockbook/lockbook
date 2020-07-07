@@ -48,7 +48,7 @@ struct CoreApi: LockbookApi {
     }
     
     func importAccount(accountString: String) -> CoreResult<Account> {
-        return fromPrimitiveResult(result: import_account(documentsDirectory, accountString))
+        return fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     
     func synchronize() -> CoreResult<Bool> {

@@ -29,7 +29,7 @@ class CoreApiTests: XCTestCase {
             return XCTFail("Could not load Account String")
         }
         
-        let result = CoreApiTests.core.importAccount(accountString: data.trimmingCharacters(in: .whitespacesAndNewlines))
+        let result = CoreApiTests.core.importAccount(accountString: data)
         
         switch result {
         case .success(let account):
