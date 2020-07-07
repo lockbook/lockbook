@@ -233,7 +233,28 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
     }
 
     fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
-        Self::delete_if_exists(&db, id) // TODO temp
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(mut edit) => {
+                edit.content_edited = false;
+
+                if edit.ready_to_be_deleted() {
+                    println!("Ready to be deleted!");
+                    Self::delete_if_exists(&db, edit.id)?
+                } else {
+                tree.insert(
+                    id.as_bytes(),
+                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                )
+                    .map_err(DbError::SledError)?;
+
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn untrack_delete(_db: &Db, _id: Uuid) -> Result<(), DbError> {
@@ -375,6 +396,12 @@ mod unit_tests {
                 content_edited: true,
                 deleted: false,
             })
+        );
+
+        LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
+            None
         );
 
         let id5 = Uuid::new_v4();
