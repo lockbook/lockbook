@@ -272,7 +272,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFileFolder<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
@@ -311,7 +311,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile<'a>(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
@@ -340,3 +340,4 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile<'a>(
         Err(_) => failure
     }
 }
+

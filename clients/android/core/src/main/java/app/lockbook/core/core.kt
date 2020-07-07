@@ -7,6 +7,9 @@ external fun importAccount(path: String, accountString: String): Int
 external fun getRoot(path: String): String
 external fun getChildren(path: String, parentUuid: String): String
 external fun getFileMetadata(path: String, fileUuid: String): String
+external fun getFile(path: String, fileUuid: String): String
+external fun insertFileFolder(path: String, fileUuid: String, document: String): String
+external fun deleteFileFolder(path: String, fileUuid: String): String
 
 fun loadLockbookCore() {
     System.loadLibrary("lockbook_core")

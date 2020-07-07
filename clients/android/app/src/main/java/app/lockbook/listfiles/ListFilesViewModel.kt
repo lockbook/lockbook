@@ -29,7 +29,6 @@ class ListFilesViewModel(var path: String) : ViewModel() {
             if(root == null) {
                 filesFolders.postValue(listOf())
             } else {
-
                 filesFolders.postValue(listOf(root))
             }
         }
