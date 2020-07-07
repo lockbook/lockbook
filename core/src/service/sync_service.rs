@@ -476,14 +476,19 @@ impl<
                     work_calculated.most_recent_update_from_server,
                 )
                 .map_err(SyncError::MetadataUpdateError)?;
-                return Ok(());
+                if sync_errors.is_empty() {
+                    return Ok(())
+                } else {
+                    error!("RETURNING ERROR");
+                    return Err(SyncError::WorkExecutionError(sync_errors))
+                }
             }
 
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
                     Ok(_) => debug!("{:#?} executed successfully", work_unit),
                     Err(err) => {
-                        error!("{:?} failed: {:?}", work_unit, err);
+                        error!("Sync error detected: {:#?} {:#?}", work_unit, err);
                         sync_errors.push(err);
                     }
                 }
@@ -493,6 +498,7 @@ impl<
         if sync_errors.is_empty() {
             Ok(())
         } else {
+            error!("RETURNING ERROR");
             Err(SyncError::WorkExecutionError(sync_errors))
         }
     }

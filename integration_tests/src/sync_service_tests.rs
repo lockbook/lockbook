@@ -7,9 +7,7 @@ mod sync_tests {
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::{
-        DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
-    };
+    use lockbook_core::{DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService, init_logger_safely};
 
     #[test]
     fn test_create_files_and_folders_sync() {
@@ -72,8 +70,10 @@ mod sync_tests {
 
     #[test]
     fn test_edit_document_sync() {
+        init_logger_safely();
         let db = test_db();
         let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        println!("Made account");
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -82,6 +82,7 @@ mod sync_tests {
                 .len(),
             0
         );
+        println!("1st calculate work");
 
         let file = DefaultFileService::create_at_path(
             &db,
@@ -90,6 +91,7 @@ mod sync_tests {
         .unwrap();
 
         assert!(DefaultSyncService::sync(&db).is_ok());
+        println!("1st sync done");
 
         let db2 = test_db();
         DefaultAccountService::import_account(
@@ -99,6 +101,7 @@ mod sync_tests {
         .unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
+        println!("2nd sync done, db2");
 
         DefaultFileService::write_document(
             &db,
@@ -114,6 +117,7 @@ mod sync_tests {
                 .len(),
             1
         );
+        println!("2nd calculate work, db1, 1 dirty file");
 
         match DefaultSyncService::calculate_work(&db)
             .unwrap()
@@ -127,8 +131,10 @@ mod sync_tests {
                 panic!("This should have been a local change with no server changes!")
             }
         };
+        println!("3rd calculate work, db1, 1 dirty file");
 
         DefaultSyncService::sync(&db).unwrap();
+        println!("3rd sync done, db1, dirty file pushed");
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -137,6 +143,7 @@ mod sync_tests {
                 .len(),
             0
         );
+        println!("4th calculate work, db1, dirty file pushed");
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db2)
@@ -145,6 +152,7 @@ mod sync_tests {
                 .len(),
             1
         );
+        println!("5th calculate work, db2, dirty file needs to be pulled");
 
         let edited_file = DefaultFileMetadataRepo::get(&db, file.id).unwrap();
 
@@ -160,8 +168,10 @@ mod sync_tests {
                 panic!("This should have been a ServerChange with no LocalChange!")
             }
         };
+        println!("6th calculate work, db2, dirty file needs to be pulled");
 
         DefaultSyncService::sync(&db2).unwrap();
+        println!("4th sync done, db2, dirty file pulled");
         assert_eq!(
             DefaultSyncService::calculate_work(&db2)
                 .unwrap()
@@ -169,6 +179,7 @@ mod sync_tests {
                 .len(),
             0
         );
+        println!("7th calculate work ");
 
         assert_eq!(
             DefaultFileService::read_document(&db2, edited_file.id)
