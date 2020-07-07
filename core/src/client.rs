@@ -132,6 +132,7 @@ impl Client for ClientImpl {
             .map_err(Error::SendFailed)?;
         let status = response.status().as_u16();
         let response_body = response.text().map_err(Error::ReceiveFailed)?;
+        println!("MINIO RESPONSE: {} {:?}", status, &response_body);
         let encrypted_file: Document = Document {
             content: serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?,
         };
