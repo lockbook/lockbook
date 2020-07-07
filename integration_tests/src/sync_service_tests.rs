@@ -19,7 +19,7 @@ mod sync_tests {
             0
         );
 
-        let file = DefaultFileService::create_at_path(
+        DefaultFileService::create_at_path(
             &db,
             format!("{}/a/b/c/test", account.username).as_str(),
         )

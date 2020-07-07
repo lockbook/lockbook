@@ -14,6 +14,20 @@ use lockbook_core::service::crypto_service::{
 };
 use rsa::{RSAPublicKey};
 
+#[cfg(test)]
+#[macro_use]
+mod macros {
+    macro_rules! assert_matches (
+        ($actual:expr, $expected:pat) => {
+            // Only compute actual once
+            let actual_value = $actual;
+            match actual_value {
+                $expected => {},
+                _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
+            }
+        }
+    );
+}
 mod account_service_tests;
 mod sync_service_tests;
 mod new_account_tests;
