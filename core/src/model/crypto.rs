@@ -14,6 +14,14 @@ pub struct DecryptedValue {
     pub secret: String,
 }
 
+impl From<&str> for DecryptedValue {
+    fn from(s: &str) -> Self {
+        DecryptedValue {
+            secret: s.to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SignedValue {
     pub content: String,
