@@ -66,7 +66,7 @@ struct DocumentRow: View {
 struct FileRow_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            ForEach(FakeApi().sync()) { meta in
+            ForEach(FakeApi().fileMetas) { meta in
                 DocumentRow(metadata: meta)
             }
         }

@@ -9,57 +9,21 @@
 import SwiftUI
 
 struct FileBrowserView: View {
-    @EnvironmentObject var coordinator: Coordinator
+    @ObservedObject var coordinator: Coordinator
     
     var body: some View {
-        GeometryReader{ geometry in
-            NavigationView {
-                PullDownView(width: geometry.size.width, height: geometry.size.height)
-            }
+        NavigationView {
+            self.coordinator.getRoot().map {
+                FolderList(coordinator: self.coordinator, dirId: $0, dirName: "root")
+            } ?? (try? FakeApi().getRoot().map {
+                FolderList(coordinator: self.coordinator, dirId: $0.id, dirName: $0.name)
+                }.get()).unsafelyUnwrapped
         }
     }
 }
-
-struct PullDownView : UIViewRepresentable {
-    @EnvironmentObject var coordinator: Coordinator
-
-    var width : CGFloat
-    var height : CGFloat
-    
-    func makeCoordinator() -> SVCoordinator {
-        SVCoordinator(self)
-    }
-    
-    func makeUIView(context: Context) -> UIScrollView {
-        let control = UIScrollView()
-        control.refreshControl = UIRefreshControl()
-        control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
-        let childView = UIHostingController(rootView: FolderList(dirId: self.coordinator.getRoot(), dirName: "\(coordinator.username)'s Files").environmentObject(self.coordinator))
-        childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
-        
-        control.addSubview(childView.view)
-        return control
-    }
-    
-    func updateUIView(_ uiView: UIScrollView, context: Context) {
-    }
-    
-    class SVCoordinator: NSObject {
-        var control: PullDownView
-        
-        init(_ control: PullDownView) {
-            self.control = control
-        }
-        @objc func handleRefreshControl(sender: UIRefreshControl) {
-            self.control.coordinator.sync()
-            sender.endRefreshing()
-        }
-    }
-}
-
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        FileBrowserView().preferredColorScheme(.dark).environmentObject(Coordinator())
+        FileBrowserView(coordinator: Coordinator()).preferredColorScheme(.dark)
     }
 }

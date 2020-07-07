@@ -19,6 +19,7 @@
 		EA04A6042460F1AB002E42CF /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; platformFilter = ios; };
 		EA04FD4F24B26D58003CB6BF /* FolderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD4E24B26D58003CB6BF /* FolderList.swift */; };
 		EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD5024B26EF1003CB6BF /* TextEditor.swift */; };
+		EA4B8AEB24B4004200DE4F3D /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */; };
 		EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE4244CCB4E0017A402 /* Util.swift */; };
@@ -32,6 +33,9 @@
 		EAA71C0824B35E720003BDEC /* WorkUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C0724B35E720003BDEC /* WorkUnit.swift */; };
 		EAA71C1324B361F40003BDEC /* iosTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C1224B361F40003BDEC /* iosTests.swift */; };
 		EAA71C1924B363660003BDEC /* workUnits.json in Resources */ = {isa = PBXBuildFile; fileRef = EAA71C1824B363660003BDEC /* workUnits.json */; };
+		EAA71C2A24B3D0D00003BDEC /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C2924B3D0D00003BDEC /* Account.swift */; };
+		EAA71C2C24B3D2550003BDEC /* Error.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C2B24B3D2550003BDEC /* Error.swift */; };
+		EAA71C2E24B3F5DC0003BDEC /* PullDownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA71C2D24B3F5DC0003BDEC /* PullDownView.swift */; };
 		EAC93E70244267F400FFC629 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* FileBrowserView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -86,6 +90,7 @@
 		87BD617523E3C34600945B25 /* liblockbook_core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = liblockbook_core.a; path = libs/liblockbook_core.a; sourceTree = "<group>"; };
 		EA04FD4E24B26D58003CB6BF /* FolderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderList.swift; sourceTree = "<group>"; };
 		EA04FD5024B26EF1003CB6BF /* TextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEditor.swift; sourceTree = "<group>"; };
+		EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginManager.swift; sourceTree = "<group>"; };
 		EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRow.swift; sourceTree = "<group>"; };
 		EA6A0D7124437FD30072E2B3 /* ControllerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerView.swift; sourceTree = "<group>"; };
 		EA6CEBE4244CCB4E0017A402 /* Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Util.swift; sourceTree = "<group>"; };
@@ -101,6 +106,9 @@
 		EAA71C1224B361F40003BDEC /* iosTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosTests.swift; sourceTree = "<group>"; };
 		EAA71C1424B361F40003BDEC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EAA71C1824B363660003BDEC /* workUnits.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = workUnits.json; sourceTree = "<group>"; };
+		EAA71C2924B3D0D00003BDEC /* Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Account.swift; sourceTree = "<group>"; };
+		EAA71C2B24B3D2550003BDEC /* Error.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Error.swift; sourceTree = "<group>"; };
+		EAA71C2D24B3F5DC0003BDEC /* PullDownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullDownView.swift; sourceTree = "<group>"; };
 		EAAAAD4B24619A1D001856B2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = en; path = en.lproj/ios.entitlements; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
@@ -174,6 +182,7 @@
 				EA04FD4E24B26D58003CB6BF /* FolderList.swift */,
 				EA04FD5024B26EF1003CB6BF /* TextEditor.swift */,
 				EAA71C0524B27A560003BDEC /* ProgressWidget.swift */,
+				EAA71C2D24B3F5DC0003BDEC /* PullDownView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -181,7 +190,6 @@
 		8733C24023F0EA78000681E0 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
 				87BD616423E3B9CB00945B25 /* WelcomeView.swift */,
 				8733C24123F0EAE9000681E0 /* CreateAccountView.swift */,
 				EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */,
@@ -223,12 +231,12 @@
 			children = (
 				EAAAAD4C24619A1D001856B2 /* ios.entitlements */,
 				EAC93E762442896900FFC629 /* Apis */,
+				EA4B8AE924B3FE7800DE4F3D /* Managers */,
 				EAC93E712442810600FFC629 /* Models */,
 				8733C24023F0EA78000681E0 /* Screens */,
 				8733C23B23F0D300000681E0 /* Components */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
-				EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */,
 				EA6CEBEC244D0E7B0017A402 /* Debugger.swift */,
 				87BD616623E3B9CB00945B25 /* Assets.xcassets */,
 				87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */,
@@ -254,6 +262,16 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		EA4B8AE924B3FE7800DE4F3D /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
+				EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */,
+				EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
 		EAA71C1124B361F40003BDEC /* iosTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -267,6 +285,8 @@
 		EAC93E712442810600FFC629 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				EAA71C2B24B3D2550003BDEC /* Error.swift */,
+				EAA71C2924B3D0D00003BDEC /* Account.swift */,
 				EAC93E722442811C00FFC629 /* FileMetadata.swift */,
 				EAA71C0724B35E720003BDEC /* WorkUnit.swift */,
 				EAF7E1882446887600E4C8AC /* File.swift */,
@@ -526,6 +546,7 @@
 				8733C24223F0EAE9000681E0 /* CreateAccountView.swift in Sources */,
 				8733C23D23F0D418000681E0 /* MonokaiButton.swift in Sources */,
 				EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */,
+				EA4B8AEB24B4004200DE4F3D /* LoginManager.swift in Sources */,
 				EA6CEBED244D0E7B0017A402 /* Debugger.swift in Sources */,
 				EAF7E10D244559AD00E4C8AC /* CreateFileView.swift in Sources */,
 				EA04FD4F24B26D58003CB6BF /* FolderList.swift in Sources */,
@@ -533,10 +554,13 @@
 				EA6CEBE5244CCB4E0017A402 /* Util.swift in Sources */,
 				87BD616123E3B9CB00945B25 /* AppDelegate.swift in Sources */,
 				EA6CEBE9244CFB2C0017A402 /* Coordinator.swift in Sources */,
+				EAA71C2C24B3D2550003BDEC /* Error.swift in Sources */,
 				87BD616323E3B9CB00945B25 /* SceneDelegate.swift in Sources */,
 				EA6CEBEB244D0C580017A402 /* DebugView.swift in Sources */,
+				EAA71C2E24B3F5DC0003BDEC /* PullDownView.swift in Sources */,
 				EAA65C7E24B23FB9004C29EF /* FolderRow.swift in Sources */,
 				EAF7E1892446887600E4C8AC /* File.swift in Sources */,
+				EAA71C2A24B3D0D00003BDEC /* Account.swift in Sources */,
 				EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */,
 				EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */,
 				87BD616523E3B9CB00945B25 /* WelcomeView.swift in Sources */,

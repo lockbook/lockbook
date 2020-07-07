@@ -9,8 +9,8 @@
 import SwiftUI
 
 struct ProgressWidget: View {
+    @ObservedObject var coordinator: Coordinator
     var height: CGFloat = 5
-    @EnvironmentObject var coordinator: Coordinator
     
     var body: some View {
         return GeometryReader { geometry in
@@ -38,8 +38,7 @@ struct ProgressWidget: View {
 
 struct ProgressWidget_Previews: PreviewProvider {
     static var previews: some View {
-        ProgressWidget()
-            .environmentObject(Coordinator())
+        ProgressWidget(coordinator: Coordinator())
             .previewLayout(.fixed(width: 300, height: 50))
     }
 }

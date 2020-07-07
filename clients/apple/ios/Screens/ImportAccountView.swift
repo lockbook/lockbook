@@ -11,7 +11,7 @@ import SwiftUI
 struct ImportAccountView: View {
     @State private var accountString: String = ""
     @State private var showingAlert = false
-    @EnvironmentObject var coordinator: Coordinator
+    @ObservedObject var loginManager: LoginManager
 
     var body: some View {
         VStack {
@@ -24,13 +24,8 @@ struct ImportAccountView: View {
            
             MonokaiButton(text: "Load Account")
                 .onTapGesture {
-                    if (self.coordinator.importAccount(accountString: self.accountString)) {
-                        self.coordinator.sync()
-                        self.coordinator.currentView = .fileBrowserView
-                    } else {
-                        self.showingAlert = true
-                    }
-            }
+                    self.loginManager.importAccount(accountString: self.accountString)
+                }
         }
         .alert(isPresented: $showingAlert) {
             Alert(title: Text("Failed to import account!"))
@@ -40,6 +35,6 @@ struct ImportAccountView: View {
 
 struct ImportAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        ImportAccountView().environmentObject(Coordinator(lockbookApi: FakeApi()))
+        ImportAccountView(loginManager: LoginManager()).environmentObject(Coordinator())
     }
 }

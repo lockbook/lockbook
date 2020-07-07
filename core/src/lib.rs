@@ -121,8 +121,10 @@ enum Error {
     Db(repo::db_provider::Error),
     Metas(repo::file_metadata_repo::DbError),
     Uuid(uuid::Error),
-    Calculation(service::sync_service::CalculateWorkError),
+    Json(serde_json::Error),
     Sync(service::sync_service::SyncError),
+    Calculation(service::sync_service::CalculateWorkError),
+    Execution(service::sync_service::WorkExecutionError),
     AccountCreate(service::account_service::AccountCreationError),
     AccountRetrieve(repo::account_repo::Error),
     AccountImport(service::account_service::AccountImportError),
@@ -214,9 +216,11 @@ pub unsafe extern "C" fn import_account(
 
 #[no_mangle]
 pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<(), Error> {
+    unsafe fn inner(path: String) -> Result<bool, Error> {
         let db = connect(path)?;
-        DefaultSyncService::sync(&db).map_err(Error::Sync)
+        DefaultSyncService::sync(&db)
+            .map_err(Error::Sync)
+            .map(|_| true)
     }
     ResultWrapper::from(inner(from_ptr(c_path)))
 }
@@ -229,6 +233,22 @@ pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper 
         Ok(work.work_units)
     }
     ResultWrapper::from(inner(from_ptr(c_path)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn execute_work(
+    c_path: *const c_char,
+    c_work_unit: *const c_char,
+) -> ResultWrapper {
+    unsafe fn inner(path: String, work_str: String) -> Result<bool, Error> {
+        let db = connect(path)?;
+        let work: WorkUnit = serde_json::from_str(&work_str).map_err(Error::Json)?;
+        let account = DefaultAccountRepo::get_account(&db).map_err(Error::AccountRetrieve)?;
+        DefaultSyncService::execute_work(&db, &account, work)
+            .map_err(Error::Execution)
+            .map(|_| true)
+    }
+    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_work_unit)))
 }
 
 /// Directory
@@ -302,13 +322,15 @@ pub unsafe extern "C" fn update_file(
     c_file_id: *const c_char,
     c_file_content: *const c_char,
 ) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String, file_content: String) -> Result<(), Error> {
+    unsafe fn inner(path: String, file_id: String, file_content: String) -> Result<bool, Error> {
         let db = connect(path)?;
         let file_uuid = Uuid::parse_str(file_id.as_str())?;
         let value = &DecryptedValue {
             secret: file_content,
         };
-        DefaultFileService::write_document(&db, file_uuid, value).map_err(Error::FileUpdate)
+        DefaultFileService::write_document(&db, file_uuid, value)
+            .map_err(Error::FileUpdate)
+            .map(|_| true)
     }
     ResultWrapper::from(inner(
         from_ptr(c_path),
@@ -322,7 +344,7 @@ pub unsafe extern "C" fn mark_file_for_deletion(
     c_path: *const c_char,
     c_file_id: *const c_char,
 ) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String) -> Result<(), Error> {
+    unsafe fn inner(path: String, file_id: String) -> Result<bool, Error> {
         let _ = connect(path)?;
         let _ = Uuid::parse_str(file_id.as_str())?;
         Err(Error::Unimplemented)

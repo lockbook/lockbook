@@ -23,10 +23,3 @@ enum FileType: String, Codable {
     case Document
     case Folder
 }
-
-enum Status: String, Codable {
-    case New
-    case Local
-    case Remote
-    case Synced
-}

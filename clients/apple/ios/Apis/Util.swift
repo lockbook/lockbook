@@ -28,7 +28,7 @@ func deserialize<T: Decodable>(jsonStr: String) -> Result<T, Error> {
     }
 }
 
-func fromPrimitiveResult<T: Decodable>(result: ResultWrapper) -> Result<T, GeneralError> {
+func fromPrimitiveResult<T: Decodable>(result: ResultWrapper) -> Result<T, CoreError> {
     if (!result.is_error) {
         let successString = String(cString: result.value.success)
         release_pointer(UnsafeMutablePointer(mutating: result.value.success))
@@ -38,23 +38,11 @@ func fromPrimitiveResult<T: Decodable>(result: ResultWrapper) -> Result<T, Gener
             case .success(let value):
                 return Result.success(value)
             case .failure(let err):
-                return Result.failure(GeneralError(message: err.localizedDescription, type: .Success))
+                return Result.failure(CoreError(message: err.localizedDescription))
         }
     } else {
         let errorString = String(cString: result.value.error)
         release_pointer(UnsafeMutablePointer(mutating: result.value.error))
-        return Result.failure(GeneralError(message: errorString, type: .Error))
+        return Result.failure(CoreError(message: errorString))
     }
 }
-
-enum ErrorType: String, Codable {
-    case Success
-    case Error
-}
-
-struct GeneralError: Error, Codable {
-    var message: String
-    var type: ErrorType
-}
-
-
