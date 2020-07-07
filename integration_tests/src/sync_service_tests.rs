@@ -122,5 +122,15 @@ mod sync_tests {
                 panic!("This should have been a local change with no server changes!")
             }
         };
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
     }
 }
