@@ -5,7 +5,7 @@ mod new_account_tests {
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
-    use rsa::{BigUint, RSAPrivateKey};
+    // use rsa::{BigUint, RSAPrivateKey};
     use uuid::Uuid;
 
     #[test]
