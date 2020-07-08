@@ -26,16 +26,16 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".WelcomeActivity"
+            android:name=".login.WelcomeActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".listfiles.ListFilesActivity" />
+        <activity android:name=".mainscreen.MainScreenActivity" />
         <activity
             android:name=".login.NewAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
         <activity
             android:name=".login.ImportAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".SettingsActivity"/>
+        <activity android:name=".mainscreen.SettingsActivity"/>
     </application>
 
 </manifest>

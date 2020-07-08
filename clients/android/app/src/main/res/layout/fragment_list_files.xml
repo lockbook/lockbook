@@ -5,7 +5,7 @@
     <data>
         <variable
             name="listFilesViewModel"
-            type="app.lockbook.listfiles.ListFilesViewModel" />
+            type="app.lockbook.mainscreen.ListFilesViewModel" />
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout

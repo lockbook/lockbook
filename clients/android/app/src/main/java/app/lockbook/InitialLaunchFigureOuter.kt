@@ -3,11 +3,10 @@ package app.lockbook
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.widget.Toast
 import app.lockbook.core.isDbPresent
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.listfiles.ListFilesActivity
+import app.lockbook.login.WelcomeActivity
+import app.lockbook.mainscreen.MainScreenActivity
 
 
 class InitialLaunchFigureOuter : Activity() {
@@ -16,7 +15,7 @@ class InitialLaunchFigureOuter : Activity() {
         loadLockbookCore()
 
         if (isDbPresent(filesDir.absolutePath)) {
-            val intent = Intent(this, ListFilesActivity::class.java)
+            val intent = Intent(this, MainScreenActivity::class.java)
             startActivity(intent)
             finish()
         } else {

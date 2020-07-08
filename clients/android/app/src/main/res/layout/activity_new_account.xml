@@ -15,7 +15,7 @@
         android:gravity="center"
         android:orientation="vertical"
         android:paddingHorizontal="25dp"
-        tools:context=".WelcomeActivity">
+        tools:context=".login.WelcomeActivity">
 
 
         <TextView
