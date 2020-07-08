@@ -6,6 +6,8 @@ all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli
 clean:
 	-docker rm -f $$(docker ps -a -q)
 	-docker rmi -f $$(docker images -q)
+	-docker system prune -a -f
+	-git clean -fdX
 
 .PHONY: core
 core: is_docker_running
