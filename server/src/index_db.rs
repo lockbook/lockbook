@@ -281,8 +281,7 @@ pub async fn move_file(
                 &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
@@ -322,8 +321,7 @@ pub async fn rename_file(
                 &name,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)

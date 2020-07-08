@@ -143,7 +143,7 @@ mod create_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
-        let doc_name = "doc_name";
+        let doc_name = random_filename();
 
         assert_matches!(
             ClientImpl::create_document(
@@ -151,7 +151,7 @@ mod create_document_tests {
                 &account.username,
                 &sign(&account),
                 doc_id,
-                doc_name,
+                &doc_name,
                 folder_id,
                 aes_str(&doc_key, "doc content"),
                 FolderAccessInfo {
@@ -172,7 +172,7 @@ mod create_document_tests {
                 &account.username,
                 &sign(&account),
                 doc_id,
-                doc_name,
+                &doc_name,
                 folder_id,
                 aes_str(&doc_key, "doc content"),
                 FolderAccessInfo {
