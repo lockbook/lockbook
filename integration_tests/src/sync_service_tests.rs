@@ -7,7 +7,10 @@ mod sync_tests {
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::{DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService, init_logger_safely};
+    use lockbook_core::{
+        init_logger_safely, DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultSyncService,
+    };
 
     #[test]
     fn test_create_files_and_folders_sync() {

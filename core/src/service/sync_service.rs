@@ -17,11 +17,11 @@ use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::Document;
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
-use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
+use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
@@ -107,14 +107,14 @@ pub struct FileSyncService<
 }
 
 impl<
-    FileMetadataDb: FileMetadataRepo,
-    ChangeDb: LocalChangesRepo,
-    DocsDb: DocumentRepo,
-    AccountDb: AccountRepo,
-    ApiClient: Client,
-    Auth: AuthService,
-> SyncService
-for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
+        FileMetadataDb: FileMetadataRepo,
+        ChangeDb: LocalChangesRepo,
+        DocsDb: DocumentRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Auth: AuthService,
+    > SyncService
+    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -131,7 +131,7 @@ for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth
             },
             last_sync,
         )
-            .map_err(GetUpdatesError)?;
+        .map_err(GetUpdatesError)?;
         debug!("Server Updates: {:#?}", server_updates);
 
         let mut most_recent_update_from_server: u64 = last_sync;
@@ -468,7 +468,8 @@ for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth
         // were never able to sync a file.
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
-        for _ in 0..10 { // Retry sync n times
+        for _ in 0..10 {
+            // Retry sync n times
             info!("Syncing");
             let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
             let work_calculated =
@@ -483,7 +484,7 @@ for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth
                         &db,
                         work_calculated.most_recent_update_from_server,
                     )
-                        .map_err(SyncError::MetadataUpdateError)?;
+                    .map_err(SyncError::MetadataUpdateError)?;
                     return Ok(());
                 } else {
                     error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);

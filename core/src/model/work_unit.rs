@@ -14,6 +14,7 @@ impl WorkUnit {
         match self {
             WorkUnit::LocalChange { metadata } => metadata,
             WorkUnit::ServerChange { metadata } => metadata,
-        }.clone()
+        }
+        .clone()
     }
 }
