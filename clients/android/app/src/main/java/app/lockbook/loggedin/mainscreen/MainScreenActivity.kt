@@ -1,4 +1,4 @@
-package app.lockbook.mainscreen
+package app.lockbook.loggedin.mainscreen
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,6 +8,7 @@ import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
+import app.lockbook.loggedin.settings.SettingsActivity
 import kotlin.system.exitProcess
 
 class MainScreenActivity : AppCompatActivity() {

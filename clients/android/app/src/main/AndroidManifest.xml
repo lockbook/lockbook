@@ -28,14 +28,15 @@
         <activity
             android:name=".login.WelcomeActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".mainscreen.MainScreenActivity" />
+        <activity android:name=".loggedin.mainscreen.MainScreenActivity" />
         <activity
             android:name=".login.NewAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
         <activity
             android:name=".login.ImportAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".mainscreen.SettingsActivity"/>
+        <activity android:name=".loggedin.settings.SettingsActivity"/>
+        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
     </application>
 
 </manifest>
