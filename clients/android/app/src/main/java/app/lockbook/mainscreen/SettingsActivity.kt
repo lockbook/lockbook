@@ -1,4 +1,4 @@
-package app.lockbook
+package app.lockbook.mainscreen
 
 import android.app.Activity
 

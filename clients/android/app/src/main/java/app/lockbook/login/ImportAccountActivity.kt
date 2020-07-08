@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import app.lockbook.listfiles.ListFilesActivity
+import app.lockbook.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
 import app.lockbook.databinding.ActivityImportAccountBinding
@@ -34,7 +34,7 @@ class ImportAccountActivity : AppCompatActivity() {
             withContext(Dispatchers.IO) {
                 when (importAccount(filesDir.absolutePath, account_string.text.toString())) {
                     success -> {
-                        startActivity(Intent(applicationContext, ListFilesActivity::class.java))
+                        startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                         finishAffinity()
                     }
                     accountStringInvalid -> Toast.makeText(

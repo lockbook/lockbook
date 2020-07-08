@@ -1,4 +1,4 @@
-package app.lockbook.listfiles
+package app.lockbook.mainscreen
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,10 +8,9 @@ import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
-import app.lockbook.SettingsActivity
 import kotlin.system.exitProcess
 
-class ListFilesActivity : AppCompatActivity() {
+class MainScreenActivity : AppCompatActivity() {
 
     private var exit = false
 

@@ -1,10 +1,9 @@
-package app.lockbook.listfiles
+package app.lockbook.mainscreen
 
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -12,8 +11,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
+import app.lockbook.mainscreen.listfiles.ListFilesAdapter
 
-class ListFilesFragment: Fragment() {
+class MainScreenFragment: Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -25,7 +25,7 @@ class ListFilesFragment: Fragment() {
 
         val application = requireNotNull(this.activity).application
 
-        val listFilesViewModelFactory = ListFilesViewModelFactory(application.filesDir.absolutePath)
+        val listFilesViewModelFactory = MainScreenViewModelFactory(application.filesDir.absolutePath)
         val listFilesViewModel: ListFilesViewModel = ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
 
         binding.listFilesViewModel = listFilesViewModel
