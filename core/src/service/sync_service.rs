@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::API_LOC;
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
@@ -12,6 +11,7 @@ use crate::model::api::{
     DeleteFolderError, MoveDocumentError, MoveFolderError, RenameDocumentError, RenameFolderError,
 };
 use crate::model::crypto::SignedValue;
+use crate::API_LOC;
 
 use crate::model::file_metadata::FileType::Document;
 
