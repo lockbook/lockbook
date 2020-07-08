@@ -32,6 +32,7 @@ mod change_file_content_tests;
 mod create_document_tests;
 mod delete_document_tests;
 mod get_public_key_tests;
+mod get_updates_test;
 mod move_document_tests;
 mod new_account_tests;
 mod rename_document_tests;
