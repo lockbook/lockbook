@@ -91,4 +91,5 @@ server/qa-ca-certificate.crt
 integration_tests/target/
 containers/qa.env
 containers/devtest.env
+server/qa-ca-certificate.crt
 clients/android/core/src/main/jniLibs/
