@@ -28,6 +28,7 @@ mod macros {
     );
 }
 mod account_service_tests;
+mod change_file_content_tests;
 mod create_document_tests;
 mod delete_document_tests;
 mod get_public_key_tests;
