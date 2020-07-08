@@ -36,7 +36,7 @@ pub mod service;
 mod android;
 
 pub static API_LOC: &str = "http://lockbook_server:8000";
-pub static BUCKET_LOC: &str = "https://filesdb";
+pub static BUCKET_LOC: &str = "http://filesdb:9000";
 static DB_NAME: &str = "lockbook.sled";
 
 pub type DefaultCrypto = RsaImpl;
