@@ -15,4 +15,9 @@
     <style name="Dark.ActionBar" parent="Dark">
         <item name="colorPrimaryDark">@color/blue</item>
     </style>
+
+    <style name="PopUpWindow">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+    </style>
 </resources>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout>
+
+    <data>
+
+        <variable
+            name="popUpInfoActivity"
+            type="app.lockbook.loggedin.popupinfo.PopUpInfoActivity" />
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        style="@style/PopUpWindow"
+        android:layout_width="match_parent"
+        android:layout_height="150sp">
+
+        <TextView
+            android:id="@+id/name_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="15dp"
+            android:text="@{popUpInfoActivity.name}"
+            app:layout_constraintBottom_toTopOf="@+id/id_text"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/id_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="15dp"
+            android:text="@{popUpInfoActivity.id}"
+            app:layout_constraintBottom_toTopOf="@+id/file_type_text"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/name_text" />
+
+        <TextView
+            android:id="@+id/file_type_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="15dp"
+            android:text="@{popUpInfoActivity.fileType}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/id_text" />
+
+        <TextView
+            android:id="@+id/metadata_version_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{popUpInfoActivity.metadataVersion}"
+            app:layout_constraintBottom_toTopOf="@+id/content_version_text"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/name_text"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/content_version_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@{popUpInfoActivity.contentVersion}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/file_type_text"
+            app:layout_constraintTop_toBottomOf="@+id/metadata_version_text" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

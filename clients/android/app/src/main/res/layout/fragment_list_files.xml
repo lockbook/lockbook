@@ -5,7 +5,7 @@
     <data>
         <variable
             name="mainScreenViewModel"
-            type="app.lockbook.mainscreen.MainScreenViewModel" />
+            type="app.lockbook.loggedin.mainscreen.MainScreenViewModel" />
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout

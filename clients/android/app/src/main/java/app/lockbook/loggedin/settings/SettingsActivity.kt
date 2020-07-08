@@ -1,4 +1,4 @@
-package app.lockbook.mainscreen
+package app.lockbook.loggedin.settings
 
 import android.app.Activity
 
