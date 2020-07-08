@@ -1,19 +1,29 @@
 package app.lockbook.mainscreen
 
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.FileMetadata
 import app.lockbook.core.getChildren
 import app.lockbook.core.getRoot
+import app.lockbook.mainscreen.listfiles.ListFilesClickInterface
 import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
+import app.lockbook.utils.FileType
 
-class ListFilesViewModel(var path: String) : ViewModel() {
+class MainScreenViewModel(var path: String) : ViewModel(), ListFilesClickInterface {
 
     private var viewModelJob = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
     private val json = Klaxon()
-    val filesFolders = MutableLiveData<List<FileMetadata>>()
+    private val _filesFolders = MutableLiveData<List<FileMetadata>>()
+    private val _navigateToFileEditor = MutableLiveData<FileMetadata>()
+
+    val filesFolders: LiveData<List<FileMetadata>>
+        get() = _filesFolders
+
+    val navigateToFileEditor: LiveData<FileMetadata>
+        get() = _navigateToFileEditor
 
     fun getRootMetadata() {
         uiScope.launch {
@@ -27,16 +37,10 @@ class ListFilesViewModel(var path: String) : ViewModel() {
             print("Root Data: $maybeRootSerialized")
             val root: FileMetadata? = json.parse(maybeRootSerialized)
             if(root == null) {
-                filesFolders.postValue(listOf())
+                _filesFolders.postValue(listOf())
             } else {
-                filesFolders.postValue(listOf(root))
+                _filesFolders.postValue(listOf(root))
             }
-        }
-    }
-
-    fun getChildrenMetadata(parentUuid: String) {
-        uiScope.launch {
-            getChildren(parentUuid)
         }
     }
 
@@ -46,11 +50,28 @@ class ListFilesViewModel(var path: String) : ViewModel() {
             print("Children Data: $childrenSerialized")
             val children: List<FileMetadata>? = json.parse(childrenSerialized)
             if(children == null) {
-                filesFolders.postValue(listOf())
+                _filesFolders.postValue(listOf())
             } else {
-                filesFolders.postValue(children)
+                _filesFolders.postValue(children)
             }
         }
+    }
+
+    override fun onItemClick(position: Int) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val item = _filesFolders.value!![position]
+                if(item.file_type == FileType.Folder) {
+                    getChildren(item.id)
+                } else {
+                    _navigateToFileEditor.postValue(item)
+                }
+            }
+        }
+    }
+
+    override fun onLongClick(position: Int) {
+        TODO("Not yet implemented")
     }
 
 //    fun getFileMetadata(fileUuid: String) {

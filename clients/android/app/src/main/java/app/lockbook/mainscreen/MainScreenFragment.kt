@@ -24,19 +24,17 @@ class MainScreenFragment: Fragment() {
         )
 
         val application = requireNotNull(this.activity).application
+        val mainScreenViewModelFactory = MainScreenViewModelFactory(application.filesDir.absolutePath)
+        val mainScreenViewModel: MainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
+        val adapter = ListFilesAdapter(mainScreenViewModel)
 
-        val listFilesViewModelFactory = MainScreenViewModelFactory(application.filesDir.absolutePath)
-        val listFilesViewModel: ListFilesViewModel = ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
 
-        binding.listFilesViewModel = listFilesViewModel
-        val adapter = ListFilesAdapter()
+        binding.mainScreenViewModel = mainScreenViewModel
         binding.filesFolders.adapter = adapter
-
         binding.lifecycleOwner = this
-
         binding.filesFolders.layoutManager = LinearLayoutManager(context)
 
-        listFilesViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
+        mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
             if(it.isEmpty()) {
                 adapter.filesFolders = listOf()
             } else {
@@ -44,7 +42,7 @@ class MainScreenFragment: Fragment() {
             }
         })
 
-        listFilesViewModel.getRootMetadata()
+        mainScreenViewModel.getRootMetadata()
 
         return binding.root
     }
