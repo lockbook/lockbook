@@ -32,6 +32,7 @@ impl DbProvider for TempBackedDB {
     fn connect_to_db(_config: &Config) -> Result<Db, Error> {
         let dir = tempdir().map_err(Error::TempFileError)?;
         let dir_path = dir.path().join(DB_NAME);
+        debug!("DB Location: {:?}", dir_path);
         Ok(sled::open(dir_path).map_err(Error::SledError)?)
     }
 }
