@@ -8,8 +8,8 @@ class MainScreenViewModelFactory(
 ): ViewModelProvider.Factory {
     @Suppress("unchecked_cast")
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-        if(modelClass.isAssignableFrom(ListFilesViewModel::class.java))
-            return ListFilesViewModel(path) as T
+        if(modelClass.isAssignableFrom(MainScreenViewModel::class.java))
+            return MainScreenViewModel(path) as T
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

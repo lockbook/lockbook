@@ -4,8 +4,8 @@
 
     <data>
         <variable
-            name="listFilesViewModel"
-            type="app.lockbook.mainscreen.ListFilesViewModel" />
+            name="mainScreenViewModel"
+            type="app.lockbook.mainscreen.MainScreenViewModel" />
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout

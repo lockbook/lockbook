@@ -9,17 +9,13 @@ import app.lockbook.utils.FileType
 import app.lockbook.R
 import kotlinx.android.synthetic.main.recyclerview_content_list_files.view.*
 
-class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolder>() {
+class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolder>() {
 
     var filesFolders = listOf<FileMetadata>()
         set(value) {
             field = value
             notifyDataSetChanged()
         }
-
-    inner class ListFilesViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
-        lateinit var fileMetadata: FileMetadata
-    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
@@ -42,4 +38,15 @@ class ListFilesAdapter: RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolde
             holder.cardView.file_folder_icon.setImageResource(R.drawable.ic_folder_24)
         }
     }
+
+    inner class ListFilesViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
+        lateinit var fileMetadata: FileMetadata
+
+        init {
+            cardView.setOnClickListener {
+                listFilesClickInterface.onItemClick(adapterPosition)
+            }
+        }
+    }
+
 }
