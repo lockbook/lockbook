@@ -11,6 +11,16 @@ pub struct LocalChange {
     pub deleted: bool,
 }
 
+impl LocalChange {
+    pub fn ready_to_be_deleted(&self) -> bool {
+        self.renamed.is_none()
+            && self.moved.is_none()
+            && !self.new
+            && !self.content_edited
+            && !self.deleted
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Renamed {
     pub old_value: String,
