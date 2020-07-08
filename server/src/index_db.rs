@@ -296,13 +296,13 @@ pub async fn rename_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
                 name =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN $4
-                    ELSE old.metadata_version END),
+                    ELSE old.name END),
                 metadata_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
