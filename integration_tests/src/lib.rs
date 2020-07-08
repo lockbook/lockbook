@@ -31,6 +31,7 @@ mod account_service_tests;
 mod create_document_tests;
 mod new_account_tests;
 mod sync_service_tests;
+mod delete_document_tests;
 
 pub fn test_db() -> Db {
     let config = Config {
