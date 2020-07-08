@@ -1,4 +1,4 @@
-package app.lockbook.mainscreen.listfiles
+package app.lockbook.loggedin.listfiles
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -45,6 +45,11 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
         init {
             cardView.setOnClickListener {
                 listFilesClickInterface.onItemClick(adapterPosition)
+            }
+
+            cardView.setOnLongClickListener{
+                listFilesClickInterface.onLongClick(adapterPosition)
+                true
             }
         }
     }

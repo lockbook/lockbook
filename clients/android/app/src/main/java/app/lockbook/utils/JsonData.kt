@@ -7,7 +7,7 @@ data class FileMetadata(
     val file_type: FileType,
     val parent: String,
     val name: String,
-    val owner: String = "default",
+    val owner: String,
     val signature: SignedValue,
     val metadata_version: Long,
     val content_version: Int,
@@ -17,8 +17,8 @@ data class FileMetadata(
 )
 
 data class SignedValue(
-    val content: String = "default",
-    val signature: String = "default"
+    val content: String,
+    val signature: String
 )
 
 data class FolderAccessInfo(
@@ -37,7 +37,7 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: String = "default",
+    val public_key: String,
     val access_key: EncryptedValue
 )
 
