@@ -45,7 +45,8 @@ mod delete_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // delete document
         assert_matches!(
@@ -136,7 +137,8 @@ mod delete_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // delete document
         assert_matches!(
@@ -203,7 +205,8 @@ mod delete_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // delete document with wrong version
         assert_matches!(

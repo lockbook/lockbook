@@ -45,7 +45,8 @@ mod rename_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // rename document
         assert_matches!(
@@ -138,7 +139,8 @@ mod rename_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // delete document
         assert_matches!(
@@ -206,7 +208,8 @@ mod rename_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // rename document
         assert_matches!(
@@ -262,25 +265,29 @@ mod rename_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // create document in same folder
         let doc_id2 = Uuid::new_v4();
         let doc_key2 = AesImpl::generate_key();
         let doc_name2 = random_filename();
-        assert_matches!(ClientImpl::create_document(
-            &api_loc(),
-            &account.username,
-            &sign(&account),
-            doc_id2,
-            &doc_name2,
-            folder_id,
-            aes_str(&doc_key2, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key2),
-            },
-        ), Ok(_));
+        assert_matches!(
+            ClientImpl::create_document(
+                &api_loc(),
+                &account.username,
+                &sign(&account),
+                doc_id2,
+                &doc_name2,
+                folder_id,
+                aes_str(&doc_key2, "doc content"),
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &doc_key2),
+                },
+            ),
+            Ok(_)
+        );
 
         // move document
         assert_matches!(
