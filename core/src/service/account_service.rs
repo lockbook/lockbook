@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::API_LOC;
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
@@ -14,6 +13,7 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
+use crate::API_LOC;
 
 #[derive(Debug)]
 pub enum AccountCreationError {
