@@ -6,7 +6,7 @@ import android.os.Bundle
 import app.lockbook.core.isDbPresent
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.login.WelcomeActivity
-import app.lockbook.mainscreen.MainScreenActivity
+import app.lockbook.loggedin.mainscreen.MainScreenActivity
 
 
 class InitialLaunchFigureOuter : Activity() {

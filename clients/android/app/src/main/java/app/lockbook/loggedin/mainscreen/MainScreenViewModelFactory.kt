@@ -1,4 +1,4 @@
-package app.lockbook.mainscreen
+package app.lockbook.loggedin.mainscreen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider

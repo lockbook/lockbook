@@ -9,7 +9,7 @@
     tools:context=".login.WelcomeActivity">
 
     <fragment
-        android:name="app.lockbook.mainscreen.MainScreenFragment"
+        android:name="app.lockbook.loggedin.mainscreen.MainScreenFragment"
         android:id="@+id/files_folders_fragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

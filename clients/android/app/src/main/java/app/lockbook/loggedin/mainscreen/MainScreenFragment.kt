@@ -1,9 +1,10 @@
-package app.lockbook.mainscreen
+package app.lockbook.loggedin.mainscreen
 
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -11,7 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
-import app.lockbook.mainscreen.listfiles.ListFilesAdapter
+import app.lockbook.loggedin.listfiles.ListFilesAdapter
 
 class MainScreenFragment: Fragment() {
     override fun onCreateView(
@@ -24,8 +25,12 @@ class MainScreenFragment: Fragment() {
         )
 
         val application = requireNotNull(this.activity).application
-        val mainScreenViewModelFactory = MainScreenViewModelFactory(application.filesDir.absolutePath)
-        val mainScreenViewModel: MainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
+        val mainScreenViewModelFactory =
+            MainScreenViewModelFactory(
+                application.filesDir.absolutePath
+            )
+        val mainScreenViewModel: MainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(
+            MainScreenViewModel::class.java)
         val adapter = ListFilesAdapter(mainScreenViewModel)
 
 
@@ -40,6 +45,14 @@ class MainScreenFragment: Fragment() {
             } else {
                 adapter.filesFolders = it
             }
+        })
+
+        mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
+            Toast.makeText(context, "Yo wanted to open the document? Not implemented yet, sorry buddy.", Toast.LENGTH_LONG)
+        })
+
+        mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
+
         })
 
         mainScreenViewModel.getRootMetadata()
