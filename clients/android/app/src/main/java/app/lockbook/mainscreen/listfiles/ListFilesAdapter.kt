@@ -1,12 +1,11 @@
-package app.lockbook.listfiles
+package app.lockbook.mainscreen.listfiles
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
-import app.lockbook.FileMetadata
-import app.lockbook.FileType
+import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.FileType
 import app.lockbook.R
 import kotlinx.android.synthetic.main.recyclerview_content_list_files.view.*
 

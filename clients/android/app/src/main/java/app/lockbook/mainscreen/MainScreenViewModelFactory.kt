@@ -1,10 +1,9 @@
-package app.lockbook.listfiles
+package app.lockbook.mainscreen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import java.io.File
 
-class ListFilesViewModelFactory(
+class MainScreenViewModelFactory(
     private val path: String
 ): ViewModelProvider.Factory {
     @Suppress("unchecked_cast")

@@ -2,11 +2,10 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import app.lockbook.listfiles.ListFilesActivity
+import app.lockbook.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.createAccount
 import app.lockbook.databinding.ActivityNewAccountBinding
@@ -37,10 +36,12 @@ class NewAccountActivity : AppCompatActivity() {
             withContext(Dispatchers.IO) {
                 when (createAccount(filesDir.absolutePath, username.text.toString())) {
                     success -> {
-                        startActivity(Intent(applicationContext, ListFilesActivity::class.java))
+                        startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                         finishAffinity()
                     }
-                    usernameTaken -> username.error = "Username Taken!"
+                    usernameTaken -> withContext(Dispatchers.Main) {
+                        username.error = "Username Taken!"
+                    }
                     networkError -> withContext(Dispatchers.Main) {
                         Toast.makeText(
                             applicationContext,
@@ -56,9 +57,8 @@ class NewAccountActivity : AppCompatActivity() {
                         ).show()
                     }
                 }
-
-
             }
         }
     }
 }
+

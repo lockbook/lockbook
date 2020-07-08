@@ -1,8 +1,6 @@
-package app.lockbook
+package app.lockbook.utils
 
-import com.beust.klaxon.Json
 import java.util.LinkedHashMap
-import kotlin.collections.HashMap
 
 data class FileMetadata(
     val id: String,
