@@ -45,7 +45,8 @@ mod move_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
@@ -158,7 +159,8 @@ mod move_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
@@ -246,7 +248,8 @@ mod move_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
@@ -323,7 +326,8 @@ mod move_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &doc_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
@@ -348,19 +352,22 @@ mod move_document_tests {
         // create document with same name in that folder
         let doc_id2 = Uuid::new_v4();
         let doc_key2 = AesImpl::generate_key();
-        assert_matches!(ClientImpl::create_document(
-            &api_loc(),
-            &account.username,
-            &sign(&account),
-            doc_id2,
-            &doc_name,
-            subfolder_id,
-            aes_str(&doc_key2, "doc content"),
-            FolderAccessInfo {
-                folder_id: subfolder_id,
-                access_key: aes_key(&folder_key, &doc_key2),
-            },
-        ), Ok(_));
+        assert_matches!(
+            ClientImpl::create_document(
+                &api_loc(),
+                &account.username,
+                &sign(&account),
+                doc_id2,
+                &doc_name,
+                subfolder_id,
+                aes_str(&doc_key2, "doc content"),
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &doc_key2),
+                },
+            ),
+            Ok(_)
+        );
 
         // move document
         assert_matches!(
