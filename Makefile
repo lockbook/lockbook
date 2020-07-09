@@ -20,7 +20,7 @@ core_fmt: core
 
 .PHONY: core_lint
 core_lint: core
-	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 .PHONY: core_test
 core_test: core
