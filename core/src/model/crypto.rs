@@ -24,9 +24,7 @@ impl From<&str> for DecryptedValue {
 
 impl From<String> for DecryptedValue {
     fn from(secret: String) -> Self {
-        DecryptedValue {
-            secret
-        }
+        DecryptedValue { secret }
     }
 }
 

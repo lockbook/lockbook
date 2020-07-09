@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Write, Read, stdin};
+use std::io::{stdin, Read, Write};
 use std::path::Path;
 use std::{fs, io};
 
@@ -47,10 +47,15 @@ pub fn new() {
         let secret =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::write_document(&connect_to_db(), file_metadata.id, &DecryptedValue { secret })
-            .expect("Unexpected error while updating internal state");
+        DefaultFileService::write_document(
+            &connect_to_db(),
+            file_metadata.id,
+            &DecryptedValue { secret },
+        )
+        .expect("Unexpected error while updating internal state");
 
-        DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata).expect("Failed to index new file!");
+        DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata)
+            .expect("Failed to index new file!");
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
