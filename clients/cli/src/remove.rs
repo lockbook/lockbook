@@ -8,10 +8,9 @@ use lockbook_core::DefaultFileMetadataRepo;
 use crate::utils::{connect_to_db, get_account};
 
 pub fn remove() {
-    let db = connect_to_db();
-    get_account(&db);
+    get_account(&connect_to_db());
 
-    if atty::is(atty::Stream::Stdout) {
+    if atty::is(atty::Stream::Stdin) {
         print!("Enter a filepath: ");
     }
 
@@ -22,13 +21,13 @@ pub fn remove() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let mut file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
+    let mut file_metadata = DefaultFileMetadataRepo::get_by_path(&connect_to_db(), &file_name)
         .expect("Could not search files ")
         .expect("Could not find that file!");
 
     file_metadata.deleted = true;
 
-    DefaultFileMetadataRepo::insert(&db, &file_metadata).unwrap_or_else(|err| {
+    DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata).unwrap_or_else(|err| {
         eprintln!("Unexpected error occurred: {:?}", err);
         exit(1)
     });

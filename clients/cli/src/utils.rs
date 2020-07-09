@@ -28,8 +28,8 @@ pub fn connect_to_db() -> Db {
     };
 
     // Try to connect 3 times waiting 10ms and 150ms
-    // Sometimes when you do something like list | fzf | edit the db lock is not released in time
-    // TODO you may not need to do this, look at tree.flush()
+    // If there's a particularly long write or something going on the write would be blocked, we don't
+    // want to panic in this case when waiting a very small amount of time would do fine
     match DefaultDbProvider::connect_to_db(&config) {
         Ok(db) => db,
         Err(_) => {
@@ -40,7 +40,13 @@ pub fn connect_to_db() -> Db {
                     sleep(time::Duration::from_millis(100));
                     match DefaultDbProvider::connect_to_db(&config) {
                         Ok(db) => db,
-                        Err(err) => panic!("Could not connect to db! Error: {:?}", err),
+                        Err(_) => {
+                            sleep(time::Duration::from_millis(2000));
+                            match DefaultDbProvider::connect_to_db(&config) {
+                                Ok(db) => db,
+                                Err(err) => panic!("Could not connect to db! Error: {:?}", err),
+                            }
+                        }
                     }
                 }
             }
