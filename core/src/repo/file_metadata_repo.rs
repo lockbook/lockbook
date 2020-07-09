@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
@@ -28,6 +28,7 @@ pub enum FindingParentsFailed {
 
 pub enum Filter {
     DocumentsOnly,
+    FoldersOnly,
     LeafNodesOnly,
 }
 
@@ -226,6 +227,17 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                     let mut paths = vec![];
                     for meta in cache.values() {
                         if is_leaf_node(meta.id, &cache) {
+                            if let Some(path) = path_cache.get(&meta.id) {
+                                paths.push(path.to_owned())
+                            }
+                        }
+                    }
+                    paths
+                }
+                Filter::FoldersOnly => {
+                    let mut paths = vec![];
+                    for (_, meta) in cache {
+                        if meta.file_type == Folder {
                             if let Some(path) = path_cache.get(&meta.id) {
                                 paths.push(path.to_owned())
                             }
