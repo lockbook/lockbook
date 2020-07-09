@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use lockbook_core::init_logger_safely;
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly, FoldersOnly};
 
 mod copy;
 mod edit;
@@ -37,13 +37,17 @@ enum Lockbook {
     /// List all your files
     List,
 
-    /// List all your files
+    /// List only documents (starting set for a filter for edit)
     #[structopt(name = "list-docs")]
     ListDocs,
 
-    /// List all your files
+    /// List all your files (starting set for a filter for rename, or delete)
     #[structopt(name = "list-all")]
     ListAll,
+
+    /// List all your folders (starting set for a filter for new)
+    #[structopt(name = "list-folders")]
+    ListFolders,
 
     /// Bring a file from your computer into Lockbook
     Copy { file: PathBuf },
@@ -79,6 +83,7 @@ fn main() {
         Lockbook::List => list::list(Some(LeafNodesOnly)),
         Lockbook::ListAll => list::list(None),
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
+        Lockbook::ListFolders => list::list(Some(FoldersOnly)),
         Lockbook::Init => init::init(),
         Lockbook::Import => import::import(),
         Lockbook::Status => status::status(),
