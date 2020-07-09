@@ -14,6 +14,7 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
+use crate::API_LOC;
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -97,6 +98,7 @@ impl<
         };
 
         let version = ApiClient::new_account(
+            API_LOC,
             &account.username,
             &auth,
             account.keys.to_public_key(),
