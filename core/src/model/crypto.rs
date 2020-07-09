@@ -22,6 +22,14 @@ impl From<&str> for DecryptedValue {
     }
 }
 
+impl From<String> for DecryptedValue {
+    fn from(secret: String) -> Self {
+        DecryptedValue {
+            secret
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SignedValue {
     pub content: String,

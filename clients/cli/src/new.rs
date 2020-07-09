@@ -13,8 +13,7 @@ use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
 pub fn new() {
-    let db = connect_to_db();
-    get_account(&db);
+    get_account(&connect_to_db());
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
@@ -30,7 +29,7 @@ pub fn new() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let file_metadata = match DefaultFileService::create_at_path(&db, &file_name) {
+    let file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
         Ok(file_metadata) => file_metadata,
         Err(error) => match error {
             NewFileFromPathError::InvalidRootFolder => panic!("The first component of your file path does not match the name of your root folder!"),
@@ -46,10 +45,10 @@ pub fn new() {
         let secret =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
+        DefaultFileService::write_document(&connect_to_db(), file_metadata.id, &DecryptedValue { secret })
             .expect("Unexpected error while updating internal state");
 
-        DefaultFileMetadataRepo::insert(&db, &file_metadata).expect("Failed to index new file!");
+        DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata).expect("Failed to index new file!");
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }

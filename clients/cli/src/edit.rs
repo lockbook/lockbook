@@ -13,15 +13,14 @@ use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
 pub fn edit() {
-    let db = connect_to_db();
-    get_account(&db);
+    get_account(&connect_to_db());
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
 
-    if atty::is(atty::Stream::Stdout) {
+    if atty::is(atty::Stream::Stdin) {
         print!("Enter a filepath: ");
     }
 
@@ -32,11 +31,11 @@ pub fn edit() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
+    let file_metadata = DefaultFileMetadataRepo::get_by_path(&connect_to_db(), &file_name)
         .expect("Could not search files ")
         .expect("Could not find that file!");
 
-    let file_content = match DefaultFileService::read_document(&db, file_metadata.id) {
+    let file_content = match DefaultFileService::read_document(&connect_to_db(), file_metadata.id) {
         Ok(content) => content,
         Err(error) => panic!("Unexpected error: {:?}", error),
     };
@@ -63,7 +62,7 @@ pub fn edit() {
         let secret =
             fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
 
-        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
+        DefaultFileService::write_document(&connect_to_db(), file_metadata.id, &DecryptedValue { secret })
             .expect("Unexpected error while updating internal state");
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");

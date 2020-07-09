@@ -20,8 +20,7 @@ pub fn copy(path: PathBuf) {
             exit(2);
         });
 
-        let db = connect_to_db();
-        let account = get_account(&db);
+        let account = get_account(&connect_to_db());
 
         let absolute_path_maybe = fs::canonicalize(&path).unwrap_or_else(|error| {
             eprintln!("Failed to get absolute path: {}", error);
@@ -34,7 +33,7 @@ pub fn copy(path: PathBuf) {
         });
 
         let file_metadata = DefaultFileService::create_at_path(
-            &db,
+            &connect_to_db(),
             format!(
                 "{}/imported/cli-copy{}",
                 account.username, absolute_path_string
@@ -52,7 +51,7 @@ pub fn copy(path: PathBuf) {
             }
         });
 
-        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
+        DefaultFileService::write_document(&connect_to_db(), file_metadata.id, &DecryptedValue { secret })
             .unwrap_or_else(|error| {
                 eprintln!("Unexpected error while saving file contents: {:?}", error);
                 exit(7);
