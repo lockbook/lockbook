@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{stdin, Read, Write};
+use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
 
@@ -31,7 +31,7 @@ pub fn new() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let mut file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
+    let file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
         Ok(file_metadata) => file_metadata,
         Err(error) => match error {
             NewFileFromPathError::InvalidRootFolder => panic!("The first component of your file path does not match the name of your root folder!"),
