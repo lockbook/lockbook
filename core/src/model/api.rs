@@ -140,6 +140,7 @@ pub enum RenameDocumentError {
     DocumentNotFound,
     DocumentDeleted,
     EditConflict,
+    DocumentPathTaken,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -248,6 +249,7 @@ pub enum RenameFolderError {
     FolderNotFound,
     FolderDeleted,
     EditConflict,
+    FolderPathTaken,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

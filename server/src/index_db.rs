@@ -281,8 +281,7 @@ pub async fn move_file(
                 &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
@@ -297,13 +296,13 @@ pub async fn rename_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
                 name =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN $4
-                    ELSE old.metadata_version END),
+                    ELSE old.name END),
                 metadata_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
@@ -322,8 +321,7 @@ pub async fn rename_file(
                 &name,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
