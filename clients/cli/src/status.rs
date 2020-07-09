@@ -5,10 +5,9 @@ use lockbook_core::DefaultSyncService;
 use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
 
 pub fn status() {
-    let db = connect_to_db();
-    get_account(&db);
+    get_account(&connect_to_db());
 
-    DefaultSyncService::calculate_work(&db)
+    DefaultSyncService::calculate_work(&connect_to_db())
         .expect("Failed to calculate work required to sync")
         .work_units
         .into_iter()
@@ -17,5 +16,5 @@ pub fn status() {
             WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
         });
 
-    print_last_successful_sync(&db);
+    print_last_successful_sync(&connect_to_db());
 }
