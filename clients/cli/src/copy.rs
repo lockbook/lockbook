@@ -51,11 +51,15 @@ pub fn copy(path: PathBuf) {
             }
         });
 
-        DefaultFileService::write_document(&connect_to_db(), file_metadata.id, &DecryptedValue { secret })
-            .unwrap_or_else(|error| {
-                eprintln!("Unexpected error while saving file contents: {:?}", error);
-                exit(7);
-            });
+        DefaultFileService::write_document(
+            &connect_to_db(),
+            file_metadata.id,
+            &DecryptedValue { secret },
+        )
+        .unwrap_or_else(|error| {
+            eprintln!("Unexpected error while saving file contents: {:?}", error);
+            exit(7);
+        });
 
         if atty::is(atty::Stream::Stdout) {
             println!("{} saved", file_metadata.name);
