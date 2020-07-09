@@ -8,8 +8,8 @@ use lockbook_core::model::work_unit::WorkUnit;
 pub fn sync() {
     let account = get_account(&connect_to_db());
 
-    let mut work_calculated =
-        DefaultSyncService::calculate_work(&connect_to_db()).expect("Failed to calculate work required to sync");
+    let mut work_calculated = DefaultSyncService::calculate_work(&connect_to_db())
+        .expect("Failed to calculate work required to sync");
 
     while !work_calculated.work_units.is_empty() {
         for work_unit in work_calculated.work_units {
@@ -32,8 +32,11 @@ pub fn sync() {
             .expect("Failed to calculate work required to sync");
     }
 
-    DefaultFileMetadataRepo::set_last_updated(&connect_to_db(), work_calculated.most_recent_update_from_server)
-        .expect("Failed to save last updated");
+    DefaultFileMetadataRepo::set_last_updated(
+        &connect_to_db(),
+        work_calculated.most_recent_update_from_server,
+    )
+    .expect("Failed to save last updated");
 
     println!("Sync complete.");
 }
