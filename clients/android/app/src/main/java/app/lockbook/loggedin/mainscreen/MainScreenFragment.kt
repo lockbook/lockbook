@@ -1,5 +1,6 @@
 package app.lockbook.loggedin.mainscreen
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.loggedin.listfiles.ListFilesAdapter
+import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 
 class MainScreenFragment: Fragment() {
     override fun onCreateView(
@@ -48,15 +50,22 @@ class MainScreenFragment: Fragment() {
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, "Yo wanted to open the document? Not implemented yet, sorry buddy.", Toast.LENGTH_LONG)
+            Toast.makeText(context, "You wanted to open the document? Not implemented yet, sorry buddy.", Toast.LENGTH_LONG)
         })
 
         mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
-
+            val intent = Intent(context, PopUpInfoActivity::class.java)
+            intent.putExtra("name", it.name)
+            intent.putExtra("id", it.id)
+            intent.putExtra("fileType", it.file_type.toString())
+            intent.putExtra("metadataVersion", it.metadata_version.toString())
+            intent.putExtra("contentVersion", it.content_version.toString())
+            startActivity(intent)
         })
 
         mainScreenViewModel.getRootMetadata()
 
         return binding.root
     }
+
 }

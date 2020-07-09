@@ -10,6 +10,8 @@ import androidx.fragment.app.Fragment
 import app.lockbook.R
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.databinding.ActivityPopupInfoBinding
+import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.FileType
 
 class PopUpInfoActivity: Activity() {
 
@@ -21,9 +23,17 @@ class PopUpInfoActivity: Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        name = "Name: " + intent.getStringExtra("name")
+        id = "ID: " + intent.getStringExtra("id")
+        fileType = "File Type: " + intent.getStringExtra("fileType")
+        metadataVersion = "Metadata Version: " + intent.getStringExtra("metadataVersion")
+        contentVersion = "Content Version: " + intent.getStringExtra("contentVersion")
+
         val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(this,
             R.layout.activity_popup_info
         )
         binding.popUpInfoActivity = this
     }
+
 }
