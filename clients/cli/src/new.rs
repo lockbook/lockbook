@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, Read, stdin};
 use std::path::Path;
 use std::{fs, io};
 
@@ -20,8 +20,10 @@ pub fn new() {
     File::create(&temp_file_path)
         .unwrap_or_else(|_| panic!("Could not create temporary file: {}", &file_location));
 
-    print!("Enter a filepath: ");
-    io::stdout().flush().unwrap();
+    if atty::is(atty::Stream::Stdin) {
+        print!("Enter a filepath: ");
+        io::stdout().flush().unwrap();
+    }
 
     let mut file_name = String::new();
     io::stdin()
@@ -29,7 +31,7 @@ pub fn new() {
         .expect("Failed to read from stdin");
     file_name.retain(|c| !c.is_whitespace());
 
-    let file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
+    let mut file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
         Ok(file_metadata) => file_metadata,
         Err(error) => match error {
             NewFileFromPathError::InvalidRootFolder => panic!("The first component of your file path does not match the name of your root folder!"),
