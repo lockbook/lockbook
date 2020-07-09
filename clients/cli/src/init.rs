@@ -9,8 +9,6 @@ use lockbook_core::DefaultAccountService;
 use crate::utils::connect_to_db;
 
 pub fn init() {
-    let db = connect_to_db();
-
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -20,7 +18,7 @@ pub fn init() {
         .expect("Failed to read from stdin");
     username.retain(|c| !c.is_whitespace());
 
-    match DefaultAccountService::create_account(&db, &username) {
+    match DefaultAccountService::create_account(&connect_to_db(), &username) {
         Ok(_) => println!("Account created successfully!"),
         Err(err) => match err {
             AccountCreationError::KeyGenerationError(e) => {
