@@ -13,7 +13,6 @@ use crate::model::api::{
     DeleteFolderError, MoveDocumentError, MoveFolderError, RenameDocumentError, RenameFolderError,
 };
 use crate::model::crypto::SignedValue;
-use crate::API_LOC;
 use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::Document;
 use crate::model::work_unit::WorkUnit;
@@ -33,6 +32,7 @@ use crate::service::sync_service::WorkExecutionError::{
     DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
     GetDocumentError, SaveDocumentError,
 };
+use crate::API_LOC;
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
