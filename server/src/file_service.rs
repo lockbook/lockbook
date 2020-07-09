@@ -284,6 +284,7 @@ pub async fn rename_document(
         index_db::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
         index_db::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
         index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
+        index_db::FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename document in Postgres: {:?}",
@@ -474,6 +475,7 @@ pub async fn rename_folder(
         index_db::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
         index_db::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
         index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
+        index_db::FileError::PathTaken => RenameFolderError::FolderPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename folder in Postgres: {:?}",
