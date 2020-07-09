@@ -46,7 +46,7 @@ pub fn connect_to_db() -> Db {
                                 Ok(db) => db,
                                 Err(err) => panic!("Could not connect to db! Error: {:?}", err),
                             }
-                        },
+                        }
                     }
                 }
             }
