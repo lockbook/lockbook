@@ -1,6 +1,5 @@
 use crate::model::api::*;
 use crate::model::crypto::*;
-use crate::BUCKET_LOC;
 use rsa::RSAPublicKey;
 
 use crate::model::file_metadata::FileMetadata;
@@ -41,7 +40,11 @@ pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: Des
 }
 
 pub trait Client {
-    fn get_document(id: Uuid, content_version: u64) -> Result<Document, Error<()>>;
+    fn get_document(
+        api_location: &str,
+        id: Uuid,
+        content_version: u64,
+    ) -> Result<Document, Error<GetDocumentError>>;
     fn change_document_content(
         api_location: &str,
         username: &str,
@@ -138,21 +141,21 @@ pub trait Client {
 
 pub struct ClientImpl;
 impl Client for ClientImpl {
-    fn get_document(id: Uuid, content_version: u64) -> Result<Document, Error<()>> {
-        let client = ReqwestClient::new();
-        let response = client
-            .get(&format!("{}/{}-{}", BUCKET_LOC, id, content_version))
-            .send()
-            .map_err(Error::SendFailed)?;
-        let status = response.status().as_u16();
-        let response_body = response.text().map_err(Error::ReceiveFailed)?;
-        let encrypted_file: Document = Document {
-            content: serde_json::from_str(response_body.as_str()).map_err(Error::Deserialize)?,
-        };
-        match status {
-            200..=299 => Ok(encrypted_file),
-            _ => Err(Error::Api(())),
-        }
+    fn get_document(
+        api_location: &str,
+        id: Uuid,
+        content_version: u64,
+    ) -> Result<Document, Error<GetDocumentError>> {
+        api_request(
+            api_location,
+            Method::GET,
+            "get-document",
+            &GetDocumentRequest {
+                id: id,
+                content_version: content_version,
+            },
+        )
+        .map(|r: GetDocumentResponse| Document { content: r.content })
     }
     fn change_document_content(
         api_location: &str,
