@@ -12,9 +12,11 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
-import app.lockbook.databinding.FragmentListFilesBinding
+import app.lockbook.databinding.FragmentMainScreenBinding
+import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
 import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
+import kotlinx.android.synthetic.main.fragment_main_screen.*
 
 class MainScreenFragment: Fragment() {
     override fun onCreateView(
@@ -22,10 +24,9 @@ class MainScreenFragment: Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_list_files, container, false
+        val binding: FragmentMainScreenBinding = DataBindingUtil.inflate(
+            inflater, R.layout.fragment_main_screen, container, false
         )
-
         val application = requireNotNull(this.activity).application
         val mainScreenViewModelFactory =
             MainScreenViewModelFactory(
@@ -35,17 +36,18 @@ class MainScreenFragment: Fragment() {
             MainScreenViewModel::class.java)
         val adapter = ListFilesAdapter(mainScreenViewModel)
 
-
         binding.mainScreenViewModel = mainScreenViewModel
         binding.filesFolders.adapter = adapter
-        binding.lifecycleOwner = this
         binding.filesFolders.layoutManager = LinearLayoutManager(context)
+        binding.lifecycleOwner = this
 
         mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
-            if(it.isEmpty()) {
-                adapter.filesFolders = listOf()
-            } else {
-                adapter.filesFolders = it
+            it?.let {
+                if(it.isEmpty()) {
+                    adapter.filesFolders = listOf()
+                } else {
+                    adapter.filesFolders = it
+                }
             }
         })
 
@@ -54,13 +56,29 @@ class MainScreenFragment: Fragment() {
         })
 
         mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
-            val intent = Intent(context, PopUpInfoActivity::class.java)
-            intent.putExtra("name", it.name)
-            intent.putExtra("id", it.id)
-            intent.putExtra("fileType", it.file_type.toString())
-            intent.putExtra("metadataVersion", it.metadata_version.toString())
-            intent.putExtra("contentVersion", it.content_version.toString())
-            startActivity(intent)
+            it?.let {
+                val intent = Intent(context, PopUpInfoActivity::class.java)
+                intent.putExtra("name", it.name)
+                intent.putExtra("id", it.id)
+                intent.putExtra("fileType", it.file_type.toString())
+                intent.putExtra("metadataVersion", it.metadata_version.toString())
+                intent.putExtra("contentVersion", it.content_version.toString())
+                startActivity(intent)
+            }
+        })
+
+        mainScreenViewModel.navigateToNewFileFolder.observe(viewLifecycleOwner, Observer {
+            Toast.makeText(context, "HOW THE HELL DID IT GET HERE AND NOT WORK1", Toast.LENGTH_LONG)
+
+            it?.let {
+                Toast.makeText(context, "HOW THE HELL DID IT GET HERE AND NOT WORK2", Toast.LENGTH_LONG)
+                if(it) {
+                    val intent = Intent(context, NewFileFolderActivity::class.java)
+                    intent.putExtra("parentUuid", mainScreenViewModel.parentUuid)
+                    intent.putExtra("path", application.filesDir.absolutePath)
+                    startActivity(intent)
+                }
+            }
         })
 
         mainScreenViewModel.getRootMetadata()

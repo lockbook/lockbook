@@ -15,20 +15,20 @@ import app.lockbook.utils.FileType
 
 class PopUpInfoActivity: Activity() {
 
-    lateinit var name: String
-    lateinit var id: String
-    lateinit var fileType: String
-    lateinit var metadataVersion: String
-    lateinit var contentVersion: String
+    var name: String = "Name: "
+    var id: String = "ID: "
+    var fileType: String = "File Type: "
+    var metadataVersion: String = "Metadata Version: "
+    var contentVersion: String = "Content Version: "
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        name = "Name: " + intent.getStringExtra("name")
-        id = "ID: " + intent.getStringExtra("id")
-        fileType = "File Type: " + intent.getStringExtra("fileType")
-        metadataVersion = "Metadata Version: " + intent.getStringExtra("metadataVersion")
-        contentVersion = "Content Version: " + intent.getStringExtra("contentVersion")
+        name += intent.getStringExtra("name")
+        id += intent.getStringExtra("id")
+        fileType += intent.getStringExtra("fileType")
+        metadataVersion += intent.getStringExtra("metadataVersion")
+        contentVersion += intent.getStringExtra("contentVersion")
 
         val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(this,
             R.layout.activity_popup_info
