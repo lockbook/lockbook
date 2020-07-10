@@ -7,7 +7,7 @@ mod get_updates_test {
     use uuid::Uuid;
 
     #[test]
-    fn change_file_content() {
+    fn get_updates() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
