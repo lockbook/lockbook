@@ -1,22 +1,22 @@
 package app.lockbook.loggedin.mainscreen
 
-import android.util.Log
+import android.view.View
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.utils.FileMetadata
 import app.lockbook.core.getChildren
-import app.lockbook.core.getRoot
 import app.lockbook.core.getFile
+import app.lockbook.core.getRoot
 import app.lockbook.loggedin.listfiles.ListFilesClickInterface
 import app.lockbook.utils.Document
+import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
-import app.lockbook.utils.FileType
 
 class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClickInterface {
 
-    var job = Job()
+    private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val json = Klaxon()
     private val _filesFolders = MutableLiveData<List<FileMetadata>>()
@@ -24,6 +24,8 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
     var parentUuid: String = ""
+    var visibleFAB = View.GONE
+
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -53,9 +55,7 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
 
             if (root == null) {
                 _filesFolders.postValue(listOf())
-            } else {
-                _filesFolders.postValue(listOf(root))
-            }
+            } else _filesFolders.postValue(listOf(root))
         }
     }
 
@@ -86,7 +86,9 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     private suspend fun getFile(fileUuid: String) {
         withContext(Dispatchers.IO) {
             val file: Document? = json.parse(getFile(path, fileUuid))
-            _navigateToFileEditor.postValue(file!!)
+            if(file != null) {
+                _navigateToFileEditor.postValue(file)
+            }
         }
     }
 
@@ -94,6 +96,7 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
             _filesFolders.value?.let {
                 val item = it[position]
                 parentUuid = item.id
+                visibleFAB = View.VISIBLE
 
                 if (item.file_type == FileType.Folder) {
                     getChildrenMetadata(item.id)
