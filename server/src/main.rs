@@ -90,6 +90,10 @@ async fn route(
             info!("Request matched PUT /rename-file");
             handle(&mut s, request, file_service::rename_document).await
         }
+        (&Method::GET, "/get-document") => {
+            info!("Request matched GET /get-document");
+            handle(&mut s, request, file_service::get_document).await
+        }
         (&Method::POST, "/create-folder") => {
             info!("Request matched POST /create-file");
             handle(&mut s, request, file_service::create_folder).await
