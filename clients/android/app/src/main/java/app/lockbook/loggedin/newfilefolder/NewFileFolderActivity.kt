@@ -5,18 +5,15 @@ import android.os.Bundle
 import androidx.databinding.DataBindingUtil
 import app.lockbook.R
 import app.lockbook.core.createFileFolder
-import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.databinding.ActivityNewFileFolderBinding
 import app.lockbook.utils.FileType
-import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_new_file_folder.*
 import kotlinx.android.synthetic.main.activity_new_file_folder.name_text
-import kotlinx.android.synthetic.main.activity_popup_info.*
 import kotlinx.coroutines.*
 
 class NewFileFolderActivity : Activity() {
 
-    var job = Job()
+    private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     override fun onCreate(savedInstanceState: Bundle?) {

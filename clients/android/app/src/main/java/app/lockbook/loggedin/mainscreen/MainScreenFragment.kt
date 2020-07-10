@@ -16,7 +16,6 @@ import app.lockbook.databinding.FragmentMainScreenBinding
 import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
 import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
-import kotlinx.android.synthetic.main.fragment_main_screen.*
 
 class MainScreenFragment: Fragment() {
     override fun onCreateView(
@@ -68,10 +67,7 @@ class MainScreenFragment: Fragment() {
         })
 
         mainScreenViewModel.navigateToNewFileFolder.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, "HOW THE HELL DID IT GET HERE AND NOT WORK1", Toast.LENGTH_LONG)
-
             it?.let {
-                Toast.makeText(context, "HOW THE HELL DID IT GET HERE AND NOT WORK2", Toast.LENGTH_LONG)
                 if(it) {
                     val intent = Intent(context, NewFileFolderActivity::class.java)
                     intent.putExtra("parentUuid", mainScreenViewModel.parentUuid)
