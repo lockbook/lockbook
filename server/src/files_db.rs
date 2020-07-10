@@ -16,6 +16,7 @@ pub enum Error {
     ResponseNotUtf8(String),
     SignatureDoesNotMatch(String),
     Serialization(serde_json::Error),
+    Deserialization(serde_json::Error),
     Unknown(Option<String>),
 }
 
@@ -102,6 +103,20 @@ pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> R
         .await?
     {
         (_, 204) => Ok(()),
+        (body, _) => Err(Error::from(body)),
+    }
+}
+
+pub async fn get(
+    client: &S3Client,
+    file_id: Uuid,
+    content_version: u64,
+) -> Result<EncryptedValueWithNonce, Error> {
+    match client
+        .get_object(&format!("/{}-{}", file_id, content_version))
+        .await?
+    {
+        (data, 200) => Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?),
         (body, _) => Err(Error::from(body)),
     }
 }

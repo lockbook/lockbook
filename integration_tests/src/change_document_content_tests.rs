@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod change_file_content_tests {
+mod change_document_content_tests {
     use crate::{aes_key, aes_str, api_loc, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
@@ -8,7 +8,7 @@ mod change_file_content_tests {
     use uuid::Uuid;
 
     #[test]
-    fn change_file_content() {
+    fn change_document_content() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -63,7 +63,7 @@ mod change_file_content_tests {
     }
 
     #[test]
-    fn change_file_content_not_found() {
+    fn change_document_content_not_found() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();

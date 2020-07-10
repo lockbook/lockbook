@@ -144,6 +144,23 @@ pub enum RenameDocumentError {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetDocumentRequest {
+    pub id: Uuid,
+    pub content_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetDocumentResponse {
+    pub content: EncryptedValueWithNonce,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetDocumentError {
+    InternalError,
+    DocumentNotFound,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub username: String,
     pub signature: SignedValue,
