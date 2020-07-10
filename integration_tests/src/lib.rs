@@ -31,6 +31,7 @@ mod account_service_tests;
 mod change_document_content_tests;
 mod create_document_tests;
 mod delete_document_tests;
+mod get_document_tests;
 mod get_public_key_tests;
 mod get_updates_test;
 mod move_document_tests;
@@ -99,6 +100,12 @@ pub fn aes_str(encrypting_key: &AesKey, encrypted_str: &str) -> EncryptedValueWi
         },
     )
     .unwrap()
+}
+
+pub fn aes_decrypt_str(encrypting_key: &AesKey, encrypted_str: &EncryptedValueWithNonce) -> String {
+    AesImpl::decrypt(&encrypting_key, &encrypted_str)
+        .unwrap()
+        .secret
 }
 
 pub fn rsa_key(encrypting_key: &RSAPublicKey, encrypted_key: &AesKey) -> EncryptedValue {
