@@ -39,7 +39,7 @@ services:
         tail -f /dev/null
       '
   lockbook_server:
-    image: server:$BRANCH
+    image: server:$HASH
     env_file:
       - containers/test.env
     depends_on:
@@ -51,7 +51,7 @@ services:
         RUST_LOG=lockbook_server=debug cargo run \
       '
   integration_tests:
-    image: integration_tests:$BRANCH
+    image: integration_tests:$HASH
     env_file:
       - containers/test.env
     depends_on:

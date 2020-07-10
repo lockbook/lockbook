@@ -75,8 +75,8 @@ integration_tests_lint: integration_tests
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	BRANCH=$(hash) docker-compose down
-	BRANCH=$(hash) docker-compose up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose down
+	HASH=$(hash) docker-compose up --exit-code-from=integration_tests
 
 .PHONY: android
 android:
