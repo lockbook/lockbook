@@ -10,7 +10,8 @@ use crate::model::account::Account;
 use crate::model::api;
 use crate::model::api::{
     ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, MoveDocumentError, MoveFolderError, RenameDocumentError, RenameFolderError,
+    DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
+    RenameFolderError,
 };
 use crate::model::crypto::SignedValue;
 use crate::model::file_metadata::FileMetadata;
@@ -28,9 +29,9 @@ use crate::service::sync_service::CalculateWorkError::{
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentMoveError,
-    DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
-    GetDocumentError, SaveDocumentError,
+    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentGetError,
+    DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError,
+    FolderRenameError, SaveDocumentError,
 };
 use crate::API_LOC;
 
@@ -47,7 +48,7 @@ pub enum CalculateWorkError {
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
     MetadataRepoErrorOpt(file_metadata_repo::Error),
-    GetDocumentError(client::Error<()>),
+    DocumentGetError(client::Error<GetDocumentError>),
     DocumentRenameError(client::Error<RenameDocumentError>),
     FolderRenameError(client::Error<RenameFolderError>),
     DocumentMoveError(client::Error<MoveDocumentError>),
@@ -193,8 +194,8 @@ impl<
                         .map_err(WorkExecutionError::MetadataRepoError)?;
                     if metadata.file_type == Document {
                         let document =
-                            ApiClient::get_document(metadata.id, metadata.content_version)
-                                .map_err(GetDocumentError)?;
+                            ApiClient::get_document(API_LOC, metadata.id, metadata.content_version)
+                                .map_err(DocumentGetError)?;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
                     }
@@ -226,9 +227,12 @@ impl<
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
-                                let document =
-                                    ApiClient::get_document(metadata.id, metadata.content_version)
-                                        .map_err(GetDocumentError)?;
+                                let document = ApiClient::get_document(
+                                    API_LOC,
+                                    metadata.id,
+                                    metadata.content_version,
+                                )
+                                .map_err(DocumentGetError)?;
 
                                 DocsDb::insert(&db, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
