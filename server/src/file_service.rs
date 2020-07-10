@@ -317,6 +317,12 @@ pub async fn get_document(
         }
     };
 
+    let files_future = files_db::get(
+        &server_state.files_db_client,
+        request.id,
+        request.content_version,
+    );
+
     let index_result = index_db::get_document_content_status(&transaction, request.id).await;
     let status = index_result.map_err(|e| match e {
         index_db::FileError::DoesNotExist => GetDocumentError::DocumentNotFound,
@@ -335,12 +341,7 @@ pub async fn get_document(
         return Err(GetDocumentError::StaleVersion);
     }
 
-    let files_result = files_db::get(
-        &server_state.files_db_client,
-        request.id,
-        request.content_version,
-    )
-    .await;
+    let files_result = files_future.await;
     let content = match files_result {
         Ok(t) => t,
         Err(e) => {
