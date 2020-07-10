@@ -158,8 +158,6 @@ pub struct GetDocumentResponse {
 pub enum GetDocumentError {
     InternalError,
     DocumentNotFound,
-    DocumentDeleted,
-    StaleVersion,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

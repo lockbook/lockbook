@@ -309,51 +309,16 @@ pub async fn get_document(
     server_state: &mut ServerState,
     request: GetDocumentRequest,
 ) -> Result<GetDocumentResponse, GetDocumentError> {
-    let transaction = match server_state.index_db_client.transaction().await {
-        Ok(t) => t,
-        Err(e) => {
-            error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(GetDocumentError::InternalError);
-        }
-    };
-
-    let files_future = files_db::get(
+    let files_result = files_db::get(
         &server_state.files_db_client,
         request.id,
         request.content_version,
-    );
-
-    let index_result = index_db::get_document_content_status(&transaction, request.id).await;
-    let status = index_result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => GetDocumentError::DocumentNotFound,
-        _ => {
-            error!(
-                "Internal server error! Cannot get document status from Postgres: {:?}",
-                e
-            );
-            GetDocumentError::InternalError
-        }
-    })?;
-    if status.deleted {
-        return Err(GetDocumentError::DocumentDeleted);
-    }
-    if status.content_version != request.content_version {
-        return Err(GetDocumentError::StaleVersion);
-    }
-
-    let files_result = files_future.await;
-    let content = match files_result {
-        Ok(t) => t,
+    ).await;
+    match files_result {
+        Ok(c) => Ok(GetDocumentResponse{content:c}),
+        Err(files_db::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
         Err(e) => {
             error!("Internal server error! Cannot get file from S3: {:?}", e);
-            return Err(GetDocumentError::InternalError);
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(()) => Ok(GetDocumentResponse { content: content }),
-        Err(e) => {
-            error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetDocumentError::InternalError)
         }
     }
