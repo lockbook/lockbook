@@ -63,7 +63,8 @@ pub fn random_filename() -> String {
 
 pub fn api_loc() -> String {
     format!(
-        "http://{}:{}",
+        "{}://{}:{}",
+        env::var("SERVER_SCHEME").unwrap(),
         env::var("SERVER_HOST").unwrap(),
         env::var("SERVER_PORT").unwrap()
     )
