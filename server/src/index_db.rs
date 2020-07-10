@@ -84,13 +84,17 @@ impl From<PostgresError> for FileError {
                 if error_code == &SqlState::FOREIGN_KEY_VIOLATION
                     && error_string.contains("fk_files_parent_files_id") =>
             {
-                FileError::Unknown(String::from("cannot create a file with a parent that doesn't exist")) // todo: make this a real error variant
+                FileError::Unknown(String::from(
+                    "cannot create a file with a parent that doesn't exist",
+                )) // todo: make this a real error variant
             }
             (Some(error_code), error_string)
                 if error_code == &SqlState::FOREIGN_KEY_VIOLATION
                     && error_string.contains("fk_files_owner_accounts_name") =>
             {
-                FileError::Unknown(String::from("cannot create a file with an owner that doesn't exist")) // todo: make this a real error variant
+                FileError::Unknown(String::from(
+                    "cannot create a file with an owner that doesn't exist",
+                )) // todo: make this a real error variant
             }
             _ => FileError::Postgres(e),
         }
