@@ -17,7 +17,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_list_files)
+        setContentView(R.layout.activity_main_screen)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

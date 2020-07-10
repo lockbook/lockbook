@@ -1,21 +1,29 @@
 #![allow(non_snake_case)]
 
-use crate::client::Error;
-use crate::model::api::NewAccountError;
-use crate::model::state::Config;
-use crate::repo::db_provider::DbProvider;
-use crate::service::account_service::AccountService;
-use crate::service::account_service::{AccountCreationError, AccountImportError};
-use crate::{init_logger_safely, DefaultAccountService, DefaultDbProvider, DB_NAME};
+use std::path::Path;
+
+use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jint};
-use jni::JNIEnv;
 use sled::Db;
-use std::path::Path;
-use crate::repo::file_metadata_repo::{FileMetadataRepoImpl, FileMetadataRepo};
 use uuid::Uuid;
-use crate::repo::document_repo::{DocumentRepoImpl, DocumentRepo};
+
+use crate::{DB_NAME, DefaultAccountService, DefaultDbProvider, init_logger_safely};
+use crate::client::Error;
+use crate::model::api::NewAccountError;
 use crate::model::crypto::Document;
+use crate::model::file_metadata::FileType;
+use crate::model::state::Config;
+use crate::repo::account_repo::AccountRepoImpl;
+use crate::repo::db_provider::DbProvider;
+use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::service::account_service::{AccountCreationError, AccountImportError};
+use crate::service::account_service::AccountService;
+use crate::service::crypto_service::{AesImpl, RsaImpl};
+use crate::service::file_encryption_service::FileEncryptionServiceImpl;
+use crate::service::file_service::{FileService, FileServiceImpl};
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -161,7 +169,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
         .get_string(jpath)
         .expect("Couldn't read path out of JNI!")
         .into();
-    
+
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
     let root = FileMetadataRepoImpl::get_root(&db).expect("Couldn't access DB's root despite db being present!");
@@ -179,7 +187,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
-    jparentuuid: JString
+    jparentuuid: JString,
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
@@ -210,7 +218,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
-    jfileuuid: JString
+    jfileuuid: JString,
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
@@ -233,8 +241,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
         _ => "".to_string()
     };
 
-    println!("{}", serialized_string);
-
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
 }
 
@@ -243,7 +249,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
-    jfileuuid: JString
+    jfileuuid: JString,
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
@@ -266,20 +272,17 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
         _ => "".to_string()
     };
 
-    println!("{}", serialized_string);
-
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFileFolder<'a>(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
     env: JNIEnv<'a>,
     _: JClass,
     jpath: JString,
     jfileuuid: JString,
-    jdocument: JString
+    jdocument: JString,
 ) -> jint {
-
     let success = 0;
     let failure = 1;
 
@@ -317,7 +320,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
     jpath: JString,
     jfileuuid: JString,
 ) -> jint {
-
     let success = 0;
     let failure = 1;
 
@@ -341,3 +343,48 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
     }
 }
 
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jpath: JString,
+    jparentuuid: JString,
+    jfiletype: JString,
+    jname: JString,
+) -> JString<'a> {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let parent_uuid: String = env
+        .get_string(jparentuuid)
+        .expect("Couldn't read parent folder out of JNI!")
+        .into();
+
+    let file_type_serialized: String = env
+        .get_string(jfiletype)
+        .expect("Couldn't read the file type out of JNI!")
+        .into();
+
+    let name: String = env
+        .get_string(jname)
+        .expect("Couldn't read the file name out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let uuid: Uuid = serde_json::from_str(&parent_uuid).expect("Couldn't deserialize Uuid!");
+
+    let file_type: FileType = serde_json::from_str(&file_type_serialized).expect("Couldn't deserialized the file type!");
+
+    let file = FileServiceImpl
+        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::create(&db, name.as_str(), uuid, file_type).expect("Couldn't create a file!");
+
+    let serialized_string = match serde_json::to_string(&file) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}

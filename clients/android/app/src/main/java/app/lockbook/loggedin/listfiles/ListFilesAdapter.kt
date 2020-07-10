@@ -1,5 +1,6 @@
 package app.lockbook.loggedin.listfiles
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
@@ -32,6 +33,7 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
         holder.fileMetadata = item
         holder.cardView.file_folder_name.text = item.name
         holder.cardView.file_folder_description.text = item.id
+
         if(item.file_type == FileType.Document) {
             holder.cardView.file_folder_icon.setImageResource(R.drawable.ic_file_24)
         } else {
@@ -46,7 +48,6 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
             cardView.setOnClickListener {
                 listFilesClickInterface.onItemClick(adapterPosition)
             }
-
             cardView.setOnLongClickListener{
                 listFilesClickInterface.onLongClick(adapterPosition)
                 true
