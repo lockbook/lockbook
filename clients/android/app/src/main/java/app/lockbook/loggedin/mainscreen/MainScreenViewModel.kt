@@ -1,5 +1,6 @@
 package app.lockbook.loggedin.mainscreen
 
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -15,12 +16,14 @@ import app.lockbook.utils.FileType
 
 class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClickInterface {
 
-    private var viewModelJob = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
+    var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val json = Klaxon()
     private val _filesFolders = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<Document>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
+    private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
+    var parentUuid: String = ""
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -31,6 +34,13 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
 
+    val navigateToNewFileFolder: LiveData<Boolean>
+        get() = _navigateToNewFileFolder
+
+    fun launchNewFileFolder() {
+        _navigateToNewFileFolder.value = true
+    }
+
     fun getRootMetadata() {
         uiScope.launch {
             getRoot()
@@ -39,9 +49,9 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
 
     private suspend fun getRoot() {
         withContext(Dispatchers.IO) {
-            val maybeRootSerialized = getRoot(path)
-            val root: FileMetadata? = json.parse(maybeRootSerialized)
-            if(root == null) {
+            val root: FileMetadata? = json.parse(getRoot(path))
+
+            if (root == null) {
                 _filesFolders.postValue(listOf())
             } else {
                 _filesFolders.postValue(listOf(root))
@@ -49,11 +59,17 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
         }
     }
 
+    private fun getChildrenMetadata(parentUuid: String) {
+        uiScope.launch {
+            getChildren(parentUuid)
+        }
+    }
+
     private suspend fun getChildren(parentUuid: String) {
         withContext(Dispatchers.IO) {
-            val childrenSerialized = getChildren(path, parentUuid)
-            val children: List<FileMetadata>? = json.parse(childrenSerialized)
-            if(children == null) {
+            val children: List<FileMetadata>? = json.parse(getChildren(path, parentUuid))
+
+            if (children == null) {
                 _filesFolders.postValue(listOf())
             } else {
                 _filesFolders.postValue(children)
@@ -61,47 +77,36 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
         }
     }
 
+    fun getFileDocument(fileUuid: String) {
+        uiScope.launch {
+            getFile(fileUuid)
+        }
+    }
+
     private suspend fun getFile(fileUuid: String) {
         withContext(Dispatchers.IO) {
-            val fileSerialized = getFile(path, fileUuid)
-            val file: Document? = json.parse(fileSerialized)
+            val file: Document? = json.parse(getFile(path, fileUuid))
             _navigateToFileEditor.postValue(file!!)
         }
     }
 
     override fun onItemClick(position: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                val item = _filesFolders.value!![position]
-                if(item.file_type == FileType.Folder) {
-                    getChildren(item.id)
+            _filesFolders.value?.let {
+                val item = it[position]
+                parentUuid = item.id
+
+                if (item.file_type == FileType.Folder) {
+                    getChildrenMetadata(item.id)
                 } else {
-                    getFile(item.id)
+                    getFileDocument(item.id)
                 }
             }
-        }
+
     }
 
     override fun onLongClick(position: Int) {
-        val item = _filesFolders.value!![position]
-        _navigateToPopUpInfo.value = item
+        _filesFolders.value?.let {
+            _navigateToPopUpInfo.value = it[position]
+        }
     }
-
-//    fun getFileMetadata(fileUuid: String) {
-//        uiScope.launch {
-//            getFile(fileUuid)
-//        }
-//    }
-//
-//    private suspend fun getFileMetadata(fileUuid: String) {
-//        withContext(Dispatchers.IO) {
-//            val fileSerialized = getFile(path.absolutePath, fileUuid)
-//            print("File Data: $fileSerialized")
-//            val file: ClientFileMetadata = json.parse(fileSerialized)
-//            if(file == null) {
-//
-//            }
-//        }
-//    }
-
 }
