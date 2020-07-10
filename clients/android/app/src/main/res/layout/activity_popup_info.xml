@@ -7,66 +7,52 @@
             type="app.lockbook.loggedin.popupinfo.PopUpInfoActivity" />
     </data>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        style="@style/PopUpWindow"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="150sp">
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="25dp" >
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@{popUpInfoActivity.name}"
+        android:textColor="#FFFFFF" />
 
         <TextView
-            android:id="@+id/name_text"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
-            android:text="@{popUpInfoActivity.name}"
-            android:textColor="#FFFFFF"
-            app:layout_constraintBottom_toTopOf="@+id/id_text"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <TextView
-            android:id="@+id/id_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
+            android:fontFamily="monospace"
+            android:paddingBottom="15dp"
             android:text="@{popUpInfoActivity.id}"
-            android:textColor="#FFFFFF"
-            app:layout_constraintBottom_toTopOf="@+id/file_type_text"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/name_text" />
+            android:textColor="#FFFFFF" />
 
         <TextView
-            android:id="@+id/file_type_text"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
+            android:fontFamily="monospace"
+            android:paddingBottom="15dp"
             android:text="@{popUpInfoActivity.fileType}"
-            android:textColor="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/id_text" />
+            android:textColor="#FFFFFF" />
 
         <TextView
-            android:id="@+id/metadata_version_text"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:paddingBottom="15dp"
             android:text="@{popUpInfoActivity.metadataVersion}"
-            android:textColor="#FFFFFF"
-            app:layout_constraintBottom_toTopOf="@+id/content_version_text"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintStart_toEndOf="@+id/name_text"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:textColor="#FFFFFF" />
 
         <TextView
-            android:id="@+id/content_version_text"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:paddingBottom="15dp"
             android:text="@{popUpInfoActivity.contentVersion}"
-            android:textColor="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintStart_toEndOf="@+id/file_type_text"
-            app:layout_constraintTop_toBottomOf="@+id/metadata_version_text" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            android:textColor="#FFFFFF" />
+
+    </LinearLayout>
 </layout>
