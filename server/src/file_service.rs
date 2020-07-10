@@ -313,9 +313,10 @@ pub async fn get_document(
         &server_state.files_db_client,
         request.id,
         request.content_version,
-    ).await;
+    )
+    .await;
     match files_result {
-        Ok(c) => Ok(GetDocumentResponse{content:c}),
+        Ok(c) => Ok(GetDocumentResponse { content: c }),
         Err(files_db::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
         Err(e) => {
             error!("Internal server error! Cannot get file from S3: {:?}", e);
