@@ -150,7 +150,7 @@ mod get_document_tests {
 
         // get document
         assert_matches!(
-            ClientImpl::get_document(&api_loc(), Uuid::new_v4(), 0,),
+            ClientImpl::get_document(&api_loc(), doc_id, 0),
             Err(Error::<GetDocumentError>::Api(
                 GetDocumentError::DocumentDeleted
             ))
@@ -200,7 +200,7 @@ mod get_document_tests {
 
         // get document with wrong version
         assert_matches!(
-            ClientImpl::get_document(&api_loc(), Uuid::new_v4(), version - 1,),
+            ClientImpl::get_document(&api_loc(), doc_id, version - 1),
             Err(Error::<GetDocumentError>::Api(
                 GetDocumentError::StaleVersion
             ))
