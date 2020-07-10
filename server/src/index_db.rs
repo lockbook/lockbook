@@ -327,6 +327,35 @@ pub async fn rename_file(
     Ok(metadata.new_metadata_version)
 }
 
+pub struct DocumentContentStatus {
+    pub content_version: u64,
+    pub deleted: bool,
+}
+
+impl DocumentContentStatus {
+    fn from_row(row: &tokio_postgres::row::Row) -> Result<DocumentContentStatus, FileError> {
+        Ok(DocumentContentStatus {
+            content_version: row
+                .try_get::<&str, i64>("content_version")
+                .map_err(FileError::Postgres)? as u64,
+            deleted: row.try_get("deleted").map_err(FileError::Postgres)?,
+        })
+    }
+}
+
+pub async fn get_document_content_status(
+    transaction: &Transaction<'_>,
+    id: Uuid,
+) -> Result<DocumentContentStatus, FileError> {
+    let rows = transaction
+        .query(
+            "SELECT content_version, deleted FROM files WHERE id = $1;",
+            &[&serde_json::to_string(&id).map_err(FileError::Serialize)?],
+        )
+        .await?;
+    Ok(DocumentContentStatus::from_row(rows_to_row(&rows)?)?)
+}
+
 pub async fn get_public_key(
     transaction: &Transaction<'_>,
     username: &str,
