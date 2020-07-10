@@ -1,35 +1,24 @@
+use std::fs;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
-use std::{fs, io};
 
-use uuid::Uuid;
-
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+use uuid::Uuid;
 
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
+use std::process::exit;
 
-pub fn new() {
+pub fn new(file_name: &str) {
     get_account(&connect_to_db());
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     File::create(&temp_file_path)
         .unwrap_or_else(|_| panic!("Could not create temporary file: {}", &file_location));
-
-    if atty::is(atty::Stream::Stdin) {
-        print!("Enter a filepath: ");
-        io::stdout().flush().unwrap();
-    }
-
-    let mut file_name = String::new();
-    io::stdin()
-        .read_line(&mut file_name)
-        .expect("Failed to read from stdin");
-    file_name.retain(|c| !c.is_whitespace());
 
     let file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
         Ok(file_metadata) => file_metadata,
@@ -40,6 +29,11 @@ pub fn new() {
             NewFileFromPathError::FailedToCreateChild(_) => panic!("Unexpected error ocurred: {:?}", error),
         },
     };
+
+    if file_metadata.file_type == Folder {
+        eprintln!("This is a folder");
+        exit(1);
+    }
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
@@ -52,7 +46,7 @@ pub fn new() {
             file_metadata.id,
             &DecryptedValue { secret },
         )
-        .expect("Unexpected error while updating internal state");
+            .expect("Unexpected error while updating internal state");
 
         DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata)
             .expect("Failed to index new file!");

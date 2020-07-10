@@ -23,16 +23,16 @@ mod whoami;
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
     /// Create a new file
-    New,
+    New { path: String },
 
     /// Get updates, push changes
     Sync,
 
     /// Search and edit a file
-    Edit,
+    Edit { path: String },
 
     /// Search and delete a file
-    Remove,
+    Remove { path: String },
 
     /// List all your files
     List,
@@ -65,7 +65,7 @@ enum Lockbook {
     Export,
 
     /// Print the contents of a file
-    Print,
+    Print { path: String },
 
     /// Display lockbook username
     #[structopt(name = "whoami")]
@@ -76,10 +76,10 @@ fn main() {
     init_logger_safely();
     let args: Lockbook = Lockbook::from_args();
     match args {
-        Lockbook::New => new::new(),
+        Lockbook::New { path } => new::new(&path.trim()),
         Lockbook::Sync => sync::sync(),
-        Lockbook::Edit => edit::edit(),
-        Lockbook::Remove => remove::remove(),
+        Lockbook::Edit { path } => edit::edit(&path.trim()),
+        Lockbook::Remove { path } => remove::remove(&path.trim()),
         Lockbook::List => list::list(Some(LeafNodesOnly)),
         Lockbook::ListAll => list::list(None),
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
@@ -89,7 +89,7 @@ fn main() {
         Lockbook::Status => status::status(),
         Lockbook::Export => export::export(),
         Lockbook::WhoAmI => whoami::whoami(),
-        Lockbook::Print => print::print(),
-        Lockbook::Copy { file: path } => copy::copy(path),
+        Lockbook::Print { path } => print::print(&path.trim()),
+        Lockbook::Copy { file } => copy::copy(file),
     }
 }
