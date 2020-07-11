@@ -286,7 +286,7 @@ mod unit_tests {
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
-    use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, LeafNodesOnly};
+    use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
@@ -321,6 +321,25 @@ mod unit_tests {
         let folder4 = DefaultFileService::create(&db, "TestFolder4", folder3.id, Folder).unwrap();
         let folder5 = DefaultFileService::create(&db, "TestFolder5", folder4.id, Folder).unwrap();
         let file = DefaultFileService::create(&db, "test.text", folder5.id, Document).unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
+                .unwrap()
+                .len(),
+            6
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
+                .unwrap()
+                .len(),
+            1
+        );
 
         DefaultFileService::write_document(
             &db,
@@ -529,6 +548,13 @@ mod unit_tests {
             1
         );
         assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
+                .unwrap()
+                .len(),
+            1
+        );
+
+        assert_eq!(
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/folder3/test2.txt")
                 .unwrap()
                 .name,
@@ -551,6 +577,12 @@ mod unit_tests {
                 .unwrap()
                 .len(),
             2
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
+                .unwrap()
+                .len(),
+            4
         );
         println!(
             "{:?}",
@@ -608,7 +640,8 @@ mod unit_tests {
             DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
                 .unwrap()
                 .len(),
-            4
+            5
         );
+        test_arbitary_path_file_creation
     }
 }
