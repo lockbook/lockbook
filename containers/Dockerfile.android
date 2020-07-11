@@ -29,7 +29,7 @@ COPY core core
 
 # Build Core
 WORKDIR core
-# Compile-time env var
+# Dependency on core which has compile-time env var
 ENV API_URL=unused
 RUN make android
 
