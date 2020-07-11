@@ -27,6 +27,7 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
+use crate::service::file_service::DocumentMoveError::FileDoesntExist;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -83,6 +84,14 @@ pub enum DocumentRenameError {
     FailedToRecordChange(local_changes_repo::DbError),
 }
 
+#[derive(Debug)]
+pub enum DocumentMoveError {
+    TargetParentHasChildNamedThat,
+    FileDoesntExist,
+    ParentDoesntExist,
+    DbError(file_metadata_repo::DbError),
+}
+
 pub trait FileService {
     fn create(
         db: &Db,
@@ -101,11 +110,11 @@ pub trait FileService {
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
 
-    // fn move_file(
-    //     db: &Db,
-    //     file_metadata: Uuid,
-    //     new_parent: Uuid
-    // ) -> Result<(), ()>;
+    fn move_file(
+        db: &Db,
+        file_metadata: Uuid,
+        new_parent: Uuid
+    ) -> Result<(), DocumentMoveError>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 }
@@ -310,6 +319,17 @@ impl<
                 Ok(())
             }
         }
+    }
+
+    fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), DocumentMoveError> {
+        let file_being_moved = FileMetadataDb::maybe_get(&db, file_metadata).map_err(DocumentMoveError::DbError)?;
+        if let None = file_being_moved {
+            return Err(FileDoesntExist);
+        }
+
+        
+
+        Ok(())
     }
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
