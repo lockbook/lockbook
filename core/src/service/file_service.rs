@@ -17,22 +17,22 @@ use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
-use crate::service::file_service::NewFileError::{
-    FailedToSaveMetadata, FailedToWriteFileContent, FileCryptoError,
-};
-use crate::service::file_service::NewFileFromPathError::{
-    FailedToCreateChild, InvalidRootFolder, NoRoot,
-};
+use crate::service::file_service::NewFileError::{MetadataRepoError, FailedToWriteFileContent, FileCryptoError, FileNameNotAvailable, ParentIsADocument, FileNameContainsSlash};
+use crate::service::file_service::NewFileFromPathError::{FailedToCreateChild, InvalidRootFolder, NoRoot, FileAlreadyExists};
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
+use crate::DefaultFileMetadataRepo;
 
 #[derive(Debug)]
 pub enum NewFileError {
     AccountRetrievalError(account_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::FileCreationError),
-    FailedToSaveMetadata(file_metadata_repo::DbError),
+    MetadataRepoError(file_metadata_repo::DbError),
     FailedToWriteFileContent(DocumentUpdateError),
     FailedToRecordChange(local_changes_repo::DbError),
+    FileNameNotAvailable,
+    ParentIsADocument,
+    FileNameContainsSlash,
 }
 
 #[derive(Debug)]
@@ -42,6 +42,7 @@ pub enum NewFileFromPathError {
     InvalidRootFolder,
     FailedToCreateChild(NewFileError),
     FailedToRecordChange(local_changes_repo::DbError),
+    FileAlreadyExists,
 }
 
 #[derive(Debug)]
@@ -131,22 +132,40 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError> {
+
+        if name.contains('/') {
+            return Err(FileNameContainsSlash)
+        }
+
         let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, parent)
             .map_err(NewFileError::CouldNotFindParents)?;
 
-        // TODO add test / check here that `parent` is a Folder
+        // Make sure parent is in fact a folder
+        match parents.get(&parent) {
+            Some(parent) => {
+                if parent.file_type == Document {
+                    return Err(ParentIsADocument)
+                }
+            },
+            None => {}, // Unreachable, get_all_with_parents checks for this and returns it's own error
+         }
 
-        // TODO check here that a node with the same parent does not share a name with this file
-
-        // TODO check that a file with this id doesn't already exist
+        // Check that this file name is available
+        for child in DefaultFileMetadataRepo::get_children(&db, parent)
+            .map_err(MetadataRepoError)?
+        {
+            if child.name == name {
+                return Err(FileNameNotAvailable);
+            }
+        }
 
         let new_metadata =
             FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
                 .map_err(FileCryptoError)?;
 
-        FileMetadataDb::insert(&db, &new_metadata).map_err(FailedToSaveMetadata)?;
+        FileMetadataDb::insert(&db, &new_metadata).map_err(MetadataRepoError)?;
         ChangesDb::track_new_file(&db, new_metadata.id)
             .map_err(NewFileError::FailedToRecordChange)?;
 
@@ -163,8 +182,6 @@ impl<
         Ok(new_metadata)
     }
 
-    // TODO how does passing in the same path twice work?
-    // TODO how do folder / document interactions work?
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
@@ -185,6 +202,10 @@ impl<
             return Err(InvalidRootFolder);
         }
 
+        if path_components.len() == 1 {
+            return Err(FileAlreadyExists);
+        }
+
         // We're going to look ahead, and find or create the right child
         'path: for index in 0..path_components.len() - 1 {
             let children = FileMetadataDb::get_children(&db, current.id)
@@ -203,8 +224,15 @@ impl<
 
             for child in children {
                 if child.name == next_name {
-                    current = child;
-                    continue 'path; // Child exists, onto the next one
+                    // If we're at the end and we find this child, that means this path already exists
+                    if index == path_components.len() - 2 {
+                        return Err(FileAlreadyExists);
+                    }
+
+                    if child.file_type == Folder {
+                        current = child;
+                        continue 'path; // Child exists, onto the next one
+                    }
                 }
             }
             debug!("child not found!");
@@ -282,7 +310,7 @@ mod unit_tests {
     use crate::model::account::Account;
     use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::state::Config;
+    use crate::model::state::{dummy_config, Config};
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -297,10 +325,7 @@ mod unit_tests {
 
     #[test]
     fn file_service_runthrough() {
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -489,10 +514,7 @@ mod unit_tests {
     #[test]
     fn test_arbitrary_path_file_creation() {
         init_logger_safely();
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
             username: String::from("username"),
@@ -505,18 +527,12 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
-        assert_eq!(
-            DefaultFileService::create_at_path(&db, "username")
-                .unwrap()
-                .name,
-            "username"
-        );
-        assert_eq!(
+        assert!(
             DefaultFileService::create_at_path(&db, "username/")
-                .unwrap()
-                .name,
-            "username"
-        );
+                .is_err());
+        assert!(
+            DefaultFileService::create_at_path(&db, "username/")
+                .is_err());
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, None)
                 .unwrap()
@@ -642,5 +658,94 @@ mod unit_tests {
                 .len(),
             5
         );
+    }
+
+    #[test]
+    fn ensure_no_duplicate_files_via_path() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
+        assert!(DefaultFileService::create_at_path(&db, "username/test.txt").is_err());
+    }
+
+    #[test]
+    fn ensure_no_duplicate_files_via_create() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
+        assert!(DefaultFileService::create(&db, "test.txt", file.parent, Document).is_err());
+    }
+
+    #[test]
+    fn ensure_no_document_has_children_via_path() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
+        assert!(DefaultFileService::create_at_path(&db, "username/test.txt/oops.txt").is_err());
+    }
+
+    #[test]
+    fn ensure_no_document_has_children() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
+        assert!(DefaultFileService::create(&db, "oops.txt", file.id, Document).is_err());
+    }
+
+    #[test]
+    fn ensure_no_bad_names() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        assert!(DefaultFileService::create(&db, "oops/txt", root.id, Document).is_err());
     }
 }
