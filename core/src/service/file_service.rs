@@ -14,6 +14,7 @@ use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
@@ -75,6 +76,10 @@ pub enum ReadDocumentError {
 
 #[derive(Debug)]
 pub enum DocumentRenameError {
+    FileDoesNotExist,
+    FileNameContainsSlash,
+    FileNameNotAvailable,
+    DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
 
@@ -93,13 +98,9 @@ pub trait FileService {
         id: Uuid,
         content: &DecryptedValue,
     ) -> Result<(), DocumentUpdateError>;
-    //
-    // fn rename_file(
-    //     db: &Db,
-    //     file_metadata: Uuid,
-    //     new_name: &str,
-    // ) -> Result<(), DocumentRenameError>;
-    //
+
+    fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
+
     // fn move_file(
     //     db: &Db,
     //     file_metadata: Uuid,
@@ -280,6 +281,36 @@ impl<
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
 
         Ok(())
+    }
+
+    fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError> {
+        if new_name.contains('/') {
+            return Err(DocumentRenameError::FileNameContainsSlash);
+        }
+
+        match FileMetadataDb::maybe_get(&db, id).map_err(DocumentRenameError::DbError)? {
+            None => Err(FileDoesNotExist),
+            Some(mut file) => {
+                let siblings = FileMetadataDb::get_children(&db, file.parent)
+                    .map_err(DocumentRenameError::DbError)?;
+
+                // Check that this file name is available
+                for child in siblings {
+                    if child.name == new_name {
+                        return Err(DocumentRenameError::FileNameNotAvailable);
+                    }
+                }
+
+                ChangesDb::track_rename(&db, file.id, &file.name, new_name)
+                    .map_err(DocumentRenameError::FailedToRecordChange)?;
+
+                file.name = new_name.to_string();
+                FileMetadataDb::insert(&db, &file)
+                    .map_err(DocumentRenameError::DbError)?;
+
+                Ok(())
+            }
+        }
     }
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
