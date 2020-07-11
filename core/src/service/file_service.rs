@@ -87,12 +87,18 @@ pub trait FileService {
         id: Uuid,
         content: &DecryptedValue,
     ) -> Result<(), DocumentUpdateError>;
-
-    fn rename_document(
-        db: &Db,
-        file_metadata: &FileMetadata,
-        new_name: &str,
-    ) -> Result<(), DocumentRenameError>;
+    //
+    // fn rename_file(
+    //     db: &Db,
+    //     file_metadata: Uuid,
+    //     new_name: &str,
+    // ) -> Result<(), DocumentRenameError>;
+    //
+    // fn move_file(
+    //     db: &Db,
+    //     file_metadata: Uuid,
+    //     new_parent: Uuid
+    // ) -> Result<(), ()>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 }
@@ -130,6 +136,12 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, parent)
             .map_err(NewFileError::CouldNotFindParents)?;
 
+        // TODO add test / check here that `parent` is a Folder
+
+        // TODO check here that a node with the same parent does not share a name with this file
+
+        // TODO check that a file with this id doesn't already exist
+
         let new_metadata =
             FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
                 .map_err(FileCryptoError)?;
@@ -151,6 +163,8 @@ impl<
         Ok(new_metadata)
     }
 
+    // TODO how does passing in the same path twice work?
+    // TODO how do folder / document interactions work?
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
@@ -237,14 +251,6 @@ impl<
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
 
         Ok(())
-    }
-
-    fn rename_document(db: &Db, file_metadata: &FileMetadata, new_name: &str) -> Result<(), DocumentRenameError> {
-        ChangesDb::track_rename(&db, file_metadata.id, &file_metadata.name, new_name)
-            .map_err(DocumentRenameError::FailedToRecordChange)?;
-
-
-        unimplemented!()
     }
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
