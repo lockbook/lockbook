@@ -72,7 +72,7 @@ class MainScreenFragment: Fragment() {
             it?.let {
                 if(it) {
                     val intent = Intent(context, NewFileFolderActivity::class.java)
-                    intent.putExtra("parentUuid", mainScreenViewModel.parentUuid)
+                    intent.putExtra("parentUuid", mainScreenViewModel.parentFileMetadata.id)
                     intent.putExtra("path", application.filesDir.absolutePath)
                     startActivity(intent)
                 }
@@ -85,23 +85,17 @@ class MainScreenFragment: Fragment() {
     }
 
     fun onBackPressed(): Boolean {
-        Log.e("SMAIL", "$4")
-        if(mainScreenViewModel.parentUuid == mainScreenViewModel.rootUuid) {
-            Log.e("SMAIL", "5")
+        if(mainScreenViewModel.parentFileMetadata.id == mainScreenViewModel.parentFileMetadata.parent) {
             return false
-            Log.e("SMAIL", "6")
         }
-        Log.e("SMAIL", "7")
-        mainScreenViewModel.getChildrenMetadata(mainScreenViewModel.parentUuid)
-        Log.e("SMAIL", "8")
+
+        mainScreenViewModel.getChildrenOfParentOfParentFileMetadata()
 
         return true
     }
 
     override fun onResume() {
         super.onResume()
-        if(mainScreenViewModel.parentUuid.isNotEmpty()) {
-            mainScreenViewModel.getChildrenMetadata(mainScreenViewModel.parentUuid)
-        }
+
     }
 }
