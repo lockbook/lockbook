@@ -62,15 +62,6 @@ pub fn random_filename() -> String {
         .collect()
 }
 
-pub fn api_loc() -> String {
-    format!(
-        "{}://{}:{}",
-        env::var("SERVER_SCHEME").unwrap(),
-        env::var("SERVER_HOST").unwrap(),
-        env::var("SERVER_PORT").unwrap()
-    )
-}
-
 pub fn generate_account() -> Account {
     Account {
         username: random_username(),

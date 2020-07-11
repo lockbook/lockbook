@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod move_document_tests {
-    use crate::{aes_key, aes_str, api_loc, generate_account, random_filename, rsa_key, sign};
+    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -33,7 +33,6 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
-            &api_loc(),
             &account.username,
             &sign(&account),
             doc_id,
@@ -142,7 +141,6 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
-            &api_loc(),
             &account.username,
             &sign(&account),
             doc_id,
@@ -177,12 +175,7 @@ mod move_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-            ),
+            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
             Ok(_)
         );
 
@@ -227,7 +220,6 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
-            &api_loc(),
             &account.username,
             &sign(&account),
             doc_id,
@@ -302,7 +294,6 @@ mod move_document_tests {
         let doc_key = AesImpl::generate_key();
         let doc_name = random_filename();
         let version = ClientImpl::create_document(
-            &api_loc(),
             &account.username,
             &sign(&account),
             doc_id,
