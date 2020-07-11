@@ -10,7 +10,6 @@ use lockbook_core::service::crypto_service::{
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
-use std::env;
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -60,15 +59,6 @@ pub fn random_filename() -> String {
         .chars()
         .filter(|c| c.is_alphanumeric())
         .collect()
-}
-
-pub fn api_loc() -> String {
-    format!(
-        "{}://{}:{}",
-        env::var("SERVER_SCHEME").unwrap(),
-        env::var("SERVER_HOST").unwrap(),
-        env::var("SERVER_PORT").unwrap()
-    )
 }
 
 pub fn generate_account() -> Account {
