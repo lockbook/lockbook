@@ -41,12 +41,12 @@ class NewFileFolderActivity : Activity() {
                 val path = intent.getStringExtra("path")
                 val parentUuid = intent.getStringExtra("parentUuid")
 
-                createFileFolder(
+                Log.i("SMAIL1", createFileFolder(
                     path,
                     parentUuid,
                     fileType,
                     name_text.text.toString()
-                )
+                ).toString())
 
                 withContext(Dispatchers.Main) {
                     finish()
