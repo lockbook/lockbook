@@ -17,8 +17,13 @@ use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
-use crate::service::file_service::NewFileError::{MetadataRepoError, FailedToWriteFileContent, FileCryptoError, FileNameNotAvailable, ParentIsADocument, FileNameContainsSlash};
-use crate::service::file_service::NewFileFromPathError::{FailedToCreateChild, InvalidRootFolder, NoRoot, FileAlreadyExists};
+use crate::service::file_service::NewFileError::{
+    FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash, FileNameNotAvailable,
+    MetadataRepoError, ParentIsADocument,
+};
+use crate::service::file_service::NewFileFromPathError::{
+    FailedToCreateChild, FileAlreadyExists, InvalidRootFolder, NoRoot,
+};
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
 
@@ -132,9 +137,8 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError> {
-
         if name.contains('/') {
-            return Err(FileNameContainsSlash)
+            return Err(FileNameContainsSlash);
         }
 
         let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
@@ -146,15 +150,15 @@ impl<
         match parents.get(&parent) {
             Some(parent) => {
                 if parent.file_type == Document {
-                    return Err(ParentIsADocument)
+                    return Err(ParentIsADocument);
                 }
-            },
-            None => {}, // Unreachable, get_all_with_parents checks for this and returns it's own error
-         }
+            }
+            None => {} // Unreachable, get_all_with_parents checks for this and returns it's own error
+        }
 
         // Check that this file name is available
-        for child in DefaultFileMetadataRepo::get_children(&db, parent)
-            .map_err(MetadataRepoError)?
+        for child in
+            DefaultFileMetadataRepo::get_children(&db, parent).map_err(MetadataRepoError)?
         {
             if child.name == name {
                 return Err(FileNameNotAvailable);
@@ -527,12 +531,8 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
-        assert!(
-            DefaultFileService::create_at_path(&db, "username/")
-                .is_err());
-        assert!(
-            DefaultFileService::create_at_path(&db, "username/")
-                .is_err());
+        assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
+        assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, None)
                 .unwrap()
