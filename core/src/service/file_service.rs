@@ -642,6 +642,5 @@ mod unit_tests {
                 .len(),
             5
         );
-        test_arbitary_path_file_creation
     }
 }
