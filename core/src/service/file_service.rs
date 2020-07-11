@@ -346,11 +346,14 @@ mod unit_tests {
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+    use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo};
-    use crate::repo::local_changes_repo::LocalChangesRepo;
+    use crate::{
+        init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
+    };
     use uuid::Uuid;
 
     #[test]
@@ -790,32 +793,94 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
-        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id).unwrap().unwrap().new);
-        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.parent).unwrap().unwrap().new);
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 2);
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+                .unwrap()
+                .unwrap()
+                .new
+        );
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.parent)
+                .unwrap()
+                .unwrap()
+                .new
+        );
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            2
+        );
 
         DefaultLocalChangesRepo::untrack_new_file(&db, file.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file.parent).unwrap();
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 0);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
 
         DefaultFileService::rename_file(&db, file.id, "file2.txt").unwrap();
-        assert_eq!(DefaultLocalChangesRepo::get_local_changes(&db, file.id).unwrap().unwrap().renamed.unwrap().old_value, "file1.txt");
+        assert_eq!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+                .unwrap()
+                .unwrap()
+                .renamed
+                .unwrap()
+                .old_value,
+            "file1.txt"
+        );
 
         DefaultFileService::rename_file(&db, file.id, "file23.txt").unwrap();
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 1);
-        assert_eq!(DefaultLocalChangesRepo::get_local_changes(&db, file.id).unwrap().unwrap().renamed.unwrap().old_value, "file1.txt");
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 1);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+                .unwrap()
+                .unwrap()
+                .renamed
+                .unwrap()
+                .old_value,
+            "file1.txt"
+        );
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
 
         DefaultFileService::rename_file(&db, file.id, "file1.txt").unwrap();
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 0);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
 
         assert!(DefaultFileService::rename_file(&db, Uuid::new_v4(), "not_used").is_err());
         assert!(DefaultFileService::rename_file(&db, file.id, "file/1.txt").is_err());
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 0);
-        assert_eq!(DefaultFileMetadataRepo::get(&db, file.id).unwrap().name, "file1.txt");
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db, file.id).unwrap().name,
+            "file1.txt"
+        );
 
         let file2 = DefaultFileService::create_at_path(&db, "username/folder1/file2.txt").unwrap();
-        assert_eq!(DefaultFileMetadataRepo::get(&db, file2.id).unwrap().name, "file2.txt");
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db, file2.id).unwrap().name,
+            "file2.txt"
+        );
         assert!(DefaultFileService::rename_file(&db, file2.id, "file1.txt").is_err());
     }
 }
