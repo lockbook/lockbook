@@ -52,7 +52,7 @@ mod get_document_tests {
         assert_eq!(
             aes_decrypt_str(
                 &doc_key,
-                &ClientImpl::get_document(&api_loc(), doc_id, version)
+                &ClientImpl::get_document(doc_id, version)
                     .unwrap()
                     .content,
             ),
@@ -84,7 +84,7 @@ mod get_document_tests {
 
         // get document we never created
         assert_matches!(
-            ClientImpl::get_document(&api_loc(), Uuid::new_v4(), 0,),
+            ClientImpl::get_document(Uuid::new_v4(), 0,),
             Err(Error::<GetDocumentError>::Api(
                 GetDocumentError::DocumentNotFound
             ))

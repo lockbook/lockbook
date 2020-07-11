@@ -29,7 +29,7 @@ mod get_public_key_tests {
             Ok(_)
         );
 
-        let key2 = ClientImpl::get_public_key(&api_loc(), &account.username).unwrap();
+        let key2 = ClientImpl::get_public_key(&account.username).unwrap();
 
         assert_eq!(key, key2);
     }
@@ -37,7 +37,7 @@ mod get_public_key_tests {
     #[test]
     fn get_public_key_not_found() {
         assert_matches!(
-            ClientImpl::get_public_key(&api_loc(), &random_username()),
+            ClientImpl::get_public_key(&random_username()),
             Err(Error::<GetPublicKeyError>::Api(
                 GetPublicKeyError::UserNotFound
             ))
