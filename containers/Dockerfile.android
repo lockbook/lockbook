@@ -29,6 +29,8 @@ COPY core core
 
 # Build Core
 WORKDIR core
+# Compile-time env var
+ENV API_URL=unused
 RUN make android
 
 # Build android
