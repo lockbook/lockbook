@@ -1,6 +1,3 @@
-use std::io;
-use std::io::Write;
-
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
