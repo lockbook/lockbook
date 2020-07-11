@@ -27,11 +27,12 @@ pub fn new(file_name: &str) {
             NewFileFromPathError::DbError(_) |
             NewFileFromPathError::NoRoot | NewFileFromPathError::FailedToRecordChange(_) |
             NewFileFromPathError::FailedToCreateChild(_) => panic!("Unexpected error ocurred: {:?}", error),
+            NewFileFromPathError::FileAlreadyExists => panic!("This file already exists")
         },
     };
 
     if file_metadata.file_type == Folder {
-        eprintln!("This is a folder");
+        eprintln!("This is a folder"); // TODO why are we upset about this?
         exit(1);
     }
 
