@@ -10,7 +10,6 @@ use lockbook_core::service::crypto_service::{
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
-use std::env;
 use uuid::Uuid;
 
 #[cfg(test)]
