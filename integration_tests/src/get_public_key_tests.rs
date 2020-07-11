@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod get_public_key_tests {
-    use crate::{aes_key, api_loc, generate_account, random_username, rsa_key, sign};
+    use crate::{aes_key, generate_account, random_username, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
