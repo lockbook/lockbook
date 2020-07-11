@@ -20,6 +20,10 @@ import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 
 class MainScreenFragment : Fragment() {
 
+    companion object {
+        const val NEW_FILE_REQUEST_CODE: Int = 1
+    }
+
     lateinit var mainScreenViewModel: MainScreenViewModel
 
     override fun onCreateView(
@@ -45,7 +49,6 @@ class MainScreenFragment : Fragment() {
         binding.lifecycleOwner = this
 
         mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
-            Log.i("SMAIL", "THE PREVIOUS LINE SHOULD BE IDK")
             it?.let {
                 if (it.isEmpty()) {
                     adapter.filesFolders = listOf()
@@ -80,7 +83,7 @@ class MainScreenFragment : Fragment() {
                         mainScreenViewModel.fileFolderModel.parentFileMetadata.id
                     )
                     intent.putExtra("path", application.filesDir.absolutePath)
-                    startActivity(intent)
+                    startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
                 }
             }
         })
@@ -94,8 +97,11 @@ class MainScreenFragment : Fragment() {
         return mainScreenViewModel.quitOrNot()
     }
 
-    override fun onResume() {
-        super.onResume()
-        mainScreenViewModel.refreshFilesFolderList()
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when(requestCode) {
+            NEW_FILE_REQUEST_CODE -> {
+                mainScreenViewModel.refreshFilesFolderList()
+            }
+        }
     }
 }

@@ -1,19 +1,31 @@
 package app.lockbook.loggedin.mainscreen
 
-import app.lockbook.core.getChildren
-import app.lockbook.core.getFileMetadata
+import android.util.Log
+import app.lockbook.core.*
 import app.lockbook.utils.Document
 import app.lockbook.utils.EncryptedValueWithNonce
 import app.lockbook.utils.FileMetadata
 import com.beust.klaxon.Klaxon
+import kotlinx.android.synthetic.main.activity_new_file_folder.*
 
 class FileFolderModel(private val path: String) {
-
     private val json = Klaxon()
     lateinit var parentFileMetadata: FileMetadata
 
+    companion object {
+        fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
+            val serializedFileFolder = createFileFolder(path, parentUuid, fileType, name)
+
+            val fileFolder: FileMetadata? = Klaxon().parse(serializedFileFolder)
+
+            fileFolder?.let {
+                insertFileFolder(path, serializedFileFolder)
+            }
+        }
+    }
+
     fun setParentToRoot() {
-        val root: FileMetadata? = json.parse(app.lockbook.core.getRoot(path))
+        val root: FileMetadata? = json.parse(getRoot(path))
 
         if (root != null) {
             parentFileMetadata = root
@@ -45,8 +57,8 @@ class FileFolderModel(private val path: String) {
         return listOf()
     }
 
-    fun getFile(fileUuid: String): Document {
-        val file: Document? = json.parse(app.lockbook.core.getFile(path, fileUuid))
+    fun getFileDocument(fileUuid: String): Document {
+        val file: Document? = json.parse(getFile(path, fileUuid))
         if (file != null) {
             return file
         }

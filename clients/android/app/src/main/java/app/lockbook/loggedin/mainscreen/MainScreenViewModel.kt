@@ -64,8 +64,11 @@ class MainScreenViewModel(path: String) : ViewModel(), ListFilesClickInterface {
     }
 
     fun refreshFilesFolderList() {
-        _filesFolders.value = _filesFolders.value
-        Log.i("SMAIL", "NEXT LINE SHOULD BE THE OBSERVER")
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
+            }
+        }
     }
 
     override fun onItemClick(position: Int) {
@@ -78,7 +81,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ListFilesClickInterface {
                         fileFolderModel.parentFileMetadata = item
                         _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
                     } else {
-                        _navigateToFileEditor.postValue(fileFolderModel.getFile(item.id))
+                        _navigateToFileEditor.postValue(fileFolderModel.getFileDocument(item.id))
                     }
                 }
             }
