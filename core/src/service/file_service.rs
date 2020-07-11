@@ -147,13 +147,10 @@ impl<
             .map_err(NewFileError::CouldNotFindParents)?;
 
         // Make sure parent is in fact a folder
-        match parents.get(&parent) {
-            Some(parent) => {
-                if parent.file_type == Document {
-                    return Err(ParentIsADocument);
-                }
+        if let Some(parent) = parents.get(&parent) {
+            if parent.file_type == Document {
+                return Err(ParentIsADocument);
             }
-            None => {} // Unreachable, get_all_with_parents checks for this and returns it's own error
         }
 
         // Check that this file name is available
