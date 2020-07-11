@@ -13,7 +13,7 @@ pub trait LocalChangesRepo {
     fn get_all_local_changes(db: &Db) -> Result<Vec<LocalChange>, DbError>;
     fn get_local_changes(db: &Db, id: Uuid) -> Result<Option<LocalChange>, DbError>;
     fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn track_rename(db: &Db, id: Uuid, old_name: String) -> Result<(), DbError>;
+    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError>;
     fn track_move(db: &Db, id: Uuid, old_parent: Uuid) -> Result<(), DbError>;
     fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
@@ -76,7 +76,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         Ok(())
     }
 
-    fn track_rename(db: &Db, id: Uuid, old_name: String) -> Result<(), DbError> {
+    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -107,7 +107,11 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-                Some(_) => Ok(()),
+                Some(renamed) => if new_name == renamed.old_value {
+                    Self::untrack_rename(&db, id)
+                } else {
+                    Ok(())
+                },
             },
         }
     }
@@ -316,8 +320,8 @@ mod unit_tests {
         );
 
         let id2 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_rename(&db, id, String::from("old_file")).unwrap();
-        LocalChangesRepoImpl::track_rename(&db, id2, String::from("old_file2")).unwrap();
+        LocalChangesRepoImpl::track_rename(&db, id, "old_file").unwrap();
+        LocalChangesRepoImpl::track_rename(&db, id2, "old_file2").unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
