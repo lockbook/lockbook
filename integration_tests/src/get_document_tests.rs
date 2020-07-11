@@ -52,9 +52,7 @@ mod get_document_tests {
         assert_eq!(
             aes_decrypt_str(
                 &doc_key,
-                &ClientImpl::get_document(doc_id, version)
-                    .unwrap()
-                    .content,
+                &ClientImpl::get_document(doc_id, version).unwrap().content,
             ),
             "doc content"
         );
