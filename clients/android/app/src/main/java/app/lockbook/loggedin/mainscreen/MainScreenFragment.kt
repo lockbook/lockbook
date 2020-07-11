@@ -17,7 +17,7 @@ import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
 import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 
-class MainScreenFragment: Fragment() {
+class MainScreenFragment : Fragment() {
 
     lateinit var mainScreenViewModel: MainScreenViewModel
 
@@ -34,7 +34,8 @@ class MainScreenFragment: Fragment() {
             MainScreenViewModelFactory(
                 application.filesDir.absolutePath
             )
-        mainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
+        mainScreenViewModel =
+            ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
         val adapter = ListFilesAdapter(mainScreenViewModel)
 
         binding.mainScreenViewModel = mainScreenViewModel
@@ -44,7 +45,7 @@ class MainScreenFragment: Fragment() {
 
         mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
             it?.let {
-                if(it.isEmpty()) {
+                if (it.isEmpty()) {
                     adapter.filesFolders = listOf()
                 } else {
                     adapter.filesFolders = it
@@ -70,9 +71,12 @@ class MainScreenFragment: Fragment() {
 
         mainScreenViewModel.navigateToNewFileFolder.observe(viewLifecycleOwner, Observer {
             it?.let {
-                if(it) {
+                if (it) {
                     val intent = Intent(context, NewFileFolderActivity::class.java)
-                    intent.putExtra("parentUuid", mainScreenViewModel.parentFileMetadata.id)
+                    intent.putExtra(
+                        "parentUuid",
+                        mainScreenViewModel.fileFolderModel.parentFileMetadata.id
+                    )
                     intent.putExtra("path", application.filesDir.absolutePath)
                     startActivity(intent)
                 }
@@ -85,11 +89,12 @@ class MainScreenFragment: Fragment() {
     }
 
     fun onBackPressed(): Boolean {
-        if(mainScreenViewModel.parentFileMetadata.id == mainScreenViewModel.parentFileMetadata.parent) {
+        if (mainScreenViewModel.fileFolderModel.parentFileMetadata.id
+            == mainScreenViewModel.fileFolderModel.parentFileMetadata.parent) {
             return false
         }
 
-        mainScreenViewModel.getChildrenOfParentOfParentFileMetadata()
+        mainScreenViewModel.upADirectory()
 
         return true
     }
