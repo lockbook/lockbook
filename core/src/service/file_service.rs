@@ -305,8 +305,7 @@ impl<
                     .map_err(DocumentRenameError::FailedToRecordChange)?;
 
                 file.name = new_name.to_string();
-                FileMetadataDb::insert(&db, &file)
-                    .map_err(DocumentRenameError::DbError)?;
+                FileMetadataDb::insert(&db, &file).map_err(DocumentRenameError::DbError)?;
 
                 Ok(())
             }
