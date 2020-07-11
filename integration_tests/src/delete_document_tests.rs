@@ -16,7 +16,6 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -51,7 +50,6 @@ mod delete_document_tests {
         // delete document
         assert_matches!(
             ClientImpl::delete_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -70,7 +68,6 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -87,7 +84,6 @@ mod delete_document_tests {
         // delete document that wasn't created
         assert_matches!(
             ClientImpl::delete_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),
@@ -108,7 +104,6 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -143,7 +138,6 @@ mod delete_document_tests {
         // delete document
         assert_matches!(
             ClientImpl::delete_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -155,7 +149,6 @@ mod delete_document_tests {
         // delete document again
         assert_matches!(
             ClientImpl::delete_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -176,7 +169,6 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -211,7 +203,6 @@ mod delete_document_tests {
         // delete document with wrong version
         assert_matches!(
             ClientImpl::delete_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,

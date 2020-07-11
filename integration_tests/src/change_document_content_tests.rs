@@ -16,7 +16,6 @@ mod change_document_content_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -51,7 +50,6 @@ mod change_document_content_tests {
         // change document content
         assert_matches!(
             ClientImpl::change_document_content(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -71,7 +69,6 @@ mod change_document_content_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -88,7 +85,6 @@ mod change_document_content_tests {
         // change content of document we never created
         assert_matches!(
             ClientImpl::change_document_content(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),

@@ -16,7 +16,6 @@ mod get_public_key_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 key.clone(),
