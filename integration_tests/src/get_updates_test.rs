@@ -28,7 +28,7 @@ mod get_updates_test {
 
         // get updates at version 0
         assert_eq!(
-            ClientImpl::get_updates(&api_loc(), &account.username, &sign(&account), 0,)
+            ClientImpl::get_updates(&account.username, &sign(&account), 0,)
                 .unwrap()
                 .len(),
             1
@@ -36,7 +36,7 @@ mod get_updates_test {
 
         // get updates at version of root folder
         assert_eq!(
-            ClientImpl::get_updates(&api_loc(), &account.username, &sign(&account), version,)
+            ClientImpl::get_updates(&account.username, &sign(&account), version,)
                 .unwrap()
                 .len(),
             0
