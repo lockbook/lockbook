@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod get_updates_test {
-    use crate::{aes_key, api_loc, generate_account, rsa_key, sign};
+    use crate::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl};
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -14,7 +14,6 @@ mod get_updates_test {
         let folder_key = AesImpl::generate_key();
 
         let version = ClientImpl::new_account(
-            &api_loc(),
             &account.username,
             &sign(&account),
             account.keys.to_public_key(),

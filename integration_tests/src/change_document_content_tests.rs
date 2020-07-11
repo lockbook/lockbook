@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod change_document_content_tests {
-    use crate::{aes_key, aes_str, api_loc, generate_account, random_filename, rsa_key, sign};
+    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -33,7 +33,6 @@ mod change_document_content_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
-            &api_loc(),
             &account.username,
             &sign(&account),
             doc_id,
