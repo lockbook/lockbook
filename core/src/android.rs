@@ -24,6 +24,8 @@ use crate::service::account_service::AccountService;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
+use std::thread::sleep;
+use std::time;
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -201,7 +203,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = serde_json::from_str(&parent_uuid).expect("Couldn't deserialize Uuid!");
+    let uuid: Uuid = match Uuid::parse_str(&parent_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
+        },
+    };
 
     let children = FileMetadataRepoImpl::get_children(&db, uuid).expect("Could not read DB to get children!");
 
@@ -232,7 +239,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
+        },
+    };
 
     let file_metadata = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
 
@@ -261,8 +273,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
         .expect("Couldn't read parent folder out of JNI!")
         .into();
 
-    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
-
+    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
+        },
+    };
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
     let file = DocumentRepoImpl::get(&db, uuid).expect("Couldn't get the document from db and uuid!");
@@ -301,7 +317,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
         .expect("Couldn't read the serialized document!")
         .into();
 
-    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
+    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return 1
+        },
+    };
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
@@ -333,8 +354,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
         .expect("Couldn't read parent folder out of JNI!")
         .into();
 
-    let uuid: Uuid = serde_json::from_str(&file_uuid).expect("Couldn't deserialize Uuid!");
-
+    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return 1
+        },
+    };
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
     match DocumentRepoImpl::delete(&db, uuid) {
@@ -374,8 +399,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = serde_json::from_str(&parent_uuid).expect("Couldn't deserialize Uuid!");
-
+    let uuid: Uuid = match Uuid::parse_str(&parent_uuid) {
+        Ok(v) => v,
+        Err(e) => {
+            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
+        },
+    };
     let file_type: FileType = serde_json::from_str(&file_type_serialized).expect("Couldn't deserialized the file type!");
 
     let file = FileServiceImpl

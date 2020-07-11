@@ -2,10 +2,10 @@ package app.lockbook.loggedin.mainscreen
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -18,6 +18,9 @@ import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 
 class MainScreenFragment: Fragment() {
+
+    lateinit var mainScreenViewModel: MainScreenViewModel
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -31,8 +34,7 @@ class MainScreenFragment: Fragment() {
             MainScreenViewModelFactory(
                 application.filesDir.absolutePath
             )
-        val mainScreenViewModel: MainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(
-            MainScreenViewModel::class.java)
+        mainScreenViewModel = ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
         val adapter = ListFilesAdapter(mainScreenViewModel)
 
         binding.mainScreenViewModel = mainScreenViewModel
@@ -51,7 +53,7 @@ class MainScreenFragment: Fragment() {
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, "You wanted to open the document? Not implemented yet, sorry buddy.", Toast.LENGTH_LONG)
+
         })
 
         mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
@@ -77,9 +79,29 @@ class MainScreenFragment: Fragment() {
             }
         })
 
-        mainScreenViewModel.getRootMetadata()
+        mainScreenViewModel.startListFilesFolders()
 
         return binding.root
     }
 
+    fun onBackPressed(): Boolean {
+        Log.e("SMAIL", "$4")
+        if(mainScreenViewModel.parentUuid == mainScreenViewModel.rootUuid) {
+            Log.e("SMAIL", "5")
+            return false
+            Log.e("SMAIL", "6")
+        }
+        Log.e("SMAIL", "7")
+        mainScreenViewModel.getChildrenMetadata(mainScreenViewModel.parentUuid)
+        Log.e("SMAIL", "8")
+
+        return true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if(mainScreenViewModel.parentUuid.isNotEmpty()) {
+            mainScreenViewModel.getChildrenMetadata(mainScreenViewModel.parentUuid)
+        }
+    }
 }
