@@ -9,7 +9,7 @@ pub struct EncryptedValue {
     pub garbage: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash)]
 pub struct DecryptedValue {
     pub secret: String,
 }
