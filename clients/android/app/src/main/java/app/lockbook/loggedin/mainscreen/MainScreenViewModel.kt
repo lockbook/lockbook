@@ -38,12 +38,8 @@ class MainScreenViewModel(path: String) : ViewModel(), ListFilesClickInterface {
         get() = _navigateToNewFileFolder
 
     fun startListFilesFolders() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileFolderModel.setParentToRoot()
-                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
-            }
-        }
+        fileFolderModel.setParentToRoot()
+        _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
     }
 
     fun launchNewFileFolder() {
@@ -58,23 +54,44 @@ class MainScreenViewModel(path: String) : ViewModel(), ListFilesClickInterface {
         }
     }
 
-    override fun onItemClick(position: Int) {
-        _filesFolders.value?.let {
-            val item = it[position]
+    fun quitOrNot(): Boolean {
+        if (fileFolderModel.parentFileMetadata.id == fileFolderModel.parentFileMetadata.parent) {
+            return false
+        }
+        upADirectory()
 
-            if (item.file_type == FileType.Folder) {
-                fileFolderModel.parentFileMetadata = item
-                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
-            } else {
-                _navigateToFileEditor.postValue(fileFolderModel.getFile(item.id))
+        return true
+    }
+
+    fun refreshFilesFolderList() {
+        _filesFolders.value = _filesFolders.value
+        Log.i("SMAIL", "NEXT LINE SHOULD BE THE OBSERVER")
+    }
+
+    override fun onItemClick(position: Int) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                _filesFolders.value?.let {
+                    val item = it[position]
+
+                    if (item.file_type == FileType.Folder) {
+                        fileFolderModel.parentFileMetadata = item
+                        _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
+                    } else {
+                        _navigateToFileEditor.postValue(fileFolderModel.getFile(item.id))
+                    }
+                }
             }
         }
     }
 
     override fun onLongClick(position: Int) {
-        _filesFolders.value?.let {
-            _navigateToPopUpInfo.value = it[position]
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                _filesFolders.value?.let {
+                    _navigateToPopUpInfo.postValue(it[position])
+                }
+            }
         }
     }
-
 }

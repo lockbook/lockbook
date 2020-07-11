@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -44,6 +45,7 @@ class MainScreenFragment : Fragment() {
         binding.lifecycleOwner = this
 
         mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
+            Log.i("SMAIL", "THE PREVIOUS LINE SHOULD BE IDK")
             it?.let {
                 if (it.isEmpty()) {
                     adapter.filesFolders = listOf()
@@ -54,7 +56,7 @@ class MainScreenFragment : Fragment() {
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
-
+            Toast.makeText(context, "UNTIL BULLET WENT THROUGH IT", Toast.LENGTH_LONG).show()
         })
 
         mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
@@ -89,18 +91,11 @@ class MainScreenFragment : Fragment() {
     }
 
     fun onBackPressed(): Boolean {
-        if (mainScreenViewModel.fileFolderModel.parentFileMetadata.id
-            == mainScreenViewModel.fileFolderModel.parentFileMetadata.parent) {
-            return false
-        }
-
-        mainScreenViewModel.upADirectory()
-
-        return true
+        return mainScreenViewModel.quitOrNot()
     }
 
     override fun onResume() {
         super.onResume()
-
+        mainScreenViewModel.refreshFilesFolderList()
     }
 }
