@@ -12,7 +12,7 @@ use crate::{DB_NAME, DefaultAccountService, DefaultDbProvider, init_logger_safel
 use crate::client::Error;
 use crate::model::api::NewAccountError;
 use crate::model::crypto::Document;
-use crate::model::file_metadata::FileType;
+use crate::model::file_metadata::{FileType, FileMetadata};
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoImpl;
 use crate::repo::db_provider::DbProvider;
@@ -24,8 +24,6 @@ use crate::service::account_service::AccountService;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
-use std::thread::sleep;
-use std::time;
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -292,8 +290,38 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFileFolder(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jfilemetadata: JString,
+) -> jint {
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let serialized_file_metadata: String = env
+        .get_string(jfilemetadata)
+        .expect("Couldn't read file metadata out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let file_metadata: FileMetadata = serde_json::from_str(serialized_file_metadata.as_str()).expect("Couldn't serialize the file metadata!");
+
+    match FileMetadataRepoImpl::insert(&db, &file_metadata) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertDocument(
+    env: JNIEnv,
     _: JClass,
     jpath: JString,
     jfileuuid: JString,
@@ -309,7 +337,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
 
     let file_uuid: String = env
         .get_string(jfileuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read file uuid out of JNI!")
         .into();
 
     let serialized_document: String = env
@@ -320,7 +348,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
     let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
         Ok(v) => v,
         Err(e) => {
-            return 1
+            return failure
         },
     };
 
@@ -335,8 +363,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile<'a>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder(
+    env: JNIEnv,
     _: JClass,
     jpath: JString,
     jfileuuid: JString,
@@ -356,10 +384,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder<'a>(
 
     let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
         Ok(v) => v,
-        Err(e) => {
-            return 1
+        Err(_) => {
+            return success
         },
     };
+
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
     match DocumentRepoImpl::delete(&db, uuid) {
