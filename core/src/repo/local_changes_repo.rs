@@ -107,11 +107,13 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-                Some(renamed) => if new_name == renamed.old_value {
-                    Self::untrack_rename(&db, id)
-                } else {
-                    Ok(())
-                },
+                Some(renamed) => {
+                    if new_name == renamed.old_value {
+                        Self::untrack_rename(&db, id)
+                    } else {
+                        Ok(())
+                    }
+                }
             },
         }
     }
@@ -147,11 +149,13 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-                Some(moved) => if moved.old_value == new_parent {
-                    Self::untrack_move(&db, id)
-                } else {
-                    Ok(())
-                },
+                Some(moved) => {
+                    if moved.old_value == new_parent {
+                        Self::untrack_move(&db, id)
+                    } else {
+                        Ok(())
+                    }
+                }
             },
         }
     }
@@ -247,7 +251,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 }
 
                 Ok(())
@@ -270,7 +274,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         id.as_bytes(),
                         serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
                     )
-                        .map_err(DbError::SledError)?;
+                    .map_err(DbError::SledError)?;
                 }
 
                 Ok(())
@@ -540,7 +544,6 @@ mod unit_tests {
                 .len(),
             0
         );
-
     }
 
     #[test]
