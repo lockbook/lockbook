@@ -258,6 +258,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
+    // TODO should this indicate something special if the parent doesn't exist?
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
