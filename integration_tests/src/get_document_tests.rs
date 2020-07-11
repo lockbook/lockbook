@@ -19,7 +19,6 @@ mod get_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -72,7 +71,6 @@ mod get_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
