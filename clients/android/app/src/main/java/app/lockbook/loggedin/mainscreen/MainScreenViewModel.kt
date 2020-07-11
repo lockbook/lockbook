@@ -6,6 +6,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.core.getChildren
 import app.lockbook.core.getFile
+import app.lockbook.core.getFileMetadata
 import app.lockbook.core.getRoot
 import app.lockbook.loggedin.listfiles.ListFilesClickInterface
 import app.lockbook.utils.Document
@@ -23,8 +24,7 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     private val _navigateToFileEditor = MutableLiveData<Document>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
-    var parentUuid: String = ""
-    lateinit var rootUuid: String
+    lateinit var parentFileMetadata: FileMetadata
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -41,8 +41,8 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     fun startListFilesFolders() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                getRoot()
-                getChildren(parentUuid)
+                getRootMetadata()
+                getChildrenFileMetadata()
             }
         }
     }
@@ -52,33 +52,45 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     }
 
     fun getRootMetadata() {
+        getRoot()
+    }
+
+    private fun getRoot() {
+        val root: FileMetadata? = json.parse(getRoot(path))
+
+        if (root != null) {
+            parentFileMetadata = root
+        }
+
+    }
+
+    fun getChildrenFileMetadata() {
+        getChildren(parentFileMetadata.id)
+
+    }
+
+    private fun getChildren(uuid: String) {
+        val children: List<FileMetadata>? = json.parseArray(getChildren(path, uuid))
+
+        if (children == null) {
+            _filesFolders.postValue(listOf())
+        } else {
+            _filesFolders.postValue(children.filter {
+                it.id != it.parent
+            })
+        }
+
+    }
+
+    fun getChildrenOfParentOfParentFileMetadata() {
         uiScope.launch {
-            getRoot()
+            getChildren(parentFileMetadata.parent)
         }
     }
 
-    private suspend fun getRoot() {
+    private suspend fun getChildrenOfParent(uuid: String) {
         withContext(Dispatchers.IO) {
-            val root: FileMetadata? = json.parse(getRoot(path))
-
-            if (root != null) {
-                _filesFolders.postValue(listOf())
-                parentUuid = root.parent
-                rootUuid = root.id
-            }
-        }
-    }
-
-    fun getChildrenMetadata(parentUuid: String) {
-        uiScope.launch {
-            getChildren(parentUuid)
-        }
-    }
-
-    private suspend fun getChildren(parent: String) {
-        withContext(Dispatchers.IO) {
-            parentUuid = parent
-            val children: List<FileMetadata>? = json.parseArray(getChildren(path, parent))
+            val children: List<FileMetadata>? = json.parseArray(getChildren(path, uuid))
 
             if (children == null) {
                 _filesFolders.postValue(listOf())
@@ -86,11 +98,12 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
                 _filesFolders.postValue(children.filter {
                     it.id != it.parent
                 })
+                getParentOfParentFileMetadata()
             }
         }
     }
 
-    fun getFileDocument(fileUuid: String) {
+    private fun getFileDocument(fileUuid: String) {
         uiScope.launch {
             getFile(fileUuid)
         }
@@ -105,19 +118,30 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
         }
     }
 
+    fun getParentOfParentFileMetadata() {
+        getParentOfParent()
+
+    }
+
+    private fun getParentOfParent() {
+        val parent: FileMetadata? = json.parse(getFileMetadata(path, parentFileMetadata.parent))
+
+        if (parent != null) {
+            parentFileMetadata = parent
+        }
+    }
+
     override fun onItemClick(position: Int) {
         _filesFolders.value?.let {
             val item = it[position]
-            parentUuid = item.id
 
             if (item.file_type == FileType.Folder) {
-                getChildrenMetadata(parentUuid)
+                parentFileMetadata = item
+                getChildrenFileMetadata()
             } else {
-                parentUuid = item.id
                 getFileDocument(item.id)
             }
         }
-
     }
 
     override fun onLongClick(position: Int) {
@@ -125,4 +149,5 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
             _navigateToPopUpInfo.value = it[position]
         }
     }
+
 }
