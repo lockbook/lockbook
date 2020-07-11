@@ -487,7 +487,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_arbitary_path_file_creation() {
+    fn test_arbitrary_path_file_creation() {
         init_logger_safely();
         let config = Config {
             writeable_path: "ignored".to_string(),
@@ -578,12 +578,6 @@ mod unit_tests {
                 .len(),
             2
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
-                .unwrap()
-                .len(),
-            4
-        );
         println!(
             "{:?}",
             DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
@@ -638,6 +632,12 @@ mod unit_tests {
         );
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
+                .unwrap()
+                .len(),
+            4
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
                 .unwrap()
                 .len(),
             5
