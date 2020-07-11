@@ -1,20 +1,19 @@
 #[cfg(test)]
 mod get_updates_test {
-    use crate::{aes_key, api_loc, generate_account, rsa_key, sign};
+    use crate::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl};
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
     #[test]
-    fn change_file_content() {
+    fn get_updates() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
         let folder_key = AesImpl::generate_key();
 
         let version = ClientImpl::new_account(
-            &api_loc(),
             &account.username,
             &sign(&account),
             account.keys.to_public_key(),
@@ -29,7 +28,7 @@ mod get_updates_test {
 
         // get updates at version 0
         assert_eq!(
-            ClientImpl::get_updates(&api_loc(), &account.username, &sign(&account), 0,)
+            ClientImpl::get_updates(&account.username, &sign(&account), 0,)
                 .unwrap()
                 .len(),
             1
@@ -37,7 +36,7 @@ mod get_updates_test {
 
         // get updates at version of root folder
         assert_eq!(
-            ClientImpl::get_updates(&api_loc(), &account.username, &sign(&account), version,)
+            ClientImpl::get_updates(&account.username, &sign(&account), version,)
                 .unwrap()
                 .len(),
             0

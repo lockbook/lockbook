@@ -305,6 +305,26 @@ pub async fn rename_document(
     }
 }
 
+pub async fn get_document(
+    server_state: &mut ServerState,
+    request: GetDocumentRequest,
+) -> Result<GetDocumentResponse, GetDocumentError> {
+    let files_result = files_db::get(
+        &server_state.files_db_client,
+        request.id,
+        request.content_version,
+    )
+    .await;
+    match files_result {
+        Ok(c) => Ok(GetDocumentResponse { content: c }),
+        Err(files_db::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
+        Err(e) => {
+            error!("Internal server error! Cannot get file from S3: {:?}", e);
+            Err(GetDocumentError::InternalError)
+        }
+    }
+}
+
 pub async fn create_folder(
     server_state: &mut ServerState,
     request: CreateFolderRequest,
