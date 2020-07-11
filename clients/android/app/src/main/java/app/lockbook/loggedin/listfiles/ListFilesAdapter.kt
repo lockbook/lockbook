@@ -48,10 +48,12 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
             cardView.setOnClickListener {
                 listFilesClickInterface.onItemClick(adapterPosition)
             }
+
             cardView.setOnLongClickListener{
                 listFilesClickInterface.onLongClick(adapterPosition)
                 true
             }
+
         }
     }
 

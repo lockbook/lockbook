@@ -43,8 +43,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             android:src="@drawable/ic_fab_24"
             android:clickable="true"
-            android:onClick="@{() -> mainScreenViewModel.launchNewFileFolder()}"
-            android:visibility="@{mainScreenViewModel.visibleFAB}"/>
+            android:onClick="@{() -> mainScreenViewModel.launchNewFileFolder()}"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
