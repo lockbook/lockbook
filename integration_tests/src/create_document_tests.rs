@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod create_document_tests {
-    use crate::{aes_key, aes_str, api_loc, generate_account, random_filename, rsa_key, sign};
+    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -16,7 +16,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -36,7 +35,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -61,7 +59,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -81,7 +78,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -99,7 +95,6 @@ mod create_document_tests {
         // create document with same id and key
         assert_matches!(
             ClientImpl::create_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -126,7 +121,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -147,7 +141,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -168,7 +161,6 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 doc_id,
