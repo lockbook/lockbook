@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod create_document_tests {
-    use crate::{aes_key, aes_str, api_loc, generate_account, random_filename, rsa_key, sign};
+    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
