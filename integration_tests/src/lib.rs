@@ -10,7 +10,6 @@ use lockbook_core::service::crypto_service::{
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
-use std::env;
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -28,9 +27,10 @@ mod macros {
     );
 }
 mod account_service_tests;
-mod change_file_content_tests;
+mod change_document_content_tests;
 mod create_document_tests;
 mod delete_document_tests;
+mod get_document_tests;
 mod get_public_key_tests;
 mod get_updates_test;
 mod move_document_tests;
@@ -59,14 +59,6 @@ pub fn random_filename() -> String {
         .chars()
         .filter(|c| c.is_alphanumeric())
         .collect()
-}
-
-pub fn api_loc() -> String {
-    format!(
-        "http://{}:{}",
-        env::var("SERVER_HOST").unwrap(),
-        env::var("SERVER_PORT").unwrap()
-    )
 }
 
 pub fn generate_account() -> Account {
@@ -98,6 +90,12 @@ pub fn aes_str(encrypting_key: &AesKey, encrypted_str: &str) -> EncryptedValueWi
         },
     )
     .unwrap()
+}
+
+pub fn aes_decrypt_str(encrypting_key: &AesKey, encrypted_str: &EncryptedValueWithNonce) -> String {
+    AesImpl::decrypt(&encrypting_key, &encrypted_str)
+        .unwrap()
+        .secret
 }
 
 pub fn rsa_key(encrypting_key: &RSAPublicKey, encrypted_key: &AesKey) -> EncryptedValue {

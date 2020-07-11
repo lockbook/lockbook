@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod new_account_tests {
-    use crate::{aes_key, api_loc, generate_account, rsa_key, sign};
+    use crate::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -16,7 +16,6 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,7 +38,6 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -55,7 +53,6 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -80,7 +77,6 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
-                &api_loc(),
                 &(account.username.clone() + " "),
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -105,8 +101,7 @@ mod new_account_tests {
 
     //     assert_matches!(
     //         ClientImpl::new_account(
-    //             &api_loc(),
-    //             &account.username,
+    //                 //             &account.username,
     //             &sign(&account),
     //             RSAPrivateKey::from_components(
     //                 BigUint::from_bytes_be(b"a"),
@@ -139,8 +134,7 @@ mod new_account_tests {
 
     //     assert_matches!(
     //         ClientImpl::new_account(
-    //             &api_loc(),
-    //             &account.username,
+    //                 //             &account.username,
     //             &SignedValue {
     //                 content: String::default(),
     //                 signature: String::default(),
