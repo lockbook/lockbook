@@ -2,11 +2,11 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
+use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 use uuid::Uuid;
 
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
@@ -46,7 +46,7 @@ pub fn new(file_name: &str) {
             file_metadata.id,
             &DecryptedValue { secret },
         )
-            .expect("Unexpected error while updating internal state");
+        .expect("Unexpected error while updating internal state");
 
         DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata)
             .expect("Failed to index new file!");
