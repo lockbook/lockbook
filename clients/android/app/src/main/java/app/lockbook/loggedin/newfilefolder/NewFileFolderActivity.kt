@@ -7,7 +7,10 @@ import androidx.databinding.DataBindingUtil
 import app.lockbook.R
 import app.lockbook.core.createFileFolder
 import app.lockbook.core.getChildren
+import app.lockbook.core.insertFileFolder
 import app.lockbook.databinding.ActivityNewFileFolderBinding
+import app.lockbook.loggedin.mainscreen.FileFolderModel
+import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_new_file_folder.*
@@ -32,21 +35,17 @@ class NewFileFolderActivity : Activity() {
     fun createFileFolder() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                val fileType = if (file_radio_button.isSelected) {
-                    Klaxon().toJsonString(FileType.Document)
+                val json = Klaxon()
+                val fileType = if (file_radio_button.isChecked) {
+                    json.toJsonString(FileType.Document)
                 } else {
-                    Klaxon().toJsonString(FileType.Folder.toString())
+                    json.toJsonString(FileType.Folder)
                 }
 
                 val path = intent.getStringExtra("path")
                 val parentUuid = intent.getStringExtra("parentUuid")
 
-                Log.i("SMAIL1", createFileFolder(
-                    path,
-                    parentUuid,
-                    fileType,
-                    name_text.text.toString()
-                ).toString())
+                FileFolderModel.insertFileFolder(path, parentUuid, fileType, name_text.text.toString())
 
                 withContext(Dispatchers.Main) {
                     finish()

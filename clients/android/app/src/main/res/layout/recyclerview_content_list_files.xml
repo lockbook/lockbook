@@ -6,7 +6,9 @@
     android:layout_height="wrap_content"
     android:background="#FFFFFF"
     android:clickable="true"
-    android:foreground="?android:attr/selectableItemBackground">
+    android:foreground="?android:attr/selectableItemBackground"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -32,6 +34,7 @@
             android:textStyle="bold"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="@+id/file_folder_name"
+            app:layout_constraintStart_toEndOf="@+id/file_folder_name"
             app:layout_constraintTop_toBottomOf="@+id/file_folder_name" />
 
         <ImageView
