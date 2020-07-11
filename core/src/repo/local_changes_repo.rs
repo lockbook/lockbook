@@ -255,8 +255,27 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         }
     }
 
-    fn untrack_move(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError> {
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(mut edit) => {
+                edit.moved = None;
+
+                if edit.ready_to_be_deleted() {
+                    Self::delete_if_exists(&db, edit.id)?
+                } else {
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                    )
+                        .map_err(DbError::SledError)?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
@@ -491,7 +510,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn move_back_to_original() {
+    fn rename_back_to_original() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let id = Uuid::new_v4();
 
@@ -522,5 +541,39 @@ mod unit_tests {
             0
         );
 
+    }
+
+    #[test]
+    fn move_back_to_original() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let id = Uuid::new_v4();
+        let og = Uuid::new_v4();
+
+        LocalChangesRepoImpl::track_move(&db, id, og, Uuid::new_v4()).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), og).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
     }
 }
