@@ -15,16 +15,15 @@ import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
 
-class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClickInterface {
+class MainScreenViewModel(path: String) : ViewModel(), ListFilesClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    private val json = Klaxon()
     private val _filesFolders = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<Document>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
-    lateinit var parentFileMetadata: FileMetadata
+    val fileFolderModel = FileFolderModel(path)
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -41,8 +40,8 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
     fun startListFilesFolders() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                getRootMetadata()
-                getChildrenFileMetadata()
+                fileFolderModel.setParentToRoot()
+                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
             }
         }
     }
@@ -51,83 +50,11 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
         _navigateToNewFileFolder.value = true
     }
 
-    fun getRootMetadata() {
-        getRoot()
-    }
-
-    private fun getRoot() {
-        val root: FileMetadata? = json.parse(getRoot(path))
-
-        if (root != null) {
-            parentFileMetadata = root
-        }
-
-    }
-
-    fun getChildrenFileMetadata() {
-        getChildren(parentFileMetadata.id)
-
-    }
-
-    private fun getChildren(uuid: String) {
-        val children: List<FileMetadata>? = json.parseArray(getChildren(path, uuid))
-
-        if (children == null) {
-            _filesFolders.postValue(listOf())
-        } else {
-            _filesFolders.postValue(children.filter {
-                it.id != it.parent
-            })
-        }
-
-    }
-
-    fun getChildrenOfParentOfParentFileMetadata() {
+    fun upADirectory() {
         uiScope.launch {
-            getChildren(parentFileMetadata.parent)
-        }
-    }
-
-    private suspend fun getChildrenOfParent(uuid: String) {
-        withContext(Dispatchers.IO) {
-            val children: List<FileMetadata>? = json.parseArray(getChildren(path, uuid))
-
-            if (children == null) {
-                _filesFolders.postValue(listOf())
-            } else {
-                _filesFolders.postValue(children.filter {
-                    it.id != it.parent
-                })
-                getParentOfParentFileMetadata()
+            withContext(Dispatchers.IO) {
+                _filesFolders.postValue(fileFolderModel.getSiblingsOfParent())
             }
-        }
-    }
-
-    private fun getFileDocument(fileUuid: String) {
-        uiScope.launch {
-            getFile(fileUuid)
-        }
-    }
-
-    private suspend fun getFile(fileUuid: String) {
-        withContext(Dispatchers.IO) {
-            val file: Document? = json.parse(getFile(path, fileUuid))
-            if (file != null) {
-                _navigateToFileEditor.postValue(file)
-            }
-        }
-    }
-
-    fun getParentOfParentFileMetadata() {
-        getParentOfParent()
-
-    }
-
-    private fun getParentOfParent() {
-        val parent: FileMetadata? = json.parse(getFileMetadata(path, parentFileMetadata.parent))
-
-        if (parent != null) {
-            parentFileMetadata = parent
         }
     }
 
@@ -136,10 +63,10 @@ class MainScreenViewModel(private val path: String) : ViewModel(), ListFilesClic
             val item = it[position]
 
             if (item.file_type == FileType.Folder) {
-                parentFileMetadata = item
-                getChildrenFileMetadata()
+                fileFolderModel.parentFileMetadata = item
+                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
             } else {
-                getFileDocument(item.id)
+                _navigateToFileEditor.postValue(fileFolderModel.getFile(item.id))
             }
         }
     }
