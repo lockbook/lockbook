@@ -322,7 +322,9 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(DocumentMoveError::DbError)? {
             None => Err(FileDoesntExist),
             Some(mut file) => {
-                match FileMetadataDb::maybe_get(&db, new_parent).map_err(DocumentMoveError::DbError)? {
+                match FileMetadataDb::maybe_get(&db, new_parent)
+                    .map_err(DocumentMoveError::DbError)?
+                {
                     None => Err(NewParentDoesntExist),
                     Some(parent_metadata) => {
                         let siblings = FileMetadataDb::get_children(&db, parent_metadata.id)
@@ -342,9 +344,9 @@ impl<
 
                         FileMetadataDb::insert(&db, &file).map_err(DocumentMoveError::DbError)?;
                         Ok(())
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -938,26 +940,54 @@ mod unit_tests {
         let og_folder = file1.parent;
         let folder1 = DefaultFileService::create_at_path(&db, "username/folder2/").unwrap();
 
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 3);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            3
+        );
 
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.parent).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, folder1.id).unwrap();
 
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 0);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
 
         DefaultFileService::move_file(&db, file1.id, folder1.id).unwrap();
 
-        assert_eq!(DefaultFileMetadataRepo::get(&db, file1.id).unwrap().parent, folder1.id);
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 1);
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db, file1.id).unwrap().parent,
+            folder1.id
+        );
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
 
         let file2 = DefaultFileService::create_at_path(&db, "username/folder3/file.txt").unwrap();
         assert!(DefaultFileService::move_file(&db, file1.id, file2.parent).is_err());
         assert!(DefaultFileService::move_file(&db, Uuid::new_v4(), file2.parent).is_err());
         assert!(DefaultFileService::move_file(&db, file1.id, Uuid::new_v4()).is_err());
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 3);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            3
+        );
 
         DefaultFileService::move_file(&db, file1.id, og_folder).unwrap();
-        assert_eq!(DefaultLocalChangesRepo::get_all_local_changes(&db).unwrap().len(), 2);
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            2
+        );
     }
 }
