@@ -2,7 +2,6 @@ use crate::utils::{connect_to_db, get_account};
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{DocumentRenameError, FileService};
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
-use std::process::exit;
 
 pub fn rename(path: &str, new_name: &str) {
     let db = connect_to_db();

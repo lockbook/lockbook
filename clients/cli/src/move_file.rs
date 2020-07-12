@@ -1,7 +1,6 @@
 use crate::utils::connect_to_db;
-use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::file_metadata::FileType::Folder;
-use lockbook_core::repo::file_metadata_repo::{DbError, FileMetadataRepo};
+use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{DocumentMoveError, FileService};
 use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 
