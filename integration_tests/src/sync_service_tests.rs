@@ -8,8 +8,7 @@ mod sync_tests {
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
-        init_logger_safely, DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService,
-        DefaultSyncService,
+        DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
     };
 
     #[test]
@@ -73,10 +72,8 @@ mod sync_tests {
 
     #[test]
     fn test_edit_document_sync() {
-        init_logger_safely();
         let db = test_db();
         let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
-        println!("Made account");
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -190,5 +187,91 @@ mod sync_tests {
                 .secret,
             "meaningful messages".to_string()
         );
+        assert_eq!(&db.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_move_document_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/folder1/test.txt", account.username),
+        )
+        .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("nice document"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+
+        let new_folder =
+            DefaultFileService::create_at_path(&db1, &format!("{}/folder2/", account.username))
+                .unwrap();
+
+        DefaultFileService::move_file(&db1, file.id, new_folder.id).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            2
+        );
+        assert_ne!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+
+        DefaultSyncService::sync(&db1).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            2
+        );
+        DefaultSyncService::sync(&db2).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
+
+        assert_eq!(
+            DefaultFileService::read_document(&db2, file.id)
+                .unwrap()
+                .secret,
+            "nice document"
+        );
+
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
 }
