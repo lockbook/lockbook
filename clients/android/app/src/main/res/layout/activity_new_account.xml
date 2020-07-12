@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <data>
         <variable
@@ -14,8 +13,7 @@
         android:layout_height="match_parent"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="25dp"
-        tools:context=".login.WelcomeActivity">
+        android:paddingHorizontal="25dp" >
 
 
         <TextView

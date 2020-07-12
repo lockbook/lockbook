@@ -14,8 +14,8 @@ buildscript {
         material_ui_version = '1.0.0'
         barcode_scanner_version = '16.0.0'
         json_parser_version = '5.0.1'
-        coroutine_version = "1.3.7"
-        lifecycle_version = "2.2.0"
+        coroutine_version = '1.3.7'
+        lifecycle_version = '2.2.0'
     }
 
     repositories {

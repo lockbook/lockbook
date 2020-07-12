@@ -48,3 +48,7 @@ data class EncryptedValue(
 data class Document(
     val content: EncryptedValueWithNonce
 )
+
+data class DecryptedValue(
+    val secret: String
+)

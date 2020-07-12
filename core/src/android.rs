@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::{DB_NAME, DefaultAccountService, DefaultDbProvider, init_logger_safely};
 use crate::client::Error;
 use crate::model::api::NewAccountError;
-use crate::model::crypto::Document;
+use crate::model::crypto::{Document, DecryptedValue};
 use crate::model::file_metadata::{FileType, FileMetadata};
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoImpl;
@@ -445,4 +445,48 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
     };
 
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_writeToDocument(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    juuid: JString,
+    jcontent: JString,
+) -> jint {
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read path out of JNI!")
+        .into();
+
+    let file_uuid: String = env
+        .get_string(juuid)
+        .expect("Couldn't read the file uuid out of JNI!")
+        .into();
+
+    let serialized_content: String = env
+        .get_string(jcontent)
+        .expect("Couldn't read the document content out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+        Ok(v) => v,
+        Err(_) => {
+            return failure
+        },
+    };
+
+    let content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialized the document content!");
+
+    match FileServiceImpl
+        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::write_document(&db, uuid, &content) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
 }
