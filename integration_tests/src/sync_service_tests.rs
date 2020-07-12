@@ -274,4 +274,18 @@ mod sync_tests {
 
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
+
+    #[test]
+    fn test_move_reject() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/folder1/test.txt", account.username),
+        )
+        .unwrap();
+    }
 }

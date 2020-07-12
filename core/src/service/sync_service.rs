@@ -222,7 +222,6 @@ impl<
                             // The normal fast forward case
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                            println!("Incoming access key: {:#?}", metadata.folder_access_keys);
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
@@ -410,8 +409,6 @@ impl<
 
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        println!("Outgoing access keys: {:#?}", metadata.folder_access_keys);
 
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }

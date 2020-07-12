@@ -139,12 +139,10 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         let access_key = AES::encrypt(&parent_key, &DecryptedValue { secret })
             .map_err(FileCreationError::AesEncryptionFailed)?;
 
-        Ok(
-            FolderAccessInfo {
+        Ok(FolderAccessInfo {
             folder_id: new_parent_id,
             access_key,
-          }
-        )
+        })
     }
 
     fn create_file_metadata(

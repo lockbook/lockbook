@@ -69,7 +69,7 @@ pub trait Client {
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
-        new_folder_access: FolderAccessInfo
+        new_folder_access: FolderAccessInfo,
     ) -> Result<u64, Error<MoveDocumentError>>;
     fn rename_document(
         username: &str,
@@ -98,7 +98,7 @@ pub trait Client {
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
-        new_access_keys: FolderAccessInfo
+        new_access_keys: FolderAccessInfo,
     ) -> Result<u64, Error<MoveFolderError>>;
     fn rename_folder(
         username: &str,
@@ -204,7 +204,7 @@ impl Client for ClientImpl {
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
-        new_folder_access: FolderAccessInfo
+        new_folder_access: FolderAccessInfo,
     ) -> Result<u64, Error<MoveDocumentError>> {
         api_request(
             Method::PUT,
@@ -215,7 +215,7 @@ impl Client for ClientImpl {
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
-                new_folder_access
+                new_folder_access,
             },
         )
         .map(|r: MoveDocumentResponse| r.new_metadata_version)
@@ -286,7 +286,7 @@ impl Client for ClientImpl {
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
-        new_access_keys: FolderAccessInfo
+        new_access_keys: FolderAccessInfo,
     ) -> Result<u64, Error<MoveFolderError>> {
         api_request(
             Method::PUT,
@@ -297,7 +297,7 @@ impl Client for ClientImpl {
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
-                new_folder_access: new_access_keys
+                new_folder_access: new_access_keys,
             },
         )
         .map(|r: MoveFolderResponse| r.new_metadata_version)
