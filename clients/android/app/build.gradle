@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "app.lockbook"
-        minSdkVersion 22
+        minSdkVersion 24
         targetSdkVersion 29
         versionCode 1
         versionName "1.0"
@@ -27,7 +27,6 @@ android {
 
 // To inline the bytecode built with JVM target 1.8 into
 // bytecode that is being built with JVM target 1.6. (e.g. navArgs)
-
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -73,6 +72,7 @@ dependencies {
     // Miscellaneous
     implementation "com.beust:klaxon:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+    implementation "com.journeyapps:zxing-android-embedded:$qr_version"
 
     implementation project(':core')
 }
