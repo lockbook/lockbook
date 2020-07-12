@@ -333,4 +333,65 @@ mod sync_tests {
             "Wow, what a doc"
         );
     }
+
+    #[test]
+    fn test_rename_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/folder1/test.txt", account.username),
+        )
+            .unwrap();
+
+        DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+            .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert_eq!(DefaultFileMetadataRepo::get_by_path(&db2, &format!("{}/folder1-new", account.username)).unwrap().unwrap().name, "folder1-new");
+        assert_eq!(DefaultFileMetadataRepo::get_by_path(&db2, &format!("{}/folder1-new/", account.username)).unwrap().unwrap().name, "folder1-new");
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_rename_reject_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/folder1/test.txt", account.username),
+        )
+            .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
+
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+            .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultFileService::rename_file(&db2, file.parent, "folder2-new").unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert_eq!(DefaultFileMetadataRepo::get_by_path(&db2, &format!("{}/folder2-new", account.username)).unwrap().unwrap().name, "folder2-new");
+        assert_eq!(DefaultFileMetadataRepo::get_by_path(&db2, &format!("{}/folder2-new/", account.username)).unwrap().unwrap().name, "folder2-new");
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
 }
