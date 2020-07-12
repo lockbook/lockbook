@@ -230,6 +230,7 @@ pub async fn move_document(
         request.old_metadata_version,
         FileType::Document,
         request.new_parent,
+        request.new_folder_access,
     )
     .await;
     let new_version = result.map_err(|e| match e {
@@ -441,6 +442,7 @@ pub async fn move_folder(
         request.old_metadata_version,
         FileType::Folder,
         request.new_parent,
+        request.new_folder_access,
     )
     .await;
     let new_version = result.map_err(|e| match e {
