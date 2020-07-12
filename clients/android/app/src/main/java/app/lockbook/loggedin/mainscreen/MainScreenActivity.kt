@@ -2,16 +2,11 @@ package app.lockbook.loggedin.mainscreen
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
-import kotlinx.android.synthetic.main.activity_main_screen.*
-import kotlin.system.exitProcess
 
 class MainScreenActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,7 +15,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.list_files_menu, menu)
+        menuInflater.inflate(R.menu.menu_main_screen, menu)
         return true
     }
 
