@@ -1,0 +1,45 @@
+baseURL = "lockbook.com"
+languageCode = "en-us"
+title = "Lockbook"
+theme = "hallo"
+
+disableKinds = ["page", "section", "taxonomy", "taxonomyTerm"]
+
+[Author]
+    name = "Lockbook"
+
+
+[params]
+
+    [[params.links]]
+        icon = "apple"
+        title = "App Store"
+        url = "mailto:mail@example.org"
+
+    [[params.links]]
+       	iconset = "fas"
+        icon = "terminal"
+        title = "Terminal"
+        url = "https://github.com/lockbook/lockbook/tree/master/clients/cli"
+
+    [[params.links]]
+        icon = "android"
+        title = "Play Store"
+        url = "mailto:mail@example.org"
+	
+	[[params.links]]
+        icon = "windows"
+        title = "Windows"
+        url = "mailto:mail@example.org"
+
+
+    [[params.links]]
+        icon = "github"
+        title = "Github"
+        url = "https://github.com/lockbook/lockbook"
+
+      
+     [params.colors]
+        background = "#1F2020"
+        foreground = "#edf7ff"
+        hover = "#ffba82"
