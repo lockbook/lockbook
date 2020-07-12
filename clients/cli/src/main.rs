@@ -22,52 +22,52 @@ mod whoami;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
-    /// Create a new file
-    New { path: String },
-
-    /// Get updates, push changes
-    Sync,
-
-    /// Search and edit a file
-    Edit { path: String },
-
-    /// Search and delete a file
-    Remove { path: String },
-
-    /// List all your files
-    List,
-
-    /// List only documents (starting set for a filter for edit)
-    #[structopt(name = "list-docs")]
-    ListDocs,
-
-    /// List all your files (starting set for a filter for rename, or delete)
-    #[structopt(name = "list-all")]
-    ListAll,
-
-    /// List all your folders (starting set for a filter for new)
-    #[structopt(name = "list-folders")]
-    ListFolders,
-
-    /// Bring a file from your computer into Lockbook
+    /// Bring a file from your computer into your Lockbook
     Copy { file: PathBuf },
 
-    /// Create a new Lockbook account
-    Init,
-
-    /// Import an existing Lockbook
-    Import,
-
-    /// What operations a sync would perform
-    Status,
+    /// Open a document for editing
+    Edit { path: String },
 
     /// Export your private key
     Export,
 
+    /// Import an existing Lockbook
+    Import,
+
+    /// Create a new Lockbook account
+    Init,
+
+    /// List all your paths
+    List,
+
+    /// List all your files (the things you can filter for rename and move)
+    #[structopt(name = "list-all")]
+    ListAll,
+
+    /// List only documents (the things you can filter for edit)
+    #[structopt(name = "list-docs")]
+    ListDocs,
+
+    /// List all your folders (the things you can filter for the start of new)
+    #[structopt(name = "list-folders")]
+    ListFolders,
+
+    /// Create a new document or folder
+    New { path: String },
+
     /// Print the contents of a file
     Print { path: String },
 
-    /// Display lockbook username
+    /// Move a file to trash TODO
+    Remove { path: String },
+
+    /// What operations a sync would perform
+    Status,
+
+    /// Get updates, push changes
+    Sync,
+
+    /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
 }
