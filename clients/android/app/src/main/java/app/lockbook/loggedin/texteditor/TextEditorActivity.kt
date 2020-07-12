@@ -13,6 +13,7 @@ class TextEditorActivity : Activity() {
         const val OK: Int = 0
         const val ERR: Int = 1
     }
+
     var text: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
