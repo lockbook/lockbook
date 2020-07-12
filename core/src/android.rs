@@ -51,7 +51,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
 ) -> jboolean {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let db_path = path + "/" + DB_NAME;
@@ -83,12 +83,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let username: String = env
         .get_string(jusername)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the username out of JNI!")
         .into();
 
     let db = match connect_db(&path) {
@@ -135,12 +135,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
 
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let account_string: String = env
         .get_string(jaccount_account)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the account string out of JNI!")
         .into();
 
     let db = match connect_db(&path) {
@@ -167,7 +167,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
@@ -191,17 +191,17 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let parent_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(jparentuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read the uuid string out of JNI!")
         .into();
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = match Uuid::parse_str(&parent_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(e) => {
             return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
@@ -227,24 +227,24 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let file_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(jfileuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read the uuid string out of JNI!")
         .into();
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(e) => {
             return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
         },
     };
 
-    let file_metadata = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read DB to get a file!");
+    let file_metadata = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read the DB to get a file!");
 
     let serialized_string = match serde_json::to_string(&file_metadata) {
         Ok(v) => v,
@@ -263,15 +263,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let file_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(jfileuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read the uuid string out of JNI!")
         .into();
 
-    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(e) => {
             return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
@@ -301,7 +301,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFileFolder(
 
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let serialized_file_metadata: String = env
@@ -331,15 +331,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder(
 
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let file_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(jfileuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read the uuid string out of JNI!")
         .into();
 
-    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(_) => {
             return success
@@ -365,15 +365,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let parent_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(jparentuuid)
-        .expect("Couldn't read parent folder out of JNI!")
+        .expect("Couldn't read the parent folder out of JNI!")
         .into();
 
-    let file_type_serialized: String = env
+    let serialized_file_type: String = env
         .get_string(jfiletype)
         .expect("Couldn't read the file type out of JNI!")
         .into();
@@ -385,13 +385,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = match Uuid::parse_str(&parent_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(e) => {
             return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
         },
     };
-    let file_type: FileType = serde_json::from_str(&file_type_serialized).expect("Couldn't deserialized the file type!");
+    let file_type: FileType = serde_json::from_str(&serialized_file_type).expect("Couldn't deserialized the file type!");
 
     let file = FileServiceImpl
         ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::create(&db, name.as_str(), uuid, file_type).expect("Couldn't create a file!");
@@ -417,10 +417,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeToDocument(
 
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
-    let file_uuid: String = env
+    let serialized_uuid: String = env
         .get_string(juuid)
         .expect("Couldn't read the file uuid out of JNI!")
         .into();
@@ -432,7 +432,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeToDocument(
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
-    let uuid: Uuid = match Uuid::parse_str(&file_uuid) {
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(_) => {
             return failure
@@ -457,12 +457,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument<'a>(
 ) -> JString<'a> {
     let path: String = env
         .get_string(jpath)
-        .expect("Couldn't read path out of JNI!")
+        .expect("Couldn't read the path out of JNI!")
         .into();
 
     let serialized_uuid: String = env
         .get_string(jfileuuid)
-        .expect("Couldn't read uuid out of JNI!")
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");

@@ -33,7 +33,8 @@
             android:id="@+id/qr_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:srcCompat="@drawable/ic_qr_code_scanner_black_48" />
+            app:srcCompat="@drawable/ic_qr_code_scanner_black_48"
+            android:onClick="@{() -> importAccountActivity.navigateToQRCodeScanner()}"/>
 
         <EditText
             android:id="@+id/account_string"

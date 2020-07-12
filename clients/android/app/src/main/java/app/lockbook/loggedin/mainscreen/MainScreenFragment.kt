@@ -19,13 +19,12 @@ import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.FileMetadata
-import kotlinx.coroutines.withContext
 
 class MainScreenFragment : Fragment() {
 
     companion object {
-        const val NEW_FILE_REQUEST_CODE: Int = 1
-        const val TEXT_EDITOR_REQUEST_CODE: Int = 2
+        private const val NEW_FILE_REQUEST_CODE: Int = 101
+        private const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     }
 
     lateinit var mainScreenViewModel: MainScreenViewModel
@@ -40,9 +39,7 @@ class MainScreenFragment : Fragment() {
         )
         val application = requireNotNull(this.activity).application
         val mainScreenViewModelFactory =
-            MainScreenViewModelFactory(
-                application.filesDir.absolutePath
-            )
+            MainScreenViewModelFactory(application.filesDir.absolutePath)
         mainScreenViewModel =
             ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
         val adapter = ListFilesAdapter(mainScreenViewModel)
@@ -57,7 +54,6 @@ class MainScreenFragment : Fragment() {
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
-            Log.i("SmailBarkouch", it)
             navigateToFileEditor(it)
         })
 
@@ -78,47 +74,42 @@ class MainScreenFragment : Fragment() {
         it: List<FileMetadata>,
         adapter: ListFilesAdapter
     ) {
-        it?.let {
-            if (it.isEmpty()) {
-                adapter.filesFolders = listOf()
-            } else {
-                adapter.filesFolders = it
-            }
+        if (it.isEmpty()) {
+            adapter.filesFolders = listOf()
+        } else {
+            adapter.filesFolders = it
         }
+
     }
 
     private fun navigateToFileEditor(it: String) {
-        it?.let {
-            val intent = Intent(context, TextEditorActivity::class.java)
-            intent.putExtra("text", it)
-            startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
-        }
+        val intent = Intent(context, TextEditorActivity::class.java)
+        intent.putExtra("text", it)
+        startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
+
     }
 
     private fun navigateToPopUpInfo(it: FileMetadata) {
-        it?.let {
-            val intent = Intent(context, PopUpInfoActivity::class.java)
-            intent.putExtra("name", it.name)
-            intent.putExtra("id", it.id)
-            intent.putExtra("fileType", it.file_type.toString())
-            intent.putExtra("metadataVersion", it.metadata_version.toString())
-            intent.putExtra("contentVersion", it.content_version.toString())
-            startActivity(intent)
-        }
+        val intent = Intent(context, PopUpInfoActivity::class.java)
+        intent.putExtra("name", it.name)
+        intent.putExtra("id", it.id)
+        intent.putExtra("fileType", it.file_type.toString())
+        intent.putExtra("metadataVersion", it.metadata_version.toString())
+        intent.putExtra("contentVersion", it.content_version.toString())
+        startActivity(intent)
+
     }
 
 
     private fun navigateToNewFileFolder(it: Boolean) {
-        it?.let {
-            if (it) {
-                val intent = Intent(context, NewFileFolderActivity::class.java)
-                intent.putExtra(
-                    "parentUuid",
-                    mainScreenViewModel.fileFolderModel.parentFileMetadata.id
-                )
-                intent.putExtra("path", mainScreenViewModel.path)
-                startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
-            }
+        if (it) {
+            val intent = Intent(context, NewFileFolderActivity::class.java)
+            intent.putExtra(
+                "parentUuid",
+                mainScreenViewModel.fileFolderModel.parentFileMetadata.id
+            )
+            intent.putExtra("path", mainScreenViewModel.path)
+            startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
         }
     }
 
@@ -127,17 +118,20 @@ class MainScreenFragment : Fragment() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        when(requestCode) {
+        when (requestCode) {
             NEW_FILE_REQUEST_CODE -> {
                 mainScreenViewModel.refreshFilesFolderList()
             }
             TEXT_EDITOR_REQUEST_CODE -> {
                 data?.let {
-                    if(resultCode == TextEditorActivity.OK) {
-                        Log.i("SmailBarkouch", "SUCCESS, but why no save?")
+                    if (resultCode == TextEditorActivity.OK) {
                         mainScreenViewModel.writeNewTextToDocument(data.getStringExtra("text"))
                     } else {
-                        Toast.makeText(context, "TEXT DID NOT SAVE", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "You're changes did not save, please file a bug report.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             }
