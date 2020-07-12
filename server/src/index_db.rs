@@ -269,6 +269,7 @@ pub async fn move_file(
     old_metadata_version: u64,
     file_type: FileType,
     parent: Uuid,
+    access_key: FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
@@ -282,7 +283,11 @@ pub async fn move_file(
                 metadata_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version END)
+                    ELSE old.metadata_version END),
+                parent_access_key =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    THEN $5
+                    ELSE old.parent_access_key END)
             FROM old WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
@@ -295,6 +300,7 @@ pub async fn move_file(
                 &(old_metadata_version as i64),
                 &(file_type == FileType::Folder),
                 &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
+                &serde_json::to_string(&access_key).map_err(FileError::Serialize)?,
             ],
         )
         .await?;

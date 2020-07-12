@@ -1,7 +1,7 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::{fs, io};
 
 use uuid::Uuid;
 
@@ -12,24 +12,13 @@ use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
 
 use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
 
-pub fn edit() {
+pub fn edit(file_name: &str) {
     get_account(&connect_to_db());
 
     let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = File::create(&temp_file_path)
         .expect(format!("Could not create temporary file: {}", &file_location).as_str());
-
-    if atty::is(atty::Stream::Stdin) {
-        print!("Enter a filepath: ");
-    }
-
-    io::stdout().flush().unwrap();
-    let mut file_name = String::new();
-    io::stdin()
-        .read_line(&mut file_name)
-        .expect("Failed to read from stdin");
-    file_name.retain(|c| !c.is_whitespace());
 
     let file_metadata = DefaultFileMetadataRepo::get_by_path(&connect_to_db(), &file_name)
         .expect("Could not search files ")

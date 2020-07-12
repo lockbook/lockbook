@@ -258,6 +258,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
+    // TODO should this indicate something special if the parent doesn't exist?
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
@@ -397,7 +398,7 @@ mod unit_tests {
             id,
             name: "".to_string(),
             owner: "".to_string(),
-            parent: parent,
+            parent,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -419,7 +420,7 @@ mod unit_tests {
             id,
             name: "".to_string(),
             owner: "".to_string(),
-            parent: parent,
+            parent,
             content_version: 1000,
             metadata_version: 1000,
             user_access_keys: Default::default(),
