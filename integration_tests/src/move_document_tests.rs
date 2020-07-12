@@ -73,6 +73,10 @@ mod move_document_tests {
                 doc_id,
                 version,
                 subfolder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &subfolder_key),
+                }
             ),
             Ok(_)
         );
@@ -108,6 +112,10 @@ mod move_document_tests {
                 Uuid::new_v4(),
                 0,
                 folder_id,
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &folder_key),
+                },
             ),
             Err(Error::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentNotFound
@@ -187,6 +195,10 @@ mod move_document_tests {
                 doc_id,
                 version,
                 subfolder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &subfolder_key),
+                },
             ),
             Err(Error::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentDeleted
@@ -260,6 +272,10 @@ mod move_document_tests {
                 doc_id,
                 version - 1,
                 subfolder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &subfolder_key),
+                },
             ),
             Err(Error::<MoveDocumentError>::Api(
                 MoveDocumentError::EditConflict
@@ -353,6 +369,10 @@ mod move_document_tests {
                 doc_id,
                 version,
                 subfolder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &subfolder_key),
+                },
             ),
             Err(Error::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentPathTaken
