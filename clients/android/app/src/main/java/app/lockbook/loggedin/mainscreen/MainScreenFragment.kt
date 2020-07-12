@@ -17,11 +17,15 @@ import app.lockbook.databinding.FragmentMainScreenBinding
 import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
 import app.lockbook.loggedin.listfiles.ListFilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
+import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.utils.FileMetadata
+import kotlinx.coroutines.withContext
 
 class MainScreenFragment : Fragment() {
 
     companion object {
         const val NEW_FILE_REQUEST_CODE: Int = 1
+        const val TEXT_EDITOR_REQUEST_CODE: Int = 2
     }
 
     lateinit var mainScreenViewModel: MainScreenViewModel
@@ -49,48 +53,73 @@ class MainScreenFragment : Fragment() {
         binding.lifecycleOwner = this
 
         mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer {
-            it?.let {
-                if (it.isEmpty()) {
-                    adapter.filesFolders = listOf()
-                } else {
-                    adapter.filesFolders = it
-                }
-            }
+            updateRecyclerView(it, adapter)
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, "UNTIL BULLET WENT THROUGH IT", Toast.LENGTH_LONG).show()
+            Log.i("SmailBarkouch", it)
+            navigateToFileEditor(it)
         })
 
         mainScreenViewModel.navigateToPopUpInfo.observe(viewLifecycleOwner, Observer {
-            it?.let {
-                val intent = Intent(context, PopUpInfoActivity::class.java)
-                intent.putExtra("name", it.name)
-                intent.putExtra("id", it.id)
-                intent.putExtra("fileType", it.file_type.toString())
-                intent.putExtra("metadataVersion", it.metadata_version.toString())
-                intent.putExtra("contentVersion", it.content_version.toString())
-                startActivity(intent)
-            }
+            navigateToPopUpInfo(it)
         })
 
         mainScreenViewModel.navigateToNewFileFolder.observe(viewLifecycleOwner, Observer {
-            it?.let {
-                if (it) {
-                    val intent = Intent(context, NewFileFolderActivity::class.java)
-                    intent.putExtra(
-                        "parentUuid",
-                        mainScreenViewModel.fileFolderModel.parentFileMetadata.id
-                    )
-                    intent.putExtra("path", application.filesDir.absolutePath)
-                    startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
-                }
-            }
+            navigateToNewFileFolder(it)
         })
 
         mainScreenViewModel.startListFilesFolders()
 
         return binding.root
+    }
+
+    private fun updateRecyclerView(
+        it: List<FileMetadata>,
+        adapter: ListFilesAdapter
+    ) {
+        it?.let {
+            if (it.isEmpty()) {
+                adapter.filesFolders = listOf()
+            } else {
+                adapter.filesFolders = it
+            }
+        }
+    }
+
+    private fun navigateToFileEditor(it: String) {
+        it?.let {
+            val intent = Intent(context, TextEditorActivity::class.java)
+            intent.putExtra("text", it)
+            startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
+        }
+    }
+
+    private fun navigateToPopUpInfo(it: FileMetadata) {
+        it?.let {
+            val intent = Intent(context, PopUpInfoActivity::class.java)
+            intent.putExtra("name", it.name)
+            intent.putExtra("id", it.id)
+            intent.putExtra("fileType", it.file_type.toString())
+            intent.putExtra("metadataVersion", it.metadata_version.toString())
+            intent.putExtra("contentVersion", it.content_version.toString())
+            startActivity(intent)
+        }
+    }
+
+
+    private fun navigateToNewFileFolder(it: Boolean) {
+        it?.let {
+            if (it) {
+                val intent = Intent(context, NewFileFolderActivity::class.java)
+                intent.putExtra(
+                    "parentUuid",
+                    mainScreenViewModel.fileFolderModel.parentFileMetadata.id
+                )
+                intent.putExtra("path", mainScreenViewModel.path)
+                startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
+            }
+        }
     }
 
     fun onBackPressed(): Boolean {
@@ -101,6 +130,16 @@ class MainScreenFragment : Fragment() {
         when(requestCode) {
             NEW_FILE_REQUEST_CODE -> {
                 mainScreenViewModel.refreshFilesFolderList()
+            }
+            TEXT_EDITOR_REQUEST_CODE -> {
+                data?.let {
+                    if(resultCode == TextEditorActivity.OK) {
+                        Log.i("SmailBarkouch", "SUCCESS, but why no save?")
+                        mainScreenViewModel.writeNewTextToDocument(data.getStringExtra("text"))
+                    } else {
+                        Toast.makeText(context, "TEXT DID NOT SAVE", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }

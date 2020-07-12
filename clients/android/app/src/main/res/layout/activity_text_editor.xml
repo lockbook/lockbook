@@ -12,19 +12,32 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:paddingBottom="70dp"
+            android:text="Input"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="40sp" />
+
         <EditText
             android:id="@+id/text_editor"
             android:layout_width="match_parent"
-            android:layout_height="650dp"
-            android:gravity="top|right"
-            android:inputType="text" />
+            android:layout_height="474dp"
+            android:fontFamily="monospace"
+            android:gravity="top|left"
+            android:text="@{textEditorActivty.text}"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:textColor="#FFFFFF" />
 
         <Button
             android:id="@+id/submit_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:backgroundTint="?attr/colorPrimary"
-            android:text="Continue"
+            android:text="Save"
             android:textColor="#000000"
             android:onClick="@{() -> textEditorActivty.submitText()}"/>
 
