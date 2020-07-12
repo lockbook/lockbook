@@ -287,5 +287,50 @@ mod sync_tests {
             &format!("{}/folder1/test.txt", account.username),
         )
         .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Wow, what a doc"))
+            .unwrap();
+
+        let new_folder1 =
+            DefaultFileService::create_at_path(&db1, &format!("{}/folder2/", account.username))
+                .unwrap();
+
+        let new_folder2 =
+            DefaultFileService::create_at_path(&db1, &format!("{}/folder3/", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::move_file(&db2, file.id, new_folder1.id).unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::move_file(&db1, file.id, new_folder2.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
+
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+
+        assert_eq!(
+            DefaultFileMetadataRepo::get(&db1, file.id).unwrap().parent,
+            new_folder1.id
+        );
+        assert_eq!(
+            DefaultFileService::read_document(&db2, file.id)
+                .unwrap()
+                .secret,
+            "Wow, what a doc"
+        );
     }
 }
