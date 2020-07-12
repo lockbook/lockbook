@@ -94,6 +94,7 @@ pub struct MoveDocumentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
+    pub new_folder_access: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -220,6 +221,7 @@ pub struct MoveFolderRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
+    pub new_folder_access: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
