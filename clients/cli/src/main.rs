@@ -11,9 +11,11 @@ mod export;
 mod import;
 mod init;
 mod list;
+mod move_file;
 mod new;
 mod print;
 mod remove;
+mod rename;
 mod status;
 mod sync;
 mod utils;
@@ -52,11 +54,17 @@ enum Lockbook {
     #[structopt(name = "list-folders")]
     ListFolders,
 
+    /// Move a specified file such that it has the target parent (list-all for first parameter list-folders for second parameter)
+    Move { target: String, new_parent: String},
+
     /// Create a new document or folder
     New { path: String },
 
     /// Print the contents of a file
     Print { path: String },
+
+    /// Rename a file at a path to a target value
+    Rename { path: String, name: String },
 
     /// Move a file to trash TODO
     Remove { path: String },
@@ -72,24 +80,27 @@ enum Lockbook {
     WhoAmI,
 }
 
+// TODO these should do something this: https://stackoverflow.com/questions/30281235/how-to-cleanly-end-the-program-with-an-exit-code
 fn main() {
     init_logger_safely();
     let args: Lockbook = Lockbook::from_args();
     match args {
-        Lockbook::New { path } => new::new(&path.trim()),
-        Lockbook::Sync => sync::sync(),
+        Lockbook::Copy { file } => copy::copy(file),
         Lockbook::Edit { path } => edit::edit(&path.trim()),
-        Lockbook::Remove { path } => remove::remove(&path.trim()),
+        Lockbook::Export => export::export(),
+        Lockbook::Import => import::import(),
+        Lockbook::Init => init::init(),
         Lockbook::List => list::list(Some(LeafNodesOnly)),
         Lockbook::ListAll => list::list(None),
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
         Lockbook::ListFolders => list::list(Some(FoldersOnly)),
-        Lockbook::Init => init::init(),
-        Lockbook::Import => import::import(),
-        Lockbook::Status => status::status(),
-        Lockbook::Export => export::export(),
-        Lockbook::WhoAmI => whoami::whoami(),
+        Lockbook::Move { target, new_parent } => move_file::move_file(&target, &new_parent),
+        Lockbook::New { path } => new::new(&path.trim()),
         Lockbook::Print { path } => print::print(&path.trim()),
-        Lockbook::Copy { file } => copy::copy(file),
+        Lockbook::Remove { path } => remove::remove(&path.trim()),
+        Lockbook::Rename { path, name } => rename::rename(&path, &name),
+        Lockbook::Status => status::status(),
+        Lockbook::Sync => sync::sync(),
+        Lockbook::WhoAmI => whoami::whoami(),
     }
 }
