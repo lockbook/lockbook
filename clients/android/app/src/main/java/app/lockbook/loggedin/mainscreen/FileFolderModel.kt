@@ -2,6 +2,7 @@ package app.lockbook.loggedin.mainscreen
 
 import android.util.Log
 import app.lockbook.core.*
+import app.lockbook.utils.DecryptedValue
 import app.lockbook.utils.Document
 import app.lockbook.utils.EncryptedValueWithNonce
 import app.lockbook.utils.FileMetadata
@@ -11,6 +12,7 @@ import kotlinx.android.synthetic.main.activity_new_file_folder.*
 class FileFolderModel(private val path: String) {
     private val json = Klaxon()
     lateinit var parentFileMetadata: FileMetadata
+    lateinit var lastDocumentAccessed: FileMetadata
 
     companion object {
         fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
@@ -57,15 +59,6 @@ class FileFolderModel(private val path: String) {
         return listOf()
     }
 
-    fun getFileDocument(fileUuid: String): Document {
-        val file: Document? = json.parse(getFile(path, fileUuid))
-        if (file != null) {
-            return file
-        }
-
-        return Document(EncryptedValueWithNonce("", "")) // better way to do this maybe?
-    }
-
     private fun getParentOfParent() {
         val parent: FileMetadata? = json.parse(getFileMetadata(path, parentFileMetadata.parent))
 
@@ -73,4 +66,18 @@ class FileFolderModel(private val path: String) {
             parentFileMetadata = parent
         }
     }
+
+    fun getDocumentContent(fileUuid: String): String {
+        val document: DecryptedValue? = json.parse(readDocument(path, fileUuid))
+        if (document != null) {
+            return document.secret
+        }
+
+        return "" // definitely better way to handle this
+    }
+
+    fun writeContentToDocument(content: String) { // have a return type to be handled in case it doesnt work
+        writeToDocument(path, lastDocumentAccessed.id, json.toJsonString(DecryptedValue(content)))
+    }
+
 }
