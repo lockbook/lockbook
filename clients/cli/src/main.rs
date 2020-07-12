@@ -55,7 +55,7 @@ enum Lockbook {
     ListFolders,
 
     /// Move a specified file such that it has the target parent (list-all for first parameter list-folders for second parameter)
-    Move { target: String, new_parent: String},
+    Move { target: String, new_parent: String },
 
     /// Create a new document or folder
     New { path: String },
