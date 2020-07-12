@@ -269,7 +269,7 @@ pub async fn move_file(
     old_metadata_version: u64,
     file_type: FileType,
     parent: Uuid,
-    access_key: FolderAccessInfo
+    access_key: FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
