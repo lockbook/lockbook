@@ -13,8 +13,8 @@ use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_encryption_service;
-use crate::service::file_encryption_service::FileEncryptionService;
-use crate::service::file_service::DocumentMoveError::{FileDoesntExist, NewParentDoesntExist};
+use crate::service::file_encryption_service::{FileEncryptionService, KeyDecryptionFailure, FileCreationError};
+use crate::service::file_service::DocumentMoveError::{FileDoesntExist, NewParentDoesntExist, FailedToDecryptKey, FailedToReEncryptKey};
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
@@ -86,11 +86,15 @@ pub enum DocumentRenameError {
 
 #[derive(Debug)]
 pub enum DocumentMoveError {
+    AccountRetrievalError(account_repo::Error),
     TargetParentHasChildNamedThat,
     FileDoesntExist,
     NewParentDoesntExist,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
+    FailedToDecryptKey(KeyDecryptionFailure),
+    FailedToReEncryptKey(FileCreationError),
+    CouldNotFindParents(FindingParentsFailed),
 }
 
 pub trait FileService {
@@ -319,6 +323,8 @@ impl<
     }
 
     fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), DocumentMoveError> {
+        let account = AccountDb::get_account(&db).map_err(DocumentMoveError::AccountRetrievalError)?;
+
         match FileMetadataDb::maybe_get(&db, id).map_err(DocumentMoveError::DbError)? {
             None => Err(FileDoesntExist),
             Some(mut file) => {
@@ -338,9 +344,22 @@ impl<
                         }
 
                         // Good to move
+                        let old_parents = FileMetadataDb::get_with_all_parents(&db, file.id)
+                            .map_err(DocumentMoveError::CouldNotFindParents)?;
+
+                        let access_key = FileCrypto::decrypt_key_for_file(&account, file.id, old_parents)
+                            .map_err(FailedToDecryptKey)?;
+
+                        let new_parents = FileMetadataDb::get_with_all_parents(&db, parent_metadata.id)
+                            .map_err(DocumentMoveError::CouldNotFindParents)?;
+
+                        let new_access_info = FileCrypto::re_encrypt_key_for_file(&account, access_key, parent_metadata.id, new_parents)
+                            .map_err(FailedToReEncryptKey)?;
+
                         ChangesDb::track_move(&db, file.id, file.parent, parent_metadata.id)
                             .map_err(DocumentMoveError::FailedToRecordChange)?;
                         file.parent = parent_metadata.id;
+                        file.folder_access_keys = new_access_info;
 
                         FileMetadataDb::insert(&db, &file).map_err(DocumentMoveError::DbError)?;
                         Ok(())
@@ -939,6 +958,15 @@ mod unit_tests {
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
         let folder1 = DefaultFileService::create_at_path(&db, "username/folder2/").unwrap();
+        assert!(DefaultFileService::write_document(
+            &db,
+            folder1.id,
+            &DecryptedValue::from("should fail")
+        )
+        .is_err());
+
+        DefaultFileService::write_document(&db, file1.id, &DecryptedValue::from("nice doc ;)"))
+            .unwrap();
 
         assert_eq!(
             DefaultLocalChangesRepo::get_all_local_changes(&db)
@@ -959,6 +987,13 @@ mod unit_tests {
         );
 
         DefaultFileService::move_file(&db, file1.id, folder1.id).unwrap();
+
+        assert_eq!(
+            DefaultFileService::read_document(&db, file1.id)
+                .unwrap()
+                .secret,
+            "nice doc ;)"
+        );
 
         assert_eq!(
             DefaultFileMetadataRepo::get(&db, file1.id).unwrap().parent,

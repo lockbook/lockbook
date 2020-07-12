@@ -222,6 +222,7 @@ impl<
                             // The normal fast forward case
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
+                            println!("Incoming access key: {:#?}", metadata.folder_access_keys);
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
@@ -382,7 +383,6 @@ impl<
                                 &metadata.name)
                                 .map_err(FolderRenameError)?
                         };
-                        metadata.content_version = version;
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
@@ -396,6 +396,7 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
+                                metadata.folder_access_keys.clone()
                             ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
@@ -403,12 +404,14 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
+                                metadata.folder_access_keys.clone()
                             ).map_err(FolderMoveError)?
                         };
 
                         metadata.metadata_version = version;
-                        metadata.content_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                        println!("Outgoing access keys: {:#?}", metadata.folder_access_keys);
 
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
