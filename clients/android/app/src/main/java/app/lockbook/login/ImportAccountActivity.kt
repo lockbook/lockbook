@@ -16,8 +16,8 @@ import kotlinx.coroutines.*
 class ImportAccountActivity : AppCompatActivity() {
 
     companion object {
-
         private const val QR_CODE_SCANNER_REQUEST_CODE = 101
+
         private const val OK = 0 // should handle
         private const val ACCOUNT_STRING_INVALID = 2    // should handle
     }
@@ -29,7 +29,8 @@ class ImportAccountActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val binding: ActivityImportAccountBinding = DataBindingUtil.setContentView(this,
+        val binding: ActivityImportAccountBinding = DataBindingUtil.setContentView(
+            this,
             R.layout.activity_import_account
         )
 
@@ -39,7 +40,7 @@ class ImportAccountActivity : AppCompatActivity() {
     fun importAccountFromAccountString() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-            handleImportResult(importAccountFromString(account_string.text.toString()))
+                handleImportResult(importAccountFromString(account_string.text.toString()))
             }
         }
     }
@@ -47,11 +48,17 @@ class ImportAccountActivity : AppCompatActivity() {
     fun navigateToQRCodeScanner() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                intentIntegrator.setBeepEnabled(true).setRequestCode(QR_CODE_SCANNER_REQUEST_CODE).initiateScan()
+                intentIntegrator
+                    .setBeepEnabled(true)
+                    .setRequestCode(QR_CODE_SCANNER_REQUEST_CODE)
+                    .setOrientationLocked(false)
+                    .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+                    .setPrompt("Scan the account string QR Code.")
+                    .initiateScan()
             }
         }
     }
-    
+
     private fun importAccountFromString(account: String): Int {
         return importAccount(filesDir.absolutePath, account)
     }
@@ -81,8 +88,10 @@ class ImportAccountActivity : AppCompatActivity() {
                 if (requestCode == QR_CODE_SCANNER_REQUEST_CODE) {
                     val intentResult =
                         IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-                    if (intentResult.contents != null) {
-                        handleImportResult(importAccountFromString(intentResult.contents))
+                    if (intentResult != null) {
+                        intentResult.contents?.let {
+                            handleImportResult(importAccountFromString(it))
+                        }
                     }
                 }
                 super.onActivityResult(requestCode, resultCode, data)
