@@ -15,7 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentMainScreenBinding
 import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
-import app.lockbook.loggedin.listfiles.ListFilesAdapter
+import app.lockbook.loggedin.listfiles.FilesFoldersAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.FileMetadata
@@ -25,6 +25,7 @@ class MainScreenFragment : Fragment() {
     companion object {
         private const val NEW_FILE_REQUEST_CODE: Int = 101
         private const val TEXT_EDITOR_REQUEST_CODE: Int = 102
+        private const val POP_UP_INFO_REQUEST_CODE: Int = 103
     }
 
     lateinit var mainScreenViewModel: MainScreenViewModel
@@ -42,7 +43,7 @@ class MainScreenFragment : Fragment() {
             MainScreenViewModelFactory(application.filesDir.absolutePath)
         mainScreenViewModel =
             ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
-        val adapter = ListFilesAdapter(mainScreenViewModel)
+        val adapter = FilesFoldersAdapter(mainScreenViewModel)
 
         binding.mainScreenViewModel = mainScreenViewModel
         binding.filesFolders.adapter = adapter
@@ -72,7 +73,7 @@ class MainScreenFragment : Fragment() {
 
     private fun updateRecyclerView(
         it: List<FileMetadata>,
-        adapter: ListFilesAdapter
+        adapter: FilesFoldersAdapter
     ) {
         if (it.isEmpty()) {
             adapter.filesFolders = listOf()
@@ -96,7 +97,8 @@ class MainScreenFragment : Fragment() {
         intent.putExtra("fileType", it.file_type.toString())
         intent.putExtra("metadataVersion", it.metadata_version.toString())
         intent.putExtra("contentVersion", it.content_version.toString())
-        startActivity(intent)
+        intent.putExtra("path", mainScreenViewModel.path)
+        startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
 
     }
 
@@ -129,10 +131,21 @@ class MainScreenFragment : Fragment() {
                     } else {
                         Toast.makeText(
                             context,
-                            "You're changes did not save, please file a bug report.",
+                            "Your changes did not save, please file a bug report.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                }
+            }
+            POP_UP_INFO_REQUEST_CODE -> {
+                if(resultCode == PopUpInfoActivity.OK) {
+                    mainScreenViewModel.refreshFilesFolderList()
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Your file/folder was not deleted, please file a bug report.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
