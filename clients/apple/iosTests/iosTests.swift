@@ -120,7 +120,7 @@ class CoreApiTests: XCTestCase {
         
         switch result {
         case .success(let workUnits):
-            XCTAssertEqual(workUnits.count, 2)
+            XCTAssertEqual(workUnits.count, 1)
         case .failure(let error):
             XCTFail(error.message)
         }
