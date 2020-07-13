@@ -23,7 +23,7 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-mod android;
+mod java_interface;
 
 static API_URL: &str = env!("API_URL");
 static DB_NAME: &str = "lockbook.sled";
