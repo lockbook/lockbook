@@ -3,11 +3,13 @@ version: '3'
 services:
   filesdb:
     image: minio/minio:RELEASE.2020-05-16T01-33-21Z
+    container_name: filesdb-$HASH
     env_file:
       - containers/test.env
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
+    container_name: config_filesdb-$HASH
     env_file:
       - containers/test.env
     depends_on:
@@ -22,10 +24,12 @@ services:
       '
   indexdb:
     image: postgres:12.3
+    container_name: indexdb-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
   config_indexdb:
     image: postgres:12.3
+    container_name: config_indexdb-$HASH
     env_file:
       - containers/test.env
     depends_on:
@@ -39,7 +43,8 @@ services:
         tail -f /dev/null
       '
   lockbook_server:
-    image: server:$BRANCH
+    image: server:$HASH
+    container_name: server-$HASH
     env_file:
       - containers/test.env
     depends_on:
@@ -51,7 +56,8 @@ services:
         RUST_LOG=lockbook_server=debug cargo run \
       '
   integration_tests:
-    image: integration_tests:$BRANCH
+    image: integration_tests:$HASH
+    container_name: integration_tests-$HASH
     env_file:
       - containers/test.env
     depends_on:
@@ -59,5 +65,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        cargo test \
+        RUSTLOG=lockbook_core=debug cargo test -- --nocapture \
       '

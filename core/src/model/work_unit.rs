@@ -9,3 +9,13 @@ pub enum WorkUnit {
 
     ServerChange { metadata: FileMetadata },
 }
+
+impl WorkUnit {
+    pub fn get_metadata(&self) -> FileMetadata {
+        match self {
+            WorkUnit::LocalChange { metadata } => metadata,
+            WorkUnit::ServerChange { metadata } => metadata,
+        }
+        .clone()
+    }
+}

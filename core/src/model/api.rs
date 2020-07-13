@@ -94,6 +94,7 @@ pub struct MoveDocumentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
+    pub new_folder_access: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -140,6 +141,24 @@ pub enum RenameDocumentError {
     DocumentNotFound,
     DocumentDeleted,
     EditConflict,
+    DocumentPathTaken,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetDocumentRequest {
+    pub id: Uuid,
+    pub content_version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetDocumentResponse {
+    pub content: EncryptedValueWithNonce,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetDocumentError {
+    InternalError,
+    DocumentNotFound,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -202,6 +221,7 @@ pub struct MoveFolderRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
+    pub new_folder_access: FolderAccessInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -248,6 +268,7 @@ pub enum RenameFolderError {
     FolderNotFound,
     FolderDeleted,
     EditConflict,
+    FolderPathTaken,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
