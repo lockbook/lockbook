@@ -429,4 +429,25 @@ mod sync_tests {
         );
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
+
+    #[test]
+    fn move_then_edit() {
+        let db1 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::rename_file(&db1, file.id, "new_name.txt").unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("noice")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+    }
 }
