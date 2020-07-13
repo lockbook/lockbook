@@ -8,156 +8,143 @@
 
 import Foundation
 
+typealias CoreResult<T> = Result<T, CoreError>
+
 protocol LockbookApi {
-    func getAccount() -> Optional<String>
-    func createAccount(username: String) -> Bool
-    func importAccount(accountString: String) -> Bool
-    func updateMetadata() -> [FileMetadata]
-    func createFile(name: String) -> Optional<FileMetadata>
-    func getFile(id: String) -> Optional<DecryptedValue>
-    func updateFile(id: String, content: String) -> Bool
-    func purgeLocal() -> Bool
+    // Account
+    func getAccount() -> CoreResult<Account.Username>
+    func createAccount(username: String) -> CoreResult<Account>
+    func importAccount(accountString: String) -> CoreResult<Account>
+    
+    // Work
+    func synchronize() -> CoreResult<Bool>
+    func calculateWork() -> CoreResult<[WorkUnit]>
+    func executeWork(work: [WorkUnit]) -> CoreResult<Bool>
+    
+    // Directory
+    func getRoot() -> CoreResult<FileMetadata>
+    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]>
+    
+    // Document
+    func getFile(id: UUID) -> CoreResult<DecryptedValue>
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
+    func updateFile(id: UUID, content: String) -> CoreResult<Bool>
+    func markFileForDeletion(id: UUID) -> CoreResult<Bool>
 }
 
 struct CoreApi: LockbookApi {
     let documentsDirectory: String
     
     private func isDbPresent() -> Bool {
-        if (is_db_present(documentsDirectory) == 1) {
-            return true
-        }
-        return false
+        is_db_present(documentsDirectory)
     }
     
-    func getAccount() -> Optional<String> {
-        if (isDbPresent()) {
-            let result = get_account(documentsDirectory)
-            let resultString = String(cString: result!)
-            release_pointer(UnsafeMutablePointer(mutating: result))
-            return Optional.some(resultString)
-        }
-        return Optional.none
-    }
-
-    func createAccount(username: String) -> Bool {
-        let result = create_account(documentsDirectory, username)
-        if (result == 1) {
-            return true
-        }
-        return false
+    func getAccount() -> CoreResult<Account.Username> {
+        return fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
-    func importAccount(accountString: String) -> Bool {
-        let result = import_account(documentsDirectory, accountString)
-        if (result == 1) {
-            return true
-        }
-        return false
+    func createAccount(username: String) -> CoreResult<Account> {
+        return fromPrimitiveResult(result: create_account(documentsDirectory, username))
     }
     
-    func updateMetadata() -> [FileMetadata] {
-        if (isDbPresent()) {
-            let result = sync_files(documentsDirectory)
-            let resultString = String(cString: result!)
-            // We need to release the pointer once we have the result string
-            release_pointer(UnsafeMutablePointer(mutating: result))
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            
-            if let resultMetas: [FileMetadata] = deserialize(jsonStr: resultString) {
-                return resultMetas
-            } else {
-                return [FileMetadata].init()
-            }
-        }
-        return []
+    func importAccount(accountString: String) -> CoreResult<Account> {
+        return fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     
-    private func getRoot() -> String {
-        let result = get_root(documentsDirectory)
-        let resultString = String(cString: result!)
-        release_pointer(UnsafeMutablePointer(mutating: result))
-        
-        return resultString
+    func synchronize() -> CoreResult<Bool> {
+        return fromPrimitiveResult(result: sync_files(documentsDirectory))
     }
     
-    func createFile(name: String) -> Optional<FileMetadata> {
-        let rootId = getRoot()
-        print(rootId)
-        let result = create_file(documentsDirectory, name, rootId)
-        let resultString = String(cString: result!)
-        release_pointer(UnsafeMutablePointer(mutating: result))
-        
-        let resultMeta: Optional<FileMetadata> = deserialize(jsonStr: resultString)
-        return resultMeta
+    func calculateWork() -> CoreResult<[WorkUnit]> {
+        return fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    func getFile(id: String) -> Optional<DecryptedValue> {
-        let result = get_file(documentsDirectory, id)
-        let resultString = String(cString: result!)
-        release_pointer(UnsafeMutablePointer(mutating: result))
-        
-        let resultFile: Optional<DecryptedValue> = deserialize(jsonStr: resultString)
-        return resultFile
+    func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
+        return CoreResult.failure(CoreError.lazy())
     }
     
-    func updateFile(id: String, content: String) -> Bool {
-        let result = update_file(documentsDirectory, id, content)
-        if (result == 1) {
-            return true
-        }
-        return false
+    func getRoot() -> CoreResult<FileMetadata> {
+        return fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
-    func purgeLocal() -> Bool {
-        if(purge_files(documentsDirectory) == 1) {
-            return true
-        }
-        return false
+    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
+        return fromPrimitiveResult(result: list_files(documentsDirectory, dirId.uuidString))
+    }
+    
+    func getFile(id: UUID) -> CoreResult<DecryptedValue> {
+        return fromPrimitiveResult(result: get_file(documentsDirectory, id.uuidString))
+    }
+    
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
+        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, isFolder))
+    }
+    
+    func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+        return fromPrimitiveResult(result: update_file(documentsDirectory, id.uuidString, content))
+    }
+    
+    func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
+        return fromPrimitiveResult(result: mark_file_for_deletion(documentsDirectory, id.uuidString))
     }
 }
 
 
 struct FakeApi: LockbookApi {
-    var fakeUsername: String = "FakeApi"
-    var fakeMetadatas: [FileMetadata] = [
-        FileMetadata(id: "aaaa", name: "first_file.md", parentId: "root", contentVersion: 0, metadataVersion: 0),
-        FileMetadata(id: "bbbb", name: "another_file.md", parentId: "root", contentVersion: 1000, metadataVersion: 1000),
-        FileMetadata(id: "cccc", name: "third_file.md", parentId: "root", contentVersion: 1500, metadataVersion: 1500),
-    ]
-    
-    func getAccount() -> Optional<String> {
-        Optional.some(fakeUsername)
+    func getAccount() -> CoreResult<Account.Username> {
+        CoreResult.success(username)
     }
     
-    func createAccount(username: String) -> Bool {
-        false
+    func createAccount(username: String) -> CoreResult<Account> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    func importAccount(accountString: String) -> Bool {
-        false
+    func importAccount(accountString: String) -> CoreResult<Account> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    func updateMetadata() -> [FileMetadata] {
-        var rander = SystemRandomNumberGenerator()
-        return fakeMetadatas.shuffled(using: &rander)
+    func synchronize() -> CoreResult<Bool> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    func createFile(name: String) -> Optional<FileMetadata> {
+    func calculateWork() -> CoreResult<[WorkUnit]> {
+        return Result.failure(CoreError.lazy())
+    }
+    
+    func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
+        CoreResult.failure(CoreError.lazy())
+    }
+    
+    func getRoot() -> CoreResult<FileMetadata> {
+        return CoreResult.success(FileMetadata(fileType: .Folder, id: rootUuid, parent: rootUuid, name: "first_file.md", owner: "root", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false))
+    }
+    
+    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
+        return Result.success(fileMetas)
+    }
+    
+    func getFile(id: UUID) -> CoreResult<DecryptedValue> {
+        CoreResult.failure(CoreError.lazy())
+    }
+    
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let now = Date().timeIntervalSince1970
-
-        return Optional.some(FileMetadata(id: "new", name: name, parentId: "", contentVersion: Int(now), metadataVersion: Int(now)))
+        return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: Int(now), metadataVersion: Int(now), deleted: false))
     }
     
-    func getFile(id: String) -> Optional<DecryptedValue> {
-        Optional.none
+    func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    func updateFile(id: String, content: String) -> Bool {
-        false
+    func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    func purgeLocal() -> Bool {
-        false
-    }
+    let username: Account.Username = "tester"
+    let rootUuid = UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
+    let fileMetas = [
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Folder, id: UUID(uuidString: "cdcb3342-7373-4b11-96e9-eb25a703febb").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+    ]
 }
