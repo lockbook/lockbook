@@ -436,11 +436,9 @@ mod sync_tests {
 
         let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
 
-        let file = DefaultFileService::create_at_path(
-            &db1,
-            &format!("{}/test.txt", account.username),
-        )
-            .unwrap();
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
+                .unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
