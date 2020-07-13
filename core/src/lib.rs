@@ -14,7 +14,7 @@ use crate::client::ClientImpl;
 use crate::model::account::{Account, Username};
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
@@ -83,12 +83,20 @@ pub type DefaultFileService = FileServiceImpl<
 pub struct ResultWrapper {
     is_error: bool,
     value: Value,
+    error: LockbookError,
 }
 
 #[repr(C)]
 pub union Value {
     success: *const c_char,
     error: *const c_char,
+}
+
+// TODO: make these better (they're the errors clients will actually handle)
+#[repr(C)]
+pub enum LockbookError {
+    Network,
+    Database,
 }
 
 impl<T: Serialize, E: Debug> From<Result<T, E>> for ResultWrapper {
@@ -105,6 +113,7 @@ impl<T: Serialize, E: Debug> From<Result<T, E>> for ResultWrapper {
                     },
                 }
             },
+            error: LockbookError::Database,
         }
     }
 }
@@ -297,22 +306,26 @@ pub unsafe extern "C" fn create_file(
     c_path: *const c_char,
     c_file_name: *const c_char,
     c_file_parent_id: *const c_char,
+    c_is_folder: bool,
 ) -> ResultWrapper {
     unsafe fn inner(
         path: String,
         file_name: String,
         file_parent: String,
+        is_folder: bool,
     ) -> Result<FileMetadata, Error> {
         let db = connect(path)?;
         let file_parent_uuid = Uuid::parse_str(&file_parent)?;
         // TODO @raayan make this function work for docs & folders
-        DefaultFileService::create(&db, &file_name, file_parent_uuid, Document)
+        let file_type = if is_folder { Folder } else { Document };
+        DefaultFileService::create(&db, &file_name, file_parent_uuid, file_type)
             .map_err(Error::FileCreate)
     }
     ResultWrapper::from(inner(
         from_ptr(c_path),
         from_ptr(c_file_name),
         from_ptr(c_file_parent_id),
+        c_is_folder,
     ))
 }
 

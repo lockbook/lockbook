@@ -38,11 +38,22 @@ func fromPrimitiveResult<T: Decodable>(result: ResultWrapper) -> Result<T, CoreE
             case .success(let value):
                 return Result.success(value)
             case .failure(let err):
-                return Result.failure(CoreError(message: err.localizedDescription))
+                return Result.failure(CoreError(message: err.localizedDescription, type: .Unhandled))
         }
     } else {
+        let error: ErrorType;
+        
+        switch result.error {
+        case Network:
+            error = .Network
+        case Database:
+            error = .Database
+        default:
+            error = .Unhandled
+        }
+        
         let errorString = String(cString: result.value.error)
         release_pointer(UnsafeMutablePointer(mutating: result.value.error))
-        return Result.failure(CoreError(message: errorString))
+        return Result.failure(CoreError(message: errorString, type: error))
     }
 }
