@@ -10,6 +10,7 @@ import XCTest
 @testable import Lockbook
 
 class CoreApiTests: XCTestCase {
+    static let fileMan = FileManager.init()
     static let tempDir = NSTemporaryDirectory().appending(UUID.init().uuidString)
     static let core = CoreApi(documentsDirectory: CoreApiTests.tempDir)
 //    let core = CoreApi(documentsDirectory: "/Users/raayanpillai/.lockbook")
@@ -23,7 +24,7 @@ class CoreApiTests: XCTestCase {
         print(CoreApiTests.self.core.documentsDirectory)
     }
     
-    func test01ImportAccount() {
+    func test00ImportAccount() {
         let bundle = Bundle(for: type(of: self))
         guard let url = bundle.url(forResource: "accountString", withExtension: "txt"), let data = try? String(contentsOf: url) else {
             return XCTFail("Could not load Account String")
@@ -36,6 +37,37 @@ class CoreApiTests: XCTestCase {
             XCTAssertEqual(account.username, "raayan")
         case .failure(let error):
             XCTFail(error.message)
+        }
+        
+        try? CoreApiTests.fileMan.removeItem(atPath: CoreApiTests.tempDir)
+    }
+    
+    func test01CreateAccount() {
+        let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
+        let result = CoreApiTests.core.createAccount(username: username)
+        
+        switch result {
+        case .success(let acc):
+            XCTAssertEqual(acc.username, username)
+        case .failure(let err):
+            XCTFail(err.message)
+        }
+    }
+    
+    func test02CreateFile() {
+        let filename = "swiftfile"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")+".md"
+        
+        guard let root = try? CoreApiTests.core.getRoot().get() else {
+            return XCTFail("Could not get root!")
+        }
+        
+        let result = CoreApiTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
+        
+        switch result {
+        case .success(let file):
+            XCTAssertEqual(file.name, filename)
+        case .failure(let err):
+            XCTFail(err.message)
         }
     }
     
@@ -57,7 +89,7 @@ class CoreApiTests: XCTestCase {
             
             switch result {
             case .success(let files):
-                XCTAssertEqual(files.count, 2)
+                XCTAssertEqual(files.count, 1)
             case .failure(let error):
                 XCTFail(error.message)
             }
@@ -73,7 +105,7 @@ class CoreApiTests: XCTestCase {
             return XCTFail("Couldn't get root!")
         }
         
-        let result = CoreApiTests.core.createFile(name: "test.md", dirId: root.id)
+        let result = CoreApiTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
         
         switch result {
         case .success(let meta):
@@ -88,7 +120,7 @@ class CoreApiTests: XCTestCase {
         
         switch result {
         case .success(let workUnits):
-            XCTAssertEqual(workUnits.count, 1)
+            XCTAssertEqual(workUnits.count, 2)
         case .failure(let error):
             XCTFail(error.message)
         }

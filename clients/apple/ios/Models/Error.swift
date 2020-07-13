@@ -8,10 +8,17 @@
 
 import Foundation
 
-struct CoreError: Error, Codable {
+struct CoreError: Error {
     var message: String
+    var type: ErrorType
     
     static func lazy() -> CoreError {
-        return CoreError.init(message: "Lazy error!")
+        return CoreError.init(message: "Lazy error!", type: .Unhandled)
     }
+}
+
+enum ErrorType {
+    case Network
+    case Database
+    case Unhandled
 }
