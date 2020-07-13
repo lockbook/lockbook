@@ -230,6 +230,7 @@ pub async fn move_document(
         request.old_metadata_version,
         FileType::Document,
         request.new_parent,
+        request.new_folder_access,
     )
     .await;
     let new_version = result.map_err(|e| match e {
@@ -284,6 +285,7 @@ pub async fn rename_document(
         index_db::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
         index_db::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
         index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
+        index_db::FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename document in Postgres: {:?}",
@@ -300,6 +302,26 @@ pub async fn rename_document(
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(RenameDocumentError::InternalError)
+        }
+    }
+}
+
+pub async fn get_document(
+    server_state: &mut ServerState,
+    request: GetDocumentRequest,
+) -> Result<GetDocumentResponse, GetDocumentError> {
+    let files_result = files_db::get(
+        &server_state.files_db_client,
+        request.id,
+        request.content_version,
+    )
+    .await;
+    match files_result {
+        Ok(c) => Ok(GetDocumentResponse { content: c }),
+        Err(files_db::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
+        Err(e) => {
+            error!("Internal server error! Cannot get file from S3: {:?}", e);
+            Err(GetDocumentError::InternalError)
         }
     }
 }
@@ -420,6 +442,7 @@ pub async fn move_folder(
         request.old_metadata_version,
         FileType::Folder,
         request.new_parent,
+        request.new_folder_access,
     )
     .await;
     let new_version = result.map_err(|e| match e {
@@ -474,6 +497,7 @@ pub async fn rename_folder(
         index_db::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
         index_db::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
         index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
+        index_db::FileError::PathTaken => RenameFolderError::FolderPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename folder in Postgres: {:?}",
