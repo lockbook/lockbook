@@ -13,11 +13,7 @@ struct FileBrowserView: View {
     
     var body: some View {
         NavigationView {
-            self.coordinator.getRoot().map {
-                FolderList(coordinator: self.coordinator, dirId: $0, dirName: "root")
-            } ?? (try? FakeApi().getRoot().map {
-                FolderList(coordinator: self.coordinator, dirId: $0.id, dirName: $0.name)
-                }.get()).unsafelyUnwrapped
+            FolderList(coordinator: self.coordinator, dirId: self.coordinator.root.id, dirName: "root")
         }
     }
 }
