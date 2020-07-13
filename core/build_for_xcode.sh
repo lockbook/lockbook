@@ -28,7 +28,7 @@ done
 [ $BUILD_FAT == 1 ] && { command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 
 echo "Creating header"
-cbindgen src/lib.rs -l c > lockbook_core.h
+cbindgen src/c_interface.rs -l c > lockbook_core.h
 
 if [ $BUILD_FAT == 1 ]
 then
