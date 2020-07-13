@@ -1,6 +1,5 @@
 package app.lockbook.loggedin.listfiles
 
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
@@ -8,9 +7,9 @@ import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import app.lockbook.R
-import kotlinx.android.synthetic.main.recyclerview_content_list_files.view.*
+import kotlinx.android.synthetic.main.recyclerview_content_files_folders.view.*
 
-class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): RecyclerView.Adapter<ListFilesAdapter.ListFilesViewHolder>() {
+class FilesFoldersAdapter(val filesFoldersClickInterface: FilesFoldersClickInterface): RecyclerView.Adapter<FilesFoldersAdapter.ListFilesViewHolder>() {
 
     var filesFolders = listOf<FileMetadata>()
         set(value) {
@@ -20,7 +19,7 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val view = layoutInflater.inflate(R.layout.recyclerview_content_list_files, parent, false) as CardView
+        val view = layoutInflater.inflate(R.layout.recyclerview_content_files_folders, parent, false) as CardView
 
         return ListFilesViewHolder(view)
     }
@@ -46,11 +45,11 @@ class ListFilesAdapter(val listFilesClickInterface: ListFilesClickInterface): Re
 
         init {
             cardView.setOnClickListener {
-                listFilesClickInterface.onItemClick(adapterPosition)
+                filesFoldersClickInterface.onItemClick(adapterPosition)
             }
 
             cardView.setOnLongClickListener{
-                listFilesClickInterface.onLongClick(adapterPosition)
+                filesFoldersClickInterface.onLongClick(adapterPosition)
                 true
             }
 

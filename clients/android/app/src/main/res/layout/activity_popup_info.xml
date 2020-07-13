@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
         android:paddingBottom="15dp"
-        android:text="@{popUpInfoActivity.name}"
+        android:text="@{`Name: ` + popUpInfoActivity.name}"
         android:textColor="#FFFFFF" />
 
         <TextView
@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:paddingBottom="15dp"
-            android:text="@{popUpInfoActivity.id}"
+            android:text="@{`ID: ` + popUpInfoActivity.id}"
             android:textColor="#FFFFFF" />
 
         <TextView
@@ -35,7 +35,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:paddingBottom="15dp"
-            android:text="@{popUpInfoActivity.fileType}"
+            android:text="@{`File Type: ` + popUpInfoActivity.fileType}"
             android:textColor="#FFFFFF" />
 
         <TextView
@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:paddingBottom="15dp"
-            android:text="@{popUpInfoActivity.metadataVersion}"
+            android:text="@{`Metadata Version: ` + popUpInfoActivity.metadataVersion}"
             android:textColor="#FFFFFF" />
 
         <TextView
@@ -51,8 +51,17 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:paddingBottom="15dp"
-            android:text="@{popUpInfoActivity.contentVersion}"
+            android:text="@{`Content Version: ` + popUpInfoActivity.contentVersion}"
             android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/submit_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="?attr/colorPrimary"
+            android:text="Delete File"
+            android:textColor="#000000"
+            android:onClick="@{}"/>
 
     </LinearLayout>
 </layout>

@@ -1,22 +1,14 @@
 package app.lockbook.loggedin.mainscreen
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.core.getChildren
-import app.lockbook.core.getFile
-import app.lockbook.core.getFileMetadata
-import app.lockbook.core.getRoot
-import app.lockbook.loggedin.listfiles.ListFilesClickInterface
-import app.lockbook.utils.DecryptedValue
-import app.lockbook.utils.Document
+import app.lockbook.loggedin.listfiles.FilesFoldersClickInterface
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
-import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
 
-class MainScreenViewModel(val path: String) : ViewModel(), ListFilesClickInterface {
+class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)

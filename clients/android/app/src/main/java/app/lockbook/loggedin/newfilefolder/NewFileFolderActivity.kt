@@ -42,10 +42,12 @@ class NewFileFolderActivity : Activity() {
                     json.toJsonString(FileType.Folder)
                 }
 
-                val path = intent.getStringExtra("path")
-                val parentUuid = intent.getStringExtra("parentUuid")
-
-                FileFolderModel.insertFileFolder(path, parentUuid, fileType, name_text.text.toString())
+                FileFolderModel.insertFileFolder(
+                    intent.getStringExtra("path"),
+                    intent.getStringExtra("parentUuid"),
+                    fileType,
+                    name_text.text.toString()
+                )
 
                 withContext(Dispatchers.Main) {
                     finish()
