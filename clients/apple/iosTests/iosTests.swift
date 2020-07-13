@@ -38,8 +38,6 @@ class CoreApiTests: XCTestCase {
         case .failure(let error):
             XCTFail(error.message)
         }
-        
-        try? CoreApiTests.fileMan.removeItem(atPath: CoreApiTests.tempDir)
     }
     
     func test01CreateAccount() {
@@ -71,7 +69,7 @@ class CoreApiTests: XCTestCase {
         }
     }
     
-    func test02Sync() {
+    func test03Sync() {
         let result = CoreApiTests.core.synchronize()
         
         switch result {
@@ -82,7 +80,7 @@ class CoreApiTests: XCTestCase {
         }
     }
     
-    func test03ListFiles() {
+    func test04ListFiles() {
         do {
             let root = try CoreApiTests.core.getRoot().get()
             let result = CoreApiTests.core.listFiles(dirId: root.id)
@@ -100,7 +98,7 @@ class CoreApiTests: XCTestCase {
         }
     }
     
-    func test04CreateFile() {
+    func test05CreateFile() {
         guard let root = try? CoreApiTests.core.getRoot().get() else {
             return XCTFail("Couldn't get root!")
         }
@@ -115,7 +113,7 @@ class CoreApiTests: XCTestCase {
         }
     }
     
-    func test05CalculateWork() {
+    func test06CalculateWork() {
         let result = CoreApiTests.core.calculateWork()
         
         switch result {
