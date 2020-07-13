@@ -418,7 +418,7 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.content_version,
+                            metadata.metadata_version,
                             DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
                         ).map_err(DocumentChangeError)?;
 
