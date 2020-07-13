@@ -6,6 +6,8 @@ all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli
 clean:
 	-docker rm -f $$(docker ps -a -q)
 	-docker rmi -f $$(docker images -q)
+	-docker system prune -a -f
+	-git clean -fdX
 
 .PHONY: core
 core: is_docker_running
@@ -18,7 +20,7 @@ core_fmt: core
 
 .PHONY: core_lint
 core_lint: core
-	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 .PHONY: core_test
 core_test: core
@@ -52,7 +54,7 @@ cli_fmt: cli
 
 .PHONY: cli_lint
 cli_lint: cli
-	docker run cli:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run cli:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 .PHONY: cli_test
 cli_test: cli
@@ -69,12 +71,12 @@ integration_tests_fmt: integration_tests
 
 .PHONY: integration_tests_lint
 integration_tests_lint: integration_tests
-	docker run integration_tests:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call
+	docker run integration_tests:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	BRANCH=$(hash) docker-compose down
-	BRANCH=$(hash) docker-compose up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose down
+	HASH=$(hash) docker-compose up --exit-code-from=integration_tests
 
 .PHONY: android
 android:
