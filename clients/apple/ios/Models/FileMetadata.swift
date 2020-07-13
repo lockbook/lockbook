@@ -9,9 +9,17 @@
 import Foundation
 
 struct FileMetadata: Codable, Identifiable {
-    var id: String
+    var fileType: FileType
+    var id: UUID
+    var parent: UUID
     var name: String
-    var parentId: String
+    var owner: String
     var contentVersion: Int
     var metadataVersion: Int
+    var deleted: Bool
+}
+
+enum FileType: String, Codable {
+    case Document
+    case Folder
 }
