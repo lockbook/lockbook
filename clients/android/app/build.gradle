@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "app.lockbook"
-        minSdkVersion 24
+        minSdkVersion 22
         targetSdkVersion 29
         versionCode 1
         versionName "1.0"
@@ -72,7 +72,8 @@ dependencies {
     // Miscellaneous
     implementation "com.beust:klaxon:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
-    implementation "com.journeyapps:zxing-android-embedded:$qr_version"
+    implementation("com.journeyapps:zxing-android-embedded:$qr_embedded_version") { transitive = false }
+    implementation "com.google.zxing:core:$qr_core_version"
 
     implementation project(':core')
 }
