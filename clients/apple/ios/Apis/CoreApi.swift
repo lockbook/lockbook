@@ -27,7 +27,7 @@ protocol LockbookApi {
     
     // Document
     func getFile(id: UUID) -> CoreResult<DecryptedValue>
-    func createFile(name: String, dirId: UUID) -> CoreResult<FileMetadata>
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
     func updateFile(id: UUID, content: String) -> CoreResult<Bool>
     func markFileForDeletion(id: UUID) -> CoreResult<Bool>
 }
@@ -60,7 +60,7 @@ struct CoreApi: LockbookApi {
     }
     
     func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
-        return CoreResult.failure(CoreError(message: "Unimplemented!"))
+        return CoreResult.failure(CoreError.lazy())
     }
     
     func getRoot() -> CoreResult<FileMetadata> {
@@ -75,8 +75,8 @@ struct CoreApi: LockbookApi {
         return fromPrimitiveResult(result: get_file(documentsDirectory, id.uuidString))
     }
     
-    func createFile(name: String, dirId: UUID) -> CoreResult<FileMetadata> {
-        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString))
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
+        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, isFolder))
     }
     
     func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
@@ -107,7 +107,7 @@ struct FakeApi: LockbookApi {
     }
     
     func calculateWork() -> CoreResult<[WorkUnit]> {
-        return Result.failure(CoreError.init(message: "Fake api can't calculate work bub."))
+        return Result.failure(CoreError.lazy())
     }
     
     func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
@@ -126,7 +126,7 @@ struct FakeApi: LockbookApi {
         CoreResult.failure(CoreError.lazy())
     }
     
-    func createFile(name: String, dirId: UUID) -> CoreResult<FileMetadata> {
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let now = Date().timeIntervalSince1970
         return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: Int(now), metadataVersion: Int(now), deleted: false))
     }

@@ -9,8 +9,10 @@
 import SwiftUI
 
 struct CreateFileView: View {
-    @State private var fileName: String = ""
-    @State private var showingAlert = false
+    @State private var fileName = ""
+    @State private var isFolder = false
+    @State private var errorMessage: String?
+    @State private var alerting = false
     @ObservedObject var coordinator: Coordinator
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
 
@@ -21,19 +23,30 @@ struct CreateFileView: View {
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 50)
-                
-            MonokaiButton(text: "Create File")
+            
+            Toggle("Folder?", isOn: $isFolder)
+                .padding(.horizontal, 80)
+            
+            MonokaiButton(text: "Create \(isFolder ? "Folder":"Document")")
                 .onTapGesture {
-                    if self.coordinator.createFile(name: self.fileName) {
-                        self.coordinator.sync()
-                        self.presentationMode.wrappedValue.dismiss()
+                    if !self.fileName.contains("/") {
+                        if self.coordinator.createFile(name: self.fileName, isFolder: self.isFolder) {
+                            self.coordinator.sync()
+                            self.presentationMode.wrappedValue.dismiss()
+                        } else {
+                            self.errorMessage = "Could not create file!"
+                            self.alerting = true
+                        }
                     } else {
-                        self.showingAlert = true
+                        self.errorMessage = "File must not contain '/'"
+                        self.alerting = true
                     }
                 }
+                .padding(.vertical, 40)
+                
         }
-        .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Failed to create file!"))
+        .alert(isPresented: $alerting) {
+            Alert(title: Text(errorMessage ?? "No error message!"))
         }
     }
 }

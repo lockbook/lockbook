@@ -14,7 +14,7 @@ struct FolderList: View {
     var dirName: String
     
     var body: some View {
-        let files = self.coordinator.files.sorted(by: { (a, b) -> Bool in
+        let files = self.coordinator.navigateAndListFiles(dirId: dirId).sorted(by: { (a, b) -> Bool in
             a.name < b.name
         })
         

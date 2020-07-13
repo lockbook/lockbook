@@ -12,8 +12,9 @@ final class Coordinator: ObservableObject {
     private var syncTimer: Timer
     private var lockbookApi: LockbookApi
     var root: FileMetadata
-    var files: [FileMetadata]
     var account: Account
+    var currentId: UUID
+    @Published var files: [FileMetadata]
     @Published var currentView: PushedItem?
     @Published var progress: Optional<(Float, String)>
 
@@ -22,18 +23,20 @@ final class Coordinator: ObservableObject {
         let api = FakeApi()
         self.lockbookApi = api
         self.root = (try? api.getRoot().get())!
-        self.files = (try? api.listFiles(dirId: api.rootUuid).get())!
+        self.currentId = self.root.id
         self.account = Account(username: "tester")
-        self._progress = Published.init(initialValue: Optional.some((0.0, "Something")))
+        self.files = (try? api.listFiles(dirId: api.rootUuid).get())!
+        self.progress = Optional.some((0.0, "Something"))
     }
     
     init(lockbookApi: LockbookApi, account: Account) throws {
         self.syncTimer = Timer()
         self.lockbookApi = lockbookApi
         self.root = try self.lockbookApi.getRoot().get()
-        self.files = try self.lockbookApi.listFiles(dirId: root.id).get()
+        self.currentId = self.root.id
         self.account = account
-        self._progress = Published.init(initialValue: Optional.none)
+        self.files = try self.lockbookApi.listFiles(dirId: root.id).get()
+        self.progress = Optional.none
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             self.sync()
         })
@@ -41,7 +44,7 @@ final class Coordinator: ObservableObject {
     
     func sync() -> Void {
         let result = self.lockbookApi.synchronize().flatMap { (_) -> Result<[FileMetadata], CoreError> in
-            self.lockbookApi.listFiles(dirId: root.id)
+            self.lockbookApi.listFiles(dirId: currentId)
         }
         switch result {
         case .success(let newFiles):
@@ -61,7 +64,8 @@ final class Coordinator: ObservableObject {
         }
     }
     
-    func listFiles(dirId: UUID) -> [FileMetadata] {
+    func navigateAndListFiles(dirId: UUID) -> [FileMetadata] {
+        self.currentId = dirId
         switch (self.lockbookApi.listFiles(dirId: dirId)) {
         case .success(let files):
             return files
@@ -71,8 +75,8 @@ final class Coordinator: ObservableObject {
         }
     }
     
-    func createFile(name: String) -> Bool {
-        switch self.lockbookApi.createFile(name: name, dirId: root.id) {
+    func createFile(name: String, isFolder: Bool) -> Bool {
+        switch self.lockbookApi.createFile(name: name, dirId: currentId, isFolder: isFolder) {
         case .success(_):
             return true
         case .failure(let err):
