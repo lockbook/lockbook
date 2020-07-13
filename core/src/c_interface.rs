@@ -5,22 +5,25 @@ use std::path::Path;
 use serde_json::json;
 pub use sled::Db;
 
-use crate::{repo, service, DefaultDbProvider, DB_NAME, DefaultAccountService, DefaultSyncService, DefaultAccountRepo, DefaultFileMetadataRepo, DefaultFileService, init_logger_safely};
-use serde::Serialize;
-use serde::export::fmt::Debug;
-use crate::model::state::Config;
-use crate::repo::db_provider::DbProvider;
-use crate::model::account::{Username, Account};
-use crate::repo::account_repo::AccountRepo;
-use crate::service::account_service::AccountService;
-use crate::service::sync_service::SyncService;
-use crate::model::work_unit::WorkUnit;
-use crate::model::file_metadata::FileMetadata;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
-use uuid::Uuid;
+use crate::model::account::{Account, Username};
 use crate::model::crypto::DecryptedValue;
+use crate::model::file_metadata::FileMetadata;
+use crate::model::file_metadata::FileType::{Document, Folder};
+use crate::model::state::Config;
+use crate::model::work_unit::WorkUnit;
+use crate::repo::account_repo::AccountRepo;
+use crate::repo::db_provider::DbProvider;
+use crate::repo::file_metadata_repo::FileMetadataRepo;
+use crate::service::account_service::AccountService;
 use crate::service::file_service::FileService;
-use crate::model::file_metadata::FileType::{Folder, Document};
+use crate::service::sync_service::SyncService;
+use crate::{
+    init_logger_safely, repo, service, DefaultAccountRepo, DefaultAccountService,
+    DefaultDbProvider, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService, DB_NAME,
+};
+use serde::export::fmt::Debug;
+use serde::Serialize;
+use uuid::Uuid;
 
 #[repr(C)]
 pub struct ResultWrapper {
