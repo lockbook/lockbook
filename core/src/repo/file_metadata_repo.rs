@@ -20,6 +20,12 @@ pub enum Error {
     FileRowMissing(()),
 }
 
+impl From<sled::Error> for DbError {
+    fn from(err: sled::Error) -> Self {
+        Self::SledError(err)
+    }
+}
+
 #[derive(Debug)]
 pub enum FindingParentsFailed {
     AncestorMissing,
@@ -182,15 +188,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
-        let value = tree
+        let value: Result<Vec<_>, _> = tree
             .iter()
-            .map(|s| {
-                let meta: FileMetadata = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
-                meta
-            })
-            .collect::<Vec<FileMetadata>>();
-
-        Ok(value)
+            .map(|s| serde_json::from_slice(s?.1.as_ref()).map_err(DbError::SerdeError))
+            .collect();
+        value
     }
 
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed> {

@@ -10,7 +10,7 @@ import SwiftUI
 
 struct DebugView: View {
     @EnvironmentObject var debugger: Debugger
-    @EnvironmentObject var coordinator: Coordinator
+    @ObservedObject var coordinator: Coordinator
 
     var body: some View {
         VStack {
@@ -27,7 +27,7 @@ struct DebugView: View {
                 .foregroundColor(.green)
             }
             Button(action: {
-                if let username = self.debugger.lockbookApi.getAccount() {
+                if let username = try? self.debugger.lockbookApi.getAccount().get() {
                     print("Username \(username)")
                 } else {
                     print("Couldn't get username!")
@@ -39,24 +39,22 @@ struct DebugView: View {
                     Image(systemName: "person.circle")
                 }
             }
+//            Button(action: {
+//                print("Purging and syncing files in localdb...")
+//            }) {
+//                HStack {
+//                    Image(systemName: "trash")
+//                    Text("Purge Local")
+//                    Image(systemName: "trash")
+//                }
+//                .foregroundColor(.red)
+//            }
             Button(action: {
-                print("Purging and syncing files in localdb...")
-                let _ = self.debugger.lockbookApi.purgeLocal()
-                self.coordinator.sync()
-            }) {
-                HStack {
-                    Image(systemName: "trash")
-                    Text("Purge Local")
-                    Image(systemName: "trash")
-                }
-                .foregroundColor(.red)
-            }
-            Button(action: {
-                print("Logging out...")
+                let _ = self.debugger.lockbookApi.calculateWork()
             }) {
                 HStack {
                     Image(systemName: "person.badge.minus")
-                    Text("Logout")
+                    Text("Calculate Work")
                     Image(systemName: "person.badge.minus")
                 }
                 .foregroundColor(.yellow)
@@ -70,7 +68,7 @@ struct DebugView: View {
 struct DebugView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            DebugView().environmentObject(Coordinator()).environmentObject(Debugger())
+            DebugView(coordinator: Coordinator()).environmentObject(Debugger())
         }
     }
 }
