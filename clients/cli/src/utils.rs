@@ -15,6 +15,27 @@ use lockbook_core::{
 };
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
+use std::process::exit;
+
+pub fn get_config() -> Config {
+    let path = env::var("LOCKBOOK_CLI_LOCATION")
+        .unwrap_or(format!("{}/.lockbook", env::var("HOME")
+            .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
+        );
+
+    Config {
+        writeable_path: path,
+    }
+}
+
+pub fn exit_with(message: &str, status: u8) {
+    if status == 0 {
+        println!("{}", message);
+    } else {
+        eprintln!("{}", message);
+    }
+    exit(status as i32);
+}
 
 pub fn connect_to_db() -> Db {
     // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
