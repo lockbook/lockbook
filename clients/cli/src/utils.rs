@@ -28,7 +28,7 @@ pub fn get_config() -> Config {
     }
 }
 
-pub fn exit_with(message: &str, status: u8) -> !{
+pub fn exit_with(message: &str, status: u8) -> ! {
     if status == 0 {
         println!("{}", message);
     } else {
