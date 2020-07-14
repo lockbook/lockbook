@@ -1,4 +1,4 @@
-use lockbook_core::repo::account_repo::Error;
+use lockbook_core::repo::account_repo::AccountRepoError;
 use lockbook_core::service::account_service::{AccountExportError, AccountService};
 use lockbook_core::DefaultAccountService;
 
@@ -19,7 +19,7 @@ pub fn export() {
         }
         Err(err) => match &err {
             AccountExportError::KeyRetrievalError(db_err) => match db_err {
-                Error::AccountMissing(_) => {
+                AccountRepoError::AccountMissing(_) => {
                     eprintln!("No account found, run init, import or help.")
                 }
                 _ => eprintln!("Unexpected error occurred: {:?}", err),
