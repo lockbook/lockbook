@@ -3,9 +3,10 @@ extern crate reqwest;
 #[macro_use]
 extern crate log;
 use crate::client::{ClientImpl, Error};
+use crate::model::account::Account;
 use crate::model::api::NewAccountError;
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepoImpl;
+use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
@@ -20,6 +21,7 @@ use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::FileServiceImpl;
 use crate::service::sync_service::FileSyncService;
 use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
+use crate::GetAccountError::NoAccount;
 use crate::ImportError::AccountStringCorrupted;
 pub use sled::Db;
 
@@ -144,6 +146,25 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
             | AccountImportError::InvalidPrivateKey(_) => Err(AccountStringCorrupted),
             AccountImportError::PersistenceError(_) => {
                 Err(ImportError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+pub enum GetAccountError {
+    NoAccount,
+    UnexpectedError(String),
+}
+
+pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
+    let db = connect_to_db(&config).map_err(GetAccountError::UnexpectedError)?;
+
+    match DefaultAccountRepo::get_account(&db) {
+        Ok(account) => Ok(account),
+        Err(err) => match err {
+            AccountRepoError::AccountMissing(_) => Err(NoAccount),
+            AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                Err(GetAccountError::UnexpectedError(format!("{:#?}", err)))
             }
         },
     }

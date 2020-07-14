@@ -39,7 +39,7 @@ pub enum CalculateWorkError {
     LocalChangesRepoError(local_changes_repo::DbError),
     MetadataRepoError(file_metadata_repo::Error),
     GetMetadataError(file_metadata_repo::DbError),
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     GetUpdatesError(client::Error<api::GetUpdatesError>),
 }
 
@@ -64,7 +64,7 @@ pub enum WorkExecutionError {
 
 #[derive(Debug)]
 pub enum SyncError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CalculateWorkError(CalculateWorkError),
     WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
     MetadataUpdateError(file_metadata_repo::Error),
