@@ -2,6 +2,7 @@ package app.lockbook.loggedin.popupinfo
 
 import android.app.Activity
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -50,7 +51,7 @@ class PopUpInfoActivity: Activity() {
         contentVersion = intent.getStringExtra("contentVersion")
     }
 
-    private fun delete() {
+    fun delete() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 setResult(deleteFileFolder(intent.getStringExtra("path"), id))

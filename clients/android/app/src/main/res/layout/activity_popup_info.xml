@@ -59,9 +59,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:backgroundTint="?attr/colorPrimary"
-            android:text="Delete File"
+            android:text="Rename File"
             android:textColor="#000000"
-            android:onClick="@{}"/>
+            android:onClick="@{() -> popUpInfoActivity.delete()}"/>
 
     </LinearLayout>
 </layout>

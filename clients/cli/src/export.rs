@@ -5,9 +5,7 @@ use lockbook_core::DefaultAccountService;
 use crate::utils::connect_to_db;
 
 pub fn export() {
-    let db = connect_to_db();
-
-    match DefaultAccountService::export_account(&db) {
+    match DefaultAccountService::export_account(&connect_to_db()) {
         Ok(account_string) => {
             match qr2term::print_qr(&account_string) {
                 Ok(_) => {}

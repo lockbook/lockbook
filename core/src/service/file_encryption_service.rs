@@ -50,6 +50,13 @@ pub trait FileEncryptionService {
         parents: HashMap<Uuid, FileMetadata>,
     ) -> Result<AesKey, KeyDecryptionFailure>;
 
+    fn re_encrypt_key_for_file(
+        personal_key: &Account,
+        file_key: AesKey,
+        new_parent_id: Uuid,
+        parents: HashMap<Uuid, FileMetadata>,
+    ) -> Result<FolderAccessInfo, FileCreationError>;
+
     fn create_file_metadata(
         name: &str,
         file_type: FileType,
@@ -118,6 +125,26 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         }
     }
 
+    fn re_encrypt_key_for_file(
+        personal_key: &Account,
+        file_key: AesKey,
+        new_parent_id: Uuid,
+        parents: HashMap<Uuid, FileMetadata>,
+    ) -> Result<FolderAccessInfo, FileCreationError> {
+        let secret = file_key.key;
+
+        let parent_key = Self::decrypt_key_for_file(&personal_key, new_parent_id, parents)
+            .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
+
+        let access_key = AES::encrypt(&parent_key, &DecryptedValue { secret })
+            .map_err(FileCreationError::AesEncryptionFailed)?;
+
+        Ok(FolderAccessInfo {
+            folder_id: new_parent_id,
+            access_key,
+        })
+    }
+
     fn create_file_metadata(
         name: &str,
         file_type: FileType,
@@ -136,7 +163,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             file_type,
             id,
             name: name.to_string(),
-            owner: "".to_string(),
+            owner: account.username.to_string(),
             parent: parent_id,
             content_version: 0,
             metadata_version: 0,
@@ -179,7 +206,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             file_type: Folder,
             id,
             name: account.username.clone(),
-            owner: "".to_string(),
+            owner: account.username.clone(),
             parent: id,
             content_version: 0,
             metadata_version: 0,

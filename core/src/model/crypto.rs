@@ -9,9 +9,23 @@ pub struct EncryptedValue {
     pub garbage: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash)]
 pub struct DecryptedValue {
     pub secret: String,
+}
+
+impl From<&str> for DecryptedValue {
+    fn from(s: &str) -> Self {
+        DecryptedValue {
+            secret: s.to_string(),
+        }
+    }
+}
+
+impl From<String> for DecryptedValue {
+    fn from(secret: String) -> Self {
+        DecryptedValue { secret }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

@@ -339,14 +339,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder(
         .expect("Couldn't read the uuid string out of JNI!")
         .into();
 
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
     let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
         Ok(v) => v,
         Err(_) => {
             return success
         },
     };
-
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
 
     match DocumentRepoImpl::delete(&db, uuid) {
         Ok(()) => success,
@@ -483,4 +483,48 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument<'a>(
     };
 
     env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFileFolder(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    juuid: JString,
+    jcontent: JString,
+) -> jint {
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read the path out of JNI!")
+        .into();
+
+    let serialized_uuid: String = env
+        .get_string(juuid)
+        .expect("Couldn't read the file uuid out of JNI!")
+        .into();
+
+    let serialized_content: String = env
+        .get_string(jcontent)
+        .expect("Couldn't read the document content out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
+        Ok(v) => v,
+        Err(_) => {
+            return failure
+        },
+    };
+
+    let content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialized the document content!");
+
+    match FileServiceImpl
+        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::write_document(&db, uuid, &content) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
 }
