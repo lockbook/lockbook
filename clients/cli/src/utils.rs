@@ -28,7 +28,7 @@ pub fn get_config() -> Config {
     }
 }
 
-pub fn exit_with(message: &str, status: u8) {
+pub fn exit_with(message: &str, status: u8) -> !{
     if status == 0 {
         println!("{}", message);
     } else {
@@ -84,7 +84,7 @@ pub fn get_account(db: &Db) -> Account {
                 panic!("No account found, run init, import or help. Error: {}", err)
             }
             AccountRepoError::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            AccountRepoError::AccountMissing(err) => panic!(
+            AccountRepoError::NoAccount(err) => panic!(
                 "No account found, run init, import or help. Error: {:?}",
                 err
             ),
