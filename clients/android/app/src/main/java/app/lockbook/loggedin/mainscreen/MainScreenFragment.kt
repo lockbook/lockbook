@@ -139,12 +139,11 @@ class MainScreenFragment : Fragment() {
             }
             POP_UP_INFO_REQUEST_CODE -> {
                 if(resultCode == PopUpInfoActivity.OK) {
-
                     mainScreenViewModel.refreshFilesFolderList()
                 } else {
                     Toast.makeText(
                         context,
-                        "Your file/folder was not deleted, please file a bug report.",
+                        "Your file/folder was not renamed, please file a bug report.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
