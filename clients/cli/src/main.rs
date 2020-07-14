@@ -117,3 +117,4 @@ static USERNAME_INVALID: u8 = 3;
 
 // import
 static EXPECTED_STDIN: u8 = 6;
+static ACCOUNT_STRING_CORRUPTED: u8 = 7;

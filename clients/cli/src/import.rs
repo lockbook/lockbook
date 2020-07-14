@@ -1,11 +1,9 @@
 use std::io;
-use std::process::exit;
 
-use lockbook_core::service::account_service::{AccountImportError, AccountService};
-use lockbook_core::DefaultAccountService;
+use lockbook_core::{import_account, ImportError};
 
-use crate::utils::{connect_to_db, exit_with};
-use crate::EXPECTED_STDIN;
+use crate::utils::{exit_with, get_config};
+use crate::{ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR};
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
@@ -24,17 +22,14 @@ pub fn import() {
 
         println!("Importing...");
 
-        match DefaultAccountService::import_account(&connect_to_db(), &account_string) {
-            Ok(_) => println!("Account imported successfully!"),
+        match import_account(&get_config(), &account_string) {
+            Ok(_) => exit_with("Account imported successfully", SUCCESS),
             Err(err) => match err {
-                AccountImportError::AccountStringCorrupted(_) => {
-                    eprintln!("Account String corrupted!")
-                }
-                AccountImportError::PersistenceError(_) => eprintln!("Could not persist data!"),
-                AccountImportError::InvalidPrivateKey(_) => eprintln!("Invalid private key!"),
-                AccountImportError::AccountStringFailedToDeserialize(_) => {
-                    eprintln!("Account String corrupted!")
-                }
+                ImportError::AccountStringCorrupted => exit_with(
+                    "Account string corrupted, not imported",
+                    ACCOUNT_STRING_CORRUPTED,
+                ),
+                ImportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         }
     }
