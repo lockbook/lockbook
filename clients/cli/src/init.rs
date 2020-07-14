@@ -1,12 +1,9 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::client::Error;
-use lockbook_core::model::api::NewAccountError;
-use lockbook_core::service::account_service::{AccountCreationError, AccountService};
-use lockbook_core::{create_account, CreateAccountError, DefaultAccountService};
+use lockbook_core::{create_account, CreateAccountError};
 
-use crate::utils::{connect_to_db, exit_with, get_config};
+use crate::utils::{exit_with, get_config};
 use crate::{NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
 
 pub fn init() {
