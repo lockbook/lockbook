@@ -5,7 +5,7 @@ use std::path::Path;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
+use lockbook_core::service::file_service::FileService;
 use lockbook_core::{
     create_file_at_path, get_account, CreateFileAtPathEnum, DefaultFileMetadataRepo,
     DefaultFileService, GetAccountError,
@@ -17,9 +17,6 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ACCOUNT, NO_ROOT, PATH_NO_ROOT, SUCCESS,
     UNEXPECTED_ERROR,
 };
-use lockbook_core::model::file_metadata::FileMetadata;
-use std::io::Error;
-use std::process::exit;
 
 pub fn new(file_name: &str) {
     match get_account(&get_config()) {
