@@ -9,7 +9,7 @@ external fun getChildren(path: String, parentUuid: String): String
 external fun getFileMetadata(path: String, fileUuid: String): String
 external fun getFile(path: String, fileUuid: String): String
 external fun insertFileFolder(path: String, fileMetadata: String): Int
-external fun deleteFileFolder(path: String, fileUuid: String): Int
+external fun renameFileFolder(path: String, fileUuid: String, newName: String): Int
 external fun createFileFolder(path: String, parentUuid: String, fileType: String, name: String): String
 external fun readDocument(path: String, fileUuid: String): String
 external fun writeToDocument(path: String, fileUuid: String, content: String): Int

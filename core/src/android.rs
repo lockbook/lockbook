@@ -491,7 +491,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFileFolder(
     _: JClass,
     jpath: JString,
     juuid: JString,
-    jcontent: JString,
+    jname: JString
 ) -> jint {
     let success = 0;
     let failure = 1;
@@ -506,9 +506,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFileFolder(
         .expect("Couldn't read the file uuid out of JNI!")
         .into();
 
-    let serialized_content: String = env
-        .get_string(jcontent)
-        .expect("Couldn't read the document content out of JNI!")
+    let name: String = env
+        .get_string(jname)
+        .expect("Couldn't read the new file/folder name out of JNI!")
         .into();
 
     let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
@@ -520,10 +520,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFileFolder(
         },
     };
 
-    let content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialized the document content!");
-
     match FileServiceImpl
-        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::write_document(&db, uuid, &content) {
+        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::rename_file(&db, uuid, name.as_str()) {
         Ok(()) => success,
         Err(_) => failure
     }
