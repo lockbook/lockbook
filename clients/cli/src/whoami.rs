@@ -10,7 +10,7 @@ pub fn whoami() {
             AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                 eprintln!("Sled error: {:?}", err)
             }
-            AccountRepoError::AccountMissing(_) => {
+            AccountRepoError::NoAccount(_) => {
                 eprintln!("No account found, run init, import or help.")
             }
         },

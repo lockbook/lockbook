@@ -107,7 +107,6 @@ fn main() {
 // Exit Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
 static SUCCESS: u8 = 0;
 
-// common
 static USERNAME_TAKEN: u8 = 1;
 static USERNAME_INVALID: u8 = 3;
 static NETWORK_ISSUE: u8 = 4;
@@ -115,3 +114,7 @@ static UNEXPECTED_ERROR: u8 = 5;
 static EXPECTED_STDIN: u8 = 6;
 static ACCOUNT_STRING_CORRUPTED: u8 = 7;
 static NO_ACCOUNT: u8 = 8;
+static FILE_ALREADY_EXISTS: u8 = 9;
+static NO_ROOT: u8 = 10;
+static PATH_NO_ROOT: u8 = 11;
+static DOCUMENT_TREATED_AS_FOLDER: u8 = 12;

@@ -19,7 +19,7 @@ pub fn export() {
         }
         Err(err) => match &err {
             AccountExportError::KeyRetrievalError(db_err) => match db_err {
-                AccountRepoError::AccountMissing(_) => {
+                AccountRepoError::NoAccount(_) => {
                     eprintln!("No account found, run init, import or help.")
                 }
                 _ => eprintln!("Unexpected error occurred: {:?}", err),

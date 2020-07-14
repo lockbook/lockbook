@@ -24,11 +24,11 @@ use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
 };
 use crate::service::file_service::NewFileError::{
-    FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash, FileNameNotAvailable,
-    MetadataRepoError, ParentIsADocument,
+    DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
+    FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
-    FailedToCreateChild, FileAlreadyExists, InvalidRootFolder, NoRoot,
+    FailedToCreateChild, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
@@ -42,7 +42,7 @@ pub enum NewFileError {
     FailedToWriteFileContent(DocumentUpdateError),
     FailedToRecordChange(local_changes_repo::DbError),
     FileNameNotAvailable,
-    ParentIsADocument,
+    DocumentTreatedAsFolder,
     FileNameContainsSlash,
 }
 
@@ -50,7 +50,7 @@ pub enum NewFileError {
 pub enum NewFileFromPathError {
     DbError(file_metadata_repo::DbError),
     NoRoot,
-    InvalidRootFolder,
+    PathDoesntStartWithRoot,
     FailedToCreateChild(NewFileError),
     FailedToRecordChange(local_changes_repo::DbError),
     FileAlreadyExists,
@@ -164,7 +164,7 @@ impl<
         // Make sure parent is in fact a folder
         if let Some(parent) = parents.get(&parent) {
             if parent.file_type == Document {
-                return Err(ParentIsADocument);
+                return Err(DocumentTreatedAsFolder);
             }
         }
 
@@ -215,7 +215,7 @@ impl<
             .ok_or(NoRoot)?;
 
         if current.name != path_components[0] {
-            return Err(InvalidRootFolder);
+            return Err(PathDoesntStartWithRoot);
         }
 
         if path_components.len() == 1 {

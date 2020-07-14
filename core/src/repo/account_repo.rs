@@ -6,7 +6,7 @@ use crate::model::account::Account;
 pub enum AccountRepoError {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
-    AccountMissing(()),
+    NoAccount(()),
 }
 
 pub trait AccountRepo {
@@ -32,9 +32,7 @@ impl AccountRepo for AccountRepoImpl {
     fn get_account(db: &Db) -> Result<Account, AccountRepoError> {
         let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
         let maybe_value = tree.get("you").map_err(AccountRepoError::SledError)?;
-        let val = maybe_value
-            .ok_or(())
-            .map_err(AccountRepoError::AccountMissing)?;
+        let val = maybe_value.ok_or(()).map_err(AccountRepoError::NoAccount)?;
         let account: Account =
             serde_json::from_slice(val.as_ref()).map_err(AccountRepoError::SerdeError)?;
         Ok(account)
