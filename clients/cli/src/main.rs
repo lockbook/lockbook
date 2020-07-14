@@ -108,13 +108,10 @@ fn main() {
 static SUCCESS: u8 = 0;
 
 // common
-static NETWORK_ISSUE: u8 = 4;
-static UNEXPECTED_ERROR: u8 = 5;
-
-// init
 static USERNAME_TAKEN: u8 = 1;
 static USERNAME_INVALID: u8 = 3;
-
-// import
+static NETWORK_ISSUE: u8 = 4;
+static UNEXPECTED_ERROR: u8 = 5;
 static EXPECTED_STDIN: u8 = 6;
 static ACCOUNT_STRING_CORRUPTED: u8 = 7;
+static NO_ACCOUNT: u8 = 8;

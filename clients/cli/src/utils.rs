@@ -6,7 +6,7 @@ use chrono_human_duration::ChronoHumanDuration;
 
 use lockbook_core::model::account::Account;
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::account_repo::{AccountRepo, Error};
+use lockbook_core::repo::account_repo::{AccountRepo, AccountRepoError};
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
@@ -80,11 +80,11 @@ pub fn get_account(db: &Db) -> Account {
     match DefaultAccountRepo::get_account(&db) {
         Ok(account) => account,
         Err(err) => match err {
-            Error::SledError(err) => {
+            AccountRepoError::SledError(err) => {
                 panic!("No account found, run init, import or help. Error: {}", err)
             }
-            Error::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            Error::AccountMissing(err) => panic!(
+            AccountRepoError::SerdeError(err) => panic!("Account data corrupted: {}", err),
+            AccountRepoError::AccountMissing(err) => panic!(
                 "No account found, run init, import or help. Error: {:?}",
                 err
             ),

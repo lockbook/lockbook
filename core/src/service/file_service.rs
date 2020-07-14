@@ -35,7 +35,7 @@ use crate::DefaultFileMetadataRepo;
 
 #[derive(Debug)]
 pub enum NewFileError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::FileCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
@@ -58,7 +58,7 @@ pub enum NewFileFromPathError {
 
 #[derive(Debug)]
 pub enum DocumentUpdateError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindFile,
     CouldNotFindParents(FindingParentsFailed),
     ThisIsAFolderYouDummy,
@@ -70,7 +70,7 @@ pub enum DocumentUpdateError {
 
 #[derive(Debug)]
 pub enum ReadDocumentError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindFile,
     DbError(file_metadata_repo::DbError),
     ThisIsAFolderYouDummy,
@@ -90,7 +90,7 @@ pub enum DocumentRenameError {
 
 #[derive(Debug)]
 pub enum DocumentMoveError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     TargetParentHasChildNamedThat,
     FileDoesntExist,
     NewParentDoesntExist,
