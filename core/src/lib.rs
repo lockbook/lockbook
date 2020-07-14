@@ -2,9 +2,7 @@ extern crate reqwest;
 
 #[macro_use]
 extern crate log;
-use crate::client::Error::SendFailed;
 use crate::client::{ClientImpl, Error};
-use crate::model::account::Account;
 use crate::model::api::NewAccountError;
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoImpl;
@@ -12,16 +10,17 @@ use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::service::account_service::{AccountCreationError, AccountService, AccountServiceImpl};
+use crate::service::account_service::{
+    AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
+};
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::FileServiceImpl;
 use crate::service::sync_service::FileSyncService;
-use crate::CreateAccountError::{
-    CouldNotReachServer, InvalidUsername, UnexpectedError, UsernameTaken,
-};
+use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
+use crate::ImportError::AccountStringCorrupted;
 pub use sled::Db;
 
 pub mod c_interface;
@@ -34,8 +33,6 @@ mod java_interface;
 
 static API_URL: &str = env!("API_URL");
 static DB_NAME: &str = "lockbook.sled";
-
-static INTERNAL_ERROR: &str = "Internal Error";
 
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
@@ -126,6 +123,27 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
             | AccountCreationError::KeySerializationError(_)
             | AccountCreationError::AuthGenFailure(_) => {
                 Err(CreateAccountError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+pub enum ImportError {
+    AccountStringCorrupted,
+    UnexpectedError(String),
+}
+
+pub fn import_account(config: &Config, account_string: &str) -> Result<(), ImportError> {
+    let db = connect_to_db(&config).map_err(ImportError::UnexpectedError)?;
+
+    match DefaultAccountService::import_account(&db, account_string) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            AccountImportError::AccountStringCorrupted(_)
+            | AccountImportError::AccountStringFailedToDeserialize(_)
+            | AccountImportError::InvalidPrivateKey(_) => Err(AccountStringCorrupted),
+            AccountImportError::PersistenceError(_) => {
+                Err(ImportError::UnexpectedError(format!("{:#?}", err)))
             }
         },
     }
