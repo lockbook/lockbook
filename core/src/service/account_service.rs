@@ -18,7 +18,7 @@ use crate::service::file_encryption_service::{FileEncryptionService, RootFolderC
 #[derive(Debug)]
 pub enum AccountCreationError {
     KeyGenerationError(rsa::errors::Error),
-    PersistenceError(account_repo::Error),
+    PersistenceError(account_repo::AccountRepoError),
     FolderError(RootFolderCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
     ApiError(client::Error<NewAccountError>),
@@ -30,13 +30,13 @@ pub enum AccountCreationError {
 pub enum AccountImportError {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
-    PersistenceError(account_repo::Error),
+    PersistenceError(account_repo::AccountRepoError),
     InvalidPrivateKey(rsa::errors::Error),
 }
 
 #[derive(Debug)]
 pub enum AccountExportError {
-    KeyRetrievalError(account_repo::Error),
+    KeyRetrievalError(account_repo::AccountRepoError),
     AccountStringFailedToSerialize(bincode::Error),
 }
 

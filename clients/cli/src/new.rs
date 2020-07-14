@@ -6,19 +6,33 @@ use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+use lockbook_core::{get_account, DefaultFileMetadataRepo, DefaultFileService, GetAccountError};
 use uuid::Uuid;
 
-use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
+use crate::utils::{connect_to_db, edit_file_with_editor, exit_with, get_config};
+use crate::{NO_ACCOUNT, UNEXPECTED_ERROR};
 use std::process::exit;
 
 pub fn new(file_name: &str) {
-    get_account(&connect_to_db());
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => {
+                exit_with("No account! Run init or import to get started.", NO_ACCOUNT)
+            }
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    }
 
-    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+    let file_location = format!("/tmp/{}/{}", Uuid::new_v4().to_string(), file_name);
     let temp_file_path = Path::new(file_location.as_str());
-    File::create(&temp_file_path)
-        .unwrap_or_else(|_| panic!("Could not create temporary file: {}", &file_location));
+    match File::create(&temp_file_path) {
+        Ok(_) => {}
+        Err(err) => exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        ),
+    }
 
     let file_metadata = match DefaultFileService::create_at_path(&connect_to_db(), &file_name) {
         Ok(file_metadata) => file_metadata,
