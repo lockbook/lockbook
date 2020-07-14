@@ -139,6 +139,7 @@ class MainScreenFragment : Fragment() {
             }
             POP_UP_INFO_REQUEST_CODE -> {
                 if(resultCode == PopUpInfoActivity.OK) {
+
                     mainScreenViewModel.refreshFilesFolderList()
                 } else {
                     Toast.makeText(

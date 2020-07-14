@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 
@@ -20,6 +20,12 @@ pub enum Error {
     FileRowMissing(()),
 }
 
+impl From<sled::Error> for DbError {
+    fn from(err: sled::Error) -> Self {
+        Self::SledError(err)
+    }
+}
+
 #[derive(Debug)]
 pub enum FindingParentsFailed {
     AncestorMissing,
@@ -28,6 +34,7 @@ pub enum FindingParentsFailed {
 
 pub enum Filter {
     DocumentsOnly,
+    FoldersOnly,
     LeafNodesOnly,
 }
 
@@ -181,15 +188,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
-        let value = tree
+        let value: Result<Vec<_>, _> = tree
             .iter()
-            .map(|s| {
-                let meta: FileMetadata = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
-                meta
-            })
-            .collect::<Vec<FileMetadata>>();
-
-        Ok(value)
+            .map(|s| serde_json::from_slice(s?.1.as_ref()).map_err(DbError::SerdeError))
+            .collect();
+        value
     }
 
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed> {
@@ -233,6 +236,17 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                     }
                     paths
                 }
+                Filter::FoldersOnly => {
+                    let mut paths = vec![];
+                    for (_, meta) in cache {
+                        if meta.file_type == Folder {
+                            if let Some(path) = path_cache.get(&meta.id) {
+                                paths.push(path.to_owned())
+                            }
+                        }
+                    }
+                    paths
+                }
             },
         };
 
@@ -246,6 +260,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
+    // TODO should this indicate something special if the parent doesn't exist?
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
@@ -385,7 +400,7 @@ mod unit_tests {
             id,
             name: "".to_string(),
             owner: "".to_string(),
-            parent: parent,
+            parent,
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
@@ -407,7 +422,7 @@ mod unit_tests {
             id,
             name: "".to_string(),
             owner: "".to_string(),
-            parent: parent,
+            parent,
             content_version: 1000,
             metadata_version: 1000,
             user_access_keys: Default::default(),
