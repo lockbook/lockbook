@@ -80,7 +80,6 @@ enum Lockbook {
     WhoAmI,
 }
 
-// TODO these should do something this: https://stackoverflow.com/questions/30281235/how-to-cleanly-end-the-program-with-an-exit-code
 fn main() {
     init_logger_safely();
     let args: Lockbook = Lockbook::from_args();
@@ -115,3 +114,6 @@ static UNEXPECTED_ERROR: u8 = 5;
 // init
 static USERNAME_TAKEN: u8 = 1;
 static USERNAME_INVALID: u8 = 3;
+
+// import
+static EXPECTED_STDIN: u8 = 6;

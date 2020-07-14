@@ -4,16 +4,17 @@ use std::process::exit;
 use lockbook_core::service::account_service::{AccountImportError, AccountService};
 use lockbook_core::DefaultAccountService;
 
-use crate::utils::connect_to_db;
+use crate::utils::{connect_to_db, exit_with};
+use crate::EXPECTED_STDIN;
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
-        println!(
+        exit_with(
             "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import \
-    or xclip -selection clipboard -o | lockbook import"
+    or xclip -selection clipboard -o | lockbook import",
+            EXPECTED_STDIN,
         );
-        exit(1);
     } else {
         let mut account_string = String::new();
         io::stdin()
