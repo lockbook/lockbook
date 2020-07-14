@@ -25,7 +25,7 @@ pub mod service;
 
 mod android;
 
-static API_URL: &str = "http://10.0.0.207:8000";
+static API_URL: &str = env!("API_URL");
 static DB_NAME: &str = "lockbook.sled";
 
 pub type DefaultCrypto = RsaImpl;
