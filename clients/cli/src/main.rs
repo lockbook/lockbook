@@ -104,3 +104,14 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
     }
 }
+
+// Exit Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
+static SUCCESS: u8 = 0;
+
+// common
+static NETWORK_ISSUE: u8 = 4;
+static UNEXPECTED_ERROR: u8 = 5;
+
+// init
+static USERNAME_TAKEN: u8 = 1;
+static USERNAME_INVALID: u8 = 3;
