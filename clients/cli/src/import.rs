@@ -15,8 +15,6 @@ pub fn import() {
         );
         exit(1);
     } else {
-        let db = connect_to_db();
-
         let mut account_string = String::new();
         io::stdin()
             .read_line(&mut account_string)
@@ -25,7 +23,7 @@ pub fn import() {
 
         println!("Importing...");
 
-        match DefaultAccountService::import_account(&db, &account_string) {
+        match DefaultAccountService::import_account(&connect_to_db(), &account_string) {
             Ok(_) => println!("Account imported successfully!"),
             Err(err) => match err {
                 AccountImportError::AccountStringCorrupted(_) => {

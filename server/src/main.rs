@@ -71,39 +71,43 @@ async fn route(
     let mut s = server_state.lock().await;
     match (request.method(), request.uri().path()) {
         (&Method::PUT, "/change-document-content") => {
-            info!("Request matched PUT /change-file-content");
+            info!("Request matched PUT /change-document-content");
             handle(&mut s, request, file_service::change_document_content).await
         }
         (&Method::POST, "/create-document") => {
-            info!("Request matched POST /create-file");
+            info!("Request matched POST /create-document");
             handle(&mut s, request, file_service::create_document).await
         }
         (&Method::DELETE, "/delete-document") => {
-            info!("Request matched DELETE /delete-file");
+            info!("Request matched DELETE /delete-document");
             handle(&mut s, request, file_service::delete_document).await
         }
         (&Method::PUT, "/move-document") => {
-            info!("Request matched PUT /move-file");
+            info!("Request matched PUT /move-document");
             handle(&mut s, request, file_service::move_document).await
         }
         (&Method::PUT, "/rename-document") => {
-            info!("Request matched PUT /rename-file");
+            info!("Request matched PUT /rename-document");
             handle(&mut s, request, file_service::rename_document).await
         }
+        (&Method::GET, "/get-document") => {
+            info!("Request matched GET /get-document");
+            handle(&mut s, request, file_service::get_document).await
+        }
         (&Method::POST, "/create-folder") => {
-            info!("Request matched POST /create-file");
+            info!("Request matched POST /create-folder");
             handle(&mut s, request, file_service::create_folder).await
         }
         (&Method::DELETE, "/delete-folder") => {
-            info!("Request matched DELETE /delete-file");
+            info!("Request matched DELETE /delete-folder");
             handle(&mut s, request, file_service::delete_folder).await
         }
         (&Method::PUT, "/move-folder") => {
-            info!("Request matched PUT /move-file");
+            info!("Request matched PUT /move-folder");
             handle(&mut s, request, file_service::move_folder).await
         }
         (&Method::PUT, "/rename-folder") => {
-            info!("Request matched PUT /rename-file");
+            info!("Request matched PUT /rename-folder");
             handle(&mut s, request, file_service::rename_folder).await
         }
         (&Method::GET, "/get-public-key") => {
