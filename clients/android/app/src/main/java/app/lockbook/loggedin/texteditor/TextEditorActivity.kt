@@ -19,7 +19,7 @@ class TextEditorActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        text += intent.getStringExtra("text")
+        text = intent.getStringExtra("text")
 
         val binding: ActivityTextEditorBinding =
             DataBindingUtil.setContentView(this, R.layout.activity_text_editor)

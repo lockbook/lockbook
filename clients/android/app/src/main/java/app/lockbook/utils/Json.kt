@@ -9,9 +9,9 @@ data class FileMetadata(
     val name: String,
     val owner: String,
     val signature: SignedValue,
-    val metadata_version: Long,
-    val content_version: Int,
-    val deleted: Boolean,
+    val metadata_version: java.lang.Long,
+    val content_version: java.lang.Long,
+    val deleted: java.lang.Boolean,
     val user_access_keys: LinkedHashMap<String, UserAccessInfo>,
     val folder_access_keys: FolderAccessInfo
 )
@@ -37,7 +37,7 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: String,
+    val public_key: String = "",
     val access_key: EncryptedValue
 )
 

@@ -9,11 +9,12 @@ import android.view.ViewGroup
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import app.lockbook.R
-import app.lockbook.core.deleteFileFolder
+import app.lockbook.core.renameFileFolder
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.databinding.ActivityPopupInfoBinding
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
+import kotlinx.android.synthetic.main.activity_popup_info.*
 import kotlinx.coroutines.*
 
 class PopUpInfoActivity: Activity() {
@@ -51,10 +52,10 @@ class PopUpInfoActivity: Activity() {
         contentVersion = intent.getStringExtra("contentVersion")
     }
 
-    fun delete() {
+    fun rename() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                setResult(deleteFileFolder(intent.getStringExtra("path"), id))
+                setResult(renameFileFolder(intent.getStringExtra("path"), id, new_name_text.text.toString()))
 
                 withContext(Dispatchers.Main) {
                     finish()

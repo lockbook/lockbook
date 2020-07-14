@@ -39,7 +39,7 @@ class FileFolderModel(private val path: String) {
             json.parseArray(getChildren(path, parentFileMetadata.id))
 
         if (children != null) {
-            return children.filter { it.id != it.parent || !it.deleted }
+            return children.filter { it.id != it.parent }
         }
 
         return listOf()
@@ -51,7 +51,7 @@ class FileFolderModel(private val path: String) {
 
         children?.let {
             val editedChildren =
-                it.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent || !fileMetaData.deleted }
+                it.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
             getParentOfParent()
             return editedChildren
         }
