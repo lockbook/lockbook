@@ -5,6 +5,7 @@ extern crate log;
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
+use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileMetadata;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
@@ -20,15 +21,17 @@ use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
-    FileService, FileServiceImpl, NewFileError, NewFileFromPathError,
+    DocumentUpdateError, FileService, FileServiceImpl, NewFileError, NewFileFromPathError,
 };
 use crate::service::sync_service::FileSyncService;
 use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
-use crate::CreateFileAtPathEnum::{
+use crate::CreateFileAtPathError::{
     DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
 use crate::ImportError::AccountStringCorrupted;
+use crate::WriteToFileFromPathError::{CannotWriteToFolder, FileDoesNotExist};
 pub use sled::Db;
+use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -175,7 +178,7 @@ pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
     }
 }
 
-pub enum CreateFileAtPathEnum {
+pub enum CreateFileAtPathError {
     FileAlreadyExists,
     NoAccount,
     NoRoot,
@@ -187,8 +190,8 @@ pub enum CreateFileAtPathEnum {
 pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
-) -> Result<FileMetadata, CreateFileAtPathEnum> {
-    let db = connect_to_db(&config).map_err(CreateFileAtPathEnum::UnexpectedError)?;
+) -> Result<FileMetadata, CreateFileAtPathError> {
+    let db = connect_to_db(&config).map_err(CreateFileAtPathError::UnexpectedError)?;
 
     match DefaultFileService::create_at_path(&db, path_and_name) {
         Ok(file_metadata) => Ok(file_metadata),
@@ -198,9 +201,9 @@ pub fn create_file_at_path(
             NewFileFromPathError::NoRoot => Err(NoRoot),
             NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
                 NewFileError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount(_) => Err(CreateFileAtPathEnum::NoAccount),
+                    AccountRepoError::NoAccount(_) => Err(CreateFileAtPathError::NoAccount),
                     AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
-                        CreateFileAtPathEnum::UnexpectedError(format!("{:#?}", account_error)),
+                        CreateFileAtPathError::UnexpectedError(format!("{:#?}", account_error)),
                     ),
                 },
                 NewFileError::FileNameNotAvailable => Err(FileAlreadyExists),
@@ -211,12 +214,51 @@ pub fn create_file_at_path(
                 | NewFileError::FailedToWriteFileContent(_)
                 | NewFileError::FailedToRecordChange(_)
                 | NewFileError::FileNameContainsSlash => Err(
-                    CreateFileAtPathEnum::UnexpectedError(format!("{:#?}", failed_to_create)),
+                    CreateFileAtPathError::UnexpectedError(format!("{:#?}", failed_to_create)),
                 ),
             },
             NewFileFromPathError::FailedToRecordChange(_) | NewFileFromPathError::DbError(_) => {
-                Err(CreateFileAtPathEnum::UnexpectedError(format!("{:#?}", err)))
+                Err(CreateFileAtPathError::UnexpectedError(format!(
+                    "{:#?}",
+                    err
+                )))
             }
+        },
+    }
+}
+
+pub enum WriteToFileFromPathError {
+    NoAccount,
+    FileDoesNotExist,
+    UnexpectedError(String),
+    CannotWriteToFolder,
+}
+
+pub fn write_document(
+    config: &Config,
+    id: Uuid,
+    content: &DecryptedValue,
+) -> Result<(), WriteToFileFromPathError> {
+    let db = connect_to_db(&config).map_err(WriteToFileFromPathError::UnexpectedError)?;
+
+    match DefaultFileService::write_document(&db, id, &content) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
+                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
+                    WriteToFileFromPathError::UnexpectedError(format!("{:#?}", account_err)),
+                ),
+                AccountRepoError::NoAccount(_) => Err(WriteToFileFromPathError::NoAccount),
+            },
+            DocumentUpdateError::CouldNotFindFile => Err(FileDoesNotExist),
+            DocumentUpdateError::ThisIsAFolderYouDummy => Err(CannotWriteToFolder),
+            DocumentUpdateError::CouldNotFindParents(_)
+            | DocumentUpdateError::FileCryptoError(_)
+            | DocumentUpdateError::DocumentWriteError(_)
+            | DocumentUpdateError::DbError(_)
+            | DocumentUpdateError::FailedToRecordChange(_) => Err(
+                WriteToFileFromPathError::UnexpectedError(format!("{:#?}", err)),
+            ),
         },
     }
 }

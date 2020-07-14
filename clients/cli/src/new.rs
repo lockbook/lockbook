@@ -4,15 +4,13 @@ use std::path::Path;
 
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::FileService;
 use lockbook_core::{
-    create_file_at_path, get_account, CreateFileAtPathEnum, DefaultFileMetadataRepo,
-    DefaultFileService, GetAccountError,
+    create_file_at_path, get_account, write_document, CreateFileAtPathError, GetAccountError,
+    WriteToFileFromPathError,
 };
 use uuid::Uuid;
 
-use crate::utils::{connect_to_db, edit_file_with_editor, exit_with, get_config};
+use crate::utils::{edit_file_with_editor, exit_with, get_config};
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ACCOUNT, NO_ROOT, PATH_NO_ROOT, SUCCESS,
     UNEXPECTED_ERROR,
@@ -54,23 +52,23 @@ pub fn new(file_name: &str) {
             }
 
             match err {
-                CreateFileAtPathEnum::FileAlreadyExists => {
+                CreateFileAtPathError::FileAlreadyExists => {
                     exit_with("File already exists!", FILE_ALREADY_EXISTS)
                 }
-                CreateFileAtPathEnum::NoAccount => {
+                CreateFileAtPathError::NoAccount => {
                     exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
                 }
-                CreateFileAtPathEnum::NoRoot => {
+                CreateFileAtPathError::NoRoot => {
                     exit_with("No root folder, have you synced yet?", NO_ROOT)
                 }
-                CreateFileAtPathEnum::PathDoesntStartWithRoot => {
+                CreateFileAtPathError::PathDoesntStartWithRoot => {
                     exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)
                 }
-                CreateFileAtPathEnum::DocumentTreatedAsFolder => exit_with(
+                CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(
                     "A file within your path is a document that was treated as a folder",
                     DOCUMENT_TREATED_AS_FOLDER,
                 ),
-                CreateFileAtPathEnum::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             }
         }
     };
@@ -82,18 +80,36 @@ pub fn new(file_name: &str) {
     let edit_was_successful = edit_file_with_editor(&file_location);
 
     if edit_was_successful {
-        let secret =
-            fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
+        let secret = match fs::read_to_string(temp_file_path) {
+            Ok(content) => DecryptedValue::from(content),
+            Err(err) => exit_with(
+                &format!(
+                    "Could not read from temporary file, not deleting {}, err: {:#?}",
+                    file_location, err
+                ),
+                UNEXPECTED_ERROR,
+            ),
+        };
 
-        DefaultFileService::write_document(
-            &connect_to_db(),
-            file_metadata.id,
-            &DecryptedValue { secret },
-        )
-        .expect("Unexpected error while updating internal state");
-
-        DefaultFileMetadataRepo::insert(&connect_to_db(), &file_metadata)
-            .expect("Failed to index new file!");
+        match write_document(&get_config(), file_metadata.id, &secret) {
+            Ok(_) => exit_with(
+                "Document encryted and saved. Cleaning up temporary file.",
+                SUCCESS,
+            ),
+            Err(err) => match err {
+                WriteToFileFromPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                WriteToFileFromPathError::NoAccount => exit_with(
+                    "Unexpected: No account! Run init or import to get started!",
+                    UNEXPECTED_ERROR,
+                ),
+                WriteToFileFromPathError::FileDoesNotExist => {
+                    exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
+                }
+                WriteToFileFromPathError::CannotWriteToFolder => {
+                    exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
+                }
+            },
+        }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
