@@ -54,6 +54,19 @@
             android:text="@{`Content Version: ` + popUpInfoActivity.contentVersion}"
             android:textColor="#FFFFFF" />
 
+        <EditText
+            android:id="@+id/new_name_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="80dp"
+            android:backgroundTint="@color/dark"
+            android:fontFamily="monospace"
+            android:hint="New Name"
+            android:importantForAutofill="no"
+            android:inputType="textPersonName"
+            android:textColor="#FFFFFF"
+            android:textColorHint="@color/dark" />
+
         <Button
             android:id="@+id/submit_text"
             android:layout_width="match_parent"
@@ -61,7 +74,7 @@
             android:backgroundTint="?attr/colorPrimary"
             android:text="Rename File"
             android:textColor="#000000"
-            android:onClick="@{() -> popUpInfoActivity.delete()}"/>
+            android:onClick="@{() -> popUpInfoActivity.rename()}"/>
 
     </LinearLayout>
 </layout>
