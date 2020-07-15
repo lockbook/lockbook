@@ -4,17 +4,14 @@ use std::{env, time};
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
-use lockbook_core::model::account::Account;
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::account_repo::{AccountRepo, AccountRepoError};
 use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
-use lockbook_core::{
-    Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
-};
+use lockbook_core::{Db, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
+use crate::NO_ACCOUNT;
 use std::process::exit;
 
 pub fn get_config() -> Config {
@@ -26,6 +23,10 @@ pub fn get_config() -> Config {
     Config {
         writeable_path: path,
     }
+}
+
+pub fn exit_with_no_account() -> ! {
+    exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
 }
 
 pub fn exit_with(message: &str, status: u8) -> ! {
@@ -72,23 +73,6 @@ pub fn connect_to_db() -> Db {
                 }
             }
         }
-    }
-}
-
-pub fn get_account(db: &Db) -> Account {
-    // DefaultAccountRepo::get_account(&db).expect("test")
-    match DefaultAccountRepo::get_account(&db) {
-        Ok(account) => account,
-        Err(err) => match err {
-            AccountRepoError::SledError(err) => {
-                panic!("No account found, run init, import or help. Error: {}", err)
-            }
-            AccountRepoError::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            AccountRepoError::NoAccount(err) => panic!(
-                "No account found, run init, import or help. Error: {:?}",
-                err
-            ),
-        },
     }
 }
 
