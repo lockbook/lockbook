@@ -9,7 +9,7 @@ use sled::Db;
 use uuid::Uuid;
 
 use crate::{DB_NAME, DefaultAccountService, DefaultDbProvider, init_logger_safely};
-use crate::client::Error;
+use crate::client::{Error, ClientImpl};
 use crate::model::api::NewAccountError;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileType, FileMetadata};
@@ -24,6 +24,11 @@ use crate::service::account_service::AccountService;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{FileService, FileServiceImpl};
+use crate::service::sync_service::{FileSyncService, SyncService, WorkExecutionError};
+use crate::service::auth_service::AuthServiceImpl;
+use crate::service::clock_service::ClockImpl;
+use crate::model::account::Account;
+use crate::model::work_unit::WorkUnit;
 
 fn connect_db(path: &str) -> Option<Db> {
     let config = Config {
@@ -156,6 +161,89 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
             AccountImportError::PersistenceError(_) => io_err,
             AccountImportError::InvalidPrivateKey(_) => account_string_invalid,
         },
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_Corekt_sync(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString
+) -> jint {
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read the path out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    match FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::sync(&db) {
+        Ok(()) => success,
+        Err(_) => failure
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_Corekt_calculateWork<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jpath: JString
+) -> JString<'a> {
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read the path out of JNI!")
+        .into();
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    let work = FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::calculate_work(&db).expect("Couldn't calculate work for sync!");
+
+    let serialized_string = match serde_json::to_string(&work) {
+        Ok(v) => v,
+        _ => "".to_string()
+    };
+
+    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_Corekt_executeWork(
+    env: JNIEnv,
+    _: JClass,
+    jpath: JString,
+    jaccount: JString,
+    jwork: JString
+) -> jint {
+    let success = 0;
+    let failure = 1;
+
+    let path: String = env
+        .get_string(jpath)
+        .expect("Couldn't read the path out of JNI!")
+        .into();
+
+    let serialized_account = env
+        .get_string(jaccount)
+        .expect("Couldn't read serialized account out of JNI!")
+        .into();
+
+    let serialized_work = env
+        .get_string(jwork)
+        .expect("Couldn't read the serialized work out of JNI!")
+        .into();
+
+    let account: Account = serde_json::from_str(serialized_account).expect("Couldn't deserialize account string!");
+
+    let work: WorkUnit = serde_json::from_str(serialized_work).expect("Couldn't deserialize work string!");
+
+    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+
+    match FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::execute_work(&db, &account, work) {
+        Ok(()) => success,
+        Err(_) => failure,
     }
 }
 

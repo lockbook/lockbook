@@ -1,18 +1,18 @@
 package app.lockbook.loggedin.mainscreen
 
-import android.util.Log
 import app.lockbook.core.*
+import app.lockbook.utils.Account
 import app.lockbook.utils.DecryptedValue
-import app.lockbook.utils.Document
-import app.lockbook.utils.EncryptedValueWithNonce
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.WorkCalculated
 import com.beust.klaxon.Klaxon
-import kotlinx.android.synthetic.main.activity_new_file_folder.*
 
 class FileFolderModel(private val path: String) {
     private val json = Klaxon()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
+    lateinit var allSyncWork: WorkCalculated
+    var workNumber: Int = 0
 
     companion object {
         fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
@@ -78,6 +78,30 @@ class FileFolderModel(private val path: String) {
 
     fun writeContentToDocument(content: String) { // have a return type to be handled in case it doesnt work
         writeToDocument(path, lastDocumentAccessed.id, json.toJsonString(DecryptedValue(content)))
+    }
+
+    fun syncAll(): Int {
+        return sync(path)
+    }
+
+    fun getAllSyncWork() { // need to start using eithers
+        val tempAllSyncWork: WorkCalculated? = json.parse(calculateWork(path))
+
+        tempAllSyncWork?.let {
+            allSyncWork = it
+        }
+    }
+
+    fun doSyncWork(account: Account): Int {
+        val serializedAccount = json.toJsonString(account)
+        val serializedWork = json.toJsonString(allSyncWork.work_units[workNumber])
+
+        if (executeWork(path, serializedAccount, serializedWork) == 0 && workNumber != allSyncWork.work_units.size - 1) {
+            workNumber++
+            return workNumber
+        }
+
+        return workNumber
     }
 
 }

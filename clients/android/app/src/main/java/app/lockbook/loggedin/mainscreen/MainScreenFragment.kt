@@ -13,6 +13,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
+import app.lockbook.core.sync
 import app.lockbook.databinding.FragmentMainScreenBinding
 import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
 import app.lockbook.loggedin.listfiles.FilesFoldersAdapter
@@ -66,6 +67,7 @@ class MainScreenFragment : Fragment() {
             navigateToNewFileFolder(it)
         })
 
+        mainScreenViewModel.syncInBackground()
         mainScreenViewModel.startListFilesFolders()
 
         return binding.root
@@ -123,6 +125,7 @@ class MainScreenFragment : Fragment() {
         when (requestCode) {
             NEW_FILE_REQUEST_CODE -> {
                 mainScreenViewModel.refreshFilesFolderList()
+
             }
             TEXT_EDITOR_REQUEST_CODE -> {
                 data?.let {

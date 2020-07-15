@@ -37,7 +37,7 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: String = "",
+    val public_key: String,
     val access_key: EncryptedValue
 )
 
@@ -45,10 +45,24 @@ data class EncryptedValue(
     val garbage: String
 )
 
-data class Document(
-    val content: EncryptedValueWithNonce
-)
-
 data class DecryptedValue(
     val secret: String
 )
+
+data class Account(
+    val username: String,
+    val keys: String
+)
+
+data class WorkCalculated(
+    val work_units: List<WorkUnit>,
+    val most_recent_update_from_server: Int
+)
+
+data class WorkUnit(
+    val LocalChange: LocalChange,
+    val ServerChange: ServerChange
+)
+
+data class LocalChange(val metadata: FileMetadata)
+data class ServerChange(val metadata: FileMetadata)
