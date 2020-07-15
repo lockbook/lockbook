@@ -25,7 +25,35 @@ pub fn new(file_name: &str) {
         },
     }
 
-    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+    let file_metadata = match create_file_at_path(&get_config(), &file_name) {
+        Ok(file_metadata) => file_metadata,
+        Err(err) => match err {
+            CreateFileAtPathError::FileAlreadyExists => {
+                exit_with("File already exists!", FILE_ALREADY_EXISTS)
+            }
+            CreateFileAtPathError::NoAccount => exit_with_no_account(),
+            CreateFileAtPathError::NoRoot => {
+                exit_with("No root folder, have you synced yet?", NO_ROOT)
+            }
+            CreateFileAtPathError::PathDoesntStartWithRoot => {
+                exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)
+            }
+            CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(
+                "A file within your path is a document that was treated as a folder",
+                DOCUMENT_TREATED_AS_FOLDER,
+            ),
+            CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
+
+    let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+    fs::create_dir(&directory_location).unwrap_or_else(|err| {
+        exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
+    let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     match File::create(&temp_file_path) {
         Ok(_) => {}
@@ -34,40 +62,6 @@ pub fn new(file_name: &str) {
             UNEXPECTED_ERROR,
         ),
     }
-
-    let file_metadata = match create_file_at_path(&get_config(), &file_name) {
-        Ok(file_metadata) => file_metadata,
-        Err(err) => {
-            match fs::remove_file(&temp_file_path) {
-                Ok(_) => eprintln!(
-                    "Aborted due to a problem, temp file cleaned up successfully: {}",
-                    file_location
-                ),
-                Err(io_err) => eprintln!(
-                    "Aborted due to problem, temp file not cleaned up! Location: {}, error: {}",
-                    file_location, io_err
-                ),
-            }
-
-            match err {
-                CreateFileAtPathError::FileAlreadyExists => {
-                    exit_with("File already exists!", FILE_ALREADY_EXISTS)
-                }
-                CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                CreateFileAtPathError::NoRoot => {
-                    exit_with("No root folder, have you synced yet?", NO_ROOT)
-                }
-                CreateFileAtPathError::PathDoesntStartWithRoot => {
-                    exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)
-                }
-                CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(
-                    "A file within your path is a document that was treated as a folder",
-                    DOCUMENT_TREATED_AS_FOLDER,
-                ),
-                CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-            }
-        }
-    };
 
     if file_metadata.file_type == Folder {
         exit_with("Folder created.", SUCCESS);

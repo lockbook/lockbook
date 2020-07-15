@@ -26,16 +26,6 @@ pub fn edit(file_name: &str) {
         },
     }
 
-    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
-    let temp_file_path = Path::new(file_location.as_str());
-    let mut file_handle = match File::create(&temp_file_path) {
-        Ok(handle) => handle,
-        Err(_) => exit_with(
-            &format!("Could not create temporary file: {}", &file_location).as_str(),
-            UNEXPECTED_ERROR,
-        ),
-    };
-
     let file_metadata = match get_file_by_path(&get_config(), file_name) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
@@ -60,6 +50,23 @@ pub fn edit(file_name: &str) {
                 UNEXPECTED_ERROR,
             ),
         },
+    };
+
+    let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+    fs::create_dir(&directory_location).unwrap_or_else(|err| {
+        exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
+    let file_location = format!("{}/{}", directory_location, file_metadata.name);
+    let temp_file_path = Path::new(file_location.as_str());
+    let mut file_handle = match File::create(&temp_file_path) {
+        Ok(handle) => handle,
+        Err(err) => exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        ),
     };
 
     file_handle
