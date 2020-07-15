@@ -67,7 +67,7 @@ class MainScreenFragment : Fragment() {
             navigateToNewFileFolder(it)
         })
 
-        mainScreenViewModel.syncInBackground()
+//        mainScreenViewModel.syncInBackground()
         mainScreenViewModel.startListFilesFolders()
 
         return binding.root
@@ -89,7 +89,6 @@ class MainScreenFragment : Fragment() {
         val intent = Intent(context, TextEditorActivity::class.java)
         intent.putExtra("text", it)
         startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
-
     }
 
     private fun navigateToPopUpInfo(it: FileMetadata) {
@@ -101,7 +100,6 @@ class MainScreenFragment : Fragment() {
         intent.putExtra("contentVersion", it.content_version.toString())
         intent.putExtra("path", mainScreenViewModel.path)
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
-
     }
 
 
