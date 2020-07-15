@@ -1,11 +1,17 @@
+use crate::utils::{connect_to_db, exit_with, exit_with_no_account, get_config};
+use crate::UNEXPECTED_ERROR;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::file_service::FileService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
-
-use crate::utils::{connect_to_db, get_account};
+use lockbook_core::{get_account, DefaultFileMetadataRepo, DefaultFileService, GetAccountError};
 
 pub fn print(file_name: &str) {
-    get_account(&connect_to_db());
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    }
 
     let file_metadata = DefaultFileMetadataRepo::get_by_path(&connect_to_db(), &file_name)
         .expect("Could not search files ")

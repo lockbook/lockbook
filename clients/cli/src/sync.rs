@@ -1,12 +1,19 @@
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultSyncService};
+use lockbook_core::{get_account, DefaultFileMetadataRepo, DefaultSyncService, GetAccountError};
 
-use crate::utils::{connect_to_db, get_account};
+use crate::utils::{connect_to_db, exit_with, exit_with_no_account, get_config};
+use crate::UNEXPECTED_ERROR;
 use lockbook_core::model::work_unit::WorkUnit;
 
 pub fn sync() {
-    let account = get_account(&connect_to_db());
+    let account = match get_account(&get_config()) {
+        Ok(account) => account,
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
     let mut work_calculated = DefaultSyncService::calculate_work(&connect_to_db())
         .expect("Failed to calculate work required to sync");

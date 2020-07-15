@@ -6,13 +6,13 @@ use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
     create_file_at_path, get_account, write_document, CreateFileAtPathError, GetAccountError,
-    WriteToFileFromPathError,
+    WriteToDocumentError,
 };
 use uuid::Uuid;
 
-use crate::utils::{edit_file_with_editor, exit_with, get_config};
+use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_config};
 use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ACCOUNT, NO_ROOT, PATH_NO_ROOT, SUCCESS,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_NO_ROOT, SUCCESS,
     UNEXPECTED_ERROR,
 };
 
@@ -20,9 +20,7 @@ pub fn new(file_name: &str) {
     match get_account(&get_config()) {
         Ok(_) => {}
         Err(err) => match err {
-            GetAccountError::NoAccount => {
-                exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
-            }
+            GetAccountError::NoAccount => exit_with_no_account(),
             GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
@@ -55,9 +53,7 @@ pub fn new(file_name: &str) {
                 CreateFileAtPathError::FileAlreadyExists => {
                     exit_with("File already exists!", FILE_ALREADY_EXISTS)
                 }
-                CreateFileAtPathError::NoAccount => {
-                    exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
-                }
+                CreateFileAtPathError::NoAccount => exit_with_no_account(),
                 CreateFileAtPathError::NoRoot => {
                     exit_with("No root folder, have you synced yet?", NO_ROOT)
                 }
@@ -93,19 +89,19 @@ pub fn new(file_name: &str) {
 
         match write_document(&get_config(), file_metadata.id, &secret) {
             Ok(_) => exit_with(
-                "Document encryted and saved. Cleaning up temporary file.",
+                "Document encrypted and saved. Cleaning up temporary file.",
                 SUCCESS,
             ),
             Err(err) => match err {
-                WriteToFileFromPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                WriteToFileFromPathError::NoAccount => exit_with(
+                WriteToDocumentError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                WriteToDocumentError::NoAccount => exit_with(
                     "Unexpected: No account! Run init or import to get started!",
                     UNEXPECTED_ERROR,
                 ),
-                WriteToFileFromPathError::FileDoesNotExist => {
+                WriteToDocumentError::FileDoesNotExist => {
                     exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
                 }
-                WriteToFileFromPathError::CannotWriteToFolder => {
+                WriteToDocumentError::FolderTreatedAsDocument => {
                     exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
                 }
             },
