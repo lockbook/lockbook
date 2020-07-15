@@ -2,20 +2,20 @@ package app.lockbook.core
 
 external fun initLogger()
 external fun isDbPresent(path: String): Boolean
-external fun createAccount(path: String, username: String): Int
-external fun importAccount(path: String, accountString: String): Int
+external fun createAccount(config: String, username: String): String
+external fun importAccount(config: String, accountString: String): String
 
-external fun getRoot(path: String): String
-external fun getChildren(path: String, parentUuid: String): String
+external fun getRoot(config: String): String
+external fun getChildren(config: String, id: String): String
 
-external fun getFileMetadata(path: String, fileUuid: String): String
-external fun getFile(path: String, fileUuid: String): String
+external fun getFileById(config: String, id: String): String
 
-external fun insertFileFolder(path: String, fileMetadata: String): Int
-external fun renameFileFolder(path: String, fileUuid: String, newName: String): Int
-external fun createFileFolder(path: String, parentUuid: String, fileType: String, name: String): String
-external fun readDocument(path: String, fileUuid: String): String
-external fun writeToDocument(path: String, fileUuid: String, content: String): Int
+external fun insertFile(config: String, fileMetadata: String): String
+external fun deleteFile(config: String, id: String): String
+external fun renameFile(config: String, id: String, name: String): String
+external fun createFile(config: String, id: String, fileType: String, name: String): String
+external fun readDocument(config: String, id: String): String
+external fun writeDocument(config: String, id: String, content: String): String
 
 external fun sync(path: String): Int
 external fun calculateWork(path: String): String

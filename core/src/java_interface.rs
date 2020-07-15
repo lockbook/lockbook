@@ -1,50 +1,35 @@
-#![allow(non_snake_case)]
-
-use std::path::Path;
-
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jint};
-use sled::Db;
-use uuid::Uuid;
 
-use crate::{DB_NAME, DefaultAccountService, DefaultDbProvider, init_logger_safely};
-use crate::client::{Error, ClientImpl};
-use crate::model::api::NewAccountError;
-use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::{FileType, FileMetadata};
+use crate::{init_logger_safely, create_account, CreateAccountError, import_account, get_root, get_children, get_file_by_id, insert_file, delete_file, create_file, write_document, read_document, rename_file, DB_NAME};
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepoImpl;
-use crate::repo::db_provider::DbProvider;
-use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
-use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
-use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::service::account_service::{AccountCreationError, AccountImportError};
-use crate::service::account_service::AccountService;
-use crate::service::crypto_service::{AesImpl, RsaImpl};
-use crate::service::file_encryption_service::FileEncryptionServiceImpl;
-use crate::service::file_service::{FileService, FileServiceImpl};
-use crate::service::sync_service::{FileSyncService, SyncService, WorkExecutionError};
-use crate::service::auth_service::AuthServiceImpl;
-use crate::service::clock_service::ClockImpl;
-use crate::model::account::Account;
-use crate::model::work_unit::WorkUnit;
+use uuid::Uuid;
+use crate::model::file_metadata::{FileMetadata, FileType};
+use crate::model::crypto::DecryptedValue;
+use std::path::Path;
 
-fn connect_db(path: &str) -> Option<Db> {
-    let config = Config {
-        writeable_path: String::from(path),
-    };
-    match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => Some(db),
-        Err(err) => {
-            error!("DB connection failed! Error: {:?}", err);
-            None
-        }
+fn error_to_string<U>(error: U, env: JNIEnv) -> JString {
+    match serde_json::to_string(error) {
+        Ok(v) => {
+            match env.new_string(v) {
+                Ok(t) => return t,
+                Err(e) => error_to_string(e, env),
+            }
+        },
+        Err(e) => error_to_string(e, env),
     }
 }
 
+fn serialize_to_jstring<U>(result: U) -> JString {
+    let serialized_result = serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
+    env.new_string(serialized_result).expect("Couldn't create JString from rust string!")
+}
+
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(_env: JNIEnv, _: JClass) {
+pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
+    _env: JNIEnv,
+    _: JClass,
+) {
     init_logger_safely()
 }
 
@@ -71,24 +56,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
+    jconfig: JString,
     jusername: JString,
-) -> jint {
-    // Error codes for this function
-    let success = 0; // should handle
-    let no_db = 1;
-    let crypto_error = 2;
-    let io_error = 3;
-    let network_error = 4; // should handle
-    let unexpected_error = 5;
-    let username_taken = 6; // should handle
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
     let username: String = env
@@ -96,521 +72,262 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         .expect("Couldn't read the username out of JNI!")
         .into();
 
-    let db = match connect_db(&path) {
-        None => return no_db,
-        Some(db) => db,
-    };
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config (path) string into config!");
 
-    match DefaultAccountService::create_account(&db, &username) {
-        Ok(_) => success,
-        Err(err) => {
-            error! {"Error while generating account! {:?}", &err}
-            match err {
-                AccountCreationError::KeyGenerationError(_) => crypto_error,
-                AccountCreationError::PersistenceError(_) => io_error,
-                AccountCreationError::ApiError(api_err) => match api_err {
-                    Error::<NewAccountError>::SendFailed(_) => network_error,
-                    Error::<NewAccountError>::Api(real_api_error) => match real_api_error {
-                        NewAccountError::UsernameTaken => username_taken,
-                        _ => unexpected_error,
-                    },
-                    _ => unexpected_error,
-                },
-                AccountCreationError::KeySerializationError(_) => unexpected_error,
-                AccountCreationError::AuthGenFailure(_) => unexpected_error,
-                AccountCreationError::FolderError(_) => unexpected_error, // TODO added during files and folders (unhandled)
-                AccountCreationError::MetadataRepoError(_) => unexpected_error, // TODO added during files and folders (unhandled)
-            }
-        }
-    }
+    serialize_to_jstring(create_account(&deserialized_config, username.as_str()))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_Corekt_importAccount<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jaccount_account: JString,
-) -> jint {
-    // Error codes for this function
-    let success = 0; // should handle
-    let no_db = 1;
-    let account_string_invalid = 2; // should handle
-    let io_err = 3;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    jconfig: JString,
+    jaccount: JString,
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let account_string: String = env
-        .get_string(jaccount_account)
+    let serialized_account: String = env
+        .get_string(jaccount)
         .expect("Couldn't read the account string out of JNI!")
         .into();
 
-    let db = match connect_db(&path) {
-        None => return no_db,
-        Some(db) => db,
-    };
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    match DefaultAccountService::import_account(&db, &account_string) {
-        Ok(_) => success,
-        Err(err) => match err {
-            AccountImportError::AccountStringCorrupted(_) => account_string_invalid,
-            AccountImportError::AccountStringFailedToDeserialize(_) => account_string_invalid,
-            AccountImportError::PersistenceError(_) => io_err,
-            AccountImportError::InvalidPrivateKey(_) => account_string_invalid,
-        },
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_sync(
-    env: JNIEnv,
-    _: JClass,
-    jpath: JString
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
-        .into();
-
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
-
-    match FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::sync(&db) {
-        Ok(()) => success,
-        Err(_) => failure
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_calculateWork<'a>(
-    env: JNIEnv<'a>,
-    _: JClass,
-    jpath: JString
-) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
-        .into();
-
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
-
-    let work = FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::calculate_work(&db).expect("Couldn't calculate work for sync!");
-
-    let serialized_string = match serde_json::to_string(&work) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_executeWork(
-    env: JNIEnv,
-    _: JClass,
-    jpath: JString,
-    jaccount: JString,
-    jwork: JString
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
-        .into();
-
-    let serialized_account = env
-        .get_string(jaccount)
-        .expect("Couldn't read serialized account out of JNI!")
-        .into();
-
-    let serialized_work = env
-        .get_string(jwork)
-        .expect("Couldn't read the serialized work out of JNI!")
-        .into();
-
-    let account: Account = serde_json::from_str(serialized_account).expect("Couldn't deserialize account string!");
-
-    let work: WorkUnit = serde_json::from_str(serialized_work).expect("Couldn't deserialize work string!");
-
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
-
-    match FileSyncService::<FileMetadataRepoImpl, LocalChangesRepoImpl, DocumentRepoImpl, AccountRepoImpl, ClientImpl, AuthServiceImpl<ClockImpl, RsaImpl>>::execute_work(&db, &account, work) {
-        Ok(()) => success,
-        Err(_) => failure,
-    }
+    serialize_to_jstring(import_account(&deserialized_config, serialized_account.as_str()))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString
+    jconfig: JString
 ) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let root = FileMetadataRepoImpl::get_root(&db).expect("Couldn't access DB's root despite db being present!");
-
-    let serialized_string = match serde_json::to_string(&root) {
-        Ok(v) => v,
-        _ => "".to_string() // change
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+    serialize_to_jstring(get_root(&deserialized_config))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
+pub extern "system" fn Java_app_lockbook_core_Corekt_getChildren<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jparentuuid: JString,
+    jconfig: JString,
+    jid: JString
 ) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(jparentuuid)
-        .expect("Couldn't read the uuid string out of JNI!")
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(e) => {
-            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
-        },
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    let children = FileMetadataRepoImpl::get_children(&db, uuid).expect("Could not read DB to get children!");
-
-    let serialized_string = match serde_json::to_string(&children) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+    serialize_to_jstring(get_children(&deserialized_config, deserialized_id))
 }
 
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileMetadata<'a>(
+pub extern "system" fn Java_app_lockbook_core_Corekt_getFileById<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jfileuuid: JString,
+    jconfig: JString,
+    jid: JString,
 ) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(jfileuuid)
-        .expect("Couldn't read the uuid string out of JNI!")
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(e) => {
-            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
-        },
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    let file_metadata = FileMetadataRepoImpl::get(&db, uuid).expect("Couldn't read the DB to get a file!");
-
-    let serialized_string = match serde_json::to_string(&file_metadata) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+    serialize_to_jstring(get_file_by_id(&deserialized_config, deserialized_id))
 }
 
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getFile<'a>(
+pub extern "system" fn Java_app_lockbook_core_Corekt_insertFile<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jfileuuid: JString,
-) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
-        .into();
-
-    let serialized_uuid: String = env
-        .get_string(jfileuuid)
-        .expect("Couldn't read the uuid string out of JNI!")
-        .into();
-
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(e) => {
-            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
-        },
-    };
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
-
-    let file = DocumentRepoImpl::get(&db, uuid).expect("Couldn't get the document from db and uuid!");
-
-    let serialized_string = match serde_json::to_string(&file) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFileFolder(
-    env: JNIEnv,
-    _: JClass,
-    jpath: JString,
+    jconfig: JString,
     jfilemetadata: JString,
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
     let serialized_file_metadata: String = env
         .get_string(jfilemetadata)
-        .expect("Couldn't read file metadata out of JNI!")
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let file_metadata: FileMetadata = serde_json::from_str(serialized_file_metadata.as_str()).expect("Couldn't serialize the file metadata!");
+    let deserialized_file_metadata: FileMetadata = serde_json::from_str(&serialized_file_metadata).expect("Couldn't deserialize id string into id!");
 
-    match FileMetadataRepoImpl::insert(&db, &file_metadata) {
-        Ok(()) => success,
-        Err(_) => failure
-    }
+    serialize_to_jstring(insert_file(&deserialized_config, deserialized_file_metadata))
 }
 
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFileFolder(
-    env: JNIEnv,
-    _: JClass,
-    jpath: JString,
-    jfileuuid: JString,
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
-        .into();
-
-    let serialized_uuid: String = env
-        .get_string(jfileuuid)
-        .expect("Couldn't read the uuid string out of JNI!")
-        .into();
-
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
-
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(_) => {
-            return success
-        },
-    };
-
-    match DocumentRepoImpl::delete(&db, uuid) {
-        Ok(()) => success,
-        Err(_) => failure
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_createFileFolder<'a>(
+pub extern "system" fn Java_app_lockbook_core_Corekt_deleteFile<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jparentuuid: JString,
-    jfiletype: JString,
-    jname: JString,
+    jconfig: JString,
+    jid: JString,
 ) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(jparentuuid)
-        .expect("Couldn't read the parent folder out of JNI!")
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let serialized_file_type: String = env
-        .get_string(jfiletype)
-        .expect("Couldn't read the file type out of JNI!")
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
+
+    serialize_to_jstring(delete_file(&deserialized_config, deserialized_id))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile<'a>(
+    env: JNIEnv<'a>,
+    _: JClass,
+    jconfig: JString,
+    jname: JString,
+    jid: JString,
+    jfiletype: JString,
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
     let name: String = env
         .get_string(jname)
-        .expect("Couldn't read the file name out of JNI!")
+        .expect("Couldn't read the name out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
+        .into();
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(e) => {
-            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
-        },
-    };
-    let file_type: FileType = serde_json::from_str(&serialized_file_type).expect("Couldn't deserialized the file type!");
+    let serialized_filetype = env
+        .get_string(jfiletype)
+        .expect("Couldn't read the filetype out of JNI!")
+        .into();
 
-    let file = FileServiceImpl
-        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::create(&db, name.as_str(), uuid, file_type).expect("Couldn't create a file!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let serialized_string = match serde_json::to_string(&file) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+    let deserialized_filetype: FileType = serde_json::from_str(&serialized_filetype).expect("Couldn't deserialize filetype string into filetype!");
+
+    serialize_to_jstring(create_file(&deserialized_config, name.as_str(), deserialized_id, deserialized_filetype))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_writeToDocument(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_Corekt_writeDocument<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    juuid: JString,
-    jcontent: JString,
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    jconfig: JString,
+    jid: JString,
+    jcontent: JString
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(juuid)
-        .expect("Couldn't read the file uuid out of JNI!")
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
     let serialized_content: String = env
         .get_string(jcontent)
-        .expect("Couldn't read the document content out of JNI!")
+        .expect("Couldn't read the content out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(_) => {
-            return failure
-        },
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    let content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialized the document content!");
+    let deserialized_content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialize content string into content!");
 
-    match FileServiceImpl
-        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::write_document(&db, uuid, &content) {
-        Ok(()) => success,
-        Err(_) => failure
-    }
+    serialize_to_jstring(write_document(&deserialized_config, deserialized_id, &deserialized_content))
 }
 
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument<'a>(
+pub extern "system" fn Java_app_lockbook_core_Corekt_readDocument<'a>(
     env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    jfileuuid: JString,
+    jconfig: JString,
+    jid: JString,
 ) -> JString<'a> {
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(jfileuuid)
+    let serialized_id: String = env
+        .get_string(jid)
         .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(e) => {
-            return env.new_string(e.to_string()).expect("Couldn't create JString from rust string!")
-        },
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    let document = FileServiceImpl
-        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::read_document(&db, uuid).expect("Couldn't read a document!");
-
-    let serialized_string = match serde_json::to_string(&document) {
-        Ok(v) => v,
-        _ => "".to_string()
-    };
-
-    env.new_string(serialized_string).expect("Couldn't create JString from rust string!")
+    serialize_to_jstring(read_document(&deserialized_config, deserialized_id))
 }
 
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFileFolder(
-    env: JNIEnv,
+pub extern "system" fn Java_app_lockbook_core_Corekt_renameFile<'a>(
+    env: JNIEnv<'a>,
     _: JClass,
-    jpath: JString,
-    juuid: JString,
+    jconfig: JString,
+    jid: JString,
     jname: JString
-) -> jint {
-    let success = 0;
-    let failure = 1;
-
-    let path: String = env
-        .get_string(jpath)
-        .expect("Couldn't read the path out of JNI!")
+) -> JString<'a> {
+    let serialized_config: String = env
+        .get_string(jconfig)
+        .expect("Couldn't read the config (path) out of JNI!")
         .into();
 
-    let serialized_uuid: String = env
-        .get_string(juuid)
-        .expect("Couldn't read the file uuid out of JNI!")
+    let serialized_id: String = env
+        .get_string(jid)
+        .expect("Couldn't read the uuid out of JNI!")
         .into();
 
     let name: String = env
         .get_string(jname)
-        .expect("Couldn't read the new file/folder name out of JNI!")
+        .expect("Couldn't read the name out of JNI!")
         .into();
 
-    let db = connect_db(&path).expect("Couldn't read the DB to get the root!");
+    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let uuid: Uuid = match Uuid::parse_str(&serialized_uuid) {
-        Ok(v) => v,
-        Err(_) => {
-            return failure
-        },
-    };
+    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    match FileServiceImpl
-        ::<FileMetadataRepoImpl, DocumentRepoImpl, LocalChangesRepoImpl, AccountRepoImpl, FileEncryptionServiceImpl<RsaImpl, AesImpl>>::rename_file(&db, uuid, name.as_str()) {
-        Ok(()) => success,
-        Err(_) => failure
-    }
+    serialize_to_jstring(rename_file(&deserialized_config, deserialized_id, name.as_str()))
 }
+
+

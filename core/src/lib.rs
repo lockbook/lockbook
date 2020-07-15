@@ -1,8 +1,18 @@
-extern crate reqwest;
-
 #[macro_use]
 extern crate log;
+extern crate reqwest;
+
+pub use sled::Db;
+use uuid::Uuid;
+
 use crate::client::{ClientImpl, Error};
+use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
+use crate::CreateFileAtPathError::{
+    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+};
+use crate::GetFileByPathError::NoFileAtThatPath;
+use crate::GetRootError::UnexpectedError;
+use crate::ImportError::AccountStringCorrupted;
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
 use crate::model::crypto::DecryptedValue;
@@ -11,15 +21,15 @@ use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
-use crate::repo::document_repo::DocumentRepoImpl;
+use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
+use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
@@ -34,16 +44,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
-use crate::CreateFileAtPathError::{
-    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
-};
-use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::GetRootError::UnexpectedError;
-use crate::ImportError::AccountStringCorrupted;
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
-pub use sled::Db;
-use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -360,9 +361,45 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
             None => Err(GetRootError::NoRoot),
             Some(file_metadata) => Ok(file_metadata),
         },
-        Err(err) => Err(UnexpectedError(format!("{:#?}", err))),
+        Err(err) => Err(GetRootError::UnexpectedError(format!("{:#?}", err))),
     }
 }
+
+#[derive(Debug)]
+pub enum GetChildrenError {
+    UnexpectedError(String),
+}
+
+pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<FileMetadata>, GetChildrenError> {
+    let db = connect_to_db(&config).map_err(GetRootError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_children(&db, id) {
+        Ok(file_metadata_list) => Ok(file_metadata_list),
+        Err(err) => Err(GetChildrenError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum GetFileByIdError {
+    NoFileWithThatId,
+    UnexpectedError(String),
+}
+
+pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, GetFileByIdError> {
+    let db = connect_to_db(&config).map_err(GetFileByIdError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get(&db, id) {
+        Ok(file_metadata) => Ok(file_metadata),
+        Err(err) => {
+            match err {
+                Error::FileRowMissing(_) => Err(GetFileByIdError::NoFileWithThatId),
+                Error::SledError(_)
+                | Error::SerdeError(_) => Err(GetFileByIdError::UnexpectedError(format!("{:#?}", err))),
+            }
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum GetFileByPathError {
@@ -379,6 +416,39 @@ pub fn get_file_by_path(config: &Config, path: &str) -> Result<FileMetadata, Get
             Some(file_metadata) => Ok(file_metadata),
         },
         Err(err) => Err(GetFileByPathError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum InsertFileError {
+    UnexpectedError(String),
+}
+
+pub fn insert_file(config: &Config, file_metadata: FileMetadata) -> Result<(), InsertFileError> {
+    let db = connect_to_db(&config).map_err(GetFileByPathError::UnexpectedError)?;
+
+    match FileMetadataRepoImpl::insert(&db, &file_metadata) {
+        Ok(()) => Ok(()),
+        Err(err) => Err(InsertFileError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum DeleteFileError {
+    NoFileWithThatId,
+    UnexpectedError(String),
+}
+
+pub fn delete_file(config: &Config, id: Uuid) -> Result<(), DeleteFileError> {
+    let db = connect_to_db(&config).map_err(GetFileByPathError::UnexpectedError)?;
+
+    match DocumentRepoImpl::delete(&db, id) {
+        Ok(()) => Ok(()),
+        Err(err) => match err {
+            Error::SledError(_)
+            | Error::SerdeError(_) => Err(DeleteFileError::UnexpectedError(format!("{:#?}", err))),
+            Error::FileRowMissing(_) => Err(DeleteFileError::NoFileWithThatId)
+        },
     }
 }
 

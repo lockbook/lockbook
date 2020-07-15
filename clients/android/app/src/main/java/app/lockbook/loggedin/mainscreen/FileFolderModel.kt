@@ -1,7 +1,6 @@
 package app.lockbook.loggedin.mainscreen
 
 import app.lockbook.core.*
-import app.lockbook.utils.Account
 import app.lockbook.utils.DecryptedValue
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.WorkCalculated
@@ -16,12 +15,12 @@ class FileFolderModel(private val path: String) {
 
     companion object {
         fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
-            val serializedFileFolder = createFileFolder(path, parentUuid, fileType, name)
+            val serializedFileFolder = createFile(path, parentUuid, fileType, name)
 
             val fileFolder: FileMetadata? = Klaxon().parse(serializedFileFolder)
 
             fileFolder?.let {
-                insertFileFolder(path, serializedFileFolder)
+                insertFile(path, serializedFileFolder)
             }
         }
     }
@@ -60,7 +59,8 @@ class FileFolderModel(private val path: String) {
     }
 
     private fun getParentOfParent() {
-        val parent: FileMetadata? = json.parse(getFileMetadata(path, parentFileMetadata.parent))
+        val serializedFileMetadata = getFileById(path, parentFileMetadata.parent)
+        val parent: FileMetadata? = json.parse(serializedFileMetadata)
 
         if (parent != null) {
             parentFileMetadata = parent
@@ -77,31 +77,31 @@ class FileFolderModel(private val path: String) {
     }
 
     fun writeContentToDocument(content: String) { // have a return type to be handled in case it doesnt work
-        writeToDocument(path, lastDocumentAccessed.id, json.toJsonString(DecryptedValue(content)))
+        writeDocument(path, lastDocumentAccessed.id, json.toJsonString(DecryptedValue(content)))
     }
 
-    fun syncAll(): Int {
-        return sync(path)
-    }
-
-    fun getAllSyncWork() { // need to start using eithers
-        val tempAllSyncWork: WorkCalculated? = json.parse(calculateWork(path))
-
-        tempAllSyncWork?.let {
-            allSyncWork = it
-        }
-    }
-
-    fun doSyncWork(account: Account): Int {
-        val serializedAccount = json.toJsonString(account)
-        val serializedWork = json.toJsonString(allSyncWork.work_units[workNumber])
-
-        if (executeWork(path, serializedAccount, serializedWork) == 0 && workNumber != allSyncWork.work_units.size - 1) {
-            workNumber++
-            return workNumber
-        }
-
-        return workNumber
-    }
+//    fun syncAll(): Int {
+//        return sync(path)
+//    }
+//
+//    fun getAllSyncWork() { // need to start using eithers
+//        val tempAllSyncWork: WorkCalculated? = json.parse(calculateWork(path))
+//
+//        tempAllSyncWork?.let {
+//            allSyncWork = it
+//        }
+//    }
+//
+//    fun doSyncWork(account: Account): Int {
+//        val serializedAccount = json.toJsonString(account)
+//        val serializedWork = json.toJsonString(allSyncWork.work_units[workNumber])
+//
+//        if (executeWork(path, serializedAccount, serializedWork) == 0 && workNumber != allSyncWork.work_units.size - 1) {
+//            workNumber++
+//            return workNumber
+//        }
+//
+//        return workNumber
+//    }
 
 }
