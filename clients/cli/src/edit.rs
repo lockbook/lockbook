@@ -26,7 +26,7 @@ pub fn edit(file_name: &str) {
         },
     }
 
-    let file_location = format!("/tmp/{}/{}", Uuid::new_v4().to_string(), file_name);
+    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = match File::create(&temp_file_path) {
         Ok(handle) => handle,
