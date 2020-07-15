@@ -9,7 +9,7 @@ use crate::DB_NAME;
 #[derive(Debug)]
 pub enum Error {
     SledError(sled::Error),
-    TempFileError(io::Error),
+    TempFileError(io::Error), // TODO ungroup these
 }
 
 pub trait DbProvider {
