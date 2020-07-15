@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.loggedin.listfiles.FilesFoldersClickInterface
+import app.lockbook.utils.Account
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import kotlinx.coroutines.*
@@ -16,6 +17,7 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
     private val _navigateToFileEditor = MutableLiveData<String>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
+    lateinit var account: Account
     val fileFolderModel = FileFolderModel(path)
 
     val filesFolders: LiveData<List<FileMetadata>>
@@ -70,6 +72,23 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
                 fileFolderModel.writeContentToDocument(content)
             }
         }
+    }
+
+    fun syncInBackground() { // syncs in the background
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileFolderModel.syncAll()
+            }
+        }
+    }
+
+    fun syncNextWork(): Int { // returns the number of work it is on
+        return fileFolderModel.doSyncWork(account)
+    }
+
+    fun startSyncWork(): Int { // returns the amount to complete
+        fileFolderModel.getAllSyncWork()
+        return fileFolderModel.allSyncWork.work_units.size
     }
 
     override fun onItemClick(position: Int) {
