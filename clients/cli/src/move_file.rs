@@ -1,46 +1,58 @@
-use crate::utils::connect_to_db;
-use lockbook_core::model::file_metadata::FileType::Folder;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::{DocumentMoveError, FileService};
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{
+    DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, UNEXPECTED_ERROR,
+};
+use lockbook_core::{get_file_by_path, GetFileByPathError, MoveFileError};
+use std::process::exit;
 
 pub fn move_file(path1: &str, path2: &str) {
-    let db = connect_to_db();
-
-    match DefaultFileMetadataRepo::get_by_path(&db, path1) {
-        Ok(maybe_old_file) => match maybe_old_file {
-            None => eprintln!("No file found at {}", path1),
-            Some(file1) => match DefaultFileMetadataRepo::get_by_path(&db, path2) {
-                Ok(maybe_dest) => match maybe_dest {
-                    Some(destination) => {
-                        if destination.file_type == Folder {
-                            match DefaultFileService::move_file(&db, file1.id, destination.id) {
-                                Ok(_) => {}
-                                Err(err) => match err {
-                                    DocumentMoveError::TargetParentHasChildNamedThat => {
-                                        eprintln!("{} has a child named {}", path2, file1.name)
-                                    }
-                                    DocumentMoveError::FileDoesntExist
-                                    | DocumentMoveError::AccountRetrievalError(_)
-                                    | DocumentMoveError::NewParentDoesntExist
-                                    | DocumentMoveError::DbError(_)
-                                    | DocumentMoveError::FailedToRecordChange(_)
-                                    | DocumentMoveError::FailedToDecryptKey(_)
-                                    | DocumentMoveError::FailedToReEncryptKey(_)
-                                    | DocumentMoveError::CouldNotFindParents(_) => {
-                                        eprintln!("Unexpected error: {:#?}", err)
-                                    }
-                                },
-                            }
-                        } else {
-                            eprintln!("{} is a document", path2)
+    match get_file_by_path(&get_config(), path1) {
+        Ok(file_metadata) => match get_file_by_path(&get_config(), path2) {
+            Ok(target_file_metadata) => {
+                match lockbook_core::move_file(
+                    &get_config(),
+                    file_metadata.id,
+                    target_file_metadata.id,
+                ) {
+                    Ok(_) => exit(0),
+                    Err(move_file_error) => match move_file_error {
+                        MoveFileError::NoAccount => exit_with_no_account(),
+                        MoveFileError::FileDoesntExist => {
+                            exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
                         }
-                    }
-                    None => eprintln!("No file found at {}", path2),
-                },
-                Err(err) => eprintln!("Unexpected error: {:#?}", err),
+                        MoveFileError::TargetParentDoesntExist => {
+                            exit_with(&format!("No file found at {}", path2), FILE_NOT_FOUND)
+                        }
+                        MoveFileError::TargetParentHasChildNamedThat => exit_with(
+                            &format!(
+                                "{}/ has a file named {}",
+                                file_metadata.name, target_file_metadata.name
+                            ),
+                            FILE_NAME_NOT_AVAILABLE,
+                        ),
+                        MoveFileError::DocumentTreatedAsFolder => exit_with(
+                            &format!(
+                                "{} is a document, {} cannot be moved there",
+                                target_file_metadata.name, file_metadata.name
+                            ),
+                            DOCUMENT_TREATED_AS_FOLDER,
+                        ),
+                        MoveFileError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                    },
+                }
+            }
+            Err(get_file_error) => match get_file_error {
+                GetFileByPathError::NoFileAtThatPath => {
+                    exit_with(&format!("No file at {}", path2), FILE_NOT_FOUND)
+                }
+                GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         },
-        Err(err) => eprintln!("Unexpected error: {:#?}", err),
+        Err(get_file_error) => match get_file_error {
+            GetFileByPathError::NoFileAtThatPath => {
+                exit_with(&format!("No file at {}", path1), FILE_NOT_FOUND)
+            }
+            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
 }

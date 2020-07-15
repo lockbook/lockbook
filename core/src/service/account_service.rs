@@ -36,7 +36,7 @@ pub enum AccountImportError {
 
 #[derive(Debug)]
 pub enum AccountExportError {
-    KeyRetrievalError(account_repo::AccountRepoError),
+    AccountRetrievalError(account_repo::AccountRepoError),
     AccountStringFailedToSerialize(bincode::Error),
 }
 
@@ -153,7 +153,7 @@ impl<
 
     fn export_account(db: &Db) -> Result<String, AccountExportError> {
         let account =
-            &AccountDb::get_account(&db).map_err(AccountExportError::KeyRetrievalError)?;
+            &AccountDb::get_account(&db).map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))

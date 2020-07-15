@@ -6,7 +6,7 @@ use crate::model::account::Account;
 pub enum AccountRepoError {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
-    NoAccount(()),
+    NoAccount(()), // TODO remove empty parens
 }
 
 pub trait AccountRepo {

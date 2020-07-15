@@ -17,11 +17,11 @@ use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure,
 };
 use crate::service::file_service::DocumentMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesntExist, NewParentDoesntExist,
+    FailedToDecryptKey, FailedToReEncryptKey, FileDoesntExist, TargetParentDoesntExist,
 };
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
-    CouldNotFindFile, DbError, DocumentWriteError, ThisIsAFolderYouDummy,
+    CouldNotFindFile, DbError, DocumentWriteError, FolderTreatedAsDocument,
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
@@ -61,7 +61,7 @@ pub enum DocumentUpdateError {
     AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindFile,
     CouldNotFindParents(FindingParentsFailed),
-    ThisIsAFolderYouDummy,
+    FolderTreatedAsDocument,
     FileCryptoError(file_encryption_service::FileWriteError),
     DocumentWriteError(document_repo::Error),
     DbError(file_metadata_repo::DbError),
@@ -73,7 +73,7 @@ pub enum ReadDocumentError {
     AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindFile,
     DbError(file_metadata_repo::DbError),
-    ThisIsAFolderYouDummy,
+    TreatedFolderAsDocument,
     DocumentReadError(document_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::UnableToReadFile),
@@ -93,7 +93,8 @@ pub enum DocumentMoveError {
     AccountRetrievalError(account_repo::AccountRepoError),
     TargetParentHasChildNamedThat,
     FileDoesntExist,
-    NewParentDoesntExist,
+    TargetParentDoesntExist,
+    DocumentTreatedAsFolder,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
     FailedToDecryptKey(KeyDecryptionFailure),
@@ -280,7 +281,7 @@ impl<
             .ok_or(CouldNotFindFile)?;
 
         if file_metadata.file_type == Folder {
-            return Err(ThisIsAFolderYouDummy);
+            return Err(FolderTreatedAsDocument);
         }
 
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
@@ -336,8 +337,12 @@ impl<
                 match FileMetadataDb::maybe_get(&db, new_parent)
                     .map_err(DocumentMoveError::DbError)?
                 {
-                    None => Err(NewParentDoesntExist),
+                    None => Err(TargetParentDoesntExist),
                     Some(parent_metadata) => {
+                        if parent_metadata.file_type == Folder {
+                            return Err(DocumentMoveError::DocumentTreatedAsFolder);
+                        }
+
                         let siblings = FileMetadataDb::get_children(&db, parent_metadata.id)
                             .map_err(DocumentMoveError::DbError)?;
 
@@ -390,7 +395,7 @@ impl<
             .ok_or(ReadDocumentError::CouldNotFindFile)?;
 
         if file_metadata.file_type == Folder {
-            return Err(ReadDocumentError::ThisIsAFolderYouDummy);
+            return Err(ReadDocumentError::TreatedFolderAsDocument);
         }
 
         let document = FileDb::get(&db, id).map_err(DocumentReadError)?;
