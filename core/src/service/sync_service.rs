@@ -39,7 +39,7 @@ pub enum CalculateWorkError {
     LocalChangesRepoError(local_changes_repo::DbError),
     MetadataRepoError(file_metadata_repo::Error),
     GetMetadataError(file_metadata_repo::DbError),
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     GetUpdatesError(client::Error<api::GetUpdatesError>),
 }
 
@@ -64,10 +64,10 @@ pub enum WorkExecutionError {
 
 #[derive(Debug)]
 pub enum SyncError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CalculateWorkError(CalculateWorkError),
     WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
-    MetadataUpdateError(file_metadata_repo::Error),
+    MetadataUpdateError(file_metadata_repo::DbError),
 }
 
 pub trait SyncService {
@@ -122,7 +122,7 @@ impl<
         let mut work_units: Vec<WorkUnit> = vec![];
 
         let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
-        let last_sync = FileMetadataDb::get_last_updated(&db).map_err(MetadataRepoError)?;
+        let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::get_updates(
             &account.username,
@@ -481,7 +481,7 @@ impl<
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
                 if sync_errors.is_empty() {
-                    FileMetadataDb::set_last_updated(
+                    FileMetadataDb::set_last_synced(
                         &db,
                         work_calculated.most_recent_update_from_server,
                     )
