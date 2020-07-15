@@ -81,7 +81,7 @@ enum Error {
     Calculation(service::sync_service::CalculateWorkError),
     Execution(service::sync_service::WorkExecutionError),
     AccountCreate(service::account_service::AccountCreationError),
-    AccountRetrieve(repo::account_repo::Error),
+    AccountRetrieve(repo::account_repo::AccountRepoError),
     AccountImport(service::account_service::AccountImportError),
     FileCreate(service::file_service::NewFileError),
     FileRetrieve(service::file_service::ReadDocumentError),
