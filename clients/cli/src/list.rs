@@ -1,9 +1,7 @@
 use lockbook_core::repo::file_metadata_repo::Filter;
 use lockbook_core::{get_account, list_paths, GetAccountError};
 
-use crate::utils::{
-    connect_to_db, exit_with, exit_with_no_account, get_config, print_last_successful_sync,
-};
+use crate::utils::{exit_with, exit_with_no_account, get_config, print_last_successful_sync};
 use crate::UNEXPECTED_ERROR;
 
 pub fn list(file_filter: Option<Filter>) {
@@ -20,5 +18,5 @@ pub fn list(file_filter: Option<Filter>) {
         .into_iter()
         .for_each(|path| println!("{}", path));
 
-    print_last_successful_sync(&connect_to_db());
+    print_last_successful_sync();
 }
