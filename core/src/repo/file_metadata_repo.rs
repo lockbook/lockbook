@@ -52,8 +52,8 @@ pub trait FileMetadataRepo {
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
     fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
-    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error>;
-    fn get_last_updated(db: &Db) -> Result<u64, Error>;
+    fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
+    fn get_last_updated(db: &Db) -> Result<u64, DbError>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -268,23 +268,23 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<FileMetadata>>())
     }
 
-    fn set_last_updated(db: &Db, last_updated: u64) -> Result<(), Error> {
+    fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError> {
         debug!("Setting last updated to: {}", last_updated);
-        let tree = db.open_tree(LAST_UPDATED).map_err(Error::SledError)?;
+        let tree = db.open_tree(LAST_UPDATED).map_err(DbError::SledError)?;
         tree.insert(
             LAST_UPDATED,
-            serde_json::to_vec(&last_updated).map_err(Error::SerdeError)?,
+            serde_json::to_vec(&last_updated).map_err(DbError::SerdeError)?,
         )
-        .map_err(Error::SledError)?;
+        .map_err(DbError::SledError)?;
         Ok(())
     }
 
-    fn get_last_updated(db: &Db) -> Result<u64, Error> {
-        let tree = db.open_tree(LAST_UPDATED).map_err(Error::SledError)?;
-        let maybe_value = tree.get(LAST_UPDATED).map_err(Error::SledError)?;
+    fn get_last_updated(db: &Db) -> Result<u64, DbError> {
+        let tree = db.open_tree(LAST_UPDATED).map_err(DbError::SledError)?;
+        let maybe_value = tree.get(LAST_UPDATED).map_err(DbError::SledError)?;
         match maybe_value {
             None => Ok(0),
-            Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?),
+            Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
         }
     }
 }

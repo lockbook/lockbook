@@ -16,12 +16,12 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure,
 };
-use crate::service::file_service::DocumentMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesntExist, TargetParentDoesntExist,
-};
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, FolderTreatedAsDocument,
+};
+use crate::service::file_service::FileMoveError::{
+    FailedToDecryptKey, FailedToReEncryptKey, FileDoesntExist, TargetParentDoesntExist,
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
@@ -89,7 +89,7 @@ pub enum DocumentRenameError {
 }
 
 #[derive(Debug)]
-pub enum DocumentMoveError {
+pub enum FileMoveError {
     AccountRetrievalError(account_repo::AccountRepoError),
     TargetParentHasChildNamedThat,
     FileDoesntExist,
@@ -120,7 +120,7 @@ pub trait FileService {
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
 
-    fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), DocumentMoveError>;
+    fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), FileMoveError>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 }
@@ -327,35 +327,32 @@ impl<
         }
     }
 
-    fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), DocumentMoveError> {
-        let account =
-            AccountDb::get_account(&db).map_err(DocumentMoveError::AccountRetrievalError)?;
+    fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
+        let account = AccountDb::get_account(&db).map_err(FileMoveError::AccountRetrievalError)?;
 
-        match FileMetadataDb::maybe_get(&db, id).map_err(DocumentMoveError::DbError)? {
+        match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDoesntExist),
             Some(mut file) => {
-                match FileMetadataDb::maybe_get(&db, new_parent)
-                    .map_err(DocumentMoveError::DbError)?
-                {
+                match FileMetadataDb::maybe_get(&db, new_parent).map_err(FileMoveError::DbError)? {
                     None => Err(TargetParentDoesntExist),
                     Some(parent_metadata) => {
-                        if parent_metadata.file_type == Folder {
-                            return Err(DocumentMoveError::DocumentTreatedAsFolder);
+                        if parent_metadata.file_type == Document {
+                            return Err(FileMoveError::DocumentTreatedAsFolder);
                         }
 
                         let siblings = FileMetadataDb::get_children(&db, parent_metadata.id)
-                            .map_err(DocumentMoveError::DbError)?;
+                            .map_err(FileMoveError::DbError)?;
 
                         // Check that this file name is available
                         for child in siblings {
                             if child.name == file.name {
-                                return Err(DocumentMoveError::TargetParentHasChildNamedThat);
+                                return Err(FileMoveError::TargetParentHasChildNamedThat);
                             }
                         }
 
                         // Good to move
                         let old_parents = FileMetadataDb::get_with_all_parents(&db, file.id)
-                            .map_err(DocumentMoveError::CouldNotFindParents)?;
+                            .map_err(FileMoveError::CouldNotFindParents)?;
 
                         let access_key =
                             FileCrypto::decrypt_key_for_file(&account, file.id, old_parents)
@@ -363,7 +360,7 @@ impl<
 
                         let new_parents =
                             FileMetadataDb::get_with_all_parents(&db, parent_metadata.id)
-                                .map_err(DocumentMoveError::CouldNotFindParents)?;
+                                .map_err(FileMoveError::CouldNotFindParents)?;
 
                         let new_access_info = FileCrypto::re_encrypt_key_for_file(
                             &account,
@@ -374,11 +371,11 @@ impl<
                         .map_err(FailedToReEncryptKey)?;
 
                         ChangesDb::track_move(&db, file.id, file.parent, parent_metadata.id)
-                            .map_err(DocumentMoveError::FailedToRecordChange)?;
+                            .map_err(FileMoveError::FailedToRecordChange)?;
                         file.parent = parent_metadata.id;
                         file.folder_access_keys = new_access_info;
 
-                        FileMetadataDb::insert(&db, &file).map_err(DocumentMoveError::DbError)?;
+                        FileMetadataDb::insert(&db, &file).map_err(FileMoveError::DbError)?;
                         Ok(())
                     }
                 }

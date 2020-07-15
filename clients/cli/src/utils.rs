@@ -6,9 +6,8 @@ use chrono_human_duration::ChronoHumanDuration;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::DbProvider;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
-use lockbook_core::{Db, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo};
+use lockbook_core::{get_last_synced, Db, DefaultClock, DefaultDbProvider};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::NO_ACCOUNT;
@@ -127,9 +126,9 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         .success()
 }
 
-pub fn print_last_successful_sync(db: &Db) {
+pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
+        let last_updated = get_last_synced(&get_config())
             .expect("Failed to retrieve content from FileMetadataRepo");
 
         let duration = if last_updated != 0 {
