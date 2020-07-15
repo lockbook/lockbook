@@ -6,13 +6,16 @@ use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
 use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::FileMetadata;
+use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::DocumentRepoImpl;
-use crate::repo::file_metadata_repo::FileMetadataRepoImpl;
+use crate::repo::file_metadata_repo::{
+    FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
+};
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
@@ -21,6 +24,9 @@ use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
+    DocumentMoveError, DocumentRenameError, ReadDocumentError as FSReadDocumentError,
+};
+use crate::service::file_service::{
     DocumentUpdateError, FileService, FileServiceImpl, NewFileError, NewFileFromPathError,
 };
 use crate::service::sync_service::FileSyncService;
@@ -28,8 +34,10 @@ use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTa
 use crate::CreateFileAtPathError::{
     DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
+use crate::GetFileByPathError::NoFileAtThatPath;
+use crate::GetRootError::UnexpectedError;
 use crate::ImportError::AccountStringCorrupted;
-use crate::WriteToFileFromPathError::{CannotWriteToFolder, FileDoesNotExist};
+use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 pub use sled::Db;
 use uuid::Uuid;
 
@@ -95,6 +103,7 @@ fn connect_to_db(config: &Config) -> Result<Db, String> {
     Ok(db)
 }
 
+#[derive(Debug)]
 pub enum CreateAccountError {
     UsernameTaken,
     InvalidUsername,
@@ -138,6 +147,7 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
     }
 }
 
+#[derive(Debug)]
 pub enum ImportError {
     AccountStringCorrupted,
     UnexpectedError(String),
@@ -159,6 +169,32 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
     }
 }
 
+#[derive(Debug)]
+pub enum AccountExportError {
+    NoAccount,
+    UnexpectedError(String),
+}
+
+pub fn export_account(config: &Config) -> Result<String, AccountExportError> {
+    let db = connect_to_db(&config).map_err(AccountExportError::UnexpectedError)?;
+
+    match DefaultAccountService::export_account(&db) {
+        Ok(account_string) => Ok(account_string),
+        Err(err) => match err {
+            ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
+                AccountRepoError::NoAccount(_) => Err(AccountExportError::NoAccount),
+                AccountRepoError::SerdeError(_) | AccountRepoError::SledError(_) => Err(
+                    AccountExportError::UnexpectedError(format!("{:#?}", db_err)),
+                ),
+            },
+            ASAccountExportError::AccountStringFailedToSerialize(_) => {
+                Err(AccountExportError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug)]
 pub enum GetAccountError {
     NoAccount,
     UnexpectedError(String),
@@ -227,38 +263,234 @@ pub fn create_file_at_path(
     }
 }
 
-pub enum WriteToFileFromPathError {
+#[derive(Debug)]
+pub enum WriteToDocumentError {
     NoAccount,
     FileDoesNotExist,
+    FolderTreatedAsDocument,
     UnexpectedError(String),
-    CannotWriteToFolder,
 }
 
 pub fn write_document(
     config: &Config,
     id: Uuid,
     content: &DecryptedValue,
-) -> Result<(), WriteToFileFromPathError> {
-    let db = connect_to_db(&config).map_err(WriteToFileFromPathError::UnexpectedError)?;
+) -> Result<(), WriteToDocumentError> {
+    let db = connect_to_db(&config).map_err(WriteToDocumentError::UnexpectedError)?;
 
     match DefaultFileService::write_document(&db, id, &content) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
-                    WriteToFileFromPathError::UnexpectedError(format!("{:#?}", account_err)),
+                    WriteToDocumentError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
-                AccountRepoError::NoAccount(_) => Err(WriteToFileFromPathError::NoAccount),
+                AccountRepoError::NoAccount(_) => Err(WriteToDocumentError::NoAccount),
             },
             DocumentUpdateError::CouldNotFindFile => Err(FileDoesNotExist),
-            DocumentUpdateError::ThisIsAFolderYouDummy => Err(CannotWriteToFolder),
+            DocumentUpdateError::FolderTreatedAsDocument => Err(FolderTreatedAsDocument),
             DocumentUpdateError::CouldNotFindParents(_)
             | DocumentUpdateError::FileCryptoError(_)
             | DocumentUpdateError::DocumentWriteError(_)
             | DocumentUpdateError::DbError(_)
-            | DocumentUpdateError::FailedToRecordChange(_) => Err(
-                WriteToFileFromPathError::UnexpectedError(format!("{:#?}", err)),
-            ),
+            | DocumentUpdateError::FailedToRecordChange(_) => {
+                Err(WriteToDocumentError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug)]
+pub enum CreateFileError {
+    NoAccount,
+    DocumentTreatedAsFolder,
+    CouldNotFindAParent,
+    FileNameNotAvailable,
+    FileNameContainsSlash,
+    UnexpectedError(String),
+}
+
+pub fn create_file(
+    config: &Config,
+    name: &str,
+    parent: Uuid,
+    file_type: FileType,
+) -> Result<FileMetadata, CreateFileError> {
+    let db = connect_to_db(&config).map_err(CreateFileError::UnexpectedError)?;
+
+    match DefaultFileService::create(&db, name, parent, file_type) {
+        Ok(file_metadata) => Ok(file_metadata),
+        Err(err) => match err {
+            NewFileError::AccountRetrievalError(_) => Err(CreateFileError::NoAccount),
+            NewFileError::DocumentTreatedAsFolder => Err(CreateFileError::DocumentTreatedAsFolder),
+            NewFileError::CouldNotFindParents(parent_error) => match parent_error {
+                FindingParentsFailed::AncestorMissing => Err(CreateFileError::CouldNotFindAParent),
+                FindingParentsFailed::DbError(_) => Err(CreateFileError::UnexpectedError(format!(
+                    "{:#?}",
+                    parent_error
+                ))),
+            },
+            NewFileError::FileNameNotAvailable => Err(CreateFileError::FileNameNotAvailable),
+            NewFileError::FileNameContainsSlash => Err(CreateFileError::FileNameContainsSlash),
+            NewFileError::FileCryptoError(_)
+            | NewFileError::MetadataRepoError(_)
+            | NewFileError::FailedToWriteFileContent(_)
+            | NewFileError::FailedToRecordChange(_) => {
+                Err(CreateFileError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug)]
+pub enum GetRootError {
+    NoRoot,
+    UnexpectedError(String),
+}
+
+pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
+    let db = connect_to_db(&config).map_err(GetRootError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_root(&db) {
+        Ok(file_metadata) => match file_metadata {
+            None => Err(GetRootError::NoRoot),
+            Some(file_metadata) => Ok(file_metadata),
+        },
+        Err(err) => Err(UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum GetFileByPathError {
+    NoFileAtThatPath,
+    UnexpectedError(String),
+}
+
+pub fn get_file_by_path(config: &Config, path: &str) -> Result<FileMetadata, GetFileByPathError> {
+    let db = connect_to_db(&config).map_err(GetFileByPathError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_by_path(&db, path) {
+        Ok(maybe_file_metadata) => match maybe_file_metadata {
+            None => Err(NoFileAtThatPath),
+            Some(file_metadata) => Ok(file_metadata),
+        },
+        Err(err) => Err(GetFileByPathError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum ReadDocumentError {
+    TreatedFolderAsDocument,
+    NoAccount,
+    FileDoesNotExist,
+    UnexpectedError(String),
+}
+
+pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
+    let db = connect_to_db(&config).map_err(ReadDocumentError::UnexpectedError)?;
+
+    match DefaultFileService::read_document(&db, id) {
+        Ok(decrypted) => Ok(decrypted),
+        Err(err) => match err {
+            FSReadDocumentError::TreatedFolderAsDocument => {
+                Err(ReadDocumentError::TreatedFolderAsDocument)
+            }
+            FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                AccountRepoError::NoAccount(_) => Err(ReadDocumentError::NoAccount),
+                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
+                    ReadDocumentError::UnexpectedError(format!("{:#?}", account_error)),
+                ),
+            },
+            FSReadDocumentError::CouldNotFindFile => Err(ReadDocumentError::FileDoesNotExist),
+            FSReadDocumentError::DbError(_)
+            | FSReadDocumentError::DocumentReadError(_)
+            | FSReadDocumentError::CouldNotFindParents(_)
+            | FSReadDocumentError::FileCryptoError(_) => {
+                Err(ReadDocumentError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug)]
+pub enum ListPathsError {
+    UnexpectedError(String),
+}
+
+pub fn list_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, ListPathsError> {
+    let db = connect_to_db(&config).map_err(ListPathsError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_all_paths(&db, filter) {
+        Ok(paths) => Ok(paths),
+        Err(err) => Err(ListPathsError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug)]
+pub enum RenameFileError {
+    FileDoesNotExist,
+    NewNameContainsSlash,
+    FileNameNotAvailable,
+    UnexpectedError(String),
+}
+
+pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), RenameFileError> {
+    let db = connect_to_db(&config).map_err(RenameFileError::UnexpectedError)?;
+
+    match DefaultFileService::rename_file(&db, id, new_name) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            DocumentRenameError::FileDoesNotExist => Err(RenameFileError::FileDoesNotExist),
+            DocumentRenameError::FileNameContainsSlash => {
+                Err(RenameFileError::NewNameContainsSlash)
+            }
+            DocumentRenameError::FileNameNotAvailable => Err(RenameFileError::FileNameNotAvailable),
+            DocumentRenameError::DbError(_) | DocumentRenameError::FailedToRecordChange(_) => {
+                Err(RenameFileError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug)]
+pub enum MoveFileError {
+    NoAccount,
+    FileDoesntExist,
+    DocumentTreatedAsFolder,
+    TargetParentDoesntExist,
+    TargetParentHasChildNamedThat,
+    UnexpectedError(String),
+}
+
+pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), MoveFileError> {
+    let db = connect_to_db(&config).map_err(MoveFileError::UnexpectedError)?;
+
+    match DefaultFileService::move_file(&db, id, new_parent) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            DocumentMoveError::DocumentTreatedAsFolder => {
+                Err(MoveFileError::DocumentTreatedAsFolder)
+            }
+            DocumentMoveError::AccountRetrievalError(account_err) => match account_err {
+                AccountRepoError::NoAccount(_) => Err(MoveFileError::NoAccount),
+                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
+                    MoveFileError::UnexpectedError(format!("{:#?}", account_err)),
+                ),
+            },
+            DocumentMoveError::TargetParentHasChildNamedThat => {
+                Err(MoveFileError::TargetParentHasChildNamedThat)
+            }
+            DocumentMoveError::FileDoesntExist => Err(MoveFileError::FileDoesntExist),
+            DocumentMoveError::TargetParentDoesntExist => {
+                Err(MoveFileError::TargetParentDoesntExist)
+            }
+            DocumentMoveError::DbError(_)
+            | DocumentMoveError::FailedToRecordChange(_)
+            | DocumentMoveError::FailedToDecryptKey(_)
+            | DocumentMoveError::FailedToReEncryptKey(_)
+            | DocumentMoveError::CouldNotFindParents(_) => {
+                Err(MoveFileError::UnexpectedError(format!("{:#?}", err)))
+            }
         },
     }
 }
