@@ -80,7 +80,6 @@ enum Lockbook {
     WhoAmI,
 }
 
-// TODO these should do something this: https://stackoverflow.com/questions/30281235/how-to-cleanly-end-the-program-with-an-exit-code
 fn main() {
     init_logger_safely();
     let args: Lockbook = Lockbook::from_args();
@@ -104,3 +103,27 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
     }
 }
+
+// Exit Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
+static SUCCESS: u8 = 0;
+
+static USERNAME_TAKEN: u8 = 1;
+static USERNAME_INVALID: u8 = 3;
+static NETWORK_ISSUE: u8 = 4;
+static UNEXPECTED_ERROR: u8 = 5;
+static EXPECTED_STDIN: u8 = 6;
+static ACCOUNT_STRING_CORRUPTED: u8 = 7;
+static NO_ACCOUNT: u8 = 8;
+static FILE_ALREADY_EXISTS: u8 = 9;
+static NO_ROOT: u8 = 10;
+static PATH_NO_ROOT: u8 = 11;
+static DOCUMENT_TREATED_AS_FOLDER: u8 = 12;
+static COULD_NOT_READ_OS_METADATA: u8 = 13;
+static UNIMPLEMENTED: u8 = 14;
+static COULD_NOT_READ_OS_FILE: u8 = 15;
+static COULD_NOT_GET_OS_ABSOLUTE_PATH: u8 = 16;
+static FILE_NOT_FOUND: u8 = 17;
+static COULD_NOT_WRITE_TO_OS_FILE: u8 = 18;
+static COULD_NOT_DELETE_OS_FILE: u8 = 18;
+static NAME_CONTAINS_SLASH: u8 = 19;
+static FILE_NAME_NOT_AVAILABLE: u8 = 20;
