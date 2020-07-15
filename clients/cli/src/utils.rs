@@ -1,13 +1,11 @@
-use std::thread::sleep;
-use std::{env, time};
+use std::env;
 
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::db_provider::DbProvider;
 use lockbook_core::service::clock_service::Clock;
-use lockbook_core::{get_last_synced, Db, DefaultClock, DefaultDbProvider};
+use lockbook_core::{get_last_synced, DefaultClock};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::NO_ACCOUNT;
