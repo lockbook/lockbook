@@ -1,4 +1,7 @@
-use lockbook_core::{calculate_work, execute_work, get_account, set_last_synced, CalculateWorkError, GetAccountError, SetLastSyncedError};
+use lockbook_core::{
+    calculate_work, execute_work, get_account, set_last_synced, CalculateWorkError,
+    GetAccountError, SetLastSyncedError,
+};
 
 use crate::utils::{exit_with, exit_with_no_account, get_config};
 use crate::{NETWORK_ISSUE, UNEXPECTED_ERROR};
@@ -63,7 +66,7 @@ pub fn sync() {
         Ok(_) => {}
         Err(err) => match err {
             SetLastSyncedError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        }
+        },
     }
 
     println!("Sync complete.");

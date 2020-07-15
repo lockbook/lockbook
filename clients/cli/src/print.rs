@@ -1,6 +1,8 @@
 use crate::utils::{exit_with, exit_with_no_account, get_config};
-use crate::{UNEXPECTED_ERROR, FILE_NOT_FOUND};
-use lockbook_core::{get_account, GetAccountError, read_document, get_file_by_path, GetFileByPathError};
+use crate::{FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use lockbook_core::{
+    get_account, get_file_by_path, read_document, GetAccountError, GetFileByPathError,
+};
 
 pub fn print(file_name: &str) {
     match get_account(&get_config()) {
