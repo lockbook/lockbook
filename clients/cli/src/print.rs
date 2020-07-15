@@ -1,8 +1,6 @@
-use crate::utils::{connect_to_db, exit_with, exit_with_no_account, get_config};
-use crate::UNEXPECTED_ERROR;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::FileService;
-use lockbook_core::{get_account, DefaultFileMetadataRepo, DefaultFileService, GetAccountError};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{UNEXPECTED_ERROR, FILE_NOT_FOUND};
+use lockbook_core::{get_account, GetAccountError, read_document, get_file_by_path, GetFileByPathError};
 
 pub fn print(file_name: &str) {
     match get_account(&get_config()) {
@@ -13,11 +11,15 @@ pub fn print(file_name: &str) {
         },
     }
 
-    let file_metadata = DefaultFileMetadataRepo::get_by_path(&connect_to_db(), &file_name)
-        .expect("Could not search files ")
-        .expect("Could not find that file!");
+    let file_metadata = match get_file_by_path(&get_config(), &file_name) {
+        Ok(fm) => fm,
+        Err(err) => match err {
+            GetFileByPathError::NoFileAtThatPath => exit_with("File not found", FILE_NOT_FOUND),
+            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
-    match DefaultFileService::read_document(&connect_to_db(), file_metadata.id) {
+    match read_document(&get_config(), file_metadata.id) {
         Ok(content) => print!("{}", content.secret),
         Err(error) => panic!("Unexpected error: {:?}", error),
     };

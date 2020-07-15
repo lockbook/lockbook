@@ -37,44 +37,6 @@ pub fn exit_with(message: &str, status: u8) -> ! {
     exit(status as i32);
 }
 
-pub fn connect_to_db() -> Db {
-    // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
-    let path = env::var("LOCKBOOK_CLI_LOCATION")
-        .unwrap_or(format!("{}/.lockbook", env::var("HOME")
-            .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
-        );
-
-    let config = Config {
-        writeable_path: path,
-    };
-
-    // Try to connect 3 times waiting 10ms and 150ms
-    // If there's a particularly long write or something going on the write would be blocked, we don't
-    // want to panic in this case when waiting a very small amount of time would do fine
-    match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => db,
-        Err(_) => {
-            sleep(time::Duration::from_millis(10));
-            match DefaultDbProvider::connect_to_db(&config) {
-                Ok(db) => db,
-                Err(_) => {
-                    sleep(time::Duration::from_millis(100));
-                    match DefaultDbProvider::connect_to_db(&config) {
-                        Ok(db) => db,
-                        Err(_) => {
-                            sleep(time::Duration::from_millis(2000));
-                            match DefaultDbProvider::connect_to_db(&config) {
-                                Ok(db) => db,
-                                Err(err) => panic!("Could not connect to db! Error: {:?}", err),
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 // In order of superiority
 pub enum SupportedEditors {
     Vim,
