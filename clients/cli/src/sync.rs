@@ -35,9 +35,9 @@ pub fn sync() {
                 "{}",
                 match work_unit.clone() {
                     WorkUnit::LocalChange { metadata } =>
-                        format!("Syncing: {} to server", metadata.name),
+                        format!("Syncing: {} to server\t", metadata.name),
                     WorkUnit::ServerChange { metadata } =>
-                        format!("Syncing: {} from server", metadata.name),
+                        format!("Syncing: {} from server\t", metadata.name),
                 }
             );
             let _ = io::stdout().flush();
