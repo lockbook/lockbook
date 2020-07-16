@@ -24,7 +24,7 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="windows.exe" EntryPoint="windows.App">
-      <uap:VisualElements DisplayName="windows" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" Description="windows" BackgroundColor="transparent">
+      <uap:VisualElements DisplayName="Lockbook" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" BackgroundColor="transparent" Description="Lockbook">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>

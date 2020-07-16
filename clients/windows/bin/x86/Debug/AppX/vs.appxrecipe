@@ -19,7 +19,7 @@
     <DeployOptionalPackages>false</DeployOptionalPackages>
     <WindowsSdkPath>C:\Program Files %28x86%29\Windows Kits\10\</WindowsSdkPath>
     <LayoutDir>C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\AppX</LayoutDir>
-    <RegisteredManifestChecksum>2FD6974595A1139D8F750A2931A3006752CC2F68CDE08A628095E2562F8B335C</RegisteredManifestChecksum>
+    <RegisteredManifestChecksum>53040A81144B3FBA27B2D0F6B43D4530A581ECBD7A991139323EB167C0A1C908</RegisteredManifestChecksum>
     <RegisteredPackageMoniker>51eb22d8-b1fe-4e42-a53f-3d88aa553cde_1.0.0.0_x86__pbgm5s6b4rrv8</RegisteredPackageMoniker>
     <RegisteredUserModeAppID>51eb22d8-b1fe-4e42-a53f-3d88aa553cde_pbgm5s6b4rrv8!App</RegisteredUserModeAppID>
     <RegisteredPackageID>51eb22d8-b1fe-4e42-a53f-3d88aa553cde</RegisteredPackageID>
@@ -30,13 +30,13 @@
     <AppXManifest Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\Core\AppxManifest.xml">
       <PackagePath>AppxManifest.xml</PackagePath>
       <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>
-      <Modified>2020-07-16T02:18:48.253</Modified>
+      <Modified>2020-07-16T03:33:08.899</Modified>
     </AppXManifest>
   </ItemGroup>
   <ItemGroup>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\windows.exe">
       <PackagePath>entrypoint\windows.exe</PackagePath>
-      <Modified>2020-07-16T02:18:45.567</Modified>
+      <Modified>2020-07-16T03:33:07.856</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\.nuget\packages\colorcode.core\2.0.6\lib\netstandard1.4\ColorCode.Core.dll">
       <PackagePath>ColorCode.Core.dll</PackagePath>
@@ -146,19 +146,19 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\windows.xr.xml">
       <PackagePath>windows.xr.xml</PackagePath>
-      <Modified>2020-07-16T02:18:45.441</Modified>
+      <Modified>2020-07-16T03:27:24.047</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\App.xbf">
       <PackagePath>App.xbf</PackagePath>
-      <Modified>2020-07-16T02:18:45.446</Modified>
+      <Modified>2020-07-16T03:33:07.733</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\Home.xbf">
       <PackagePath>Home.xbf</PackagePath>
-      <Modified>2020-07-16T02:18:45.446</Modified>
+      <Modified>2020-07-16T03:33:07.733</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\SignUp.xbf">
       <PackagePath>SignUp.xbf</PackagePath>
-      <Modified>2020-07-16T02:18:45.446</Modified>
+      <Modified>2020-07-16T03:33:07.733</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Program Files %28x86%29\Windows Kits\10\UnionMetadata\10.0.18362.0\Windows.winmd">
       <PackagePath>WinMetadata\Windows.winmd</PackagePath>
@@ -166,11 +166,11 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\resources.pri">
       <PackagePath>resources.pri</PackagePath>
-      <Modified>2020-07-16T02:18:46.671</Modified>
+      <Modified>2020-07-16T03:33:08.275</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\tvand\Code\lockbook\clients\windows\bin\x86\Debug\Core\windows.exe">
       <PackagePath>windows.exe</PackagePath>
-      <Modified>2020-07-16T02:18:48.246</Modified>
+      <Modified>2020-07-16T03:33:08.895</Modified>
     </AppxPackagedFile>
   </ItemGroup>
   <ItemGroup>
