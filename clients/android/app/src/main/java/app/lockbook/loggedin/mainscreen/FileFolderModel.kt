@@ -19,7 +19,6 @@ class FileFolderModel(private val path: String) {
         get() = _unexpectedErrorOccurred
 
     companion object {
-
         private const val SET_PARENT_TO_ROOT_ERROR: String =
             "Couldn't access root, please file a bug report in the settings."
 
@@ -29,13 +28,17 @@ class FileFolderModel(private val path: String) {
         private const val GET_FILE_BY_ID_ERROR: String =
             "Couldn't get a file, please file a bug report in the settings."
 
-        fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
-            val serializedFileFolder = createFile(path, parentUuid, fileType, name)
+        private const val GET_DOCUMENT_CONTENT_ERROR: String =
+            "Couldn't get the contents of the document, please file a bug report in the settings."
 
-            val fileFolder: FileMetadata? = Klaxon().parse(serializedFileFolder)
+        fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) { // how do I get out the error
+            val json = Klaxon()
+            val fileFolder: Result<FileMetadata, CreateFileError>? = json.parse(createFile(path, parentUuid, fileType, name))
 
             fileFolder?.let {
-                insertFile(path, serializedFileFolder)
+                if(it is Ok<FileMetadata>) {
+                    insertFile(path, json.toJsonString(it.value))
+                }
             }
         }
     }
@@ -43,9 +46,9 @@ class FileFolderModel(private val path: String) {
     fun setParentToRoot() {
         val root: Result<FileMetadata, GetRootError>? = json.parse(getRoot(path))
 
-        if (root != null) {
-            when (root) {
-                is Ok -> parentFileMetadata = root.value
+        root?.let {
+            when (it) {
+                is Ok -> parentFileMetadata = it.value
                 is Err -> _unexpectedErrorOccurred.value = SET_PARENT_TO_ROOT_ERROR
             }
         }
@@ -57,12 +60,9 @@ class FileFolderModel(private val path: String) {
             json.parse(getChildren(path, parentFileMetadata.id))
 
         if (children != null) {
-            return when (children) {
+            when (children) {
                 is Ok -> children.value.filter { it.id != it.parent }
-                is Err -> {
-                    _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
-                    listOf()
-                }
+                is Err -> _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
             }
         }
         _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
@@ -75,30 +75,27 @@ class FileFolderModel(private val path: String) {
             json.parse(getChildren(path, parentFileMetadata.parent))
 
         children?.let {
-            return when (it) {
+            when(it) {
                 is Ok -> {
                     val editedChildren =
                         it.value.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
                     getParentOfParent()
                     editedChildren
                 }
-                is Err -> {
-                    _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
-                    listOf()
-                }
+                is Err -> _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
             }
-
-            return listOf()
         }
+        _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
 
         return listOf()
     }
 
     private fun getParentOfParent() {
-        val parent: Result<FileMetadata, GetFileByIdError>? = json.parse(getFileById(path, parentFileMetadata.parent))
+        val parent: Result<FileMetadata, GetFileByIdError>? =
+            json.parse(getFileById(path, parentFileMetadata.parent))
 
         if (parent != null) {
-            return when(parent) {
+            when (parent) {
                 is Ok -> parentFileMetadata = parent.value
                 is Err -> _unexpectedErrorOccurred.value = GET_FILE_BY_ID_ERROR
             }
@@ -108,10 +105,15 @@ class FileFolderModel(private val path: String) {
     }
 
     fun getDocumentContent(fileUuid: String): String {
-        val document: DecryptedValue? = json.parse(readDocument(path, fileUuid))
+        val document: Result<DecryptedValue, ReadDocumentError>? =
+            json.parse(readDocument(path, fileUuid))
         if (document != null) {
-            return document.secret
+            when (document) {
+                is Ok -> return document.value.secret
+                is Err -> _unexpectedErrorOccurred.value = GET_DOCUMENT_CONTENT_ERROR
+            }
         }
+        _unexpectedErrorOccurred.value = GET_DOCUMENT_CONTENT_ERROR
 
         return "" // definitely better way to handle this
     }
