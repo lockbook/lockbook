@@ -1,0 +1,1 @@
+C:\Users\tvand\Code\lockbook\clients\windows\windows.csproj;x86
