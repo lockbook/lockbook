@@ -9,26 +9,26 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="100"/>
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition MinWidth="200" Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <ListView ItemsSource="{x:Bind Files}">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="local:File">
-                    <StackPanel>
-                        <TextBlock FontSize="16" Text="{x:Bind Id}"/>
-                    </StackPanel>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+        <StackPanel Grid.Column="0" Orientation="Vertical" Background="{ThemeResource SystemChromeLowColor}">
+            <StackPanel Orientation="Horizontal">
+                <Button Grid.Column="0" Click="AddFile" Content="Add File"/>
+            </StackPanel>
+            <ListView ItemsSource="{x:Bind Files}" SelectionChanged="FileSelected">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:File">
+                        <StackPanel>
+                            <TextBlock FontSize="16" Text="{x:Bind Path}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </StackPanel>
 
-        <Button
-            Grid.Row="1"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Content="append something"
-            Click="Button_Click"/>
+        <TextBlock Name="FileContentTextBlock" Grid.Column="1" Text="No file selected" Margin="20,20,20,20"/>
     </Grid>
 </Page>

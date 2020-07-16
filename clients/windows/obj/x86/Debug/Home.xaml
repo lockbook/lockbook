@@ -9,27 +9,27 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="100"/>
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition MinWidth="200" Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <ListView x:ConnectionId='2'                             >
-            <ListView.ItemTemplate>
-                <DataTemplate                        >
-                    <StackPanel x:ConnectionId='5'>
-                        <TextBlock x:ConnectionId='6' FontSize="16"                   />
-                    </StackPanel>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+        <StackPanel Grid.Column="0" Orientation="Vertical" Background="{ThemeResource SystemChromeLowColor}">
+            <StackPanel Orientation="Horizontal">
+                <Button x:ConnectionId='7' Grid.Column="0"                 Content="Add File"/>
+            </StackPanel>
+            <ListView x:ConnectionId='3'                                                             >
+                <ListView.ItemTemplate>
+                    <DataTemplate                        >
+                        <StackPanel x:ConnectionId='5'>
+                            <TextBlock x:ConnectionId='6' FontSize="16"                     />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </StackPanel>
 
-        <Button x:ConnectionId='3'
-            Grid.Row="1"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Content="append something"
-                                />
+        <TextBlock x:ConnectionId='2' Name="FileContentTextBlock" Grid.Column="1" Text="No file selected" Margin="20,20,20,20"/>
     </Grid>
 </Page>
 
