@@ -12,7 +12,7 @@
         <Rectangle>
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0.25,0" EndPoint="0.75,1">
-                    <GradientStop Color="WhiteSmoke" Offset="0.0" />
+                    <GradientStop Color="{ThemeResource SystemChromeLowColor}" Offset="0.0" />
                     <GradientStop Color="{ThemeResource SystemAccentColor}" Offset="1.0" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
