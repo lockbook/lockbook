@@ -1,19 +1,34 @@
 package app.lockbook.loggedin.mainscreen
 
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import app.lockbook.core.*
-import app.lockbook.utils.DecryptedValue
-import app.lockbook.utils.FileMetadata
-import app.lockbook.utils.WorkCalculated
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 
 class FileFolderModel(private val path: String) {
     private val json = Klaxon()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
-    lateinit var allSyncWork: WorkCalculated
-    var workNumber: Int = 0
+    private val _unexpectedErrorOccurred = MutableLiveData<String>()
+
+    val unexpectedErrorOccurred: LiveData<String>
+        get() = _unexpectedErrorOccurred
 
     companion object {
+
+        private const val SET_PARENT_TO_ROOT_ERROR: String =
+            "Couldn't access root, please file a bug report in the settings."
+
+        private const val GET_CHILDREN_OF_PARENT_ERROR: String =
+            "Couldn't get access to the files and folders, please file a bug report in the settings."
+
+        private const val GET_FILE_BY_ID_ERROR: String =
+            "Couldn't get a file, please file a bug report in the settings."
+
         fun insertFileFolder(path: String, parentUuid: String, fileType: String, name: String) {
             val serializedFileFolder = createFile(path, parentUuid, fileType, name)
 
@@ -26,45 +41,70 @@ class FileFolderModel(private val path: String) {
     }
 
     fun setParentToRoot() {
-        val root: FileMetadata? = json.parse(getRoot(path))
+        val root: Result<FileMetadata, GetRootError>? = json.parse(getRoot(path))
 
         if (root != null) {
-            parentFileMetadata = root
+            when (root) {
+                is Ok -> parentFileMetadata = root.value
+                is Err -> _unexpectedErrorOccurred.value = SET_PARENT_TO_ROOT_ERROR
+            }
         }
+        _unexpectedErrorOccurred.value = SET_PARENT_TO_ROOT_ERROR
     }
 
     fun getChildrenOfParent(): List<FileMetadata> {
-        val children: List<FileMetadata>? =
-            json.parseArray(getChildren(path, parentFileMetadata.id))
+        val children: Result<List<FileMetadata>, GetChildrenError>? =
+            json.parse(getChildren(path, parentFileMetadata.id))
 
         if (children != null) {
-            return children.filter { it.id != it.parent }
+            return when (children) {
+                is Ok -> children.value.filter { it.id != it.parent }
+                is Err -> {
+                    _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
+                    listOf()
+                }
+            }
         }
+        _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
 
         return listOf()
     }
 
     fun getSiblingsOfParent(): List<FileMetadata> {
-        val children: List<FileMetadata>? =
-            json.parseArray(getChildren(path, parentFileMetadata.parent))
+        val children: Result<List<FileMetadata>, GetChildrenError>? =
+            json.parse(getChildren(path, parentFileMetadata.parent))
 
         children?.let {
-            val editedChildren =
-                it.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
-            getParentOfParent()
-            return editedChildren
+            return when (it) {
+                is Ok -> {
+                    val editedChildren =
+                        it.value.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
+                    getParentOfParent()
+                    editedChildren
+                }
+                is Err -> {
+                    _unexpectedErrorOccurred.value = GET_CHILDREN_OF_PARENT_ERROR
+                    listOf()
+                }
+            }
+
+            return listOf()
         }
 
         return listOf()
     }
 
     private fun getParentOfParent() {
-        val serializedFileMetadata = getFileById(path, parentFileMetadata.parent)
-        val parent: FileMetadata? = json.parse(serializedFileMetadata)
+        val parent: Result<FileMetadata, GetFileByIdError>? = json.parse(getFileById(path, parentFileMetadata.parent))
 
         if (parent != null) {
-            parentFileMetadata = parent
+            return when(parent) {
+                is Ok -> parentFileMetadata = parent.value
+                is Err -> _unexpectedErrorOccurred.value = GET_FILE_BY_ID_ERROR
+            }
         }
+
+        _unexpectedErrorOccurred.value = GET_FILE_BY_ID_ERROR
     }
 
     fun getDocumentContent(fileUuid: String): String {
