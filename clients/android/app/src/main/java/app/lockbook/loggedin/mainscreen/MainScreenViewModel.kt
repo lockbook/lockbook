@@ -1,15 +1,20 @@
 package app.lockbook.loggedin.mainscreen
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.loggedin.listfiles.FilesFoldersClickInterface
-import app.lockbook.utils.Account
-import app.lockbook.utils.FileMetadata
-import app.lockbook.utils.FileType
+import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
+import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
+import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.utils.*
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInterface {
+class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -17,8 +22,8 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
     private val _navigateToFileEditor = MutableLiveData<String>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
-    lateinit var account: Account
-    val fileFolderModel = FileFolderModel(path)
+    private val _errorHasOccurred = MutableLiveData<String>()
+    private val fileFolderModel = FileFolderModel(Config(path))
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -32,9 +37,42 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
     val navigateToNewFileFolder: LiveData<Boolean>
         get() = _navigateToNewFileFolder
 
+    val errorHasOccurred: LiveData<String>
+        get() = _errorHasOccurred
+
+    companion object {
+        private const val SET_PARENT_TO_ROOT_ERROR =
+            "Couldn't retrieve root, please file a bug report."
+        private const val GET_PARENT_OF_PARENT_ERROR =
+            "Couldn't get parent of parent, please file a bug report." // needs something more user friendly
+        private const val GET_SIBLINGS_OF_PARENT_ERROR =
+            "Couldn't retrieve the upper directory, please file a bug report."
+        private const val REFRESH_CHILDREN_ERROR =
+            "Couldn't refresh the files on screen, please file a bug report."
+        private const val WRITE_NEW_TEXT_TO_DOCUMENT_ERROR =
+            "Couldn't save your changes, please file a bug report."
+        private const val ACCESS_DOCUMENT_ERROR =
+            "Couldn't access the document, please file a bug report."
+        private const val CREATE_FILE_ERROR =
+            "Couldn't create the file, please file a bug report."
+        private const val INSERT_FILE_ERROR =
+            "Couldn't add file to DB, please file a bug report."
+        private const val NEW_FILE_VIEW_ERROR =
+            "Couldn't create a new file based on view, please file a bug report."
+        private const val TEXT_EDITOR_VIEW_ERROR =
+            "Couldn't make changes based on view, please file a bug report."
+        private const val RENAME_VIEW_ERROR =
+            "Couldn't rename the file based on view, please file a bug report."
+    }
+
     fun startListFilesFolders() {
-        fileFolderModel.setParentToRoot()
-        _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
+        uiScope.launch {
+            fileFolderModel.setParentToRoot()
+            when (val children = fileFolderModel.getChildrenOfParent()) {
+                is Ok -> _filesFolders.postValue(children.value)
+                is Err -> _errorHasOccurred.postValue(SET_PARENT_TO_ROOT_ERROR)
+            }
+        }
     }
 
     fun launchNewFileFolder() {
@@ -44,7 +82,16 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
     fun upADirectory() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                _filesFolders.postValue(fileFolderModel.getSiblingsOfParent())
+                when (val siblings = fileFolderModel.getSiblingsOfParent()) {
+                    is Ok -> {
+                        when (val newParent = fileFolderModel.getParentOfParent()) {
+                            is Ok -> _filesFolders.postValue(siblings.value)
+                            is Err -> _errorHasOccurred.postValue(GET_PARENT_OF_PARENT_ERROR)
+                        }
+
+                    }
+                    is Err -> _errorHasOccurred.postValue(GET_SIBLINGS_OF_PARENT_ERROR)
+                }
             }
         }
     }
@@ -58,10 +105,13 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
         return true
     }
 
-    fun refreshFilesFolderList() {
+    fun refreshFiles() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
+                when (val children = fileFolderModel.getChildrenOfParent()) {
+                    is Ok -> _filesFolders.postValue(children.value)
+                    is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
+                }
             }
         }
     }
@@ -69,11 +119,31 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
     fun writeNewTextToDocument(content: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileFolderModel.writeContentToDocument(content)
+                val writeResult = fileFolderModel.writeContentToDocument(content)
+                if (writeResult is Err) {
+                    _errorHasOccurred.postValue(WRITE_NEW_TEXT_TO_DOCUMENT_ERROR)
+                }
             }
         }
     }
-//
+
+    fun createInsertFile(name: String, fileType: String) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                when (val createFileResult = fileFolderModel.createFile(name, fileType)) {
+                    is Ok -> {
+                        val insertFileResult = fileFolderModel.insertFile(createFileResult.value)
+                        if (insertFileResult is Err) {
+                            _errorHasOccurred.postValue(INSERT_FILE_ERROR)
+                        }
+                    }
+                    is Err -> _errorHasOccurred.postValue(CREATE_FILE_ERROR)
+                }
+            }
+        }
+    }
+
+    //
 //    fun syncInBackground() { // syncs in the background
 //        uiScope.launch {
 //            withContext(Dispatchers.IO) {
@@ -91,6 +161,35 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
 //        return fileFolderModel.allSyncWork.work_units.size
 //    }
 //
+
+    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when (requestCode) {
+            MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
+                if (data is Intent) {
+                    createInsertFile(data.getStringExtra("name"), data.getStringExtra("fileType"))
+                    refreshFiles()
+                } else {
+                    _errorHasOccurred.postValue(NEW_FILE_VIEW_ERROR)
+                }
+            }
+            MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
+                if (data is Intent) {
+                    writeNewTextToDocument(data.getStringExtra("text"))
+                } else {
+                    _errorHasOccurred.postValue(TEXT_EDITOR_VIEW_ERROR)
+                }
+            }
+            MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> {
+                if (data is Intent) {
+                    fileFolderModel
+                    refreshFiles()
+                } else {
+                    _errorHasOccurred.postValue(RENAME_VIEW_ERROR)
+                }
+            }
+        }
+    }
+
     override fun onItemClick(position: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -99,10 +198,15 @@ class MainScreenViewModel(val path: String) : ViewModel(), FilesFoldersClickInte
 
                     if (item.file_type == FileType.Folder) {
                         fileFolderModel.parentFileMetadata = item
-                        _filesFolders.postValue(fileFolderModel.getChildrenOfParent())
+                        refreshFiles()
                     } else {
-                        _navigateToFileEditor.postValue(fileFolderModel.getDocumentContent(item.id))
-                        fileFolderModel.lastDocumentAccessed = item
+                        when (val documentResult = fileFolderModel.getDocumentContent(item.id)) {
+                            is Ok -> {
+                                _navigateToFileEditor.postValue(documentResult.value)
+                                fileFolderModel.lastDocumentAccessed = item
+                            }
+                            is Err -> _errorHasOccurred.postValue(ACCESS_DOCUMENT_ERROR)
+                        }
                     }
                 }
             }
