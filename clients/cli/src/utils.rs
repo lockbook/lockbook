@@ -1,74 +1,38 @@
-use std::thread::sleep;
-use std::{env, time};
+use std::env;
 
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
-use lockbook_core::model::account::Account;
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::account_repo::{AccountRepo, Error};
-use lockbook_core::repo::db_provider::DbProvider;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::clock_service::Clock;
-use lockbook_core::{
-    Db, DefaultAccountRepo, DefaultClock, DefaultDbProvider, DefaultFileMetadataRepo,
-};
+use lockbook_core::{get_last_synced, DefaultClock};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
+use crate::NO_ACCOUNT;
+use std::process::exit;
 
-pub fn connect_to_db() -> Db {
-    // Save data in LOCKBOOK_CLI_LOCATION or ~/.lockbook/
+pub fn get_config() -> Config {
     let path = env::var("LOCKBOOK_CLI_LOCATION")
         .unwrap_or(format!("{}/.lockbook", env::var("HOME")
             .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
         );
 
-    let config = Config {
+    Config {
         writeable_path: path,
-    };
-
-    // Try to connect 3 times waiting 10ms and 150ms
-    // If there's a particularly long write or something going on the write would be blocked, we don't
-    // want to panic in this case when waiting a very small amount of time would do fine
-    match DefaultDbProvider::connect_to_db(&config) {
-        Ok(db) => db,
-        Err(_) => {
-            sleep(time::Duration::from_millis(10));
-            match DefaultDbProvider::connect_to_db(&config) {
-                Ok(db) => db,
-                Err(_) => {
-                    sleep(time::Duration::from_millis(100));
-                    match DefaultDbProvider::connect_to_db(&config) {
-                        Ok(db) => db,
-                        Err(_) => {
-                            sleep(time::Duration::from_millis(2000));
-                            match DefaultDbProvider::connect_to_db(&config) {
-                                Ok(db) => db,
-                                Err(err) => panic!("Could not connect to db! Error: {:?}", err),
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
-pub fn get_account(db: &Db) -> Account {
-    // DefaultAccountRepo::get_account(&db).expect("test")
-    match DefaultAccountRepo::get_account(&db) {
-        Ok(account) => account,
-        Err(err) => match err {
-            Error::SledError(err) => {
-                panic!("No account found, run init, import or help. Error: {}", err)
-            }
-            Error::SerdeError(err) => panic!("Account data corrupted: {}", err),
-            Error::AccountMissing(err) => panic!(
-                "No account found, run init, import or help. Error: {:?}",
-                err
-            ),
-        },
+pub fn exit_with_no_account() -> ! {
+    exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
+}
+
+pub fn exit_with(message: &str, status: u8) -> ! {
+    if status == 0 {
+        println!("{}", message);
+    } else {
+        eprintln!("{}", message);
     }
+    exit(status as i32);
 }
 
 // In order of superiority
@@ -122,9 +86,9 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         .success()
 }
 
-pub fn print_last_successful_sync(db: &Db) {
+pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = DefaultFileMetadataRepo::get_last_updated(&db)
+        let last_updated = get_last_synced(&get_config())
             .expect("Failed to retrieve content from FileMetadataRepo");
 
         let duration = if last_updated != 0 {

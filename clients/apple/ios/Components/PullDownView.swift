@@ -1,24 +1,12 @@
 //
-//  ListView.swift
-//  ios_client
+//  PullDownView.swift
+//  ios
 //
-//  Created by Raayan Pillai on 4/11/20.
+//  Created by Raayan Pillai on 7/6/20.
 //  Copyright © 2020 Lockbook. All rights reserved.
 //
 
 import SwiftUI
-
-struct FileBrowser: View {
-    @EnvironmentObject var coordinator: Coordinator
-    
-    var body: some View {
-        GeometryReader{ geometry in
-            NavigationView {
-                PullDownView(width: geometry.size.width, height: geometry.size.height)
-            }
-        }
-    }
-}
 
 struct PullDownView : UIViewRepresentable {
     @EnvironmentObject var coordinator: Coordinator
@@ -34,10 +22,15 @@ struct PullDownView : UIViewRepresentable {
         let control = UIScrollView()
         control.refreshControl = UIRefreshControl()
         control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
-        let childView = UIHostingController(rootView: FolderView(dirId: self.coordinator.getRoot(), dirName: "\(coordinator.username)'s Files").environmentObject(self.coordinator))
-        childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
-        
-        control.addSubview(childView.view)
+        if let root = self.coordinator.getRoot() {
+            let childView = UIHostingController(rootView: FolderList(coordinator: self.coordinator, dirId: root, dirName: "\(self.coordinator.account.username)'s Files"))
+            childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            control.addSubview(childView.view)
+        } else {
+            let childView = UIHostingController(rootView: Text("Something has gone horribly wrong..."))
+            childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            control.addSubview(childView.view)
+        }
         return control
     }
     
@@ -57,9 +50,10 @@ struct PullDownView : UIViewRepresentable {
     }
 }
 
-
-struct ListView_Previews: PreviewProvider {
+struct PullDownView_Previews: PreviewProvider {
     static var previews: some View {
-        FileBrowser().preferredColorScheme(.dark).environmentObject(Coordinator())
+        GeometryReader { geometry in
+            PullDownView(width: geometry.size.width, height: geometry.size.height).environmentObject(Coordinator())
+        }
     }
 }
