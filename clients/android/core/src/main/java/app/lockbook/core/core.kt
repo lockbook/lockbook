@@ -11,15 +11,10 @@ external fun getChildren(config: String, id: String): String
 external fun getFileById(config: String, id: String): String
 
 external fun insertFile(config: String, fileMetadata: String): String
-external fun deleteFile(config: String, id: String): String
 external fun renameFile(config: String, id: String, name: String): String
 external fun createFile(config: String, id: String, fileType: String, name: String): String
 external fun readDocument(config: String, id: String): String
 external fun writeDocument(config: String, id: String, content: String): String
-
-external fun sync(path: String): Int
-external fun calculateWork(path: String): String
-external fun executeWork(path: String, account: String, work: String): Int
 
 fun loadLockbookCore() {
     System.loadLibrary("lockbook_core")

@@ -10,6 +10,7 @@ import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_new_file_folder.*
 import kotlinx.android.synthetic.main.activity_new_file_folder.name_text
+import kotlinx.android.synthetic.main.activity_popup_info.*
 import kotlinx.coroutines.*
 
 class NewFileFolderActivity : Activity() {
@@ -37,12 +38,8 @@ class NewFileFolderActivity : Activity() {
                     json.toJsonString(FileType.Folder)
                 }
 
-                FileFolderModel.insertFileFolder(
-                    intent.getStringExtra("path"),
-                    intent.getStringExtra("parentUuid"),
-                    fileType,
-                    name_text.text.toString()
-                )
+                intent.putExtra("fileType", fileType)
+                intent.putExtra("name", new_name_text.text.toString())
 
                 withContext(Dispatchers.Main) {
                     finish()

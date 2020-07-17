@@ -9,6 +9,12 @@ import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
 import app.lockbook.databinding.ActivityImportAccountBinding
+import app.lockbook.utils.Config
+import app.lockbook.utils.ImportError
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
 import kotlinx.coroutines.*
@@ -17,9 +23,6 @@ class ImportAccountActivity : AppCompatActivity() {
 
     companion object {
         private const val QR_CODE_SCANNER_REQUEST_CODE = 101
-
-        private const val OK = 0 // should handle
-        private const val ACCOUNT_STRING_INVALID = 2    // should handle
     }
 
     private var job = Job()
@@ -37,7 +40,7 @@ class ImportAccountActivity : AppCompatActivity() {
         binding.importAccountActivity = this
     }
 
-    fun importAccountFromAccountString() {
+    fun onClickImportAccount() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 handleImportResult(importAccountFromString(account_string.text.toString()))
@@ -59,26 +62,39 @@ class ImportAccountActivity : AppCompatActivity() {
         }
     }
 
-    private fun importAccountFromString(account: String): Int {
-        return importAccount(filesDir.absolutePath, account)
+    private fun importAccountFromString(account: String): Result<Unit, ImportError> {
+        val json = Klaxon()
+        val config = json.toJsonString(Config(filesDir.absolutePath))
+
+        val importResult: Result<Unit, ImportError>? = json.parse(importAccount(config, account))
+
+        importResult?.let {
+            return importResult
+        }
+
+        return Err(ImportError.UnexpectedError("Unable to parse import json!"))
     }
 
-    private fun handleImportResult(resultCode: Int) {
-        when (resultCode) {
-            OK -> {
+    private fun handleImportResult(importResult: Result<Unit, ImportError>) {
+        when (importResult) {
+            is Ok -> {
                 startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                 finishAffinity()
             }
-            ACCOUNT_STRING_INVALID -> Toast.makeText(
-                applicationContext,
-                "Account String invalid!",
-                Toast.LENGTH_LONG
-            ).show()
-            else -> Toast.makeText(
-                applicationContext,
-                "Unexpected error occured, please create a bug report (activity_settings)",
-                Toast.LENGTH_LONG
-            ).show()
+            is Err ->
+                if (importResult.error is ImportError.AccountStringCorrupted) {
+                    Toast.makeText(
+                        applicationContext,
+                        "Account String invalid!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        applicationContext,
+                        "Unexpected error occurred, please create a bug report (activity_settings)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
         }
     }
 
