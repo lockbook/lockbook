@@ -18,7 +18,7 @@ use crate::service::file_encryption_service::{FileEncryptionService, RootFolderC
 #[derive(Debug)]
 pub enum AccountCreationError {
     KeyGenerationError(rsa::errors::Error),
-    PersistenceError(account_repo::Error),
+    PersistenceError(account_repo::AccountRepoError),
     FolderError(RootFolderCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
     ApiError(client::Error<NewAccountError>),
@@ -30,13 +30,13 @@ pub enum AccountCreationError {
 pub enum AccountImportError {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
-    PersistenceError(account_repo::Error),
+    PersistenceError(account_repo::AccountRepoError),
     InvalidPrivateKey(rsa::errors::Error),
 }
 
 #[derive(Debug)]
 pub enum AccountExportError {
-    KeyRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     AccountStringFailedToSerialize(bincode::Error),
 }
 
@@ -153,7 +153,7 @@ impl<
 
     fn export_account(db: &Db) -> Result<String, AccountExportError> {
         let account =
-            &AccountDb::get_account(&db).map_err(AccountExportError::KeyRetrievalError)?;
+            &AccountDb::get_account(&db).map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))
