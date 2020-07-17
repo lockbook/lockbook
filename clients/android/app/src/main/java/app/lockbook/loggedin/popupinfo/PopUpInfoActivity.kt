@@ -9,12 +9,7 @@ import app.lockbook.databinding.ActivityPopupInfoBinding
 import kotlinx.android.synthetic.main.activity_popup_info.*
 import kotlinx.coroutines.*
 
-class PopUpInfoActivity: Activity() {
-
-    companion object {
-        const val OK: Int = 0
-        const val ERR: Int = 1
-    }
+class PopUpInfoActivity : Activity() {
 
     var name: String = "ERROR"
     var id: String = "ERROR"
@@ -30,7 +25,8 @@ class PopUpInfoActivity: Activity() {
 
         setUpInfo()
 
-        val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(this,
+        val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(
+            this,
             R.layout.activity_popup_info
         )
         binding.popUpInfoActivity = this
@@ -45,15 +41,9 @@ class PopUpInfoActivity: Activity() {
     }
 
     fun rename() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                setResult(renameFile(intent.getStringExtra("path"), id, new_name_text.text.toString()))
+        intent.putExtra("text", new_name_text.text.toString())
 
-                withContext(Dispatchers.Main) {
-                    finish()
-                }
-            }
-        }
+        finish()
     }
 
 }

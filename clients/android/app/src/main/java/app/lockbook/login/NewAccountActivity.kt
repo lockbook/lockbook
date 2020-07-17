@@ -8,7 +8,15 @@ import androidx.databinding.DataBindingUtil
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.createAccount
+import app.lockbook.core.importAccount
 import app.lockbook.databinding.ActivityNewAccountBinding
+import app.lockbook.utils.Config
+import app.lockbook.utils.CreateAccountError
+import app.lockbook.utils.ImportError
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.coroutines.*
 
@@ -16,10 +24,6 @@ class NewAccountActivity : AppCompatActivity() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-
-    private val success = 0 // should handle
-    private val networkError = 4 // should handle
-    private val usernameTaken = 6 // should handle
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,25 +35,47 @@ class NewAccountActivity : AppCompatActivity() {
         binding.newAccountActivity = this
     }
 
-    fun createAccount() { // add an invalid string choice, as an empty textview will call an error
+    fun onClickCreateAccount() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                when (createAccount(filesDir.absolutePath, username.text.toString())) {
-                    success -> {
-                        startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                        finishAffinity()
-                    }
-                    usernameTaken -> withContext(Dispatchers.Main) {
+                handleCreateAccountResult(createAccountFromString(username.text.toString()))
+            }
+        }
+    }
+
+    private fun createAccountFromString(account: String): Result<Unit, CreateAccountError> {
+        val json = Klaxon()
+        val config = json.toJsonString(Config(filesDir.absolutePath))
+
+        val createResult: Result<Unit, CreateAccountError>? =
+            json.parse(createAccount(config, account))
+
+        createResult?.let {
+            return createResult
+        }
+
+        return Err(CreateAccountError.UnexpectedError("Unable to parse import json!"))
+    }
+
+    private fun handleCreateAccountResult(createAccountResult: Result<Unit, CreateAccountError>) { // add an invalid string choice, as an empty textview will call an error
+        when (createAccountResult) {
+            is Ok -> {
+                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                finishAffinity()
+            }
+            is Err -> {
+                when (createAccountResult.error) {
+                    is CreateAccountError.InvalidUsername -> {
                         username.error = "Username Taken!"
                     }
-                    networkError -> withContext(Dispatchers.Main) {
+                    is CreateAccountError.CouldNotReachServer -> {
                         Toast.makeText(
                             applicationContext,
                             "Network Unavailable",
                             Toast.LENGTH_LONG
                         ).show()
                     }
-                    else -> withContext(Dispatchers.Main) {
+                    else -> {
                         Toast.makeText(
                             applicationContext,
                             "Unexpected error occured, please create a bug report (activity_settings)",

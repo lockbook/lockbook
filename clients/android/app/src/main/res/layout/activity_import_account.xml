@@ -54,7 +54,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:backgroundTint="?attr/colorPrimary"
-            android:onClick="@{() -> importAccountActivity.importAccountFromAccountString()}"
+            android:onClick="@{() -> importAccountActivity.onClickImportAccount()}"
             android:text="Import"
             android:textColor="#000000" />
 

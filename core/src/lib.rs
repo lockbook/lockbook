@@ -11,7 +11,6 @@ use crate::CreateFileAtPathError::{
     DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
 use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::GetRootError::UnexpectedError;
 use crate::ImportError::AccountStringCorrupted;
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
@@ -45,6 +44,8 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
+use crate::repo::{file_metadata_repo, document_repo};
+use serde::Serialize;
 
 pub mod c_interface;
 pub mod client;
@@ -108,7 +109,7 @@ fn connect_to_db(config: &Config) -> Result<Db, String> {
     Ok(db)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CreateAccountError {
     UsernameTaken,
     InvalidUsername,
@@ -152,7 +153,7 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ImportError {
     AccountStringCorrupted,
     UnexpectedError(String),
@@ -174,7 +175,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum AccountExportError {
     NoAccount,
     UnexpectedError(String),
@@ -199,7 +200,7 @@ pub fn export_account(config: &Config) -> Result<String, AccountExportError> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetAccountError {
     NoAccount,
     UnexpectedError(String),
@@ -219,6 +220,7 @@ pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
     }
 }
 
+#[derive(Debug, Serialize)]
 pub enum CreateFileAtPathError {
     FileAlreadyExists,
     NoAccount,
@@ -268,7 +270,7 @@ pub fn create_file_at_path(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum WriteToDocumentError {
     NoAccount,
     FileDoesNotExist,
@@ -305,7 +307,7 @@ pub fn write_document(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CreateFileError {
     NoAccount,
     DocumentTreatedAsFolder,
@@ -347,7 +349,7 @@ pub fn create_file(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetRootError {
     NoRoot,
     UnexpectedError(String),
@@ -365,13 +367,13 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetChildrenError {
     UnexpectedError(String),
 }
 
 pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<FileMetadata>, GetChildrenError> {
-    let db = connect_to_db(&config).map_err(GetRootError::UnexpectedError)?;
+    let db = connect_to_db(&config).map_err(GetChildrenError::UnexpectedError)?;
 
     match DefaultFileMetadataRepo::get_children(&db, id) {
         Ok(file_metadata_list) => Ok(file_metadata_list),
@@ -379,7 +381,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<FileMetadata>, GetC
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetFileByIdError {
     NoFileWithThatId,
     UnexpectedError(String),
@@ -392,16 +394,16 @@ pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, GetFile
         Ok(file_metadata) => Ok(file_metadata),
         Err(err) => {
             match err {
-                Error::FileRowMissing(_) => Err(GetFileByIdError::NoFileWithThatId),
-                Error::SledError(_)
-                | Error::SerdeError(_) => Err(GetFileByIdError::UnexpectedError(format!("{:#?}", err))),
+                file_metadata_repo::Error::FileRowMissing(_) => Err(GetFileByIdError::NoFileWithThatId),
+                file_metadata_repo::Error::SledError(_)
+                | file_metadata_repo::Error::SerdeError(_) => Err(GetFileByIdError::UnexpectedError(format!("{:#?}", err))),
             }
         }
     }
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetFileByPathError {
     NoFileAtThatPath,
     UnexpectedError(String),
@@ -419,13 +421,13 @@ pub fn get_file_by_path(config: &Config, path: &str) -> Result<FileMetadata, Get
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum InsertFileError {
     UnexpectedError(String),
 }
 
 pub fn insert_file(config: &Config, file_metadata: FileMetadata) -> Result<(), InsertFileError> {
-    let db = connect_to_db(&config).map_err(GetFileByPathError::UnexpectedError)?;
+    let db = connect_to_db(&config).map_err(InsertFileError::UnexpectedError)?;
 
     match FileMetadataRepoImpl::insert(&db, &file_metadata) {
         Ok(()) => Ok(()),
@@ -433,26 +435,26 @@ pub fn insert_file(config: &Config, file_metadata: FileMetadata) -> Result<(), I
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DeleteFileError {
     NoFileWithThatId,
     UnexpectedError(String),
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), DeleteFileError> {
-    let db = connect_to_db(&config).map_err(GetFileByPathError::UnexpectedError)?;
+    let db = connect_to_db(&config).map_err(DeleteFileError::UnexpectedError)?;
 
     match DocumentRepoImpl::delete(&db, id) {
         Ok(()) => Ok(()),
         Err(err) => match err {
-            Error::SledError(_)
-            | Error::SerdeError(_) => Err(DeleteFileError::UnexpectedError(format!("{:#?}", err))),
-            Error::FileRowMissing(_) => Err(DeleteFileError::NoFileWithThatId)
+            document_repo::Error::SledError(_)
+            | document_repo::Error::SerdeError(_) => Err(DeleteFileError::UnexpectedError(format!("{:#?}", err))),
+            document_repo::Error::FileRowMissing(_) => Err(DeleteFileError::NoFileWithThatId)
         },
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ReadDocumentError {
     TreatedFolderAsDocument,
     NoAccount,
@@ -486,7 +488,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedValue, ReadDo
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ListPathsError {
     UnexpectedError(String),
 }
@@ -500,7 +502,7 @@ pub fn list_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameContainsSlash,
@@ -526,7 +528,7 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Rena
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum MoveFileError {
     NoAccount,
     FileDoesntExist,
@@ -565,7 +567,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CalculateWorkError {
     NoAccount,
     CouldNotReachServer,
@@ -603,7 +605,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ExecuteWorkError {
     NetworkIssue,
     UnexpectedError(String),
@@ -699,7 +701,7 @@ pub fn execute_work(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum SetLastSyncedError {
     UnexpectedError(String),
 }
@@ -713,7 +715,7 @@ pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), SetLastSyn
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetLastSyncedError {
     UnexpectedError(String),
 }
