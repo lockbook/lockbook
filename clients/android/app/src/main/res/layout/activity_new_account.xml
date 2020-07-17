@@ -86,7 +86,7 @@
             android:backgroundTint="?attr/colorPrimary"
             android:text="Continue"
             android:textColor="#000000"
-            android:onClick="@{() -> newAccountActivity.createAccount()}"/>
+            android:onClick="@{() -> newAccountActivity.onClickCreateAccount()}"/>
 
     </LinearLayout>
 </layout>

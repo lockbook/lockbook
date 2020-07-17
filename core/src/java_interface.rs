@@ -1,26 +1,16 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 
-use crate::{init_logger_safely, create_account, CreateAccountError, import_account, get_root, get_children, get_file_by_id, insert_file, delete_file, create_file, write_document, read_document, rename_file, DB_NAME};
+use crate::{init_logger_safely, create_account, import_account, get_root, get_children, get_file_by_id, insert_file, delete_file, create_file, write_document, read_document, rename_file, DB_NAME};
 use crate::model::state::Config;
 use uuid::Uuid;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::crypto::DecryptedValue;
+use jni::sys::jboolean;
 use std::path::Path;
+use serde::Serialize;
 
-fn error_to_string<U>(error: U, env: JNIEnv) -> JString {
-    match serde_json::to_string(error) {
-        Ok(v) => {
-            match env.new_string(v) {
-                Ok(t) => return t,
-                Err(e) => error_to_string(e, env),
-            }
-        },
-        Err(e) => error_to_string(e, env),
-    }
-}
-
-fn serialize_to_jstring<U>(result: U) -> JString {
+fn serialize_to_jstring< U: Serialize>(env: JNIEnv, result: U) -> JString {
     let serialized_result = serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
     env.new_string(serialized_result).expect("Couldn't create JString from rust string!")
 }
@@ -74,7 +64,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount<'a>(
 
     let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config (path) string into config!");
 
-    serialize_to_jstring(create_account(&deserialized_config, username.as_str()))
+    serialize_to_jstring(env, create_account(&deserialized_config, username.as_str()))
 }
 
 #[no_mangle]
@@ -96,7 +86,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_importAccount<'a>(
 
     let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    serialize_to_jstring(import_account(&deserialized_config, serialized_account.as_str()))
+    serialize_to_jstring(env, import_account(&deserialized_config, serialized_account.as_str()))
 }
 
 #[no_mangle]
@@ -112,7 +102,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
 
     let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    serialize_to_jstring(get_root(&deserialized_config))
+    serialize_to_jstring(env, get_root(&deserialized_config))
 }
 
 #[no_mangle]
@@ -136,7 +126,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_getChildren<'a>(
 
     let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(get_children(&deserialized_config, deserialized_id))
+    serialize_to_jstring(env, get_children(&deserialized_config, deserialized_id))
 }
 
 pub extern "system" fn Java_app_lockbook_core_Corekt_getFileById<'a>(
@@ -159,7 +149,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_getFileById<'a>(
 
     let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(get_file_by_id(&deserialized_config, deserialized_id))
+    serialize_to_jstring(env, get_file_by_id(&deserialized_config, deserialized_id))
 }
 
 pub extern "system" fn Java_app_lockbook_core_Corekt_insertFile<'a>(
@@ -182,7 +172,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_insertFile<'a>(
 
     let deserialized_file_metadata: FileMetadata = serde_json::from_str(&serialized_file_metadata).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(insert_file(&deserialized_config, deserialized_file_metadata))
+    serialize_to_jstring(env, insert_file(&deserialized_config, deserialized_file_metadata))
 }
 
 pub extern "system" fn Java_app_lockbook_core_Corekt_deleteFile<'a>(
@@ -205,7 +195,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_deleteFile<'a>(
 
     let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(delete_file(&deserialized_config, deserialized_id))
+    serialize_to_jstring(env, delete_file(&deserialized_config, deserialized_id))
 }
 
 #[no_mangle]
@@ -232,7 +222,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile<'a>(
         .expect("Couldn't read the uuid out of JNI!")
         .into();
 
-    let serialized_filetype = env
+    let serialized_filetype: String = env
         .get_string(jfiletype)
         .expect("Couldn't read the filetype out of JNI!")
         .into();
@@ -243,7 +233,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile<'a>(
 
     let deserialized_filetype: FileType = serde_json::from_str(&serialized_filetype).expect("Couldn't deserialize filetype string into filetype!");
 
-    serialize_to_jstring(create_file(&deserialized_config, name.as_str(), deserialized_id, deserialized_filetype))
+    serialize_to_jstring(env, create_file(&deserialized_config, name.as_str(), deserialized_id, deserialized_filetype))
 }
 
 #[no_mangle]
@@ -275,7 +265,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_writeDocument<'a>(
 
     let deserialized_content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialize content string into content!");
 
-    serialize_to_jstring(write_document(&deserialized_config, deserialized_id, &deserialized_content))
+    serialize_to_jstring(env, write_document(&deserialized_config, deserialized_id, &deserialized_content))
 }
 
 pub extern "system" fn Java_app_lockbook_core_Corekt_readDocument<'a>(
@@ -298,7 +288,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_readDocument<'a>(
 
     let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(read_document(&deserialized_config, deserialized_id))
+    serialize_to_jstring(env, read_document(&deserialized_config, deserialized_id))
 }
 
 pub extern "system" fn Java_app_lockbook_core_Corekt_renameFile<'a>(
@@ -327,7 +317,7 @@ pub extern "system" fn Java_app_lockbook_core_Corekt_renameFile<'a>(
 
     let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(rename_file(&deserialized_config, deserialized_id, name.as_str()))
+    serialize_to_jstring(env, rename_file(&deserialized_config, deserialized_id, name.as_str()))
 }
 
 
