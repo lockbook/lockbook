@@ -1,6 +1,8 @@
 package app.lockbook.loggedin.mainscreen
 
+import android.app.Activity.RESULT_OK
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -67,10 +69,15 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
 
     fun startListFilesFolders() {
         uiScope.launch {
-            fileFolderModel.setParentToRoot()
-            when (val children = fileFolderModel.getChildrenOfParent()) {
-                is Ok -> _filesFolders.postValue(children.value)
-                is Err -> _errorHasOccurred.postValue(SET_PARENT_TO_ROOT_ERROR)
+            withContext(Dispatchers.IO) {
+                if(fileFolderModel.setParentToRoot() is Ok) {
+                    when (val children = fileFolderModel.getChildrenOfParent()) {
+                        is Ok -> _filesFolders.postValue(children.value)
+                        is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
+                    }
+                } else {
+                    _errorHasOccurred.postValue(SET_PARENT_TO_ROOT_ERROR)
+                }
             }
         }
     }
@@ -79,7 +86,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         _navigateToNewFileFolder.value = true
     }
 
-    fun upADirectory() {
+    private fun upADirectory() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (val siblings = fileFolderModel.getSiblingsOfParent()) {
@@ -105,7 +112,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         return true
     }
 
-    fun refreshFiles() {
+    private fun refreshFiles() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (val children = fileFolderModel.getChildrenOfParent()) {
@@ -116,7 +123,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         }
     }
 
-    fun writeNewTextToDocument(content: String) {
+    private fun writeNewTextToDocument(content: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val writeResult = fileFolderModel.writeContentToDocument(content)
@@ -127,7 +134,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         }
     }
 
-    fun createInsertFile(name: String, fileType: String) {
+    private fun createInsertFile(name: String, fileType: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (val createFileResult = fileFolderModel.createFile(name, fileType)) {
@@ -137,7 +144,9 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
                             _errorHasOccurred.postValue(INSERT_FILE_ERROR)
                         }
                     }
-                    is Err -> _errorHasOccurred.postValue(CREATE_FILE_ERROR)
+                    is Err -> {
+                        _errorHasOccurred.postValue(CREATE_FILE_ERROR)
+                    }
                 }
             }
         }
@@ -165,7 +174,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
             MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
-                if (data is Intent) {
+                if (data is Intent && resultCode == RESULT_OK) {
                     createInsertFile(data.getStringExtra("name"), data.getStringExtra("fileType"))
                     refreshFiles()
                 } else {
@@ -173,14 +182,14 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
                 }
             }
             MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
-                if (data is Intent) {
+                if (data is Intent && resultCode == RESULT_OK) {
                     writeNewTextToDocument(data.getStringExtra("text"))
                 } else {
                     _errorHasOccurred.postValue(TEXT_EDITOR_VIEW_ERROR)
                 }
             }
             MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> {
-                if (data is Intent) {
+                if (data is Intent && resultCode == RESULT_OK) {
                     fileFolderModel
                     refreshFiles()
                 } else {
