@@ -3,15 +3,15 @@ use sled::Db;
 use crate::model::account::Account;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum AccountRepoError {
     SledError(sled::Error),
     SerdeError(serde_json::Error),
-    AccountMissing(()),
+    NoAccount(()), // TODO remove empty parens
 }
 
 pub trait AccountRepo {
-    fn insert_account(db: &Db, account: &Account) -> Result<(), Error>;
-    fn get_account(db: &Db) -> Result<Account, Error>;
+    fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError>;
+    fn get_account(db: &Db) -> Result<Account, AccountRepoError>;
 }
 
 pub struct AccountRepoImpl;
@@ -19,21 +19,22 @@ pub struct AccountRepoImpl;
 static ACCOUNT: &str = "account";
 
 impl AccountRepo for AccountRepoImpl {
-    fn insert_account(db: &Db, account: &Account) -> Result<(), Error> {
-        let tree = db.open_tree(ACCOUNT).map_err(Error::SledError)?;
+    fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError> {
+        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
         tree.insert(
             "you",
-            serde_json::to_vec(account).map_err(Error::SerdeError)?,
+            serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
         )
-        .map_err(Error::SledError)?;
+        .map_err(AccountRepoError::SledError)?;
         Ok(())
     }
 
-    fn get_account(db: &Db) -> Result<Account, Error> {
-        let tree = db.open_tree(ACCOUNT).map_err(Error::SledError)?;
-        let maybe_value = tree.get("you").map_err(Error::SledError)?;
-        let val = maybe_value.ok_or(()).map_err(Error::AccountMissing)?;
-        let account: Account = serde_json::from_slice(val.as_ref()).map_err(Error::SerdeError)?;
+    fn get_account(db: &Db) -> Result<Account, AccountRepoError> {
+        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
+        let maybe_value = tree.get("you").map_err(AccountRepoError::SledError)?;
+        let val = maybe_value.ok_or(()).map_err(AccountRepoError::NoAccount)?;
+        let account: Account =
+            serde_json::from_slice(val.as_ref()).map_err(AccountRepoError::SerdeError)?;
         Ok(account)
     }
 }

@@ -1,38 +1,41 @@
-use crate::utils::{connect_to_db, get_account};
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::{DocumentRenameError, FileService};
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NAME_CONTAINS_SLASH, UNEXPECTED_ERROR};
+use lockbook_core::{
+    get_account, get_file_by_path, rename_file, GetAccountError, GetFileByPathError,
+    RenameFileError,
+};
+use std::process::exit;
 
 pub fn rename(path: &str, new_name: &str) {
-    let db = connect_to_db();
-    get_account(&db);
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    }
 
-    match DefaultFileMetadataRepo::get_by_path(&db, path) {
-        Ok(maybe_fm) => match maybe_fm {
-            None => {
-                eprintln!("That path does not exist!");
-            }
-            Some(fm) => match DefaultFileService::rename_file(&db, fm.id, new_name) {
-                Ok(_) => {
-                    db.flush().unwrap();
+    match get_file_by_path(&get_config(), path) {
+        Ok(file_metadata) => match rename_file(&get_config(), file_metadata.id, new_name) {
+            Ok(_) => exit(0),
+            Err(err) => match err {
+                RenameFileError::NewNameContainsSlash => {
+                    exit_with("New name cannot contain a slash!", NAME_CONTAINS_SLASH)
                 }
-                Err(rename_error) => match rename_error {
-                    DocumentRenameError::FileNameContainsSlash => {
-                        eprintln!("The new name cannot contain a slash.");
-                    }
-                    DocumentRenameError::FileNameNotAvailable => {
-                        eprintln!("A file with this name exists at this location already.");
-                    }
-                    DocumentRenameError::FileDoesNotExist
-                    | DocumentRenameError::DbError(_)
-                    | DocumentRenameError::FailedToRecordChange(_) => {
-                        eprintln!("An unexpected error occurred! {:#?}", rename_error);
-                    }
-                },
+                RenameFileError::FileNameNotAvailable => {
+                    exit_with("File name not available!", FILE_NAME_NOT_AVAILABLE)
+                }
+                RenameFileError::FileDoesNotExist => {
+                    exit_with("Unexpected: FileDoesNotExist!", UNEXPECTED_ERROR)
+                }
+                RenameFileError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         },
-        Err(err) => {
-            eprintln!("An unexpected error occurred! {:#?}", err);
-        }
+        Err(err) => match err {
+            GetFileByPathError::NoFileAtThatPath => {
+                exit_with(&format!("No file at {}", path), FILE_NOT_FOUND)
+            }
+            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
 }
