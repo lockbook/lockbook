@@ -9,9 +9,9 @@ data class FileMetadata(
     val name: String,
     val owner: String,
     val signature: SignedValue,
-    val metadata_version: java.lang.Long,
-    val content_version: java.lang.Long,
-    val deleted: java.lang.Boolean,
+    val metadata_version: Long,
+    val content_version: Long,
+    val deleted: Boolean,
     val user_access_keys: LinkedHashMap<String, UserAccessInfo>,
     val folder_access_keys: FolderAccessInfo
 )

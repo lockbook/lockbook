@@ -42,7 +42,7 @@ class PopUpInfoActivity : Activity() {
 
     fun rename() {
         intent.putExtra("text", new_name_text.text.toString())
-
+        setResult(RESULT_OK, intent)
         finish()
     }
 

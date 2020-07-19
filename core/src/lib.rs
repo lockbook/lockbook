@@ -2,6 +2,8 @@
 extern crate log;
 extern crate reqwest;
 
+use jni::JNIEnv;
+use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
 
@@ -18,6 +20,7 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
+use crate::repo::{document_repo, file_metadata_repo};
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
@@ -44,8 +47,7 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
-use crate::repo::{file_metadata_repo, document_repo};
-use serde::Serialize;
+use jni::objects::JString;
 
 pub mod c_interface;
 pub mod client;
@@ -92,6 +94,11 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
+
+fn serialize_to_jstring<U: Serialize>(env: JNIEnv, result: U) -> JString {
+    let serialized_result = serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
+    env.new_string(serialized_result).expect("Couldn't create JString from rust string!")
+}
 
 pub fn init_logger_safely() {
     env_logger::init();
