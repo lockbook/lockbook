@@ -32,6 +32,7 @@ class TextEditorActivity : Activity() {
             intent.putExtra("text", "")
         }
 
+        setResult(RESULT_OK, intent)
         finish()
     }
 }

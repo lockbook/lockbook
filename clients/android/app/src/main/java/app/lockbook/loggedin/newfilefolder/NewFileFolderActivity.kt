@@ -39,7 +39,9 @@ class NewFileFolderActivity : Activity() {
                 }
 
                 intent.putExtra("fileType", fileType)
-                intent.putExtra("name", new_name_text.text.toString())
+                intent.putExtra("name", name_text.text.toString())
+
+                setResult(RESULT_OK, intent)
 
                 withContext(Dispatchers.Main) {
                     finish()

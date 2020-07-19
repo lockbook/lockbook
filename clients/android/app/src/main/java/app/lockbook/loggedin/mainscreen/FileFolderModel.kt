@@ -1,5 +1,6 @@
 package app.lockbook.loggedin.mainscreen
 
+import android.util.Log
 import app.lockbook.core.*
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
@@ -8,13 +9,13 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
 class FileFolderModel(config: Config) {
-    private val json = Klaxon()
-    private val config = json.toJsonString(config)
+    private val config = Klaxon().toJsonString(config)
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
 
     fun setParentToRoot(): Result<Unit, GetRootError> {
-        val root: Result<FileMetadata, GetRootError>? = json.parse(getRoot(config))
+        val root: Result<FileMetadata, GetRootError>? =
+            Klaxon().converter(getRootConverter).parse(getRoot(config))
 
         root?.let { rootResult ->
             return when (rootResult) {
@@ -31,9 +32,9 @@ class FileFolderModel(config: Config) {
         return Err<GetRootError>(GetRootError.UnexpectedError("Unable to parse getRoot json!"))
     }
 
-    fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> { // return result instead
+    fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
         val children: Result<List<FileMetadata>, GetChildrenError>? =
-            json.parse(getChildren(config, parentFileMetadata.id))
+            Klaxon().converter(getChildrenConverter).parse(getChildren(config, parentFileMetadata.id))
 
         children?.let { childrenResult ->
             return when (childrenResult) {
@@ -45,9 +46,10 @@ class FileFolderModel(config: Config) {
         return Err<GetChildrenError>(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
     }
 
-    fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> { // return result instead
+    fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> {
         val children: Result<List<FileMetadata>, GetChildrenError>? =
-            json.parse(getChildren(config, parentFileMetadata.parent))
+            Klaxon().converter(getChildrenConverter)
+                .parse(getChildren(config, parentFileMetadata.parent))
 
         children?.let { childrenResult ->
             return when (childrenResult) {
@@ -67,7 +69,9 @@ class FileFolderModel(config: Config) {
 
     fun getParentOfParent(): Result<Unit, GetFileByIdError> {
         val parent: Result<FileMetadata, GetFileByIdError>? =
-            json.parse(getFileById(config, parentFileMetadata.parent))
+            Klaxon().converter(
+                getFileByIdConverter
+            ).parse(getFileById(config, parentFileMetadata.parent))
 
         parent?.let { parentResult ->
             return when (parentResult) {
@@ -83,7 +87,7 @@ class FileFolderModel(config: Config) {
 
     fun getDocumentContent(fileUuid: String): Result<String, ReadDocumentError> { // return result instead
         val document: Result<DecryptedValue, ReadDocumentError>? =
-            json.parse(readDocument(config, fileUuid))
+            Klaxon().converter(readDocumentConverter).parse(readDocument(config, fileUuid))
 
         document?.let { documentResult ->
             return when (documentResult) {
@@ -96,13 +100,14 @@ class FileFolderModel(config: Config) {
     }
 
     fun writeContentToDocument(content: String): Result<Unit, WriteToDocumentError> { // have a return type to be handled in case it doesnt work
-        val write: Result<Unit, WriteToDocumentError>? = json.parse(
-            writeDocument(
-                config,
-                lastDocumentAccessed.id,
-                json.toJsonString(DecryptedValue(content))
+        val write: Result<Unit, WriteToDocumentError>? =
+            Klaxon().converter(writeDocumentConverter).parse(
+                writeDocument(
+                    config,
+                    lastDocumentAccessed.id,
+                    Klaxon().toJsonString(DecryptedValue(content))
+                )
             )
-        )
 
         write?.let { writeResult ->
             return when (writeResult) {
@@ -119,12 +124,15 @@ class FileFolderModel(config: Config) {
         fileType: String
     ): Result<FileMetadata, CreateFileError> {
         val file: Result<FileMetadata, CreateFileError>? =
-            json.parse(createFile(config, parentFileMetadata.id, fileType, name))
-
+            Klaxon().converter(createFileConverter).parse(createFile(config, name, parentFileMetadata.id, fileType))
         file?.let { createFileResult ->
             return when (createFileResult) {
-                is Ok -> Ok(createFileResult.value)
-                is Err -> Err(createFileResult.error)
+                is Ok -> {
+                    Ok(createFileResult.value)
+                }
+                is Err -> {
+                    Err(createFileResult.error)
+                }
             }
         }
 
@@ -134,16 +142,22 @@ class FileFolderModel(config: Config) {
     fun insertFile(
         fileMetadata: FileMetadata
     ): Result<Unit, InsertFileError> {
+        val result = insertFile(config, Klaxon().toJsonString(fileMetadata))
+        Log.i("SmailBarkouch", "THATS OKAY, $result")
         val insert: Result<Unit, InsertFileError>? =
-            json.parse(insertFile(config, json.toJsonString(fileMetadata)))
-
+            Klaxon().converter(insertFileConverter).parse(result)
         insert?.let { insertResult ->
             return when (insertResult) {
-                is Ok -> Ok(insertResult.value)
-                is Err -> Err(insertResult.error)
+                is Ok -> {
+                    Log.i("SmailBarkouch", "GOOD!")
+                    Ok(insertResult.value)
+                }
+                is Err -> {
+                    Log.i("SmailBarkouch", "BAD!")
+                    Err(insertResult.error)
+                }
             }
         }
-
         return Err<InsertFileError>(InsertFileError.UnexpectedError("Unable to parse insertFile json!"))
     }
 
@@ -152,10 +166,10 @@ class FileFolderModel(config: Config) {
         name: String
     ): Result<Unit, RenameFileError> {
         val rename: Result<Unit, RenameFileError>? =
-            json.parse(renameFile(config, id, name))
+            Klaxon().converter(renameFileConverter).parse(renameFile(config, id, name))
 
         rename?.let { renameResult ->
-            return when(renameResult) {
+            return when (renameResult) {
                 is Ok -> Ok(renameResult.value)
                 is Err -> Err(renameResult.error)
             }

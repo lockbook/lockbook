@@ -11,6 +11,7 @@ import app.lockbook.core.importAccount
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.utils.Config
 import app.lockbook.utils.ImportError
+import app.lockbook.utils.importAccountConverter
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -66,7 +67,7 @@ class ImportAccountActivity : AppCompatActivity() {
         val json = Klaxon()
         val config = json.toJsonString(Config(filesDir.absolutePath))
 
-        val importResult: Result<Unit, ImportError>? = json.parse(importAccount(config, account))
+        val importResult: Result<Unit, ImportError>? = json.converter(importAccountConverter).parse(importAccount(config, account))
 
         importResult?.let {
             return importResult
