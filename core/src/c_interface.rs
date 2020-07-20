@@ -306,18 +306,3 @@ pub unsafe extern "C" fn mark_file_for_deletion(
     // TODO: @raayan implement this when there's a good way to delete files
     ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn return_string() -> *const c_char {
-    CString::new("hello from rust!").unwrap().into_raw()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn accept_string(arg: *const c_char) {
-    from_ptr(arg);
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn echo_string(arg: *const c_char) -> *const c_char {
-    CString::new(from_ptr(arg).as_str()).unwrap().into_raw()
-}
