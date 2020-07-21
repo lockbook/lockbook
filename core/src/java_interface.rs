@@ -1,13 +1,16 @@
+use std::path::Path;
+
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
-
-use crate::{init_logger_safely, create_account, import_account, get_root, get_children, get_file_by_id, insert_file, delete_file, create_file, write_document, read_document, rename_file, DB_NAME, serialize_to_jstring};
-use crate::model::state::Config;
+use jni::sys::{jboolean, jstring};
 use uuid::Uuid;
-use crate::model::file_metadata::{FileMetadata, FileType};
+
+use crate::{calculate_work, create_account, create_file, CreateAccountError, CreateFileError, DB_NAME, delete_file, DeleteFileError, get_children, get_file_by_id, get_root, GetChildrenError, GetFileByIdError, GetRootError, import_account, ImportError, init_logger_safely, insert_file, InsertFileError, move_file, read_document, ReadDocumentError, rename_file, RenameFileError, serialize_to_jstring, sync_all, write_document, WriteToDocumentError, execute_work};
 use crate::model::crypto::DecryptedValue;
-use jni::sys::jboolean;
-use std::path::Path;
+use crate::model::file_metadata::{FileMetadata, FileType};
+use crate::model::state::Config;
+use crate::model::work_unit::WorkUnit;
+use crate::model::account::Account;
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
@@ -40,290 +43,507 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_isDbPresent(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jusername: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateAccountError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let username: String = env
-        .get_string(jusername)
-        .expect("Couldn't read the username out of JNI!")
-        .into();
+    let username: String = match env
+        .get_string(jusername) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateAccountError::UnexpectedError("Couldn't get username out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config (path) string into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateAccountError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    serialize_to_jstring(env, create_account(&deserialized_config, username.as_str()))
+    serialize_to_jstring(&env, create_account(&deserialized_config, username.as_str()))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_importAccount<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jaccount: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ImportError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_account: String = env
-        .get_string(jaccount)
-        .expect("Couldn't read the account string out of JNI!")
-        .into();
+    let serialized_account: String = match env
+        .get_string(jaccount) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ImportError::UnexpectedError("Couldn't get account out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ImportError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    serialize_to_jstring(env, import_account(&deserialized_config, serialized_account.as_str()))
+    serialize_to_jstring(&env, import_account(&deserialized_config, serialized_account.as_str()))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot<'a>(
-    env: JNIEnv<'a>,
-    _: JClass,
-    jconfig: JString
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
-
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
-
-    serialize_to_jstring(env, get_root(&deserialized_config))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
-    jid: JString
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetRootError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetRootError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
-
-    serialize_to_jstring(env, get_children(&deserialized_config, deserialized_id))
+    serialize_to_jstring(&env, get_root(&deserialized_config))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_getFileById<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jid: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetChildrenError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetChildrenError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetChildrenError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetChildrenError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
 
-    serialize_to_jstring(env, get_file_by_id(&deserialized_config, deserialized_id))
+
+    serialize_to_jstring(&env, get_children(&deserialized_config, deserialized_id))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_insertFile<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetFileByIdError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
+
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetFileByIdError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetFileByIdError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
+
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, GetFileByIdError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
+
+    serialize_to_jstring(&env, get_file_by_id(&deserialized_config, deserialized_id))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jfilemetadata: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, InsertFileError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_file_metadata: String = env
-        .get_string(jfilemetadata)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_file_metadata: String = match env
+        .get_string(jfilemetadata) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, InsertFileError::UnexpectedError("Couldn't get file metadata out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, InsertFileError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_file_metadata: FileMetadata = serde_json::from_str(&serialized_file_metadata).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(env, insert_file(&deserialized_config, deserialized_file_metadata))
+    let deserialized_file_metadata: FileMetadata = match serde_json::from_str(&serialized_file_metadata) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, InsertFileError::UnexpectedError("Couldn't deserialize file metadata!".to_string())),
+    };
+
+
+    serialize_to_jstring(&env, insert_file(&deserialized_config, deserialized_file_metadata))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_renameFile<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jid: JString,
-    jname: JString
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+    jname: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, RenameFileError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, RenameFileError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let name: String = env
-        .get_string(jname)
-        .expect("Couldn't read the name out of JNI!")
-        .into();
+    let name: String = match env
+        .get_string(jname) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, RenameFileError::UnexpectedError("Couldn't get name out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, RenameFileError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, RenameFileError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
 
-    serialize_to_jstring(env, rename_file(&deserialized_config, deserialized_id, name.as_str()))
+    serialize_to_jstring(&env, rename_file(&deserialized_config, deserialized_id, name.as_str()))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jname: JString,
     jid: JString,
     jfiletype: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let name: String = env
-        .get_string(jname)
-        .expect("Couldn't read the name out of JNI!")
-        .into();
+    let name: String = match env
+        .get_string(jname) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't get name out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let serialized_filetype: String = env
-        .get_string(jfiletype)
-        .expect("Couldn't read the filetype out of JNI!")
-        .into();
+    let serialized_filetype: String = match env
+        .get_string(jfiletype) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't get filetype out of JNI!".to_string())),
+    }.into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
-        Err(err) => return serialize_to_jstring(env, DecryptedValue{ secret: "CONFIG".to_string() }),
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't deserialize config!".to_string())),
     };
 
     let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
         Ok(ok) => ok,
-        Err(err) => return serialize_to_jstring(env, DecryptedValue{ secret: "UUID".to_string() }),
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't deserialize id!".to_string())),
     };
 
     let deserialized_filetype: FileType = match serde_json::from_str(&serialized_filetype) {
         Ok(ok) => ok,
-        Err(err) => return serialize_to_jstring(env, DecryptedValue{ secret: "FILETYPE".to_string() }),
+        Err(_) => return serialize_to_jstring(&env, CreateFileError::UnexpectedError("Couldn't deserialize filetype!".to_string())),
     };
 
-    serialize_to_jstring(env, create_file(&deserialized_config, name.as_str(), deserialized_id, deserialized_filetype))
+    serialize_to_jstring(&env, create_file(&deserialized_config, name.as_str(), deserialized_id, deserialized_filetype))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_deleteFile<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jid: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, DeleteFileError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, DeleteFileError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, DeleteFileError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(env, delete_file(&deserialized_config, deserialized_id))
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, DeleteFileError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
+
+
+    serialize_to_jstring(&env, delete_file(&deserialized_config, deserialized_id))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_readDocument<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jid: JString,
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ReadDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ReadDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ReadDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    serialize_to_jstring(env, read_document(&deserialized_config, deserialized_id))
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, ReadDocumentError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
+
+
+    serialize_to_jstring(&env, read_document(&deserialized_config, deserialized_id))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_Corekt_writeDocument<'a>(
-    env: JNIEnv<'a>,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
+    env: JNIEnv,
     _: JClass,
     jconfig: JString,
     jid: JString,
-    jcontent: JString
-) -> JString<'a> {
-    let serialized_config: String = env
-        .get_string(jconfig)
-        .expect("Couldn't read the config (path) out of JNI!")
-        .into();
+    jcontent: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
 
-    let serialized_id: String = env
-        .get_string(jid)
-        .expect("Couldn't read the uuid out of JNI!")
-        .into();
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
 
-    let serialized_content: String = env
-        .get_string(jcontent)
-        .expect("Couldn't read the content out of JNI!")
-        .into();
+    let serialized_content: String = match env
+        .get_string(jcontent) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get content out of JNI!".to_string())),
+    }.into();
 
-    let deserialized_config: Config = serde_json::from_str(&serialized_config).expect("Couldn't deserialize config string (path) into config!");
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
 
-    let deserialized_id: Uuid = Uuid::parse_str(&serialized_id).expect("Couldn't deserialize id string into id!");
 
-    let deserialized_content: DecryptedValue = serde_json::from_str(&serialized_content).expect("Couldn't deserialize content string into content!");
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
 
-    serialize_to_jstring(env, write_document(&deserialized_config, deserialized_id, &deserialized_content))
+    let deserialized_content: DecryptedValue = match serde_json::from_str(&serialized_content) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize content!".to_string())),
+    };
+
+    serialize_to_jstring(&env, write_document(&deserialized_config, deserialized_id, &deserialized_content))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jparentid: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
+
+    let serialized_id: String = match env
+        .get_string(jid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
+
+    let serialized_parent_id: String = match env
+        .get_string(jparentid) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string())),
+    }.into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
+
+
+    let deserialized_id: Uuid = match Uuid::parse_str(&serialized_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
+
+    let deserialized_parent_id: Uuid = match Uuid::parse_str(&serialized_parent_id) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string())),
+    };
+
+    serialize_to_jstring(&env, move_file(&deserialized_config, deserialized_id, deserialized_parent_id))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
+
+    serialize_to_jstring(&env, sync_all(&deserialized_config))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
+
+    serialize_to_jstring(&env, calculate_work(&deserialized_config))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jaccount: JString,
+    jworkunit: JString,
+) -> jstring {
+    let serialized_config: String = match env
+        .get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string())),
+    }.into();
+
+    let serialized_account: String = match env
+        .get_string(jaccount) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get account out of JNI!".to_string())),
+    }.into();
+
+    let serialized_work_unit: String = match env
+        .get_string(jworkunit) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't get work unit out of JNI!".to_string())),
+    }.into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string())),
+    };
+
+    let deserialized_account: Account = match serde_json::from_str(&serialized_account) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize account!".to_string())),
+    };
+
+    let deserialized_work_unit: WorkUnit = match serde_json::from_str(&serialized_work_unit) {
+        Ok(ok) => ok,
+        Err(_) => return serialize_to_jstring(&env, WriteToDocumentError::UnexpectedError("Couldn't deserialize wu!".to_string())),
+    };
+
+    serialize_to_jstring(&env, execute_work(&deserialized_config, &deserialized_account, deserialized_work_unit))
 }

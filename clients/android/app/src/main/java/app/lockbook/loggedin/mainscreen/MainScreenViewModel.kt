@@ -70,11 +70,9 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
     fun startListFilesFolders() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                if(fileFolderModel.setParentToRoot() is Ok) {
-                    when (val children = fileFolderModel.getChildrenOfParent()) {
-                        is Ok -> _filesFolders.postValue(children.value)
-                        is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
-                    }
+                fileFolderModel.syncAllFiles()
+                if (fileFolderModel.setParentToRoot() is Ok) {
+                    refreshFiles()
                 } else {
                     _errorHasOccurred.postValue(SET_PARENT_TO_ROOT_ERROR)
                 }
@@ -91,7 +89,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
             withContext(Dispatchers.IO) {
                 when (val siblings = fileFolderModel.getSiblingsOfParent()) {
                     is Ok -> {
-                        when (val newParent = fileFolderModel.getParentOfParent()) {
+                        when (fileFolderModel.getParentOfParent()) {
                             is Ok -> _filesFolders.postValue(siblings.value)
                             is Err -> _errorHasOccurred.postValue(GET_PARENT_OF_PARENT_ERROR)
                         }
@@ -113,43 +111,34 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
     }
 
     private fun refreshFiles() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (val children = fileFolderModel.getChildrenOfParent()) {
-                    is Ok -> _filesFolders.postValue(children.value)
-                    is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
-                }
-            }
+        when (val children = fileFolderModel.getChildrenOfParent()) {
+            is Ok -> _filesFolders.postValue(children.value)
+            is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
         }
     }
 
     private fun writeNewTextToDocument(content: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                val writeResult = fileFolderModel.writeContentToDocument(content)
-                if (writeResult is Err) {
-                    _errorHasOccurred.postValue(WRITE_NEW_TEXT_TO_DOCUMENT_ERROR)
-                }
-            }
+        val writeResult = fileFolderModel.writeContentToDocument(content)
+        if (writeResult is Err) {
+            _errorHasOccurred.postValue(WRITE_NEW_TEXT_TO_DOCUMENT_ERROR)
         }
     }
 
     private fun createInsertFile(name: String, fileType: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (val createFileResult = fileFolderModel.createFile(name, fileType)) {
-                    is Ok -> {
-                        val insertFileResult = fileFolderModel.insertFile(createFileResult.value)
-                        if (insertFileResult is Err) {
-                            _errorHasOccurred.postValue(INSERT_FILE_ERROR)
-                        }
-                    }
-                    is Err -> {
-                        _errorHasOccurred.postValue(CREATE_FILE_ERROR)
-                    }
+        when (val createFileResult = fileFolderModel.createFile(name, fileType)) {
+            is Ok -> {
+                val insertFileResult = fileFolderModel.insertFile(createFileResult.value)
+                if (insertFileResult is Err) {
+                    _errorHasOccurred.postValue(INSERT_FILE_ERROR)
                 }
             }
+            is Err -> _errorHasOccurred.postValue(CREATE_FILE_ERROR)
         }
+    }
+
+    private fun renameRefreshFile(id: String, newName: String) {
+        fileFolderModel.renameFile(id, newName)
+        refreshFiles()
     }
 
     //
@@ -172,28 +161,40 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
 //
 
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        when (requestCode) {
-            MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
                 if (data is Intent && resultCode == RESULT_OK) {
-                    createInsertFile(data.getStringExtra("name"), data.getStringExtra("fileType"))
-                    refreshFiles()
-                } else {
-                    _errorHasOccurred.postValue(NEW_FILE_VIEW_ERROR)
-                }
-            }
-            MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
-                if (data is Intent && resultCode == RESULT_OK) {
-                    writeNewTextToDocument(data.getStringExtra("text"))
-                } else {
-                    _errorHasOccurred.postValue(TEXT_EDITOR_VIEW_ERROR)
-                }
-            }
-            MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> {
-                if (data is Intent && resultCode == RESULT_OK) {
-                    fileFolderModel
-                    refreshFiles()
-                } else {
-                    _errorHasOccurred.postValue(RENAME_VIEW_ERROR)
+                    when (requestCode) {
+                        MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
+                            createInsertFile(
+                                data.getStringExtra("name"),
+                                data.getStringExtra("fileType")
+                            )
+                            refreshFiles()
+                        }
+                        MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
+                            writeNewTextToDocument(data.getStringExtra("text"))
+                        }
+                        MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> {
+                            renameRefreshFile(
+                                data.getStringExtra("id"),
+                                data.getStringExtra("new_name")
+                            )
+                        }
+                    }
+                } else if (resultCode == RESULT_OK) {
+                    when (requestCode) {
+                        MainScreenFragment.NEW_FILE_REQUEST_CODE -> _errorHasOccurred.postValue(
+                            NEW_FILE_VIEW_ERROR
+                        )
+                        MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> _errorHasOccurred.postValue(
+                            TEXT_EDITOR_VIEW_ERROR
+                        )
+                        MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> _errorHasOccurred.postValue(
+                            RENAME_VIEW_ERROR
+                        )
+
+                    }
                 }
             }
         }
