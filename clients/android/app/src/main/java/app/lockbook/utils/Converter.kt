@@ -15,12 +15,16 @@ val createAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.runCatching {
-            jv.string
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
         }
 
-        val errResult = jv.runCatching {
-            jv.objString("Err")
-        }
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
 
         if (errResult is Ok)
             return when (errResult.value) {
@@ -44,10 +48,6 @@ val createAccountConverter = object : Converter {
                 }
             }
 
-        if (okResult is Ok && okResult.value == null) {
-            return Ok(Unit)
-        }
-
         return Err(CreateAccountError.UnexpectedError("Unable to parse CreateAccountResult!"))
     }
 
@@ -59,11 +59,16 @@ val importAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.runCatching {
-            jv.string
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
         }
         val errResult = jv.runCatching {
             this.objString("Err")
         }
+
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
 
         if (errResult is Ok)
             return when (errResult.value) {
@@ -81,9 +86,6 @@ val importAccountConverter = object : Converter {
                 }
             }
 
-        if (okResult is Ok && okResult.value == null)
-            return Ok(Unit)
-
         return Err(ImportError.UnexpectedError("Unable to parse ImportAccountResult!"))
     }
 
@@ -99,6 +101,7 @@ val getRootConverter = object : Converter {
                 jsonObject.obj("Ok")
             }
         }
+
         val errResult = jv.runCatching {
             this.objString("Err")
         }
@@ -111,7 +114,9 @@ val getRootConverter = object : Converter {
 
         if (errResult is Ok)
             return when (errResult.value) {
-                GetRootError.NoRoot::class.simpleName -> Err(GetRootError.NoRoot)
+                GetRootError.NoRoot::class.simpleName -> {
+                    Err(GetRootError.NoRoot)
+                }
                 else -> {
                     val unexpectedError = runCatching {
                         jv.objString("UnexpectedError")
@@ -172,14 +177,19 @@ val getFileByIdConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.runCatching {
-            jv.objString("Ok")
+            this.obj?.let { jsonObject ->
+                jsonObject.obj("Ok")
+            }
         }
         val errResult = jv.runCatching {
-            jv.objString("Err")
+            this.objString("Err")
         }
 
-        if (okResult is Ok)
-            return Ok(Klaxon().parseArray<FileMetadata>(okResult.value))
+        if (okResult is Ok) {
+            okResult.value?.let { jsonObject ->
+                return Ok(Klaxon().parseFromJsonObject<FileMetadata>(jsonObject))
+            }
+        }
 
         if (errResult is Ok) {
             return when (errResult.value) {
@@ -210,12 +220,16 @@ val insertFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.runCatching {
-            jv.string
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
         }
 
-        val errResult = jv.runCatching {
-            jv.objString("Err")
-        }
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
 
         if (errResult is Ok) {
             val unexpectedError = runCatching {
@@ -226,10 +240,6 @@ val insertFileConverter = object : Converter {
             } else {
                 Err(InsertFileError.UnexpectedError("Unable to extract error from InsertFileError!"))
             }
-        }
-
-        if (okResult is Ok && okResult.value == null) {
-            return Ok(Unit)
         }
 
         return Err(InsertFileError.UnexpectedError("Unable to parse InsertFileResult!"))
@@ -243,12 +253,16 @@ val renameFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.runCatching {
-            jv.string
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
         }
 
-        val errResult = jv.runCatching {
-            jv.objString("Err")
-        }
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
 
         if (errResult is Ok)
             return when (errResult.value) {
@@ -271,10 +285,6 @@ val renameFileConverter = object : Converter {
 
                 }
             }
-
-        if (okResult is Ok && okResult.value == null) {
-            return Ok(Unit)
-        }
 
         return Err(RenameFileError.UnexpectedError("Unable to parse RenameFileResult!"))
     }
@@ -302,127 +312,309 @@ val createFileConverter = object : Converter {
             }
         }
 
-            if (errResult is Ok)
-                return when (errResult.value) {
-                    CreateFileError.NoAccount::class.simpleName -> Err(
-                        CreateFileError.NoAccount
-                    )
-                    CreateFileError.DocumentTreatedAsFolder::class.simpleName -> Err(
-                        CreateFileError.DocumentTreatedAsFolder
-                    )
-                    CreateFileError.CouldNotFindAParent::class.simpleName -> Err(CreateFileError.CouldNotFindAParent)
-                    CreateFileError.FileNameNotAvailable::class.simpleName -> Err(CreateFileError.FileNameNotAvailable)
-                    CreateFileError.FileNameContainsSlash::class.simpleName -> Err(CreateFileError.FileNameContainsSlash)
-                    else -> {
-                        val unexpectedError = runCatching {
-                            jv.objString("UnexpectedError")
-                        }
-                        if (unexpectedError is Ok) {
-                            Err(CreateFileError.UnexpectedError(unexpectedError.value))
-                        } else {
-                            Err(CreateFileError.UnexpectedError("Unable to extract error from CreateFileError!"))
-                        }
-
+        if (errResult is Ok)
+            return when (errResult.value) {
+                CreateFileError.NoAccount::class.simpleName -> Err(
+                    CreateFileError.NoAccount
+                )
+                CreateFileError.DocumentTreatedAsFolder::class.simpleName -> Err(
+                    CreateFileError.DocumentTreatedAsFolder
+                )
+                CreateFileError.CouldNotFindAParent::class.simpleName -> Err(CreateFileError.CouldNotFindAParent)
+                CreateFileError.FileNameNotAvailable::class.simpleName -> Err(CreateFileError.FileNameNotAvailable)
+                CreateFileError.FileNameContainsSlash::class.simpleName -> Err(CreateFileError.FileNameContainsSlash)
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
                     }
+                    if (unexpectedError is Ok) {
+                        Err(CreateFileError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(CreateFileError.UnexpectedError("Unable to extract error from CreateFileError!"))
+                    }
+
                 }
+            }
 
-            return Err(CreateFileError.UnexpectedError("Unable to parse CreateFileResult!"))
+        return Err(CreateFileError.UnexpectedError("Unable to parse CreateFileResult!"))
 
-        }
+    }
 
-        override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 
 }
 
-    val readDocumentConverter = object : Converter {
-        override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+val readDocumentConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
 
-        override fun fromJson(jv: JsonValue): Any? {
-            val okResult = jv.runCatching {
-                this.obj?.let { jsonObject ->
-                    jsonObject.obj("Ok")
-                }
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            this.obj?.let { jsonObject ->
+                jsonObject.obj("Ok")
             }
-            val errResult = jv.runCatching {
-                this.objString("Err")
-            }
-
-            if (okResult is Ok) {
-                okResult.value?.let { jsonObject ->
-                    return Ok(Klaxon().parseFromJsonObject<DecryptedValue>(jsonObject))
-                }
-            }
-            if (errResult is Ok)
-                return when (errResult.value) {
-                    ReadDocumentError.TreatedFolderAsDocument::class.simpleName -> Err(
-                        ReadDocumentError.TreatedFolderAsDocument
-                    )
-                    ReadDocumentError.NoAccount::class.simpleName -> Err(
-                        ReadDocumentError.NoAccount
-                    )
-                    ReadDocumentError.FileDoesNotExist::class.simpleName -> Err(ReadDocumentError.FileDoesNotExist)
-                    else -> {
-                        val unexpectedError = runCatching {
-                            jv.objString("UnexpectedError")
-                        }
-                        if (unexpectedError is Ok) {
-                            Err(ReadDocumentError.UnexpectedError(unexpectedError.value))
-                        } else {
-                            Err(ReadDocumentError.UnexpectedError("Unable to extract error from ReadDocumentError!"))
-                        }
-
-                    }
-                }
-
-            return Err(ReadDocumentError.UnexpectedError("Unable to parse ReadDocumentResult!"))
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
         }
 
-        override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+        if (okResult is Ok) {
+            okResult.value?.let { jsonObject ->
+                return Ok(Klaxon().parseFromJsonObject<DecryptedValue>(jsonObject))
+            }
+        }
+        if (errResult is Ok)
+            return when (errResult.value) {
+                ReadDocumentError.TreatedFolderAsDocument::class.simpleName -> Err(
+                    ReadDocumentError.TreatedFolderAsDocument
+                )
+                ReadDocumentError.NoAccount::class.simpleName -> Err(
+                    ReadDocumentError.NoAccount
+                )
+                ReadDocumentError.FileDoesNotExist::class.simpleName -> Err(ReadDocumentError.FileDoesNotExist)
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(ReadDocumentError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(ReadDocumentError.UnexpectedError("Unable to extract error from ReadDocumentError!"))
+                    }
+
+                }
+            }
+
+        return Err(ReadDocumentError.UnexpectedError("Unable to parse ReadDocumentResult!"))
     }
 
-    val writeDocumentConverter = object : Converter {
-        override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
 
-        override fun fromJson(jv: JsonValue): Any? {
-            val okResult = jv.runCatching {
-                jv.string
+val writeDocumentConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
             }
-
-            val errResult = jv.runCatching {
-                jv.objString("Err")
-            }
-
-            if (errResult is Ok)
-                return when (errResult.value) {
-                    WriteToDocumentError.NoAccount::class.simpleName -> Err(
-                        WriteToDocumentError.NoAccount
-                    )
-                    WriteToDocumentError.FileDoesNotExist::class.simpleName -> Err(
-                        WriteToDocumentError.FileDoesNotExist
-                    )
-                    WriteToDocumentError.FolderTreatedAsDocument::class.simpleName -> Err(
-                        WriteToDocumentError.FolderTreatedAsDocument
-                    )
-                    else -> {
-                        val unexpectedError = runCatching {
-                            jv.objString("UnexpectedError")
-                        }
-                        if (unexpectedError is Ok) {
-                            Err(WriteToDocumentError.UnexpectedError(unexpectedError.value))
-                        } else {
-                            Err(WriteToDocumentError.UnexpectedError("Unable to extract error from WriteToDocumentError!"))
-                        }
-
-                    }
-                }
-
-            if (okResult is Ok && okResult.value == null) {
-                return Ok(Unit)
-            }
-
-            return Err(WriteToDocumentError.UnexpectedError("Unable to parse WriteToDocumentResult!"))
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
         }
 
-        override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
+
+        if (errResult is Ok)
+            return when (errResult.value) {
+                WriteToDocumentError.NoAccount::class.simpleName -> Err(
+                    WriteToDocumentError.NoAccount
+                )
+                WriteToDocumentError.FileDoesNotExist::class.simpleName -> Err(
+                    WriteToDocumentError.FileDoesNotExist
+                )
+                WriteToDocumentError.FolderTreatedAsDocument::class.simpleName -> Err(
+                    WriteToDocumentError.FolderTreatedAsDocument
+                )
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(WriteToDocumentError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(WriteToDocumentError.UnexpectedError("Unable to extract error from WriteToDocumentError!"))
+                    }
+
+                }
+            }
+
+        return Err(WriteToDocumentError.UnexpectedError("Unable to parse WriteToDocumentResult!"))
     }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val moveFileConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
+        }
+
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
+
+        if(errResult is Ok)
+            return when (errResult.value) {
+                MoveFileError.NoAccount::class.simpleName -> Err(
+                    MoveFileError.NoAccount
+                )
+                MoveFileError.FileDoesNotExist::class.simpleName -> Err(
+                    MoveFileError.FileDoesNotExist
+                )
+                MoveFileError.DocumentTreatedAsFolder::class.simpleName -> Err(
+                    MoveFileError.DocumentTreatedAsFolder
+                )
+                MoveFileError.TargetParentDoesNotExist::class.simpleName -> Err(
+                    MoveFileError.TargetParentDoesNotExist
+                )
+                MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> Err(
+                    MoveFileError.TargetParentHasChildNamedThat
+                )
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(MoveFileError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(MoveFileError.UnexpectedError("Unable to extract error from MoveFileError!"))
+                    }
+
+                }
+            }
+
+        return MoveFileError.UnexpectedError("Unable to parse MoveFileResult!")
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val syncAllConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
+        }
+
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
+
+        if(errResult is Ok)
+            return when (errResult.value) {
+                SyncAllError.NoAccount::class.simpleName -> Err(
+                    SyncAllError.NoAccount
+                )
+                SyncAllError.CouldNotReachServer::class.simpleName -> Err(
+                    SyncAllError.CouldNotReachServer
+                )
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(SyncAllError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(SyncAllError.UnexpectedError("Unable to extract error from SyncAllError!"))
+                    }
+
+                }
+            }
+
+        return SyncAllError.UnexpectedError("Unable to parse SyncAllResult!")
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+
+}
+
+val calculateSyncWorkConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            this.obj?.let { jsonObject ->
+                jsonObject.obj("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
+        }
+
+        if (okResult is Ok) {
+            okResult.value?.let { jsonObject ->
+                return Ok(Klaxon().parseFromJsonObject<WorkCalculated>(jsonObject))
+            }
+        }
+
+        if (errResult is Ok)
+            return when (errResult.value) {
+                CalculateWorkError.NoAccount::class.simpleName -> Err(
+                    CalculateWorkError.NoAccount
+                )
+                CalculateWorkError.CouldNotReachServer::class.simpleName -> Err(
+                    CalculateWorkError.CouldNotReachServer
+                )
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(CalculateWorkError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(CalculateWorkError.UnexpectedError("Unable to extract error from CalculateSyncWorkError!"))
+                    }
+
+                }
+            }
+
+        return Err(CalculateWorkError.UnexpectedError("Unable to parse CalculateSyncWorkResult!"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val executeSyncWorkConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = cls == Result::class.java
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.runCatching {
+            jv.obj?.let {jsonObject ->
+                jsonObject.string("Ok")
+            }
+        }
+        val errResult = jv.runCatching {
+            this.objString("Err")
+        }
+
+        if (okResult is Ok && okResult.value == null)
+            return Ok(Unit)
+
+        if(errResult is Ok)
+            return when (errResult.value) {
+                ExecuteWorkError.CouldNotReachServer::class.simpleName -> Err(
+                    ExecuteWorkError.CouldNotReachServer
+                )
+                else -> {
+                    val unexpectedError = runCatching {
+                        jv.objString("UnexpectedError")
+                    }
+                    if (unexpectedError is Ok) {
+                        Err(ExecuteWorkError.UnexpectedError(unexpectedError.value))
+                    } else {
+                        Err(ExecuteWorkError.UnexpectedError("Unable to extract error from ExecuteSyncWorkError!"))
+                    }
+
+                }
+            }
+
+        return ExecuteWorkError.UnexpectedError("Unable to parse ExecuteSyncWorkResult!")
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
 
