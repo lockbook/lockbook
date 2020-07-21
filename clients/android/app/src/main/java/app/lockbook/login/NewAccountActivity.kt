@@ -1,11 +1,13 @@
 package app.lockbook.login
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import app.lockbook.InitialLaunchFigureOuter
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.createAccount
@@ -60,13 +62,19 @@ class NewAccountActivity : AppCompatActivity() {
     }
 
     private suspend fun handleCreateAccountResult(createAccountResult: Result<Unit, CreateAccountError>) { // add an invalid string choice, as an empty textview will call an error
-        when (createAccountResult) {
-            is Ok -> {
-                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                finishAffinity()
-            }
-            is Err -> {
-                withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main) {
+            when (createAccountResult) {
+                is Ok -> {
+                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                    getSharedPreferences(
+                        InitialLaunchFigureOuter.SHARED_PREF_FILE,
+                        Context.MODE_PRIVATE
+                    ).edit().putBoolean(
+                        InitialLaunchFigureOuter.KEY, true
+                    ).apply()
+                    finishAffinity()
+                }
+                is Err -> {
                     when (createAccountResult.error) {
                         is CreateAccountError.InvalidUsername -> {
                             username.error = "Username Taken!"

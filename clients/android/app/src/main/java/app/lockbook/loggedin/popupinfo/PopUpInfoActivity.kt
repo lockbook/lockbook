@@ -4,7 +4,6 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.databinding.DataBindingUtil
 import app.lockbook.R
-import app.lockbook.core.renameFile
 import app.lockbook.databinding.ActivityPopupInfoBinding
 import kotlinx.android.synthetic.main.activity_popup_info.*
 import kotlinx.coroutines.*
@@ -41,7 +40,8 @@ class PopUpInfoActivity : Activity() {
     }
 
     fun rename() {
-        intent.putExtra("text", new_name_text.text.toString())
+        intent.putExtra("new_name", new_name_text.text.toString())
+        intent.putExtra("id", id)
         setResult(RESULT_OK, intent)
         finish()
     }

@@ -1,10 +1,13 @@
 package app.lockbook.login
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import app.lockbook.InitialLaunchFigureOuter.Companion.KEY
+import app.lockbook.InitialLaunchFigureOuter.Companion.SHARED_PREF_FILE
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
@@ -67,7 +70,8 @@ class ImportAccountActivity : AppCompatActivity() {
         val json = Klaxon()
         val config = json.toJsonString(Config(filesDir.absolutePath))
 
-        val importResult: Result<Unit, ImportError>? = json.converter(importAccountConverter).parse(importAccount(config, account))
+        val importResult: Result<Unit, ImportError>? =
+            json.converter(importAccountConverter).parse(importAccount(config, account))
 
         importResult?.let {
             return importResult
@@ -76,26 +80,29 @@ class ImportAccountActivity : AppCompatActivity() {
         return Err(ImportError.UnexpectedError("Unable to parse import json!"))
     }
 
-    private fun handleImportResult(importResult: Result<Unit, ImportError>) {
-        when (importResult) {
-            is Ok -> {
-                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                finishAffinity()
-            }
-            is Err ->
-                if (importResult.error is ImportError.AccountStringCorrupted) {
-                    Toast.makeText(
-                        applicationContext,
-                        "Account String invalid!",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        applicationContext,
-                        "Unexpected error occurred, please create a bug report (activity_settings)",
-                        Toast.LENGTH_LONG
-                    ).show()
+    private suspend fun handleImportResult(importResult: Result<Unit, ImportError>) {
+        withContext(Dispatchers.Main) {
+            when (importResult) {
+                is Ok -> {
+                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                    getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit().putBoolean(KEY, true).apply()
+                    finishAffinity()
                 }
+                is Err ->
+                    if (importResult.error is ImportError.AccountStringCorrupted) {
+                        Toast.makeText(
+                            applicationContext,
+                            "Account String invalid!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            applicationContext,
+                            "Unexpected error occurred, please create a bug report (activity_settings)",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+            }
         }
     }
 

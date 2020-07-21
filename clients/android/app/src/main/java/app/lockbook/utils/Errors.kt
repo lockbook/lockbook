@@ -69,3 +69,29 @@ sealed class RenameFileError {
     object FileNameNotAvailable: RenameFileError()
     data class UnexpectedError(val error: String): RenameFileError()
 }
+
+sealed class MoveFileError {
+    object NoAccount: MoveFileError()
+    object FileDoesNotExist: MoveFileError()
+    object DocumentTreatedAsFolder: MoveFileError()
+    object TargetParentDoesNotExist: MoveFileError()
+    object TargetParentHasChildNamedThat: MoveFileError()
+    data class UnexpectedError(val error: String): MoveFileError()
+}
+
+sealed class SyncAllError {
+    object NoAccount: SyncAllError()
+    object CouldNotReachServer: SyncAllError()
+    data class UnexpectedError(val error: String): SyncAllError()
+}
+
+sealed class CalculateWorkError {
+    object NoAccount: CalculateWorkError()
+    object CouldNotReachServer: CalculateWorkError()
+    data class UnexpectedError(val error: String): CalculateWorkError()
+}
+
+sealed class ExecuteWorkError {
+    object CouldNotReachServer: ExecuteWorkError()
+    data class UnexpectedError(val error: String): ExecuteWorkError()
+}

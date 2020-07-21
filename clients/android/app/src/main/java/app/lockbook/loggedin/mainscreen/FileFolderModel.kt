@@ -1,6 +1,5 @@
 package app.lockbook.loggedin.mainscreen
 
-import android.util.Log
 import app.lockbook.core.*
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
@@ -23,13 +22,11 @@ class FileFolderModel(config: Config) {
                     parentFileMetadata = rootResult.value
                     Ok(Unit)
                 }
-                is Err -> {
-                    Err(rootResult.error)
-                }
+                is Err -> Err(rootResult.error)
             }
         }
 
-        return Err<GetRootError>(GetRootError.UnexpectedError("Unable to parse getRoot json!"))
+        return Err(GetRootError.UnexpectedError("Unable to parse getRoot json!"))
     }
 
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
@@ -43,7 +40,7 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err<GetChildrenError>(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
+        return Err(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
     }
 
     fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> {
@@ -58,13 +55,11 @@ class FileFolderModel(config: Config) {
                         childrenResult.value.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
                     Ok(editedChildren)
                 }
-                is Err -> {
-                    Err(childrenResult.error)
-                }
+                is Err -> Err(childrenResult.error)
             }
         }
 
-        return Err<GetChildrenError>(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
+        return Err(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
     }
 
     fun getParentOfParent(): Result<Unit, GetFileByIdError> {
@@ -82,7 +77,7 @@ class FileFolderModel(config: Config) {
                 is Err -> Err(parentResult.error)
             }
         }
-        return Err<GetFileByIdError>(GetFileByIdError.UnexpectedError("Unable to parse getFileById json!"))
+        return Err(GetFileByIdError.UnexpectedError("Unable to parse getFileById json!"))
     }
 
     fun getDocumentContent(fileUuid: String): Result<String, ReadDocumentError> { // return result instead
@@ -96,11 +91,11 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err<ReadDocumentError>(ReadDocumentError.UnexpectedError("Unable to parse readDocument json!"))
+        return Err(ReadDocumentError.UnexpectedError("Unable to parse readDocument json!"))
     }
 
-    fun writeContentToDocument(content: String): Result<Unit, WriteToDocumentError> { // have a return type to be handled in case it doesnt work
-        val write: Result<Unit, WriteToDocumentError>? =
+    fun writeContentToDocument(content: String): Result<Unit, WriteToDocumentError> {
+        val writeResult: Result<Unit, WriteToDocumentError>? =
             Klaxon().converter(writeDocumentConverter).parse(
                 writeDocument(
                     config,
@@ -109,97 +104,86 @@ class FileFolderModel(config: Config) {
                 )
             )
 
-        write?.let { writeResult ->
-            return when (writeResult) {
-                is Ok -> Ok(Unit)
-                is Err -> Err(writeResult.error)
-            }
+        writeResult?.let {
+            return writeResult
         }
 
-        return Err<WriteToDocumentError>(WriteToDocumentError.UnexpectedError("Unable to parse writeDocumentResult json!"))
+        return Err(WriteToDocumentError.UnexpectedError("Unable to parse writeDocument json!"))
     }
 
     fun createFile(
         name: String,
         fileType: String
     ): Result<FileMetadata, CreateFileError> {
-        val file: Result<FileMetadata, CreateFileError>? =
+        val createFileResult: Result<FileMetadata, CreateFileError>? =
             Klaxon().converter(createFileConverter).parse(createFile(config, name, parentFileMetadata.id, fileType))
-        file?.let { createFileResult ->
-            return when (createFileResult) {
-                is Ok -> {
-                    Ok(createFileResult.value)
-                }
-                is Err -> {
-                    Err(createFileResult.error)
-                }
-            }
+
+        createFileResult?.let {
+            return createFileResult
         }
 
-        return Err<CreateFileError>(CreateFileError.UnexpectedError("Unable to parse createFile json!"))
+        return Err(CreateFileError.UnexpectedError("Unable to parse createFile json!"))
     }
 
     fun insertFile(
         fileMetadata: FileMetadata
     ): Result<Unit, InsertFileError> {
-        val result = insertFile(config, Klaxon().toJsonString(fileMetadata))
-        Log.i("SmailBarkouch", "THATS OKAY, $result")
-        val insert: Result<Unit, InsertFileError>? =
-            Klaxon().converter(insertFileConverter).parse(result)
-        insert?.let { insertResult ->
-            return when (insertResult) {
-                is Ok -> {
-                    Log.i("SmailBarkouch", "GOOD!")
-                    Ok(insertResult.value)
-                }
-                is Err -> {
-                    Log.i("SmailBarkouch", "BAD!")
-                    Err(insertResult.error)
-                }
-            }
+        val insertResult: Result<Unit, InsertFileError>? =
+            Klaxon().converter(insertFileConverter).parse(insertFile(config, Klaxon().toJsonString(fileMetadata)))
+        insertResult?.let {
+            return insertResult
         }
-        return Err<InsertFileError>(InsertFileError.UnexpectedError("Unable to parse insertFile json!"))
+
+        return Err(InsertFileError.UnexpectedError("Unable to parse insertFile json!"))
     }
 
     fun renameFile(
         id: String,
         name: String
     ): Result<Unit, RenameFileError> {
-        val rename: Result<Unit, RenameFileError>? =
+        val renameResult: Result<Unit, RenameFileError>? =
             Klaxon().converter(renameFileConverter).parse(renameFile(config, id, name))
 
-        rename?.let { renameResult ->
-            return when (renameResult) {
-                is Ok -> Ok(renameResult.value)
-                is Err -> Err(renameResult.error)
-            }
+        renameResult?.let {
+            return renameResult
         }
 
-        return Err<RenameFileError>(RenameFileError.UnexpectedError("Unable to parse renameFile json"))
+        return Err(RenameFileError.UnexpectedError("Unable to parse renameFile json!"))
     }
 
-//    fun syncAll(): Int {
-//        return sync(path)
-//    }
-//
-//    fun getAllSyncWork() { // need to start using eithers
-//        val tempAllSyncWork: WorkCalculated? = json.parse(calculateWork(path))
-//
-//        tempAllSyncWork?.let {
-//            allSyncWork = it
-//        }
-//    }
-//
-//    fun doSyncWork(account: Account): Int {
-//        val serializedAccount = json.toJsonString(account)
-//        val serializedWork = json.toJsonString(allSyncWork.work_units[workNumber])
-//
-//        if (executeWork(path, serializedAccount, serializedWork) == 0 && workNumber != allSyncWork.work_units.size - 1) {
-//            workNumber++
-//            return workNumber
-//        }
-//
-//        return workNumber
-//    }
+    fun syncAllFiles(): Result<Unit, SyncAllError> {
+        val syncResult: Result<Unit, SyncAllError>? =
+            Klaxon().converter(syncAllConverter).parse(syncAll(config))
+
+        syncResult?.let {
+            return syncResult
+        }
+
+        return Err(SyncAllError.UnexpectedError("Unable to parse syncAll json!"))
+    }
+
+    fun calculateFileSyncWork(): Result<WorkCalculated, CalculateWorkError> {
+        val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
+            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
+
+        calculateSyncWorkResult?.let {
+            return calculateSyncWorkResult
+        }
+
+        return Err(CalculateWorkError.UnexpectedError("Unable to parse calculateSyncWork json!"))
+    }
+
+    fun executeFileSyncWork(): Result<Unit, ExecuteWorkError> {
+        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
+            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
+
+        executeSyncWorkResult?.let {
+            return executeSyncWorkResult
+        }
+
+        return Err(ExecuteWorkError.UnexpectedError("Unable to parse executeSyncWork json!"))
+    }
+
+
 
 }
