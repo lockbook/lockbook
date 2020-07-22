@@ -26,7 +26,7 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err(GetRootError.UnexpectedError("Unable to parse getRoot json!"))
+        return Err(GetRootError.UnexpectedError("getRootConverter was unable to be called!"))
     }
 
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
@@ -40,7 +40,7 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
+        return Err(GetChildrenError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
     fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> {
@@ -59,7 +59,7 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err(GetChildrenError.UnexpectedError("Unable to parse getChildren json!"))
+        return Err(GetChildrenError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
     fun getParentOfParent(): Result<Unit, GetFileByIdError> {
@@ -77,7 +77,7 @@ class FileFolderModel(config: Config) {
                 is Err -> Err(parentResult.error)
             }
         }
-        return Err(GetFileByIdError.UnexpectedError("Unable to parse getFileById json!"))
+        return Err(GetFileByIdError.UnexpectedError("getFileByIdConverter was unable to be called!"))
     }
 
     fun getDocumentContent(fileUuid: String): Result<String, ReadDocumentError> { // return result instead
@@ -91,7 +91,7 @@ class FileFolderModel(config: Config) {
             }
         }
 
-        return Err(ReadDocumentError.UnexpectedError("Unable to parse readDocument json!"))
+        return Err(ReadDocumentError.UnexpectedError("readDocumentConverter was unable to be called!"))
     }
 
     fun writeContentToDocument(content: String): Result<Unit, WriteToDocumentError> {
@@ -108,7 +108,7 @@ class FileFolderModel(config: Config) {
             return writeResult
         }
 
-        return Err(WriteToDocumentError.UnexpectedError("Unable to parse writeDocument json!"))
+        return Err(WriteToDocumentError.UnexpectedError("writeDocument was unable to be called!"))
     }
 
     fun createFile(
@@ -122,7 +122,7 @@ class FileFolderModel(config: Config) {
             return createFileResult
         }
 
-        return Err(CreateFileError.UnexpectedError("Unable to parse createFile json!"))
+        return Err(CreateFileError.UnexpectedError("createFileConverter was unable to be called!"))
     }
 
     fun insertFile(
@@ -134,7 +134,7 @@ class FileFolderModel(config: Config) {
             return insertResult
         }
 
-        return Err(InsertFileError.UnexpectedError("Unable to parse insertFile json!"))
+        return Err(InsertFileError.UnexpectedError("insertFileConverter was unable to be called!"))
     }
 
     fun renameFile(
@@ -148,7 +148,21 @@ class FileFolderModel(config: Config) {
             return renameResult
         }
 
-        return Err(RenameFileError.UnexpectedError("Unable to parse renameFile json!"))
+        return Err(RenameFileError.UnexpectedError("renameFileConverter was unable to be called!"))
+    }
+
+    fun moveFile(
+        id: String,
+        parentId: String
+    ): Result<Unit, MoveFileError> {
+        val moveResult: Result<Unit, MoveFileError>? =
+            Klaxon().converter(moveFileConverter).parse(moveFile(config, id, parentId))
+
+        moveResult?.let {
+            return moveResult
+        }
+
+        return Err(MoveFileError.UnexpectedError("moveFileConverter was unable to be called!"))
     }
 
     fun syncAllFiles(): Result<Unit, SyncAllError> {
@@ -159,7 +173,7 @@ class FileFolderModel(config: Config) {
             return syncResult
         }
 
-        return Err(SyncAllError.UnexpectedError("Unable to parse syncAll json!"))
+        return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
     }
 
     fun calculateFileSyncWork(): Result<WorkCalculated, CalculateWorkError> {
@@ -170,20 +184,44 @@ class FileFolderModel(config: Config) {
             return calculateSyncWorkResult
         }
 
-        return Err(CalculateWorkError.UnexpectedError("Unable to parse calculateSyncWork json!"))
+        return Err(CalculateWorkError.UnexpectedError("calculateSyncWorkConverter was unable to be called!"))
     }
 
-    fun executeFileSyncWork(): Result<Unit, ExecuteWorkError> {
+    fun executeFileSyncWork(account: Account, workUnit: WorkUnit): Result<Unit, ExecuteWorkError> {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
+            Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork(config, Klaxon().toJsonString(account), Klaxon().toJsonString(workUnit)))
 
         executeSyncWorkResult?.let {
             return executeSyncWorkResult
         }
 
-        return Err(ExecuteWorkError.UnexpectedError("Unable to parse executeSyncWork json!"))
+        return Err(ExecuteWorkError.UnexpectedError("executeSyncWorkConverter was unable to be called!"))
     }
 
+    companion object {
+        fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
+            val createResult: Result<Unit, CreateAccountError>? =
+                Klaxon().converter(createAccountConverter).parse(createAccount(Klaxon().toJsonString(config), account))
 
+            createResult?.let {
+                return createResult
+            }
+
+            return Err(CreateAccountError.UnexpectedError("createAccountConverter was unable to be called!"))
+        }
+
+        fun importAccount(config: Config, account: String): Result<Unit, ImportError> {
+            val importResult: Result<Unit, ImportError>? =
+                Klaxon().converter(importAccountConverter).parse(importAccount(Klaxon().toJsonString(config), account))
+
+            importResult?.let {
+                return importResult
+            }
+
+            return Err(ImportError.UnexpectedError("importAccountConverter was unable to be called!"))
+
+        }
+
+    }
 
 }
