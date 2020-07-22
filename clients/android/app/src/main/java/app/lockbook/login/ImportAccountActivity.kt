@@ -12,6 +12,7 @@ import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
 import app.lockbook.core.importAccount
 import app.lockbook.databinding.ActivityImportAccountBinding
+import app.lockbook.loggedin.mainscreen.FileFolderModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.ImportError
 import app.lockbook.utils.importAccountConverter
@@ -21,6 +22,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
+import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.coroutines.*
 
 class ImportAccountActivity : AppCompatActivity() {
@@ -47,7 +49,12 @@ class ImportAccountActivity : AppCompatActivity() {
     fun onClickImportAccount() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                handleImportResult(importAccountFromString(account_string.text.toString()))
+                handleImportResult(
+                    FileFolderModel.importAccount(
+                        Config(filesDir.absolutePath),
+                        account_string.text.toString()
+                    )
+                )
             }
         }
     }
@@ -66,42 +73,27 @@ class ImportAccountActivity : AppCompatActivity() {
         }
     }
 
-    private fun importAccountFromString(account: String): Result<Unit, ImportError> {
-        val json = Klaxon()
-        val config = json.toJsonString(Config(filesDir.absolutePath))
-
-        val importResult: Result<Unit, ImportError>? =
-            json.converter(importAccountConverter).parse(importAccount(config, account))
-
-        importResult?.let {
-            return importResult
-        }
-
-        return Err(ImportError.UnexpectedError("Unable to parse import json!"))
-    }
-
-    private suspend fun handleImportResult(importResult: Result<Unit, ImportError>) {
+    private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
         withContext(Dispatchers.Main) {
-            when (importResult) {
+            when (importAccountResult) {
                 is Ok -> {
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                    getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit().putBoolean(KEY, true).apply()
+                    getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit()
+                        .putBoolean(KEY, true).apply()
                     finishAffinity()
                 }
-                is Err ->
-                    if (importResult.error is ImportError.AccountStringCorrupted) {
-                        Toast.makeText(
-                            applicationContext,
-                            "Account String invalid!",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            applicationContext,
-                            "Unexpected error occurred, please create a bug report (activity_settings)",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                is Err -> when (importAccountResult.error) {
+                    is ImportError.AccountStringCorrupted -> Toast.makeText(
+                        applicationContext,
+                        "Invalid Account String!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.UnexpectedError -> Toast.makeText(
+                        applicationContext,
+                        "Unexpected error occurred, please create a bug report (activity_settings)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
@@ -113,8 +105,13 @@ class ImportAccountActivity : AppCompatActivity() {
                     val intentResult =
                         IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
                     if (intentResult != null) {
-                        intentResult.contents?.let {
-                            handleImportResult(importAccountFromString(it))
+                        intentResult.contents?.let { account ->
+                            handleImportResult(
+                                FileFolderModel.importAccount(
+                                    Config(filesDir.absolutePath),
+                                    account
+                                )
+                            )
                         }
                     }
                 }

@@ -20,12 +20,13 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val fileFolderModel = FileFolderModel(Config(path))
+
     private val _filesFolders = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<String>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFileFolder = MutableLiveData<Boolean>()
     private val _errorHasOccurred = MutableLiveData<String>()
-    private val fileFolderModel = FileFolderModel(Config(path))
 
     val filesFolders: LiveData<List<FileMetadata>>
         get() = _filesFolders
@@ -42,63 +43,17 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
-    companion object {
-        private const val SET_PARENT_TO_ROOT_ERROR =
-            "Couldn't retrieve root, please file a bug report."
-        private const val GET_PARENT_OF_PARENT_ERROR =
-            "Couldn't get parent of parent, please file a bug report." // needs something more user friendly
-        private const val GET_SIBLINGS_OF_PARENT_ERROR =
-            "Couldn't retrieve the upper directory, please file a bug report."
-        private const val REFRESH_CHILDREN_ERROR =
-            "Couldn't refresh the files on screen, please file a bug report."
-        private const val WRITE_NEW_TEXT_TO_DOCUMENT_ERROR =
-            "Couldn't save your changes, please file a bug report."
-        private const val ACCESS_DOCUMENT_ERROR =
-            "Couldn't access the document, please file a bug report."
-        private const val CREATE_FILE_ERROR =
-            "Couldn't create the file, please file a bug report."
-        private const val INSERT_FILE_ERROR =
-            "Couldn't add file to DB, please file a bug report."
-        private const val NEW_FILE_VIEW_ERROR =
-            "Couldn't create a new file based on view, please file a bug report."
-        private const val TEXT_EDITOR_VIEW_ERROR =
-            "Couldn't make changes based on view, please file a bug report."
-        private const val RENAME_VIEW_ERROR =
-            "Couldn't rename the file based on view, please file a bug report."
-    }
-
     fun startListFilesFolders() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileFolderModel.syncAllFiles()
-                if (fileFolderModel.setParentToRoot() is Ok) {
-                    refreshFiles()
-                } else {
-                    _errorHasOccurred.postValue(SET_PARENT_TO_ROOT_ERROR)
-                }
+                sync()
+                startUpInRoot()
             }
         }
     }
 
     fun launchNewFileFolder() {
         _navigateToNewFileFolder.value = true
-    }
-
-    private fun upADirectory() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (val siblings = fileFolderModel.getSiblingsOfParent()) {
-                    is Ok -> {
-                        when (fileFolderModel.getParentOfParent()) {
-                            is Ok -> _filesFolders.postValue(siblings.value)
-                            is Err -> _errorHasOccurred.postValue(GET_PARENT_OF_PARENT_ERROR)
-                        }
-
-                    }
-                    is Err -> _errorHasOccurred.postValue(GET_SIBLINGS_OF_PARENT_ERROR)
-                }
-            }
-        }
     }
 
     fun quitOrNot(): Boolean {
@@ -110,35 +65,112 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         return true
     }
 
+    private fun upADirectory() {
+        when (val result = fileFolderModel.getSiblingsOfParent()) {
+            is Ok -> {
+                when (val innerResult = fileFolderModel.getParentOfParent()) {
+                    is Ok -> _filesFolders.postValue(result.value)
+                    is Err -> when (innerResult.error) {
+                        is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
+                        is GetFileByIdError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                    }
+                }
+
+            }
+            is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+        }
+    }
+
     private fun refreshFiles() {
         when (val children = fileFolderModel.getChildrenOfParent()) {
             is Ok -> _filesFolders.postValue(children.value)
-            is Err -> _errorHasOccurred.postValue(REFRESH_CHILDREN_ERROR)
+            is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
         }
     }
 
     private fun writeNewTextToDocument(content: String) {
         val writeResult = fileFolderModel.writeContentToDocument(content)
         if (writeResult is Err) {
-            _errorHasOccurred.postValue(WRITE_NEW_TEXT_TO_DOCUMENT_ERROR)
+            when (writeResult.error) {
+                is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
+                is WriteToDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                is WriteToDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is WriteToDocumentError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
         }
     }
 
-    private fun createInsertFile(name: String, fileType: String) {
+    private fun createInsertRefreshFile(name: String, fileType: String) {
         when (val createFileResult = fileFolderModel.createFile(name, fileType)) {
             is Ok -> {
                 val insertFileResult = fileFolderModel.insertFile(createFileResult.value)
                 if (insertFileResult is Err) {
-                    _errorHasOccurred.postValue(INSERT_FILE_ERROR)
+                    _errorHasOccurred.postValue("An unexpected error has occurred!")
                 }
+                refreshFiles()
             }
-            is Err -> _errorHasOccurred.postValue(CREATE_FILE_ERROR)
+            is Err -> when (createFileResult.error) {
+                is CreateFileError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CreateFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! Document is treated as folder!")
+                is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
+                is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
+                is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
+                is CreateFileError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
         }
     }
 
     private fun renameRefreshFile(id: String, newName: String) {
-        fileFolderModel.renameFile(id, newName)
+        when (val renameFileResult = fileFolderModel.renameFile(id, newName)) {
+            is Ok -> refreshFiles()
+            is Err -> when (renameFileResult.error) {
+                is RenameFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                is RenameFileError.NewNameContainsSlash -> _errorHasOccurred.postValue("Error! New name contains slash!")
+                is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
+                is RenameFileError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
+    }
+
+    private fun handleReadDocument(fileMetadata: FileMetadata) {
+        when (val documentResult = fileFolderModel.getDocumentContent(fileMetadata.id)) {
+            is Ok -> {
+                _navigateToFileEditor.postValue(documentResult.value)
+                fileFolderModel.lastDocumentAccessed = fileMetadata
+            }
+            is Err -> when (documentResult.error) {
+                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
+                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                is ReadDocumentError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
+    }
+
+    private fun intoFolder(fileMetadata: FileMetadata) {
+        fileFolderModel.parentFileMetadata = fileMetadata
         refreshFiles()
+    }
+
+    private fun sync() {
+        val syncAllResult = fileFolderModel.syncAllFiles()
+        if (syncAllResult is Err) {
+            when (syncAllResult.error) {
+                is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
+                is SyncAllError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
+    }
+
+    private fun startUpInRoot() {
+        when (val result = fileFolderModel.setParentToRoot()) {
+            is Ok -> refreshFiles()
+            is Err -> when (result.error) {
+                is GetRootError.NoRoot -> _errorHasOccurred.postValue("No root!")
+                is GetRootError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
     }
 
     //
@@ -166,11 +198,10 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
                 if (data is Intent && resultCode == RESULT_OK) {
                     when (requestCode) {
                         MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
-                            createInsertFile(
+                            createInsertRefreshFile(
                                 data.getStringExtra("name"),
                                 data.getStringExtra("fileType")
                             )
-                            refreshFiles()
                         }
                         MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
                             writeNewTextToDocument(data.getStringExtra("text"))
@@ -183,18 +214,7 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
                         }
                     }
                 } else if (resultCode == RESULT_OK) {
-                    when (requestCode) {
-                        MainScreenFragment.NEW_FILE_REQUEST_CODE -> _errorHasOccurred.postValue(
-                            NEW_FILE_VIEW_ERROR
-                        )
-                        MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> _errorHasOccurred.postValue(
-                            TEXT_EDITOR_VIEW_ERROR
-                        )
-                        MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> _errorHasOccurred.postValue(
-                            RENAME_VIEW_ERROR
-                        )
-
-                    }
+                    _errorHasOccurred.postValue("An unexpected error has occurred!")
                 }
             }
         }
@@ -204,19 +224,12 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 _filesFolders.value?.let {
-                    val item = it[position]
+                    val fileMetadata = it[position]
 
-                    if (item.file_type == FileType.Folder) {
-                        fileFolderModel.parentFileMetadata = item
-                        refreshFiles()
+                    if (fileMetadata.file_type == FileType.Folder) {
+                        intoFolder(fileMetadata)
                     } else {
-                        when (val documentResult = fileFolderModel.getDocumentContent(item.id)) {
-                            is Ok -> {
-                                _navigateToFileEditor.postValue(documentResult.value)
-                                fileFolderModel.lastDocumentAccessed = item
-                            }
-                            is Err -> _errorHasOccurred.postValue(ACCESS_DOCUMENT_ERROR)
-                        }
+                        handleReadDocument(fileMetadata)
                     }
                 }
             }
