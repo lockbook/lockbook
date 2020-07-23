@@ -6,18 +6,45 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import androidx.cardview.widget.CardView
+import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import kotlinx.android.synthetic.main.listview_content_settings.view.*
+import app.lockbook.loggedin.listfiles.ClickInterface
+import kotlinx.android.synthetic.main.recyclerview_content_settings.view.*
 
-class SettingsAdapter(private val settingsList: List<String>, context: Context) :
-    ArrayAdapter<String>(context, settingsList.size) {
+class SettingsAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
+    var settings = listOf<String>()
+        set(value) {
+            field = value
+            notifyDataSetChanged()
+        }
 
-    private val layoutInflater = LayoutInflater.from(context)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SettingsViewHolder {
+        val layoutInflater = LayoutInflater.from(parent.context)
+        val view = layoutInflater.inflate(R.layout.recyclerview_content_settings, parent, false) as CardView
 
-    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        val itemView = layoutInflater.inflate(R.layout.listview_content_settings, parent, false)
-        itemView.setting_title?.text = settingsList[position]
+        return SettingsViewHolder(view)
+    }
 
-        return itemView
+    override fun getItemCount(): Int = settings.size
+
+    override fun onBindViewHolder(holder: SettingsViewHolder, position: Int) {
+        val item = settings[position]
+
+        holder.cardView.setting_title.text = item
+    }
+
+    inner class SettingsViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
+
+        init {
+            cardView.setOnClickListener {
+                clickInterface.onItemClick(adapterPosition)
+            }
+
+            cardView.setOnLongClickListener{
+                clickInterface.onLongClick(adapterPosition)
+                true
+            }
+        }
     }
 }

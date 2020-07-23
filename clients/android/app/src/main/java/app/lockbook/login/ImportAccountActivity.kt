@@ -3,6 +3,8 @@ package app.lockbook.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
@@ -26,15 +28,6 @@ import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.coroutines.*
 
 class ImportAccountActivity : AppCompatActivity() {
-
-    companion object {
-        private const val QR_CODE_SCANNER_REQUEST_CODE = 101
-    }
-
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    private val intentIntegrator: IntentIntegrator = IntentIntegrator(this)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -47,76 +40,58 @@ class ImportAccountActivity : AppCompatActivity() {
     }
 
     fun onClickImportAccount() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                handleImportResult(
-                    FileFolderModel.importAccount(
-                        Config(filesDir.absolutePath),
-                        account_string.text.toString()
-                    )
-                )
-            }
-        }
+        handleImportResult(
+            FileFolderModel.importAccount(
+                Config(filesDir.absolutePath),
+                account_string.text.toString()
+            )
+        )
     }
 
     fun navigateToQRCodeScanner() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                intentIntegrator
-                    .setBeepEnabled(true)
-                    .setRequestCode(QR_CODE_SCANNER_REQUEST_CODE)
-                    .setOrientationLocked(false)
-                    .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
-                    .setPrompt("Scan the account string QR Code.")
-                    .initiateScan()
-            }
-        }
+        IntentIntegrator(this)
+            .setPrompt("Scan the account string QR Code.")
+            .initiateScan()
     }
 
-    private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
-        withContext(Dispatchers.Main) {
-            when (importAccountResult) {
-                is Ok -> {
-                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                    getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit()
-                        .putBoolean(KEY, true).apply()
-                    finishAffinity()
-                }
-                is Err -> when (importAccountResult.error) {
-                    is ImportError.AccountStringCorrupted -> Toast.makeText(
-                        applicationContext,
-                        "Invalid Account String!",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    is ImportError.UnexpectedError -> Toast.makeText(
-                        applicationContext,
-                        "Unexpected error occurred, please create a bug report (activity_settings)",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+    private fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
+        when (importAccountResult) {
+            is Ok -> {
+                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit()
+                    .putBoolean(KEY, true).apply()
+                finishAffinity()
+            }
+            is Err -> when (importAccountResult.error) {
+                is ImportError.AccountStringCorrupted -> Toast.makeText(
+                    applicationContext,
+                    "Invalid Account String!",
+                    Toast.LENGTH_LONG
+                ).show()
+                is ImportError.UnexpectedError -> Toast.makeText(
+                    applicationContext,
+                    "Unexpected error occurred, please create a bug report (activity_settings)",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                if (requestCode == QR_CODE_SCANNER_REQUEST_CODE) {
-                    val intentResult =
-                        IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-                    if (intentResult != null) {
-                        intentResult.contents?.let { account ->
-                            handleImportResult(
-                                FileFolderModel.importAccount(
-                                    Config(filesDir.absolutePath),
-                                    account
-                                )
-                            )
-                        }
-                    }
-                }
-                super.onActivityResult(requestCode, resultCode, data)
+        val intentResult =
+            IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+        if (intentResult != null) {
+            intentResult.contents?.let { account ->
+                handleImportResult(
+                    FileFolderModel.importAccount(
+                        Config(filesDir.absolutePath),
+                        account
+                    )
+                )
             }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data)
         }
+
     }
 }
