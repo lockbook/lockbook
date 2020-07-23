@@ -38,7 +38,7 @@ pub fn sync() {
 
             let _ = io::stdout().flush();
             match execute_work(&get_config(), &account, work_unit) {
-                Ok(_) => println!("{:<50}{}", action, "Success."),
+                Ok(_) => println!("{:<50}Done.", action),
                 Err(error) => eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error)),
             }
         }
