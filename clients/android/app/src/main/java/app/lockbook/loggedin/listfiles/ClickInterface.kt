@@ -1,6 +1,6 @@
 package app.lockbook.loggedin.listfiles
 
-interface FilesFoldersClickInterface {
+interface ClickInterface {
     fun onItemClick(position: Int)
     fun onLongClick(position: Int)
 }

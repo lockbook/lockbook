@@ -219,7 +219,6 @@ class FileFolderModel(config: Config) {
             }
 
             return Err(ImportError.UnexpectedError("importAccountConverter was unable to be called!"))
-
         }
 
     }

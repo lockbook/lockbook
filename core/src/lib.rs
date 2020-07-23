@@ -559,8 +559,8 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
             FileMoveError::TargetParentHasChildNamedThat => {
                 Err(MoveFileError::TargetParentHasChildNamedThat)
             }
-            FileMoveError::FileDoesntExist => Err(MoveFileError::FileDoesNotExist),
-            FileMoveError::TargetParentDoesntExist => Err(MoveFileError::TargetParentDoesNotExist),
+            FileMoveError::FileDoesNotExist => Err(MoveFileError::FileDoesNotExist),
+            FileMoveError::TargetParentDoesNotExist => Err(MoveFileError::TargetParentDoesNotExist),
             FileMoveError::DbError(_)
             | FileMoveError::FailedToRecordChange(_)
             | FileMoveError::FailedToDecryptKey(_)

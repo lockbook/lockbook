@@ -2,21 +2,16 @@ package app.lockbook.loggedin.mainscreen
 
 import android.app.Activity.RESULT_OK
 import android.content.Intent
-import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.loggedin.listfiles.FilesFoldersClickInterface
-import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
-import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
-import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.loggedin.listfiles.ClickInterface
 import app.lockbook.utils.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterface {
+class MainScreenViewModel(path: String): ViewModel(), ClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -173,44 +168,19 @@ class MainScreenViewModel(path: String) : ViewModel(), FilesFoldersClickInterfac
         }
     }
 
-    //
-//    fun syncInBackground() { // syncs in the background
-//        uiScope.launch {
-//            withContext(Dispatchers.IO) {
-//                fileFolderModel.syncAll()
-//            }
-//        }
-//    }
-//
-//    fun syncNextWork(): Int { // returns the number of work it is on
-//        return fileFolderModel.doSyncWork(account)
-//    }
-//
-//    fun startSyncWork(): Int { // returns the amount to complete
-//        fileFolderModel.getAllSyncWork()
-//        return fileFolderModel.allSyncWork.work_units.size
-//    }
-//
-
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 if (data is Intent && resultCode == RESULT_OK) {
                     when (requestCode) {
                         MainScreenFragment.NEW_FILE_REQUEST_CODE -> {
-                            createInsertRefreshFile(
-                                data.getStringExtra("name"),
-                                data.getStringExtra("fileType")
-                            )
+                            createInsertRefreshFile(data.getStringExtra("name"), data.getStringExtra("fileType"))
                         }
                         MainScreenFragment.TEXT_EDITOR_REQUEST_CODE -> {
                             writeNewTextToDocument(data.getStringExtra("text"))
                         }
                         MainScreenFragment.POP_UP_INFO_REQUEST_CODE -> {
-                            renameRefreshFile(
-                                data.getStringExtra("id"),
-                                data.getStringExtra("new_name")
-                            )
+                            renameRefreshFile(data.getStringExtra("id"), data.getStringExtra("new_name"))
                         }
                     }
                 } else if (resultCode == RESULT_OK) {

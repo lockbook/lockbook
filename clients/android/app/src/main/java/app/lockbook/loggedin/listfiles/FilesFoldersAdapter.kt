@@ -9,7 +9,7 @@ import app.lockbook.utils.FileType
 import app.lockbook.R
 import kotlinx.android.synthetic.main.recyclerview_content_files_folders.view.*
 
-class FilesFoldersAdapter(val filesFoldersClickInterface: FilesFoldersClickInterface): RecyclerView.Adapter<FilesFoldersAdapter.ListFilesViewHolder>() {
+class FilesFoldersAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<FilesFoldersAdapter.ListFilesViewHolder>() {
 
     var filesFolders = listOf<FileMetadata>()
         set(value) {
@@ -45,11 +45,11 @@ class FilesFoldersAdapter(val filesFoldersClickInterface: FilesFoldersClickInter
 
         init {
             cardView.setOnClickListener {
-                filesFoldersClickInterface.onItemClick(adapterPosition)
+                clickInterface.onItemClick(adapterPosition)
             }
 
             cardView.setOnLongClickListener{
-                filesFoldersClickInterface.onLongClick(adapterPosition)
+                clickInterface.onLongClick(adapterPosition)
                 true
             }
 

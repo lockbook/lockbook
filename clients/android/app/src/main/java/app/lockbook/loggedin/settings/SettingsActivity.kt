@@ -1,34 +1,33 @@
 package app.lockbook.loggedin.settings
 
-import android.app.Activity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.databinding.DataBindingUtil
+import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
-import kotlinx.android.synthetic.main.activity_settings.*
+import app.lockbook.databinding.ActivitySettingsBinding
+import app.lockbook.loggedin.listfiles.FilesFoldersAdapter
 
-class SettingsActivity : Activity() {
-    companion object {
-        private const val EXPORT_ACCOUNT_QR_CODE: Int = 1
-        private const val EXPORT_ACCOUNT_RAW: Int = 2
-    }
-
+class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
-
-        settings_list.adapter = SettingsAdapter(
-            listOf("Export Account String (QR Code)", "Export Raw Account String"),
-            applicationContext
+        val binding: ActivitySettingsBinding = DataBindingUtil.setContentView(
+            this,
+            R.layout.activity_settings
         )
 
-        settings_list.setOnItemClickListener { _, _, position, _ ->
-            when (position) {
-                EXPORT_ACCOUNT_QR_CODE -> {
+        val settingsViewModelFactory =
+            SettingsViewModelFactory()
+        val settingsViewModel =
+            ViewModelProvider(this, settingsViewModelFactory).get(SettingsViewModel::class.java)
+        val adapter = FilesFoldersAdapter(settingsViewModel)
 
-                }
-                EXPORT_ACCOUNT_RAW -> {
+        binding.settingsViewModel = settingsViewModel
+        binding.settingsList.adapter = adapter
+        binding.settingsList.layoutManager = LinearLayoutManager(applicationContext)
 
-                }
-            }
-        }
+
+
     }
 }
