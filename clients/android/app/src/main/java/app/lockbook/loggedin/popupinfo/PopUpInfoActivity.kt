@@ -16,19 +16,14 @@ class PopUpInfoActivity : Activity() {
     var metadataVersion: String = "ERROR"
     var contentVersion: String = "ERROR"
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        setUpInfo()
-
         val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(
             this,
             R.layout.activity_popup_info
         )
         binding.popUpInfoActivity = this
+        setUpInfo()
     }
 
     private fun setUpInfo() {
