@@ -8,9 +8,9 @@
                 
                 <h3 class="available_everywhere"> <center>Available Everywhere</center></h3>
 
-                <div class="links">
+                <div>
                      {{- range .Site.Params.links -}}
-                        <a rel="me" href="{{ .url | safeURL }}" title="{{ .title }}">
+                        <a class="getIcons" href="{{ .url | safeURL }}" title="{{ .title }}">
                             <span class="{{ .iconset | default "fab" }} {{.iconorigin | default "fa" }}-{{ .icon }}" /span>
                         </a>
                      {{- end -}}
@@ -20,8 +20,7 @@
 
         </div>
         <div class="column right">
-            <h2>Lockbook </h2>
-            <h3>Beautiful, secure, open source, everywhere.</h3>
+            <h1 class="logo">Lockbook</h1>
             <p>{{- partial "introduction.html" . -}}</p>
 
         </div>
