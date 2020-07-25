@@ -1,0 +1,37 @@
+{{ define "main" }}
+
+<main>
+    <div class="block introduction">
+        <div class="column left">
+            <img src="images/portrait.jpg" class="portrait" alt="Portrait" />
+        </div>
+        <div class="column right">
+            {{- with .Param "greeting" -}}
+                <h1>{{ . }}</h1>
+            {{- else -}}
+                <h1>{{ i18n "hello" }}.</h1>
+            {{- end -}}
+            <h2>{{ i18n "i-am" }} {{ .Site.Author.name | default "Hallo" }}.</h2>
+            <p>{{- partial "introduction.html" . -}}</p>
+
+            <div class="links">
+                {{- range .Site.Params.links -}}
+                    <a rel="me" href="{{ .url | safeURL }}" title="{{ .title }}">
+                        <span class="{{ .iconset | default "fab" }} {{.iconorigin | default "fa" }}-{{ .icon }}"></span>
+                    </a>
+                {{- end -}}
+            </div>
+        </div>
+    </div>
+
+    {{- if (fileExists "layouts/partials/content.html") -}}
+        <div class="block">
+            <div class="column left"></div>
+            <div class="column right">
+                {{- partial "content.html" . -}}
+            </div>
+        </div>
+    {{- end -}}
+</main>
+
+{{ end }}
