@@ -8,8 +8,8 @@ main {
     }
 
     .block.introduction {
-        margin-top: 20vh;
-        min-height: calc(100vh - 20vh);
+        margin-top: 10vh;
+        min-height: calc(100vh - 10vh);
     }
 
     .column.left {
@@ -18,13 +18,12 @@ main {
 
     .column.right {
         h1 {
-            margin-left: -10px; /* Correction for margin of leftmost character. */
             margin-bottom: 0.4em;
         }
 
         h2 {
-            margin-left: -4px; /* Correction for margin of leftmost character. */
             margin-top: 0;
+            margin-left: 5px;
         }
 
         .links {
@@ -35,6 +34,10 @@ main {
                 margin-right: 0.5rem;
                 text-decoration: none;
             }
+        }
+
+        p {
+            margin-left: 10px;
         }
 
     }
