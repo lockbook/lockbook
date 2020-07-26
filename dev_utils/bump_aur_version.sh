@@ -18,8 +18,8 @@ cd ../../../aur-lockbook
 sed -i "s/pkgver=.*/pkgver=$current_version/g" PKGBUILD
 makepkg --printsrcinfo > .SRCINFO
 
-# git add -A
-# git commit -m "Manual deploy by $(git config user.name) from $current_hash"
-# git push
+git add -A
+git commit -m "Manual deploy by $(git config user.name) from $current_hash"
+git push
 
 echo "Aur version bumped successfully"
