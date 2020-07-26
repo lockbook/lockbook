@@ -7,15 +7,15 @@
   IgnorableNamespaces="uap mp">
 
   <Identity
-    Name="51eb22d8-b1fe-4e42-a53f-3d88aa553cde"
-    Publisher="CN=tvand"
+    Name="5dd1bb76-f66b-46f4-8c89-0572b4cf6866"
+    Publisher="CN=travis"
     Version="1.0.0.0" />
 
-  <mp:PhoneIdentity PhoneProductId="51eb22d8-b1fe-4e42-a53f-3d88aa553cde" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="5dd1bb76-f66b-46f4-8c89-0572b4cf6866" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>windows</DisplayName>
-    <PublisherDisplayName>tvand</PublisherDisplayName>
+    <PublisherDisplayName>travis</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -35,7 +35,8 @@
         DisplayName="Lockbook"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png"
-        BackgroundColor="transparent" Description="Lockbook">
+        Description="A secure and intuitive notebook"
+        BackgroundColor="transparent">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
