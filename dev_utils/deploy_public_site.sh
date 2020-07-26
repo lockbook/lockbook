@@ -34,5 +34,5 @@ git add -A
 git commit -m "Manual deploy by $(git config user.name) from $current_hash"
 git push origin gh-pages
 
-echo "Switching back to original branch: $(current_branch)"
-git checkout $(current_branch)
+echo "Switching back to original branch: $current_branch"
+git checkout $current_branch
