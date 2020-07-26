@@ -1,16 +1,12 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::client::Error;
-use lockbook_core::model::api::NewAccountError;
-use lockbook_core::service::account_service::{AccountCreationError, AccountService};
-use lockbook_core::DefaultAccountService;
+use lockbook_core::{create_account, CreateAccountError};
 
-use crate::utils::connect_to_db;
+use crate::utils::{exit_with, get_config};
+use crate::{NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
 
 pub fn init() {
-    let db = connect_to_db();
-
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -20,27 +16,17 @@ pub fn init() {
         .expect("Failed to read from stdin");
     username.retain(|c| !c.is_whitespace());
 
-    match DefaultAccountService::create_account(&db, &username) {
-        Ok(_) => println!("Account created successfully!"),
-        Err(err) => match err {
-            AccountCreationError::KeyGenerationError(e) => {
-                eprintln!("Could not generate keypair, error: {}", e)
+    match create_account(&get_config(), &username) {
+        Ok(_) => exit_with("Account created successfully", SUCCESS),
+        Err(error) => match error {
+            CreateAccountError::UsernameTaken => exit_with("Username taken.", USERNAME_TAKEN),
+            CreateAccountError::InvalidUsername => {
+                exit_with("Username is not a-z || 0-9", USERNAME_INVALID)
             }
-
-            AccountCreationError::PersistenceError(err) => {
-                eprintln!("Could not persist data, error: {:?}", err)
+            CreateAccountError::CouldNotReachServer => {
+                exit_with("Could not reach server.", NETWORK_ISSUE)
             }
-
-            AccountCreationError::ApiError(api_err) => match api_err {
-                Error::SendFailed(_) => eprintln!("Network error: {:?}", api_err),
-                Error::Api(api_err_err) => match api_err_err {
-                    NewAccountError::UsernameTaken => eprintln!("Username Taken!"),
-                    _ => eprintln!("Unexpected error occurred: {:?}", api_err_err),
-                },
-                _ => eprintln!("Unexpected error occurred: {:?}", api_err),
-            },
-
-            _ => eprintln!("Unexpected error occurred: {:?}", err),
+            CreateAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }
