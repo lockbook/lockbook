@@ -13,8 +13,8 @@ pub trait LocalChangesRepo {
     fn get_all_local_changes(db: &Db) -> Result<Vec<LocalChange>, DbError>;
     fn get_local_changes(db: &Db, id: Uuid) -> Result<Option<LocalChange>, DbError>;
     fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn track_rename(db: &Db, id: Uuid, old_name: String) -> Result<(), DbError>;
-    fn track_move(db: &Db, id: Uuid, old_parent: Uuid) -> Result<(), DbError>;
+    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError>;
+    fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError>;
     fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
@@ -76,7 +76,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         Ok(())
     }
 
-    fn track_rename(db: &Db, id: Uuid, old_name: String) -> Result<(), DbError> {
+    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -107,12 +107,18 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-                Some(_) => Ok(()),
+                Some(renamed) => {
+                    if new_name == renamed.old_value {
+                        Self::untrack_rename(&db, id)
+                    } else {
+                        Ok(())
+                    }
+                }
             },
         }
     }
 
-    fn track_move(db: &Db, id: Uuid, old_parent: Uuid) -> Result<(), DbError> {
+    fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -143,7 +149,13 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-                Some(_) => Ok(()),
+                Some(moved) => {
+                    if moved.old_value == new_parent {
+                        Self::untrack_move(&db, id)
+                    } else {
+                        Ok(())
+                    }
+                }
             },
         }
     }
@@ -220,16 +232,54 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         }
     }
 
-    fn untrack_new_file(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
+        Self::delete_if_exists(&db, id)
     }
 
-    fn untrack_rename(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError> {
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(mut edit) => {
+                edit.renamed = None;
+
+                if edit.ready_to_be_deleted() {
+                    Self::delete_if_exists(&db, edit.id)?
+                } else {
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::SledError)?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
-    fn untrack_move(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
+    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError> {
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(mut edit) => {
+                edit.moved = None;
+
+                if edit.ready_to_be_deleted() {
+                    Self::delete_if_exists(&db, edit.id)?
+                } else {
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::SledError)?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
@@ -316,8 +366,8 @@ mod unit_tests {
         );
 
         let id2 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_rename(&db, id, String::from("old_file")).unwrap();
-        LocalChangesRepoImpl::track_rename(&db, id2, String::from("old_file2")).unwrap();
+        LocalChangesRepoImpl::track_rename(&db, id, "old_file", "unused_name").unwrap();
+        LocalChangesRepoImpl::track_rename(&db, id2, "old_file2", "unused_name").unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -343,8 +393,8 @@ mod unit_tests {
         );
 
         let id3 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_move(&db, id, id2).unwrap();
-        LocalChangesRepoImpl::track_move(&db, id3, id2).unwrap();
+        LocalChangesRepoImpl::track_move(&db, id, id2, Uuid::new_v4()).unwrap();
+        LocalChangesRepoImpl::track_move(&db, id3, id2, Uuid::new_v4()).unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -460,6 +510,73 @@ mod unit_tests {
                 content_edited: false,
                 deleted: true,
             })
+        );
+    }
+
+    #[test]
+    fn rename_back_to_original() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let id = Uuid::new_v4();
+
+        LocalChangesRepoImpl::track_rename(&db, id, "old_file", "new_name").unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_rename(&db, id, "garbage", "garbage2").unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_rename(&db, id, "garbage", "old_file").unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn move_back_to_original() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let id = Uuid::new_v4();
+        let og = Uuid::new_v4();
+
+        LocalChangesRepoImpl::track_move(&db, id, og, Uuid::new_v4()).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), og).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_all_local_changes(&db)
+                .unwrap()
+                .len(),
+            0
         );
     }
 }

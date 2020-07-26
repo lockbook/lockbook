@@ -1,8 +1,9 @@
 use crate::model::file_metadata::FileMetadata;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(tag = "tag", content = "content")]
 pub enum WorkUnit {
     LocalChange { metadata: FileMetadata },
 

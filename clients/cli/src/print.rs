@@ -1,32 +1,27 @@
-use std::io;
-use std::io::Write;
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use lockbook_core::{
+    get_account, get_file_by_path, read_document, GetAccountError, GetFileByPathError,
+};
 
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::FileService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
-
-use crate::utils::{connect_to_db, get_account};
-
-pub fn print() {
-    let db = connect_to_db();
-    get_account(&db);
-
-    if atty::is(atty::Stream::Stdout) {
-        print!("Enter a filepath: ");
+pub fn print(file_name: &str) {
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
 
-    io::stdout().flush().unwrap();
-    let mut file_name = String::new();
-    io::stdin()
-        .read_line(&mut file_name)
-        .expect("Failed to read from stdin");
-    file_name.retain(|c| !c.is_whitespace());
+    let file_metadata = match get_file_by_path(&get_config(), &file_name) {
+        Ok(fm) => fm,
+        Err(err) => match err {
+            GetFileByPathError::NoFileAtThatPath => exit_with("File not found", FILE_NOT_FOUND),
+            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
-    let file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
-        .expect("Could not search files ")
-        .expect("Could not find that file!");
-
-    match DefaultFileService::read_document(&db, file_metadata.id) {
+    match read_document(&get_config(), file_metadata.id) {
         Ok(content) => print!("{}", content.secret),
         Err(error) => panic!("Unexpected error: {:?}", error),
     };

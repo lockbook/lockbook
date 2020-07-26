@@ -1,40 +1,73 @@
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultSyncService};
+use lockbook_core::{
+    calculate_work, execute_work, get_account, set_last_synced, CalculateWorkError,
+    GetAccountError, SetLastSyncedError,
+};
 
-use crate::utils::{connect_to_db, get_account};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{NETWORK_ISSUE, UNEXPECTED_ERROR};
 use lockbook_core::model::work_unit::WorkUnit;
+use std::io;
+use std::io::Write;
 
 pub fn sync() {
-    let db = connect_to_db();
-    let account = get_account(&db);
+    let account = match get_account(&get_config()) {
+        Ok(account) => account,
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
-    let mut work_calculated =
-        DefaultSyncService::calculate_work(&db).expect("Failed to calculate work required to sync");
+    let mut work_calculated = match calculate_work(&get_config()) {
+        Ok(work) => work,
+        Err(err) => match err {
+            CalculateWorkError::NoAccount => exit_with_no_account(),
+            CalculateWorkError::CouldNotReachServer => {
+                exit_with("Could not reach server!", NETWORK_ISSUE)
+            }
+            CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
     while !work_calculated.work_units.is_empty() {
         for work_unit in work_calculated.work_units {
-            println!(
+            print!(
                 "{}",
                 match work_unit.clone() {
                     WorkUnit::LocalChange { metadata } =>
-                        format!("Syncing: {} to server", metadata.name),
+                        format!("Syncing: {} to server\t", metadata.name),
                     WorkUnit::ServerChange { metadata } =>
-                        format!("Syncing: {} from server", metadata.name),
+                        format!("Syncing: {} from server\t", metadata.name),
                 }
             );
-            match DefaultSyncService::execute_work(&db, &account, work_unit) {
+            let _ = io::stdout().flush();
+            match execute_work(&get_config(), &account, work_unit) {
                 Ok(_) => println!("Success."),
                 Err(error) => eprintln!("Failed: {:?}", error),
             }
         }
 
-        work_calculated = DefaultSyncService::calculate_work(&db)
-            .expect("Failed to calculate work required to sync");
+        work_calculated = match calculate_work(&get_config()) {
+            Ok(work) => work,
+            Err(err) => match err {
+                CalculateWorkError::NoAccount => exit_with_no_account(),
+                CalculateWorkError::CouldNotReachServer => {
+                    exit_with("Could not reach server!", NETWORK_ISSUE)
+                }
+                CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            },
+        };
     }
 
-    DefaultFileMetadataRepo::set_last_updated(&db, work_calculated.most_recent_update_from_server)
-        .expect("Failed to save last updated");
+    match set_last_synced(
+        &get_config(),
+        work_calculated.most_recent_update_from_server,
+    ) {
+        Ok(_) => {}
+        Err(err) => match err {
+            SetLastSyncedError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    }
 
     println!("Sync complete.");
 }
