@@ -1,6 +1,19 @@
 {{ define "main" }}
 
+<style>
+main {
+	max-width: 1250px;
+	margin: auto;
+}
+hr {
+	margin-bottom: 2rem;
+}
+</style>
+
 <main>
+   <h1 class="logo">Lockbook</h1>
+   <hr>
+
    <div class="block introduction">
         <div class="column left">
             <center>
@@ -11,7 +24,7 @@
                 <div>
                      {{- range .Site.Params.links -}}
                         <a class="getIcons" href="{{ .url | safeURL }}" title="{{ .title }}">
-                            <span class="{{ .iconset | default "fab" }} {{.iconorigin | default "fa" }}-{{ .icon }}" /span>
+                            <span class="{{ .iconset | default `fab` }} {{.iconorigin | default `fa` }}-{{ .icon }}"></span>
                         </a>
                      {{- end -}}
                 </div>
@@ -20,7 +33,6 @@
 
         </div>
         <div class="column right">
-            <h1 class="logo">Lockbook</h1>
             <p>{{- partial "introduction.html" . -}}</p>
 
         </div>
