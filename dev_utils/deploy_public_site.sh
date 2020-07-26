@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -e 
-current_branch=$(git rev-parse --abbrev-ref HEAD)
+current_branch=master # $(git rev-parse --abbrev-ref HEAD)
 
 if [ $current_branch != "master" ]
 then
@@ -21,3 +21,4 @@ cd ..
 git checkout gh-pages
 rm -rf *
 mv $temp_directory/* .
+
