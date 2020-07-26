@@ -27,7 +27,7 @@ echo "Deleting old things"
 rm -rf *
 
 mv $temp_directory/* .
-cat "lockbook.app" >> CNAME
+echo "lockbook.app" >> CNAME
 
 echo "Deploying"
 git add -A
