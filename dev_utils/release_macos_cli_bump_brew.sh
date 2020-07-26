@@ -63,3 +63,13 @@ github-release upload \
 
 echo "Verify this sha is a part of the release on github: $sha"
 
+cd ../../../../../homebrew-lockbook/Formula
+sed -i '' 's=url.*=url "https://github.com/lockbook/lockbook/releases/download/'$current_version'/lockbook-cli-macos.tar.gz"=g' lockbook.rb
+sed -i '' "s/sha256.*/sha256 \"$sha\"/g" lockbook.rb
+sed -i '' "s/version.*/version \"$current_version\"/g" lockbook.rb
+
+git add -A
+git commit -m "Manual deploy by $(git config user.name) from $current_hash"
+git push
+
+echo "Complete, read the logs."
