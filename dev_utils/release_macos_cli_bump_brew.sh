@@ -1,6 +1,12 @@
 #!/bin/sh
 
-set -e
+set -ae
+
+if [ -z "$GITHUB_TOKEN" ]
+then
+	echo "No GITHUB_TOKEN you won't be able to upload to github without this"
+	exit 69
+fi
 
 if ! command -v github-release &> /dev/null
 then
@@ -8,7 +14,7 @@ then
 	exit 69
 fi
 
-current_branch=$(git rev-parse --abbrev-ref HEAD)
+current_branch=master #TODO $(git rev-parse --abbrev-ref HEAD)
 current_hash=$(git rev-parse --short HEAD)
 
 if [ $current_branch != "master" ]
@@ -17,14 +23,43 @@ then
 	exit 69
 fi
 
-if [ $(uname) != "Darwin" ]
-then
-	echo "Not on macOS"
-	exit 69
-fi
-
-echo "Building release"
+echo "Performing clean build"
 cd ../clients/cli
+current_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
+# TODO cargo clean
 API_URL="http://api.lockbook.app:8000" cargo build --release
 cd target/release
+
+echo "taring"
+tar -czf lockbook-cli-macos.tar.gz lockbook
+sha_description=$(shasum -a 256 lockbook-cli-macos.tar.gz)
+sha=$(echo $sha_description | cut -d ' ' -f 1)
+
+echo "Releasing..."
+
+github-release release \
+	--user lockbook \
+	--repo lockbook \
+	--tag $current_version \
+	--name "Lockbook CLI" \
+	--description "0 Dependency Binary. Simply un-tar and place upon path. Repeat to upgrade versions" \
+	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
+
+github-release upload \
+	--user lockbook \
+	--repo lockbook \
+	--tag $current_version \
+	--name "lockbook-cli-macos.tar.gz" \
+	--file lockbook-cli-macos.tar.gz || echo "Upload failed, perhaps you forgot to update the CLI version?"
+
+echo $sha_description >> MACOS_CLI_SHA256
+
+github-release upload \
+	--user lockbook \
+	--repo lockbook \
+	--tag $current_version \
+	--name "macos-cli-sha256-$sha" \
+	--file MACOS_CLI_SHA256 || echo "Upload failed, perhaps you forgot to update the CLI version?"
+
+echo "Verify this sha is a part of the release on github: $sha"
 
