@@ -1,69 +1,85 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::exit;
 
 use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::service::file_service::{FileService, NewFileFromPathError};
-use lockbook_core::DefaultFileService;
+use lockbook_core::{
+    create_file_at_path, get_account, write_document, CreateFileAtPathError, GetAccountError,
+};
 
-use crate::utils::{connect_to_db, get_account};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::{
+    COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_FILE, COULD_NOT_READ_OS_METADATA,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
+    UNIMPLEMENTED,
+};
 
 pub fn copy(path: PathBuf) {
     let metadata = fs::metadata(&path).unwrap_or_else(|err| {
-        eprintln!("Failed to read file metadata: {}", err);
-        exit(1);
+        exit_with(
+            &format!("Failed to read file metadata: {}", err),
+            COULD_NOT_READ_OS_METADATA,
+        )
     });
 
     if metadata.is_file() {
-        let secret = fs::read_to_string(&path).unwrap_or_else(|err| {
-            eprintln!("Failed to read file: {}", err);
-            exit(2);
+        let content_to_import = fs::read_to_string(&path).unwrap_or_else(|err| {
+            exit_with(
+                &format!("Failed to read file: {}", err),
+                COULD_NOT_READ_OS_FILE,
+            )
         });
 
-        let db = connect_to_db();
-        let account = get_account(&db);
+        let account = match get_account(&get_config()) {
+            Ok(account) => account,
+            Err(err) => match err {
+                GetAccountError::NoAccount => exit_with_no_account(),
+                GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            },
+        };
 
         let absolute_path_maybe = fs::canonicalize(&path).unwrap_or_else(|error| {
-            eprintln!("Failed to get absolute path: {}", error);
-            exit(3);
+            exit_with(
+                &format!("Failed to get absolute path: {}", error),
+                COULD_NOT_GET_OS_ABSOLUTE_PATH,
+            )
         });
 
         let absolute_path_string = absolute_path_maybe.to_str().unwrap_or_else(|| {
-            eprintln!("Absolute path not a valid utf-8 sequence!");
-            exit(4);
-        });
-
-        let file_metadata = DefaultFileService::create_at_path(
-            &db,
-            format!(
-                "{}/imported/cli-copy{}",
-                account.username, absolute_path_string
+            exit_with(
+                "Absolute path not a valid utf-8 sequence!",
+                UNEXPECTED_ERROR,
             )
-            .as_str(),
-        )
-        .unwrap_or_else(|err| match err {
-            NewFileFromPathError::NoRoot => {
-                eprintln!("Account missing root, has a sync been performed?");
-                exit(5);
-            }
-            _ => {
-                eprintln!("Unexpected error occurred: {:?}", err);
-                exit(6)
-            }
         });
 
-        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
-            .unwrap_or_else(|error| {
-                eprintln!("Unexpected error while saving file contents: {:?}", error);
-                exit(7);
-            });
+        let import_dest = format!(
+            "{}/imported/cli-copy{}",
+            account.username, absolute_path_string
+        );
 
-        if atty::is(atty::Stream::Stdout) {
-            println!("{} saved", file_metadata.name);
-        } else {
-            println!("{}", file_metadata.name);
+        let file_metadata = match create_file_at_path(&get_config(), &import_dest) {
+            Ok(file_metadata) => file_metadata,
+            Err(err) => match err {
+                CreateFileAtPathError::FileAlreadyExists => exit_with(&format!("Input destination {} not available within lockbook!", import_dest), FILE_ALREADY_EXISTS),
+                CreateFileAtPathError::NoAccount => exit_with_no_account(),
+                CreateFileAtPathError::NoRoot => exit_with("No root folder, have you synced yet?", NO_ROOT),
+                CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest), DOCUMENT_TREATED_AS_FOLDER),
+                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Unexpected: PathDoesntStartWithRoot", UNEXPECTED_ERROR),
+                CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            },
+        };
+
+        match write_document(
+            &get_config(),
+            file_metadata.id,
+            &DecryptedValue::from(content_to_import),
+        ) {
+            Ok(_) => exit_with(&format!("imported to {}", import_dest), SUCCESS),
+            Err(err) => exit_with(&format!("Unexpected error: {:#?}", err), UNEXPECTED_ERROR),
         }
     } else {
-        unimplemented!("Folders are not supported yet!")
+        exit_with(
+            "Copying folders has not been implemented yet!",
+            UNIMPLEMENTED,
+        )
     }
 }

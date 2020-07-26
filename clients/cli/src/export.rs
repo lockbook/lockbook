@@ -1,32 +1,26 @@
-use lockbook_core::repo::account_repo::Error;
-use lockbook_core::service::account_service::{AccountExportError, AccountService};
-use lockbook_core::DefaultAccountService;
+use lockbook_core::{export_account, AccountExportError};
 
-use crate::utils::connect_to_db;
+use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::UNEXPECTED_ERROR;
 
 pub fn export() {
-    let db = connect_to_db();
-
-    match DefaultAccountService::export_account(&db) {
+    match export_account(&get_config()) {
         Ok(account_string) => {
-            match qr2term::print_qr(&account_string) {
-                Ok(_) => {}
-                Err(qr_err) => eprintln!(
-                    "Unexpected error occured while generating qr code: {:?}",
-                    qr_err
-                ),
-            }
-            println!("For the raw string, copy the next line (triple click):");
-            println!("{}", account_string);
-        }
-        Err(err) => match &err {
-            AccountExportError::KeyRetrievalError(db_err) => match db_err {
-                Error::AccountMissing(_) => {
-                    eprintln!("No account found, run init, import or help.")
+            if atty::is(atty::Stream::Stdout) {
+                match qr2term::print_qr(&account_string) {
+                    Ok(_) => {}
+                    Err(qr_err) => eprintln!(
+                        "Unexpected error occured while generating qr code: {:?}",
+                        qr_err
+                    ),
                 }
-                _ => eprintln!("Unexpected error occurred: {:?}", err),
-            },
-            _ => eprintln!("Unexpected error occurred: {:?}", err),
+            } else {
+                println!("{}", account_string);
+            }
+        }
+        Err(err) => match err {
+            AccountExportError::NoAccount => exit_with_no_account(),
+            AccountExportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }

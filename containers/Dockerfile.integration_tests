@@ -13,6 +13,8 @@ COPY core ../core
 COPY containers/dummy.rs src/lib.rs
 COPY integration_tests/Cargo.toml .
 COPY integration_tests/Cargo.lock .
+# Dependency on core which has compile-time env var - must match values in test.env
+ENV API_URL=http://lockbook_server:8000
 RUN cargo build
 
 # Build our source

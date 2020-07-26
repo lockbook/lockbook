@@ -80,6 +80,22 @@ impl From<PostgresError> for FileError {
             {
                 FileError::PathTaken
             }
+            (Some(error_code), error_string)
+                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                    && error_string.contains("fk_files_parent_files_id") =>
+            {
+                FileError::Unknown(String::from(
+                    "cannot create a file with a parent that doesn't exist",
+                )) // todo: make this a real error variant
+            }
+            (Some(error_code), error_string)
+                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                    && error_string.contains("fk_files_owner_accounts_name") =>
+            {
+                FileError::Unknown(String::from(
+                    "cannot create a file with an owner that doesn't exist",
+                )) // todo: make this a real error variant
+            }
             _ => FileError::Postgres(e),
         }
     }
@@ -253,6 +269,7 @@ pub async fn move_file(
     old_metadata_version: u64,
     file_type: FileType,
     parent: Uuid,
+    access_key: FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
@@ -266,7 +283,11 @@ pub async fn move_file(
                 metadata_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.metadata_version END)
+                    ELSE old.metadata_version END),
+                parent_access_key =
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    THEN $5
+                    ELSE old.parent_access_key END)
             FROM old WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
@@ -279,10 +300,10 @@ pub async fn move_file(
                 &(old_metadata_version as i64),
                 &(file_type == FileType::Folder),
                 &serde_json::to_string(&parent).map_err(FileError::Serialize)?,
+                &serde_json::to_string(&access_key).map_err(FileError::Serialize)?,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
@@ -297,13 +318,13 @@ pub async fn rename_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM documents WHERE id = $1 FOR UPDATE)
-            UPDATE documents new
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            UPDATE files new
             SET
                 name =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN $4
-                    ELSE old.metadata_version END),
+                    ELSE old.name END),
                 metadata_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
@@ -322,8 +343,7 @@ pub async fn rename_file(
                 &name,
             ],
         )
-        .await
-        .map_err(FileError::Postgres)?;
+        .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
