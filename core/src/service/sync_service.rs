@@ -10,7 +10,8 @@ use crate::model::account::Account;
 use crate::model::api;
 use crate::model::api::{
     ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, MoveDocumentError, MoveFolderError, RenameDocumentError, RenameFolderError,
+    DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
+    RenameFolderError,
 };
 use crate::model::crypto::SignedValue;
 use crate::model::file_metadata::FileMetadata;
@@ -28,9 +29,9 @@ use crate::service::sync_service::CalculateWorkError::{
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentMoveError,
-    DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
-    GetDocumentError, SaveDocumentError,
+    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentGetError,
+    DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError,
+    FolderRenameError, SaveDocumentError,
 };
 
 #[derive(Debug)]
@@ -38,7 +39,7 @@ pub enum CalculateWorkError {
     LocalChangesRepoError(local_changes_repo::DbError),
     MetadataRepoError(file_metadata_repo::Error),
     GetMetadataError(file_metadata_repo::DbError),
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     GetUpdatesError(client::Error<api::GetUpdatesError>),
 }
 
@@ -46,7 +47,7 @@ pub enum CalculateWorkError {
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
     MetadataRepoErrorOpt(file_metadata_repo::Error),
-    GetDocumentError(client::Error<()>),
+    DocumentGetError(client::Error<GetDocumentError>),
     DocumentRenameError(client::Error<RenameDocumentError>),
     FolderRenameError(client::Error<RenameFolderError>),
     DocumentMoveError(client::Error<MoveDocumentError>),
@@ -63,10 +64,10 @@ pub enum WorkExecutionError {
 
 #[derive(Debug)]
 pub enum SyncError {
-    AccountRetrievalError(account_repo::Error),
+    AccountRetrievalError(account_repo::AccountRepoError),
     CalculateWorkError(CalculateWorkError),
     WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
-    MetadataUpdateError(file_metadata_repo::Error),
+    MetadataUpdateError(file_metadata_repo::DbError),
 }
 
 pub trait SyncService {
@@ -121,7 +122,7 @@ impl<
         let mut work_units: Vec<WorkUnit> = vec![];
 
         let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
-        let last_sync = FileMetadataDb::get_last_updated(&db).map_err(MetadataRepoError)?;
+        let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::get_updates(
             &account.username,
@@ -192,7 +193,7 @@ impl<
                     if metadata.file_type == Document {
                         let document =
                             ApiClient::get_document(metadata.id, metadata.content_version)
-                                .map_err(GetDocumentError)?;
+                                .map_err(DocumentGetError)?;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
                     }
@@ -226,7 +227,7 @@ impl<
                             {
                                 let document =
                                     ApiClient::get_document(metadata.id, metadata.content_version)
-                                        .map_err(GetDocumentError)?;
+                                        .map_err(DocumentGetError)?;
 
                                 DocsDb::insert(&db, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
@@ -381,7 +382,6 @@ impl<
                                 &metadata.name)
                                 .map_err(FolderRenameError)?
                         };
-                        metadata.content_version = version;
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
@@ -395,6 +395,7 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
+                                metadata.folder_access_keys.clone()
                             ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
@@ -402,11 +403,11 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
+                                metadata.folder_access_keys.clone()
                             ).map_err(FolderMoveError)?
                         };
 
                         metadata.metadata_version = version;
-                        metadata.content_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
@@ -417,7 +418,7 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.content_version,
+                            metadata.metadata_version,
                             DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
                         ).map_err(DocumentChangeError)?;
 
@@ -480,7 +481,7 @@ impl<
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
                 if sync_errors.is_empty() {
-                    FileMetadataDb::set_last_updated(
+                    FileMetadataDb::set_last_synced(
                         &db,
                         work_calculated.most_recent_update_from_server,
                     )

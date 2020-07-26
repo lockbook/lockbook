@@ -1,22 +1,19 @@
 use std::io;
-use std::process::exit;
 
-use lockbook_core::service::account_service::{AccountImportError, AccountService};
-use lockbook_core::DefaultAccountService;
+use lockbook_core::{import_account, ImportError};
 
-use crate::utils::connect_to_db;
+use crate::utils::{exit_with, get_config};
+use crate::{ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR};
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
-        println!(
+        exit_with(
             "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import \
-    or xclip -selection clipboard -o | lockbook import"
+    or xclip -selection clipboard -o | lockbook import",
+            EXPECTED_STDIN,
         );
-        exit(1);
     } else {
-        let db = connect_to_db();
-
         let mut account_string = String::new();
         io::stdin()
             .read_line(&mut account_string)
@@ -25,17 +22,14 @@ pub fn import() {
 
         println!("Importing...");
 
-        match DefaultAccountService::import_account(&db, &account_string) {
-            Ok(_) => println!("Account imported successfully!"),
+        match import_account(&get_config(), &account_string) {
+            Ok(_) => exit_with("Account imported successfully", SUCCESS),
             Err(err) => match err {
-                AccountImportError::AccountStringCorrupted(_) => {
-                    eprintln!("Account String corrupted!")
-                }
-                AccountImportError::PersistenceError(_) => eprintln!("Could not persist data!"),
-                AccountImportError::InvalidPrivateKey(_) => eprintln!("Invalid private key!"),
-                AccountImportError::AccountStringFailedToDeserialize(_) => {
-                    eprintln!("Account String corrupted!")
-                }
+                ImportError::AccountStringCorrupted => exit_with(
+                    "Account string corrupted, not imported",
+                    ACCOUNT_STRING_CORRUPTED,
+                ),
+                ImportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         }
     }

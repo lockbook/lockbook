@@ -1,14 +1,19 @@
 use lockbook_core::model::work_unit::WorkUnit;
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::DefaultSyncService;
+use lockbook_core::{calculate_work, get_account, GetAccountError};
 
-use crate::utils::{connect_to_db, get_account, print_last_successful_sync};
+use crate::utils::{exit_with, exit_with_no_account, get_config, print_last_successful_sync};
+use crate::UNEXPECTED_ERROR;
 
 pub fn status() {
-    let db = connect_to_db();
-    get_account(&db);
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    }
 
-    DefaultSyncService::calculate_work(&db)
+    calculate_work(&get_config())
         .expect("Failed to calculate work required to sync")
         .work_units
         .into_iter()
@@ -17,5 +22,5 @@ pub fn status() {
             WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
         });
 
-    print_last_successful_sync(&db);
+    print_last_successful_sync();
 }

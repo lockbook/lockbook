@@ -1,74 +1,136 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::{fs, io};
 
 use uuid::Uuid;
 
 use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::file_service::FileService;
-use lockbook_core::{DefaultFileMetadataRepo, DefaultFileService};
+use lockbook_core::{
+    get_account, get_file_by_path, read_document, write_document, GetAccountError,
+    GetFileByPathError, ReadDocumentError, WriteToDocumentError,
+};
 
-use crate::utils::{connect_to_db, edit_file_with_editor, get_account};
+use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_config};
+use crate::{
+    COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
+};
 
-pub fn edit() {
-    let db = connect_to_db();
-    get_account(&db);
-
-    let file_location = format!("/tmp/{}", Uuid::new_v4().to_string());
-    let temp_file_path = Path::new(file_location.as_str());
-    let mut file_handle = File::create(&temp_file_path)
-        .expect(format!("Could not create temporary file: {}", &file_location).as_str());
-
-    if atty::is(atty::Stream::Stdout) {
-        print!("Enter a filepath: ");
+pub fn edit(file_name: &str) {
+    match get_account(&get_config()) {
+        Ok(_) => {}
+        Err(err) => match err {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
 
-    io::stdout().flush().unwrap();
-    let mut file_name = String::new();
-    io::stdin()
-        .read_line(&mut file_name)
-        .expect("Failed to read from stdin");
-    file_name.retain(|c| !c.is_whitespace());
+    let file_metadata = match get_file_by_path(&get_config(), file_name) {
+        Ok(file_metadata) => file_metadata,
+        Err(err) => match err {
+            GetFileByPathError::NoFileAtThatPath => exit_with(
+                &format!("No file found with the path {}", file_name),
+                FILE_NOT_FOUND,
+            ),
+            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
 
-    let file_metadata = DefaultFileMetadataRepo::get_by_path(&db, &file_name)
-        .expect("Could not search files ")
-        .expect("Could not find that file!");
-
-    let file_content = match DefaultFileService::read_document(&db, file_metadata.id) {
+    let file_content = match read_document(&get_config(), file_metadata.id) {
         Ok(content) => content,
-        Err(error) => panic!("Unexpected error: {:?}", error),
+        Err(error) => match error {
+            ReadDocumentError::TreatedFolderAsDocument => {
+                exit_with("Specified file is a folder!", DOCUMENT_TREATED_AS_FOLDER)
+            }
+            ReadDocumentError::NoAccount
+            | ReadDocumentError::FileDoesNotExist
+            | ReadDocumentError::UnexpectedError(_) => exit_with(
+                &format!("Unexpected error while reading encrypted doc: {:#?}", error),
+                UNEXPECTED_ERROR,
+            ),
+        },
+    };
+
+    let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+    fs::create_dir(&directory_location).unwrap_or_else(|err| {
+        exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
+    let file_location = format!("{}/{}", directory_location, file_metadata.name);
+    let temp_file_path = Path::new(file_location.as_str());
+    let mut file_handle = match File::create(&temp_file_path) {
+        Ok(handle) => handle,
+        Err(err) => exit_with(
+            &format!("Could not open temporary file for writing. OS: {:#?}", err),
+            UNEXPECTED_ERROR,
+        ),
     };
 
     file_handle
         .write_all(&file_content.secret.into_bytes())
         .unwrap_or_else(|_| {
-            panic!(
-                "Failed to write decrypted contents to temporary file, check {}",
-                file_location
+            exit_with(
+                &format!(
+                    "Failed to write decrypted contents to temporary file, check {}",
+                    file_location
+                ),
+                COULD_NOT_WRITE_TO_OS_FILE,
             )
         });
 
     file_handle.sync_all().unwrap_or_else(|_| {
-        panic!(
-            "Failed to write decrypted contents to temporary file, check {}",
-            file_location
+        exit_with(
+            &format!(
+                "Failed to write decrypted contents to temporary file, check {}",
+                file_location
+            ),
+            COULD_NOT_WRITE_TO_OS_FILE,
         )
     });
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
     if edit_was_successful {
-        let secret =
-            fs::read_to_string(temp_file_path).expect("Could not read file that was edited");
+        let secret = fs::read_to_string(temp_file_path).unwrap_or_else(|_| {
+            exit_with(
+                &format!(
+                    "Failed to read from temporary file, check {}",
+                    file_location
+                ),
+                COULD_NOT_READ_OS_FILE,
+            )
+        });
 
-        DefaultFileService::write_document(&db, file_metadata.id, &DecryptedValue { secret })
-            .expect("Unexpected error while updating internal state");
+        match write_document(
+            &get_config(),
+            file_metadata.id,
+            &DecryptedValue::from(secret),
+        ) {
+            Ok(_) => exit_with(
+                "Document encrypted and saved. Cleaning up temporary file.",
+                SUCCESS,
+            ),
+            Err(err) => match err {
+                WriteToDocumentError::NoAccount
+                | WriteToDocumentError::FileDoesNotExist
+                | WriteToDocumentError::FolderTreatedAsDocument
+                | WriteToDocumentError::UnexpectedError(_) => exit_with(
+                    &format!("Unexpected error saving file: {:#?}", err),
+                    UNEXPECTED_ERROR,
+                ),
+            },
+        }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&temp_file_path)
-        .expect(format!("Failed to delete temporary file: {}", &file_location).as_str());
+    fs::remove_file(&temp_file_path).unwrap_or_else(|_| {
+        exit_with(
+            &format!("Failed to delete temporary file: {}", &file_location).as_str(),
+            COULD_NOT_DELETE_OS_FILE,
+        )
+    });
 }
