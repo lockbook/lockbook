@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -e 
-current_branch=master # $(git rev-parse --abbrev-ref HEAD)
+current_branch=$(git rev-parse --abbrev-ref HEAD)
 current_hash=$(git rev-parse --short HEAD)
 
 if [ $current_branch != "master" ]
