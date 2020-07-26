@@ -24,7 +24,7 @@ hr {
                 <div>
                      {{- range .Site.Params.links -}}
                         <a class="getIcons" href="{{ .url | safeURL }}" title="{{ .title }}">
-                            <span class="{{ .iconset | default "fab" }} {{.iconorigin | default "fa" }}-{{ .icon }}" /span>
+                            <span class="{{ .iconset | default `fab` }} {{.iconorigin | default `fa` }}-{{ .icon }}"></span>
                         </a>
                      {{- end -}}
                 </div>
