@@ -2,6 +2,7 @@
 
 set -e 
 current_branch=master # $(git rev-parse --abbrev-ref HEAD)
+current_hash=$(git rev-parse --short HEAD)
 
 if [ $current_branch != "master" ]
 then
@@ -18,7 +19,20 @@ hugo
 echo "Site built successfully, moving to temporary directory"
 mv public $temp_directory
 cd ..
-git checkout gh-pages
-rm -rf *
-mv $temp_directory/* .
 
+echo "Checking out gh-pages"
+git checkout gh-pages
+
+echo "Deleting old things"
+rm -rf *
+
+mv $temp_directory/* .
+cat "lockbook.app" >> CNAME
+
+echo "Deploying"
+git add -A
+git commit -m "Manual deploy by $(git config user.name) from $current_hash"
+git push origin gh-pages
+
+echo "Switching back to original branch: $(current_branch)"
+git checkout $(current_branch)
