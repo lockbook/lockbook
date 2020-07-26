@@ -52,5 +52,13 @@ github-release upload \
 	--name "lockbook-cli-linux.tar.gz" \
 	--file lockbook-cli-linux.tar.gz || echo "Upload failed, perhaps you forgot to update the CLI version?"
 
-echo "Upload succeeded"
+echo $sha_description >> LINUX_CLI_SHA256
+
+github-release upload \
+	--user lockbook \
+	--repo lockbook \
+	--tag $current_version \
+	--name "linux-cli-sha256-$sha" \
+	--file LINUX_CLI_SHA256 || echo "Upload failed, perhaps you forgot to update the CLI version?"
+
 echo "Verify this sha is a part of the release on github: $sha"
