@@ -30,17 +30,16 @@ class PopUpInfoActivity : Activity() {
         popup_info_content_version.text = getString(R.string.popup_info_content_version, intent.getStringExtra("contentVersion"))
     }
 
-    fun rename() {
+    private fun rename() {
         intent.putExtra("new_name", new_name_text.text.toString())
         intent.putExtra("id", popup_info_id.text.toString())
         setResult(RENAME_RESULT_CODE, intent)
         finish()
     }
 
-    fun delete() {
+    private fun delete() {
         intent.putExtra("id", popup_info_id.text.toString())
         setResult(DELETE_RESULT_CODE, intent)
         finish()
     }
-
 }
