@@ -1,61 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp"
+    tools:context=".login.WelcomeActivity">
 
-    <data>
-        <variable
-            name="welcomeActivity"
-            type="app.lockbook.login.WelcomeActivity" />
-    </data>
 
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="25dp"
-        tools:context=".login.WelcomeActivity">
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="@string/lockbook_title"
+        android:textAlignment="center"
+        android:textColor="@android:color/white"
+        android:textSize="40sp" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingTop="20dp"
+        android:paddingBottom="75dp"
+        android:text="@string/lockbook_moto"
+        android:textAlignment="center"
+        android:textColor="@android:color/white" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="@string/lockbook"
-            android:textAlignment="center"
-            android:textColor="#FFFFFF"
-            android:textSize="40sp" />
+    <Button
+        android:id="@+id/welcome_new_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="15dp"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/lockbook_new_account"
+        android:textColor="#000000" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingTop="20dp"
-            android:paddingBottom="75dp"
-            android:text="@string/secure_private_reliable"
-            android:textAlignment="center"
-            android:textColor="#FFFFFF" />
-
-        <Button
-            android:id="@+id/new_lockbook"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="15dp"
-            android:backgroundTint="?attr/colorPrimary"
-            android:text="@string/new_lockbook"
-            android:textColor="#000000"
-            android:onClick="@{() -> welcomeActivity.launchNewAccount()}"/>
-
-        <Button
-            android:id="@+id/import_lockbook"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:backgroundTint="?attr/colorPrimary"
-            android:text="@string/import_lockbook"
-            android:textColor="#000000"
-            android:onClick="@{() -> welcomeActivity.launchImportAccount()}"/>
-
-
-    </LinearLayout>
-</layout>
+    <Button
+        android:id="@+id/welcome_import_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/lockbook_import"
+        android:textColor="#000000" />
+</LinearLayout>

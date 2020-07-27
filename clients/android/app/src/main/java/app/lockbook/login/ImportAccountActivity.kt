@@ -3,49 +3,63 @@ package app.lockbook.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.view.LayoutInflater
+import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.databinding.DataBindingUtil
-import app.lockbook.InitialLaunchFigureOuter.Companion.KEY
-import app.lockbook.InitialLaunchFigureOuter.Companion.SHARED_PREF_FILE
-import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
-import app.lockbook.core.importAccount
-import app.lockbook.databinding.ActivityImportAccountBinding
-import app.lockbook.loggedin.mainscreen.FileFolderModel
+import app.lockbook.loggedin.mainscreen.MainScreenActivity
+import app.lockbook.utils.CoreModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.ImportError
-import app.lockbook.utils.importAccountConverter
-import com.beust.klaxon.Klaxon
+import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
+import co.infinum.goldfinger.Goldfinger
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
-import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.coroutines.*
 
 class ImportAccountActivity : AppCompatActivity() {
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private var biometricHardware = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_import_account)
 
-        val binding: ActivityImportAccountBinding = DataBindingUtil.setContentView(
-            this,
-            R.layout.activity_import_account
-        )
+        welcome_import_lockbook.setOnClickListener {
+            onClickImportAccount()
+        }
+        qr_import_button.setOnClickListener {
+            navigateToQRCodeScanner()
+        }
 
-        binding.importAccountActivity = this
+        determineBiometricsOptionsAvailable()
     }
 
     fun onClickImportAccount() {
-        handleImportResult(
-            FileFolderModel.importAccount(
-                Config(filesDir.absolutePath),
-                account_string.text.toString()
-            )
-        )
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                handleImportResult(
+                    CoreModel.importAccount(
+                        Config(filesDir.absolutePath),
+                        text_import_account_string.text.toString()
+                    )
+                )
+            }
+        }
+    }
+
+    private fun determineBiometricsOptionsAvailable() {
+        if (!Goldfinger.Builder(applicationContext).build().hasFingerprintHardware()) {
+            import_account_biometric_options.visibility = RadioGroup.GONE
+            import_account_biometric_description.visibility = TextView.GONE
+            biometricHardware = false
+        }
     }
 
     fun navigateToQRCodeScanner() {
@@ -54,44 +68,49 @@ class ImportAccountActivity : AppCompatActivity() {
             .initiateScan()
     }
 
-    private fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
-        when (importAccountResult) {
-            is Ok -> {
-                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
-                getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit()
-                    .putBoolean(KEY, true).apply()
-                finishAffinity()
-            }
-            is Err -> when (importAccountResult.error) {
-                is ImportError.AccountStringCorrupted -> Toast.makeText(
-                    applicationContext,
-                    "Invalid Account String!",
-                    Toast.LENGTH_LONG
-                ).show()
-                is ImportError.UnexpectedError -> Toast.makeText(
-                    applicationContext,
-                    "Unexpected error occurred, please create a bug report (activity_settings)",
-                    Toast.LENGTH_LONG
-                ).show()
+    private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
+        withContext(Dispatchers.Main) {
+            when (importAccountResult) {
+                is Ok -> {
+                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                    getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE).edit()
+                        .putBoolean(LOGGED_IN_KEY, true).apply()
+                    finishAffinity()
+                }
+                is Err -> when (importAccountResult.error) {
+                    is ImportError.AccountStringCorrupted -> Toast.makeText(
+                        applicationContext,
+                        "Invalid Account String!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.UnexpectedError -> Toast.makeText(
+                        applicationContext,
+                        "Unexpected error occurred, please create a bug report (activity_settings)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val intentResult =
-            IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-        if (intentResult != null) {
-            intentResult.contents?.let { account ->
-                handleImportResult(
-                    FileFolderModel.importAccount(
-                        Config(filesDir.absolutePath),
-                        account
-                    )
-                )
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val intentResult =
+                    IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+                if (intentResult != null) {
+                    intentResult.contents?.let { account ->
+                        handleImportResult(
+                            CoreModel.importAccount(
+                                Config(filesDir.absolutePath),
+                                account
+                            )
+                        )
+                    }
+                } else {
+                    super.onActivityResult(requestCode, resultCode, data)
+                }
             }
-        } else {
-            super.onActivityResult(requestCode, resultCode, data)
         }
-
     }
 }
