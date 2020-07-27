@@ -75,7 +75,7 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:$qr_embedded_version") { transitive = false }
     implementation "com.google.zxing:core:$qr_core_version"
     implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
-    implementation "co.infinum:goldfinger:$fingerprint_version"
+    implementation "androidx.biometric:biometric:$fingerprint_version"
 
     implementation project(':core')
 }

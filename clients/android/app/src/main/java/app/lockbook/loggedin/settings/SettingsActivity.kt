@@ -6,16 +6,23 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivitySettingsBinding
+import app.lockbook.loggedin.mainscreen.MainScreenActivity
+import app.lockbook.utils.SharedPreferences
+import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import kotlinx.android.synthetic.main.activity_account_qr_code.*
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import kotlinx.android.synthetic.main.activity_settings.*
@@ -45,11 +52,103 @@ class SettingsActivity : AppCompatActivity() {
         })
 
         settingsViewModel.navigateToAccountQRCode.observe(this, Observer { qrBitmap ->
-            navigateToAccountQRCode(qrBitmap)
+            if(getSharedPreferences(SharedPreferences.SHARED_PREF_FILE, Context.MODE_PRIVATE).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE) != BIOMETRIC_NONE) {
+                if (BiometricManager.from(applicationContext)
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                ) {
+                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
+                        .show()
+                    finish()
+                }
+
+                val executor = ContextCompat.getMainExecutor(this)
+                val biometricPrompt = BiometricPrompt(this, executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence
+                        ) {
+                            super.onAuthenticationError(errorCode, errString)
+                            Log.i("Launch", "Biometric authentication error: $errString")
+                            Toast.makeText(
+                                applicationContext,
+                                "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                            )
+                                .show()
+                            finish()
+                        }
+
+                        override fun onAuthenticationSucceeded(
+                            result: BiometricPrompt.AuthenticationResult
+                        ) {
+                            super.onAuthenticationSucceeded(result)
+                            navigateToAccountQRCode(qrBitmap)
+                        }
+
+                        override fun onAuthenticationFailed() {
+                            super.onAuthenticationFailed()
+                            finish()
+                        }
+                    })
+
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Lockbook biometric verification!")
+                    .setSubtitle("Login to view your account string.")
+                    .setNegativeButtonText("Cancel")
+                    .build()
+
+                biometricPrompt.authenticate(promptInfo)
+            }
         })
 
         settingsViewModel.copyAccountString.observe(this, Observer {accountString ->
-            copyAccountString(accountString)
+            if(getSharedPreferences(SharedPreferences.SHARED_PREF_FILE, Context.MODE_PRIVATE).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE) != BIOMETRIC_NONE) {
+                if (BiometricManager.from(applicationContext)
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                ) {
+                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
+                        .show()
+                    finish()
+                }
+
+                val executor = ContextCompat.getMainExecutor(this)
+                val biometricPrompt = BiometricPrompt(this, executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence
+                        ) {
+                            super.onAuthenticationError(errorCode, errString)
+                            Log.i("Launch", "Biometric authentication error: $errString")
+                            Toast.makeText(
+                                applicationContext,
+                                "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                            )
+                                .show()
+                            finish()
+                        }
+
+                        override fun onAuthenticationSucceeded(
+                            result: BiometricPrompt.AuthenticationResult
+                        ) {
+                            super.onAuthenticationSucceeded(result)
+                            copyAccountString(accountString)
+                        }
+
+                        override fun onAuthenticationFailed() {
+                            super.onAuthenticationFailed()
+                            finish()
+                        }
+                    })
+
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Lockbook biometric verification!")
+                    .setSubtitle("Login to view your account string.")
+                    .setNegativeButtonText("Cancel")
+                    .build()
+
+                biometricPrompt.authenticate(promptInfo)
+            }
         })
     }
 
@@ -70,4 +169,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun errorHasOccurred(errorText: String) {
         Toast.makeText(this, errorText, Toast.LENGTH_LONG).show()
     }
+
+    private fun checkBiometricsOption
 }

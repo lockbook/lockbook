@@ -11,6 +11,8 @@ object SharedPreferences {
 }
 
 object RequestResultCodes {
+    const val FAILED_RESULT_CODE: Int = 2
+
     const val NEW_FILE_REQUEST_CODE: Int = 101
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
@@ -18,5 +20,6 @@ object RequestResultCodes {
     const val RENAME_RESULT_CODE: Int = 201
     const val DELETE_RESULT_CODE: Int = 202
 
-    const val FAILED_RESULT_CODE: Int = 2
+    const val BIOMETRIC_SUCCESS_RESULT_CODE: Int = 301
+    const val BIOMETRIC_FAILURE_RESULT_CODE: Int = 302
 }
