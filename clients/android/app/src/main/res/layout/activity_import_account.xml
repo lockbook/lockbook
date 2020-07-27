@@ -1,63 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<layout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp"
+    tools:context=".login.WelcomeActivity">
 
-    <data>
-
-        <variable
-            name="importAccountActivity"
-            type="app.lockbook.login.ImportAccountActivity" />
-    </data>
-
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="25dp"
-        tools:context=".login.WelcomeActivity">
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="70dp"
+        android:text="@string/lockbook_import"
+        android:textColor="@android:color/white"
+        android:textSize="40sp" />
 
-        <TextView
+    <TextView
+        android:id="@+id/import_account_biometric_description"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="10dp"
+        android:text="@string/biometrics_title"
+        android:textColor="@android:color/white" />
+
+    <RadioGroup
+        android:id="@+id/import_account_biometric_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="20dp">
+
+        <RadioButton
+            android:id="@+id/import_account_biometric_disabled"
+            style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:paddingBottom="70dp"
-            android:text="@string/import_lockbook"
-            android:textColor="#FFFFFF"
-            android:textSize="40sp" />
+            android:text="@string/biometric_disabled" />
 
-
-        <ImageButton
-            android:id="@+id/qr_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:srcCompat="@drawable/ic_qr_code_scanner_black_48"
-            android:onClick="@{() -> importAccountActivity.navigateToQRCodeScanner()}"/>
-
-        <EditText
-            android:id="@+id/account_string"
+        <RadioButton
+            android:id="@+id/import_account_biometric_recommended"
+            style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:backgroundTint="@color/dark"
+            android:checked="true"
             android:fontFamily="monospace"
-            android:hint="Enter an account string."
-            android:importantForAutofill="no"
-            android:inputType="textVisiblePassword"
-            android:textColor="#FFFFFF"
-            android:textColorHint="@color/dark" />
+            android:text="@string/biometric_recommended" />
 
-        <Button
-            android:id="@+id/import_lockbook"
+        <RadioButton
+            android:id="@+id/import_account_biometric_strict"
+            style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:backgroundTint="?attr/colorPrimary"
-            android:onClick="@{() -> importAccountActivity.onClickImportAccount()}"
-            android:text="Import"
-            android:textColor="#000000" />
+            android:fontFamily="monospace"
+            android:text="@string/biometric_strict" />
+    </RadioGroup>
 
 
-    </LinearLayout>
-</layout>
+    <ImageButton
+        android:id="@+id/qr_import_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:srcCompat="@drawable/ic_qr_code_scanner_black_48" />
+
+    <EditText
+        android:id="@+id/text_import_account_string"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:backgroundTint="@color/dark"
+        android:fontFamily="monospace"
+        android:hint="@string/import_description"
+        android:importantForAutofill="no"
+        android:inputType="textVisiblePassword"
+        android:textColor="@android:color/white"
+        android:textColorHint="@color/dark" />
+
+    <Button
+        android:id="@+id/welcome_import_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/import_account_import_button"
+        android:textColor="#000000" />
+
+
+</LinearLayout>

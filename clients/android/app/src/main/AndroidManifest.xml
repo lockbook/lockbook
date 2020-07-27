@@ -43,7 +43,7 @@
             android:theme="@style/Dark.NoActionBar" />
         <activity android:name=".loggedin.settings.SettingsActivity" />
         <activity android:name=".loggedin.popupinfo.PopUpInfoActivity"/>
-        <activity android:name=".loggedin.newfilefolder.NewFileFolderActivity" />
+        <activity android:name=".loggedin.newfile.NewFileActivity" />
         <activity android:name=".loggedin.texteditor.TextEditorActivity" />
     </application>
 

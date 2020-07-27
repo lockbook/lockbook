@@ -1,92 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout
-    xmlns:android="http://schemas.android.com/apk/res/android" >
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp">
 
-    <data>
-        <variable
-            name="newAccountActivity"
-            type="app.lockbook.login.NewAccountActivity" />
-    </data>
 
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="25dp" >
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="70dp"
+        android:text="@string/lockbook_new_account"
+        android:textColor="@android:color/white"
+        android:textSize="40sp" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@string/new_account_description_one"
+        android:textColor="@android:color/white" />
 
-        <TextView
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@string/new_account_description_two"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@string/new_account_description_three"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@string/new_account_description_four"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="50dp"
+        android:text="@string/new_account_description_five"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/new_account_biometric_description"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="10dp"
+        android:text="@string/biometrics_title"
+        android:textColor="@android:color/white" />
+
+    <RadioGroup
+        android:id="@+id/new_account_biometric_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="20dp">
+
+        <RadioButton
+            android:id="@+id/new_account_biometric_disabled"
+            style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:paddingBottom="70dp"
-            android:text="@string/new_lockbook"
-            android:textColor="#FFFFFF"
-            android:textSize="40sp" />
+            android:text="@string/biometric_disabled" />
 
-        <TextView
+        <RadioButton
+            android:id="@+id/new_account_biometric_recommended"
+            style="@style/DefaultDarkRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:fontFamily="monospace"
+            android:text="@string/biometric_recommended" />
+
+        <RadioButton
+            android:id="@+id/new_account_biometric_strict"
+            style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:paddingBottom="15dp"
-            android:text="Press continue to generate a keypair."
-            android:textColor="#FFFFFF" />
+            android:text="@string/biometric_strict" />
+    </RadioGroup>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingBottom="15dp"
-            android:text="The private component stays on your device."
-            android:textColor="#FFFFFF" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingBottom="15dp"
-            android:text="Lockbook is available on every platform, login on another device to keep your key safe."
-            android:textColor="#FFFFFF" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingBottom="15dp"
-            android:text="No one can access your content besides you."
-            android:textColor="#FFFFFF" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingBottom="70dp"
-            android:text="No one can keep your keys safe besides you."
-            android:textColor="#FFFFFF" />
-
-        <EditText
-            android:id="@+id/username"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:backgroundTint="@color/dark"
-            android:fontFamily="monospace"
-            android:hint="Select a username."
-            android:importantForAutofill="no"
-            android:inputType="textVisiblePassword"
-            android:textColor="#FFFFFF"
-            android:textColorHint="@color/dark" />
+    <EditText
+        android:id="@+id/new_account_username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:backgroundTint="@color/dark"
+        android:fontFamily="monospace"
+        android:hint="@string/new_account_username"
+        android:importantForAutofill="no"
+        android:inputType="textVisiblePassword"
+        android:textColor="@android:color/white"
+        android:textColorHint="@color/dark" />
 
 
-        <Button
-            android:id="@+id/create_lockbook"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:backgroundTint="?attr/colorPrimary"
-            android:text="Continue"
-            android:textColor="#000000"
-            android:onClick="@{() -> newAccountActivity.onClickCreateAccount()}"/>
+    <Button
+        android:id="@+id/new_account_create_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/new_account_submit"
+        android:textColor="#000000" />
 
-    </LinearLayout>
-</layout>
+</LinearLayout>
