@@ -14,7 +14,7 @@ then
 	exit 69
 fi
 
-current_branch=master #TODO $(git rev-parse --abbrev-ref HEAD)
+current_branch=$(git rev-parse --abbrev-ref HEAD)
 current_hash=$(git rev-parse --short HEAD)
 
 if [ $current_branch != "master" ]
@@ -26,7 +26,7 @@ fi
 echo "Performing clean build"
 cd ../clients/cli
 current_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
-# TODO cargo clean
+cargo clean
 API_URL="http://api.lockbook.app:8000" cargo build --release
 cd target/release
 
@@ -50,7 +50,7 @@ github-release upload \
 	--repo lockbook \
 	--tag $current_version \
 	--name "lockbook-cli-linux.tar.gz" \
-	--file lockbook-cli-linux.tar.gz || echo "Upload failed, perhaps you forgot to update the CLI version?"
+	--file lockbook-cli-linux.tar.gz
 
 echo $sha_description >> LINUX_CLI_SHA256
 
@@ -59,6 +59,6 @@ github-release upload \
 	--repo lockbook \
 	--tag $current_version \
 	--name "linux-cli-sha256-$sha" \
-	--file LINUX_CLI_SHA256 || echo "Upload failed, perhaps you forgot to update the CLI version?"
+	--file LINUX_CLI_SHA256
 
 echo "Verify this sha is a part of the release on github: $sha"
