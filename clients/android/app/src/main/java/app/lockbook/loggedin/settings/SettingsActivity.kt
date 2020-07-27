@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -69,13 +70,17 @@ class SettingsActivity : AppCompatActivity() {
                             errString: CharSequence
                         ) {
                             super.onAuthenticationError(errorCode, errString)
-                            Log.i("Launch", "Biometric authentication error: $errString")
-                            Toast.makeText(
-                                applicationContext,
-                                "An unexpected error has occurred!", Toast.LENGTH_SHORT
-                            )
-                                .show()
-                            finish()
+                            when(errorCode) {
+                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
+                                    Log.i("Launch", "Biometric authentication error: $errString")
+                                    Toast.makeText(
+                                        applicationContext,
+                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                                    )
+                                        .show()
+                                }
+                                else -> {}
+                            }
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -87,12 +92,16 @@ class SettingsActivity : AppCompatActivity() {
 
                         override fun onAuthenticationFailed() {
                             super.onAuthenticationFailed()
-                            finish()
+                            Toast.makeText(
+                                applicationContext,
+                                "Invalid fingerprint.", Toast.LENGTH_SHORT
+                            )
+                                .show()
                         }
                     })
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook biometric verification!")
+                    .setTitle("Lockbook Biometric Verification")
                     .setSubtitle("Login to view your account string.")
                     .setNegativeButtonText("Cancel")
                     .build()
@@ -120,12 +129,17 @@ class SettingsActivity : AppCompatActivity() {
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             Log.i("Launch", "Biometric authentication error: $errString")
-                            Toast.makeText(
-                                applicationContext,
-                                "An unexpected error has occurred!", Toast.LENGTH_SHORT
-                            )
-                                .show()
-                            finish()
+                            when(errorCode) {
+                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
+                                    Log.i("Launch", "Biometric authentication error: $errString")
+                                    Toast.makeText(
+                                        applicationContext,
+                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                                    )
+                                        .show()
+                                }
+                                else -> {}
+                            }
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -137,12 +151,16 @@ class SettingsActivity : AppCompatActivity() {
 
                         override fun onAuthenticationFailed() {
                             super.onAuthenticationFailed()
-                            finish()
+                            Toast.makeText(
+                                applicationContext,
+                                "Invalid fingerprint.", Toast.LENGTH_SHORT
+                            )
+                                .show()
                         }
                     })
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook biometric verification!")
+                    .setTitle("Lockbook Biometric Verification")
                     .setSubtitle("Login to view your account string.")
                     .setNegativeButtonText("Cancel")
                     .build()
@@ -170,5 +188,4 @@ class SettingsActivity : AppCompatActivity() {
         Toast.makeText(this, errorText, Toast.LENGTH_LONG).show()
     }
 
-    private fun checkBiometricsOption
 }
