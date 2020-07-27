@@ -72,7 +72,7 @@
         android:paddingBottom="20dp">
 
         <RadioButton
-            android:id="@+id/new_account_biometric_disabled"
+            android:id="@+id/new_account_biometric_none"
             style="@style/DefaultDarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
