@@ -3,16 +3,18 @@ package app.lockbook.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.databinding.DataBindingUtil
-import app.lockbook.InitialLaunchFigureOuter
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
-import app.lockbook.databinding.ActivityNewAccountBinding
-import app.lockbook.loggedin.mainscreen.FileFolderModel
+import app.lockbook.utils.CoreModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.CreateAccountError
+import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
+import co.infinum.goldfinger.Goldfinger
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.android.synthetic.main.activity_new_account.*
@@ -22,15 +24,25 @@ class NewAccountActivity : AppCompatActivity() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    var biometricHardware = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_new_account)
 
-        val binding: ActivityNewAccountBinding = DataBindingUtil.setContentView(
-            this,
-            R.layout.activity_new_account
-        )
-        binding.newAccountActivity = this
+        new_account_create_lockbook.setOnClickListener {
+            onClickCreateAccount()
+        }
+
+        determineBiometricsOptionsAvailable()
+    }
+
+    private fun determineBiometricsOptionsAvailable() {
+        if(!Goldfinger.Builder(applicationContext).build().hasFingerprintHardware()) {
+            new_account_biometric_options.visibility = RadioGroup.GONE
+            new_account_biometric_description.visibility = TextView.GONE
+            biometricHardware = false
+        }
     }
 
     fun onClickCreateAccount() {
@@ -41,10 +53,10 @@ class NewAccountActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun handleCreateAccountResult() { // add an invalid string choice, as an empty textview will call an error
-        val createAccountResult = FileFolderModel.generateAccount(
+    private suspend fun handleCreateAccountResult() {
+        val createAccountResult = CoreModel.generateAccount(
             Config(filesDir.absolutePath),
-            username.text.toString()
+            new_account_username.text.toString()
         )
 
         withContext(Dispatchers.Main) {
@@ -52,17 +64,17 @@ class NewAccountActivity : AppCompatActivity() {
                 is Ok -> {
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                     getSharedPreferences(
-                        InitialLaunchFigureOuter.SHARED_PREF_FILE,
+                        SHARED_PREF_FILE,
                         Context.MODE_PRIVATE
                     ).edit().putBoolean(
-                        InitialLaunchFigureOuter.KEY, true
+                        LOGGED_IN_KEY, true
                     ).apply()
                     finishAffinity()
                 }
                 is Err -> {
                     when (createAccountResult.error) {
-                        is CreateAccountError.UsernameTaken -> username.error = "Username Taken!"
-                        is CreateAccountError.InvalidUsername -> username.error =
+                        is CreateAccountError.UsernameTaken -> new_account_username.error = "Username Taken!"
+                        is CreateAccountError.InvalidUsername -> new_account_username.error =
                             "Invalid Username!"
                         is CreateAccountError.CouldNotReachServer -> Toast.makeText(
                             applicationContext,

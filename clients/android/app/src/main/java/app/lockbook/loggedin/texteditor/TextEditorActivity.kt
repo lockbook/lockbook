@@ -3,31 +3,29 @@ package app.lockbook.loggedin.texteditor
 import android.app.Activity
 import android.os.Bundle
 import android.text.Editable
-import android.util.Log
-import androidx.databinding.DataBindingUtil
 import app.lockbook.R
-import app.lockbook.databinding.ActivityTextEditorBinding
+import app.lockbook.utils.RequestResultCodes.FAILED_RESULT_CODE
 import kotlinx.android.synthetic.main.activity_text_editor.*
 
 class TextEditorActivity : Activity() {
-
-    var text: String = ""
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_text_editor)
 
-        text = intent.getStringExtra("text")
+        setUpText()
 
-        val binding: ActivityTextEditorBinding =
-            DataBindingUtil.setContentView(this, R.layout.activity_text_editor)
-
-        binding.textEditorActivty = this
+        popup_info_rename.setOnClickListener {
+            submitText()
+        }
     }
 
-    fun submitText() {
+    private fun setUpText() {
+        text_editor_text.setText(intent.getStringExtra("text"))
+    }
 
-        if(text_editor.text is Editable) {
-            intent.putExtra("text", text_editor.text.toString())
+    private fun submitText() {
+        if(text_editor_text.text is Editable) {
+            intent.putExtra("text", text_editor_text.text.toString())
         } else {
             intent.putExtra("text", "")
         }

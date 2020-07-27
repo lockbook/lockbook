@@ -1,17 +1,81 @@
 package app.lockbook.loggedin.settings
 
+import android.graphics.Bitmap
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.PopupWindow
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.loggedin.listfiles.ClickInterface
+import app.lockbook.utils.AccountExportError
+import app.lockbook.utils.Config
+import app.lockbook.utils.CoreModel
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.google.zxing.BarcodeFormat
+import com.journeyapps.barcodescanner.BarcodeEncoder
+import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
+import kotlinx.android.synthetic.main.activity_settings.*
+import kotlinx.coroutines.*
 
-class SettingsViewModel: ViewModel(), ClickInterface {
-    val settings = listOf("Export Account String (QR Code)", "Export Raw Account String")
+class SettingsViewModel(val settings: List<String>, path: String): ViewModel(), ClickInterface {
 
-    override fun onItemClick(position: Int) {
-        TODO("Not yet implemented")
+    private val config = Config(path)
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+
+    private val _navigateToAccountQRCode = MutableLiveData<Bitmap>()
+    private val _copyAccountString = MutableLiveData<String>()
+    private val _errorHasOccurred = MutableLiveData<String>()
+
+    val navigateToAccountQRCode: LiveData<Bitmap>
+        get() = _navigateToAccountQRCode
+
+    val copyAccountString: LiveData<String>
+        get() = _copyAccountString
+
+    val errorHasOccurred: LiveData<String>
+        get() = _errorHasOccurred
+
+    override fun onItemClick(position: Int) { // cleaner code is needed
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                when(position) {
+                    0 -> exportAccountQR() // export account qr
+                    1 -> exportAccountString() // export account string
+                }
+            }
+        }
     }
 
-    override fun onLongClick(position: Int) {
-        TODO("Not yet implemented")
+    private fun exportAccountQR() {
+        when(val exportResult = CoreModel.exportAccount(config)) {
+            is Ok -> {
+                val bitmap = BarcodeEncoder().encodeBitmap(
+                    exportResult.value,
+                    BarcodeFormat.QR_CODE,
+                    400,
+                    400
+                )
+
+                _navigateToAccountQRCode.postValue(bitmap)
+            }
+            is Err -> when(exportResult.error) {
+                is AccountExportError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is AccountExportError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
     }
 
+    private fun exportAccountString() {
+        when(val exportResult = CoreModel.exportAccount(config)) {
+            is Ok -> _copyAccountString.postValue(exportResult.value)
+            is Err -> when(exportResult.error) {
+                is AccountExportError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is AccountExportError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            }
+        }
+    }
 }

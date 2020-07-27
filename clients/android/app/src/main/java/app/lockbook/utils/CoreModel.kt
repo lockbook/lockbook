@@ -1,13 +1,12 @@
-package app.lockbook.loggedin.mainscreen
+package app.lockbook.utils
 
 import app.lockbook.core.*
-import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
-class FileFolderModel(config: Config) {
+class CoreModel(config: Config) {
     private val config = Klaxon().toJsonString(config)
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
@@ -35,7 +34,7 @@ class FileFolderModel(config: Config) {
 
         children?.let { childrenResult ->
             return when (childrenResult) {
-                is Ok -> Ok(childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent })
+                is Ok -> Ok(childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                 is Err -> Err(childrenResult.error)
             }
         }
@@ -52,7 +51,7 @@ class FileFolderModel(config: Config) {
             return when (childrenResult) {
                 is Ok -> {
                     val editedChildren =
-                        childrenResult.value.filter { fileMetaData -> fileMetaData.id != fileMetaData.parent }
+                        childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted }
                     Ok(editedChildren)
                 }
                 is Err -> Err(childrenResult.error)
@@ -130,11 +129,25 @@ class FileFolderModel(config: Config) {
     ): Result<Unit, InsertFileError> {
         val insertResult: Result<Unit, InsertFileError>? =
             Klaxon().converter(insertFileConverter).parse(insertFile(config, Klaxon().toJsonString(fileMetadata)))
+
         insertResult?.let {
             return insertResult
         }
 
         return Err(InsertFileError.UnexpectedError("insertFileConverter was unable to be called!"))
+    }
+
+    fun deleteFile(
+        id: String
+    ): Result<Unit, DeleteFileError> {
+        val deleteFile: Result<Unit, DeleteFileError>? =
+            Klaxon().converter(deleteFileConverter).parse(deleteFile(config, id))
+
+        deleteFile?.let {
+            return deleteFile
+        }
+
+        return Err(DeleteFileError.UnexpectedError("deleteFileConverter was unable to be called!"))
     }
 
     fun renameFile(
@@ -219,6 +232,17 @@ class FileFolderModel(config: Config) {
             }
 
             return Err(ImportError.UnexpectedError("importAccountConverter was unable to be called!"))
+        }
+
+        fun exportAccount(config: Config): Result<String, AccountExportError> {
+            val exportResult: Result<String, AccountExportError>? =
+                Klaxon().converter(exportAccountConverter).parse(exportAccount(Klaxon().toJsonString(config)))
+
+            exportResult?.let {
+                return exportResult
+            }
+
+            return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
         }
 
     }
