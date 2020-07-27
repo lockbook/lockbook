@@ -99,7 +99,7 @@ fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
 }
 
 pub fn init_logger_safely() {
-    env_logger::init();
+    env_logger::try_init();
     info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
 }
 

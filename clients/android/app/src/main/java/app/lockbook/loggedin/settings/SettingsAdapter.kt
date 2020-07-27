@@ -12,8 +12,8 @@ import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ClickInterface
 import kotlinx.android.synthetic.main.recyclerview_content_settings.view.*
 
-class SettingsAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
-    var settings = listOf<String>()
+class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface): RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
+    var settings = settings
         set(value) {
             field = value
             notifyDataSetChanged()
@@ -39,11 +39,6 @@ class SettingsAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<
         init {
             cardView.setOnClickListener {
                 clickInterface.onItemClick(adapterPosition)
-            }
-
-            cardView.setOnLongClickListener{
-                clickInterface.onLongClick(adapterPosition)
-                true
             }
         }
     }

@@ -2,42 +2,44 @@ package app.lockbook.loggedin.popupinfo
 
 import android.app.Activity
 import android.os.Bundle
-import androidx.databinding.DataBindingUtil
 import app.lockbook.R
-import app.lockbook.databinding.ActivityPopupInfoBinding
+import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
+import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import kotlinx.android.synthetic.main.activity_popup_info.*
-import kotlinx.coroutines.*
 
 class PopUpInfoActivity : Activity() {
-
-    var name: String = "ERROR"
-    var id: String = "ERROR"
-    var fileType: String = "ERROR"
-    var metadataVersion: String = "ERROR"
-    var contentVersion: String = "ERROR"
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val binding: ActivityPopupInfoBinding = DataBindingUtil.setContentView(
-            this,
-            R.layout.activity_popup_info
-        )
-        binding.popUpInfoActivity = this
+
+        popup_info_delete.setOnClickListener {
+            rename()
+        }
+
+        popup_info_rename.setOnClickListener {
+            delete()
+        }
+
         setUpInfo()
     }
 
     private fun setUpInfo() {
-        name = intent.getStringExtra("name")
-        id = intent.getStringExtra("id")
-        fileType = intent.getStringExtra("fileType")
-        metadataVersion = intent.getStringExtra("metadataVersion")
-        contentVersion = intent.getStringExtra("contentVersion")
+        popup_info_name.text = getString(R.string.popup_info_name, intent.getStringExtra("name"))
+        popup_info_id.text = getString(R.string.popup_info_id, intent.getStringExtra("id"))
+        popup_info_file_type.text = getString(R.string.popup_info_file_type, intent.getStringExtra("fileType"))
+        popup_info_metadata_version.text = getString(R.string.popup_info_metadata_version, intent.getStringExtra("metadataVersion"))
+        popup_info_content_version.text = getString(R.string.popup_info_content_version, intent.getStringExtra("contentVersion"))
     }
 
     fun rename() {
         intent.putExtra("new_name", new_name_text.text.toString())
-        intent.putExtra("id", id)
-        setResult(RESULT_OK, intent)
+        intent.putExtra("id", popup_info_id.text.toString())
+        setResult(RENAME_RESULT_CODE, intent)
+        finish()
+    }
+
+    fun delete() {
+        intent.putExtra("id", popup_info_id.text.toString())
+        setResult(DELETE_RESULT_CODE, intent)
         finish()
     }
 

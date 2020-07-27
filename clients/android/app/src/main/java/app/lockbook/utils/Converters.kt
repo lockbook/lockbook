@@ -5,7 +5,6 @@ import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
@@ -67,13 +66,38 @@ val importAccountConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val exportAccountConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.string("Ok")
+
+        val basicError = jv.obj?.get("Err")
+        val unexpectedError = jv.obj?.get("UnexpectedError")
+
+        if (okResult is String) {
+            return Ok(okResult)
+        }
+
+        if (basicError == AccountExportError.NoAccount::class.simpleName) {
+            return Err(AccountExportError.NoAccount)
+        }
+
+        if (unexpectedError is String) {
+            return Err(AccountExportError.UnexpectedError(unexpectedError))
+        }
+
+        return Err(AccountExportError.UnexpectedError("Unable to parse AccountExportResult!"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val getRootConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.obj("Ok")
-        }
+        val okResult = jv.obj?.obj("Ok")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")
@@ -100,9 +124,7 @@ val getChildrenConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.array<FileMetadata>("Ok")
-        }
+        val okResult = jv.obj?.array<FileMetadata>("Ok")
 
         val unexpectedError = jv.obj?.get("UnexpectedError")
 
@@ -124,9 +146,7 @@ val getFileByIdConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.obj("Ok")
-        }
+        val okResult = jv.obj?.obj("Ok")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")
@@ -209,9 +229,7 @@ val createFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.obj("Ok")
-        }
+        val okResult = jv.obj?.obj("Ok")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")
@@ -240,13 +258,38 @@ val createFileConverter = object : Converter {
 
 }
 
+val deleteFileConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.containsKey("Ok")
+
+        val basicError = jv.obj?.get("Err")
+        val unexpectedError = jv.obj?.get("UnexpectedError")
+
+        if (okResult == true) {
+            return Ok(Unit)
+        }
+
+        if (basicError == DeleteFileError.NoFileWithThatId::class.simpleName) {
+            return Err(DeleteFileError.NoFileWithThatId)
+        }
+
+        if (unexpectedError is String) {
+            return Err(DeleteFileError.UnexpectedError(unexpectedError))
+        }
+
+        return Err(DeleteFileError.UnexpectedError("Unable to parse DeleteFileResult!"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val readDocumentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.obj("Ok")
-        }
+        val okResult = jv.obj?.obj("Ok")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")
@@ -384,9 +427,7 @@ val calculateSyncWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.let { jsonObject ->
-            jsonObject.obj("Ok")
-        }
+        val okResult = jv.obj?.obj("Ok")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")

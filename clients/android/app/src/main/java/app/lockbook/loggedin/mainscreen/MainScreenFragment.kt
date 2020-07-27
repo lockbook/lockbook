@@ -14,19 +14,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentMainScreenBinding
-import app.lockbook.loggedin.newfilefolder.NewFileFolderActivity
-import app.lockbook.loggedin.listfiles.FilesFoldersAdapter
+import app.lockbook.loggedin.newfile.NewFileActivity
+import app.lockbook.loggedin.listfiles.FilesAdapter
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
+import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
+import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 
 class MainScreenFragment : Fragment() {
-
-    companion object {
-        const val NEW_FILE_REQUEST_CODE: Int = 101
-        const val TEXT_EDITOR_REQUEST_CODE: Int = 102
-        const val POP_UP_INFO_REQUEST_CODE: Int = 103
-    }
 
     lateinit var mainScreenViewModel: MainScreenViewModel
 
@@ -43,15 +40,21 @@ class MainScreenFragment : Fragment() {
             MainScreenViewModelFactory(application.filesDir.absolutePath)
         mainScreenViewModel =
             ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
-        val adapter = FilesFoldersAdapter(mainScreenViewModel)
+        val adapter = FilesAdapter(mainScreenViewModel)
 
         binding.mainScreenViewModel = mainScreenViewModel
-        binding.filesFolders.adapter = adapter
-        binding.filesFolders.layoutManager = LinearLayoutManager(context)
+        binding.filesList.adapter = adapter
+        binding.filesList.layoutManager = LinearLayoutManager(context)
         binding.lifecycleOwner = this
 
-        mainScreenViewModel.filesFolders.observe(viewLifecycleOwner, Observer { filesFolders ->
-            updateRecyclerView(filesFolders, adapter)
+        binding.filesListRefresh.setOnRefreshListener {
+            mainScreenViewModel.refreshFiles()
+            mainScreenViewModel.sync()
+            binding.filesListRefresh.isRefreshing = false
+        }
+
+        mainScreenViewModel.files.observe(viewLifecycleOwner, Observer { files ->
+            updateRecyclerView(files, adapter)
         })
 
         mainScreenViewModel.navigateToFileEditor.observe(
@@ -66,29 +69,29 @@ class MainScreenFragment : Fragment() {
                 navigateToPopUpInfo(fileMetadata)
             })
 
-        mainScreenViewModel.navigateToNewFileFolder.observe(
+        mainScreenViewModel.navigateToNewFile.observe(
             viewLifecycleOwner,
             Observer { newFile ->
-                navigateToNewFileFolder(newFile)
+                navigateToNewFile(newFile)
             })
 
         mainScreenViewModel.errorHasOccurred.observe(viewLifecycleOwner, Observer { errorText ->
             errorHasOccurred(errorText)
         })
 
-        mainScreenViewModel.startListFilesFolders()
+        mainScreenViewModel.startUpFiles()
 
         return binding.root
     }
 
     private fun updateRecyclerView(
-        filesFolders: List<FileMetadata>,
-        adapter: FilesFoldersAdapter
+        files: List<FileMetadata>,
+        adapter: FilesAdapter
     ) {
-        if (filesFolders.isEmpty()) {
-            adapter.filesFolders = listOf()
+        if (files.isEmpty()) {
+            adapter.files = listOf()
         } else {
-            adapter.filesFolders = filesFolders
+            adapter.files = files
         }
 
     }
@@ -110,9 +113,9 @@ class MainScreenFragment : Fragment() {
     }
 
 
-    private fun navigateToNewFileFolder(newFile: Boolean) {
+    private fun navigateToNewFile(newFile: Boolean) {
         if (newFile) {
-            val intent = Intent(context, NewFileFolderActivity::class.java)
+            val intent = Intent(context, NewFileActivity::class.java)
             startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
         }
     }
