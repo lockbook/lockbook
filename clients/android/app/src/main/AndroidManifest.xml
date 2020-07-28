@@ -25,7 +25,8 @@
         android:theme="@style/Dark">
         <activity
             android:name=".InitialLaunchFigureOuter"
-            android:noHistory="true" >
+            android:noHistory="true"
+            android:theme="@style/Dark.NoActionBar" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
