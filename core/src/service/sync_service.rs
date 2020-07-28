@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use serde::Serialize;
 use sled::Db;
 use uuid::Uuid;
-use serde::Serialize;
 
 use crate::client;
 use crate::client::Client;
