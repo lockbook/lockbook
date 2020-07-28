@@ -621,107 +621,85 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                     }
                 },
             },
-            SyncError::WorkExecutionError(err_map) => {
-                match err_map.values().next() {
-                    Some(WorkExecutionError::DocumentGetError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::DocumentRenameError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::FolderRenameError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::DocumentMoveError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::FolderMoveError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::DocumentCreateError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::FolderCreateError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::DocumentChangeError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::DocumentDeleteError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::FolderDeleteError(api)) => match api {
-                        Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
-                        Error::Serialize(_)
-                        | Error::ReceiveFailed(_)
-                        | Error::Deserialize(_)
-                        | Error::Api(_) => {
-                            Err(SyncAllError::UnexpectedError(format!("{:#?}", api)))
-                        }
-                    },
-                    Some(WorkExecutionError::MetadataRepoError(_))
-                    | Some(WorkExecutionError::MetadataRepoErrorOpt(_))
-                    | Some(WorkExecutionError::SaveDocumentError(_))
-                    | Some(WorkExecutionError::LocalChangesRepoError(_)) => {
-                        Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
-                    }
-                    None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
+            SyncError::WorkExecutionError(err_map) => match err_map.values().next() {
+                Some(WorkExecutionError::DocumentGetError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::DocumentRenameError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::FolderRenameError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::DocumentMoveError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::FolderMoveError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::DocumentCreateError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::FolderCreateError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::DocumentChangeError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::DocumentDeleteError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::FolderDeleteError(api)) => match api {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => Err(SyncAllError::UnexpectedError(format!("{:#?}", api))),
+                },
+                Some(WorkExecutionError::MetadataRepoError(_))
+                | Some(WorkExecutionError::MetadataRepoErrorOpt(_))
+                | Some(WorkExecutionError::SaveDocumentError(_))
+                | Some(WorkExecutionError::LocalChangesRepoError(_)) => {
+                    Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
                 }
-            }
+                None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
+            },
             SyncError::MetadataUpdateError(err) => {
                 Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
             }
