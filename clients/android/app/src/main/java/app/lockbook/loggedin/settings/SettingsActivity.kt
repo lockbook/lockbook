@@ -24,6 +24,8 @@ import app.lockbook.databinding.ActivitySettingsBinding
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
+import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
+import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import kotlinx.android.synthetic.main.activity_account_qr_code.*
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import kotlinx.android.synthetic.main.activity_settings.*
@@ -53,65 +55,20 @@ class SettingsActivity : AppCompatActivity() {
         })
 
         settingsViewModel.navigateToAccountQRCode.observe(this, Observer { qrBitmap ->
-            if(getSharedPreferences(SharedPreferences.SHARED_PREF_FILE, Context.MODE_PRIVATE).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE) != BIOMETRIC_NONE) {
-                if (BiometricManager.from(applicationContext)
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
-                ) {
-                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
-                        .show()
-                    finish()
-                }
-
-                val executor = ContextCompat.getMainExecutor(this)
-                val biometricPrompt = BiometricPrompt(this, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
-                            when(errorCode) {
-                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i("Launch", "Biometric authentication error: $errString")
-                                    Toast.makeText(
-                                        applicationContext,
-                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                }
-                                else -> {}
-                            }
-                        }
-
-                        override fun onAuthenticationSucceeded(
-                            result: BiometricPrompt.AuthenticationResult
-                        ) {
-                            super.onAuthenticationSucceeded(result)
-                            navigateToAccountQRCode(qrBitmap)
-                        }
-
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            Toast.makeText(
-                                applicationContext,
-                                "Invalid fingerprint.", Toast.LENGTH_SHORT
-                            )
-                                .show()
-                        }
-                    })
-
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Login to view your account string.")
-                    .setNegativeButtonText("Cancel")
-                    .build()
-
-                biometricPrompt.authenticate(promptInfo)
-            }
+            checkBiometricOptionsQr(qrBitmap)
         })
 
-        settingsViewModel.copyAccountString.observe(this, Observer {accountString ->
-            if(getSharedPreferences(SharedPreferences.SHARED_PREF_FILE, Context.MODE_PRIVATE).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE) != BIOMETRIC_NONE) {
+        settingsViewModel.copyAccountString.observe(this, Observer { accountString ->
+            checkBiometricOptionsCopy(accountString)
+        })
+    }
+
+    private fun checkBiometricOptionsCopy(accountString: String) {
+        when (getSharedPreferences(
+            SharedPreferences.SHARED_PREF_FILE,
+            Context.MODE_PRIVATE
+        ).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)) {
+            BIOMETRIC_RECOMMENDED -> {
                 if (BiometricManager.from(applicationContext)
                         .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
@@ -129,16 +86,25 @@ class SettingsActivity : AppCompatActivity() {
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             Log.i("Launch", "Biometric authentication error: $errString")
-                            when(errorCode) {
+                            when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i("Launch", "Biometric authentication error: $errString")
+                                    Log.i(
+                                        "Launch",
+                                        "Biometric authentication error: $errString"
+                                    )
                                     Toast.makeText(
                                         applicationContext,
                                         "An unexpected error has occurred!", Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 }
-                                else -> {}
+                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> Toast.makeText(
+                                    applicationContext,
+                                    "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                )
+                                    .show()
+                                else -> {
+                                }
                             }
                         }
 
@@ -148,26 +114,82 @@ class SettingsActivity : AppCompatActivity() {
                             super.onAuthenticationSucceeded(result)
                             copyAccountString(accountString)
                         }
+                    })
 
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            Toast.makeText(
-                                applicationContext,
-                                "Invalid fingerprint.", Toast.LENGTH_SHORT
-                            )
-                                .show()
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Lockbook Biometric Verification")
+                    .setSubtitle("Login to view your account string.")
+                    .setDeviceCredentialAllowed(true)
+                    .build()
+
+                biometricPrompt.authenticate(promptInfo)
+            }
+            BIOMETRIC_STRICT, BIOMETRIC_NONE -> copyAccountString(accountString)
+        }
+    }
+
+    private fun checkBiometricOptionsQr(qrBitmap: Bitmap) {
+        when (getSharedPreferences(
+            SharedPreferences.SHARED_PREF_FILE,
+            Context.MODE_PRIVATE
+        ).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)) {
+            BIOMETRIC_RECOMMENDED -> {
+                if (BiometricManager.from(applicationContext)
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                ) {
+                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
+                        .show()
+                    finish()
+                }
+
+                val executor = ContextCompat.getMainExecutor(this)
+                val biometricPrompt = BiometricPrompt(this, executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence
+                        ) {
+                            super.onAuthenticationError(errorCode, errString)
+                            when (errorCode) {
+                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
+                                    Log.i(
+                                        "Launch",
+                                        "Biometric authentication error: $errString"
+                                    )
+                                    Toast.makeText(
+                                        applicationContext,
+                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                                    )
+                                        .show()
+                                }
+                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> Toast.makeText(
+                                    applicationContext,
+                                    "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                )
+                                    .show()
+                                else -> {
+                                }
+                            }
+                        }
+
+                        override fun onAuthenticationSucceeded(
+                            result: BiometricPrompt.AuthenticationResult
+                        ) {
+                            super.onAuthenticationSucceeded(result)
+                            navigateToAccountQRCode(qrBitmap)
                         }
                     })
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
                     .setSubtitle("Login to view your account string.")
-                    .setNegativeButtonText("Cancel")
+                    .setDeviceCredentialAllowed(true)
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
             }
-        })
+            BIOMETRIC_STRICT, BIOMETRIC_NONE -> navigateToAccountQRCode(qrBitmap)
+        }
     }
 
     private fun copyAccountString(accountString: String) {

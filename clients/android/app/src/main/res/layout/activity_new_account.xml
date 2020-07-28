@@ -73,7 +73,7 @@
 
         <RadioButton
             android:id="@+id/new_account_biometric_none"
-            style="@style/DefaultDarkRadioButton"
+            style="@style/DarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
@@ -81,7 +81,7 @@
 
         <RadioButton
             android:id="@+id/new_account_biometric_recommended"
-            style="@style/DefaultDarkRadioButton"
+            style="@style/DarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:checked="true"
@@ -90,7 +90,7 @@
 
         <RadioButton
             android:id="@+id/new_account_biometric_strict"
-            style="@style/DefaultDarkRadioButton"
+            style="@style/DarkRadioButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
