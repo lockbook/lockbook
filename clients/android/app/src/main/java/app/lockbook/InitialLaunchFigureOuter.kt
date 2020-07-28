@@ -25,7 +25,6 @@ import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
 class InitialLaunchFigureOuter : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        supportActionBar?.hide()
         setContentView(R.layout.splash_screen)
         loadLockbookCore()
 
@@ -36,7 +35,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         } else {
             val intent = Intent(this, WelcomeActivity::class.java)
             startActivity(intent)
-            intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
             finish()
         }
     }
@@ -86,7 +84,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         ) {
                             super.onAuthenticationSucceeded(result)
                             val intent = Intent(applicationContext, MainScreenActivity::class.java)
-                            intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
                             startActivity(intent)
                             finish()
                         }
@@ -102,7 +99,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
                 val intent = Intent(applicationContext, MainScreenActivity::class.java)
-                intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
                 startActivity(intent)
                 finish()
             }
