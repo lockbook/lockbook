@@ -18,7 +18,7 @@
         <item name="colorPrimaryDark">@color/blue</item>
     </style>
 
-    <style name="DefaultDarkRadioButton" parent="Widget.AppCompat.CompoundButton.RadioButton" >
+    <style name="DarkRadioButton" parent="Widget.AppCompat.CompoundButton.RadioButton" >
         <item name="android:textColor">@android:color/white</item>
         <item name="android:buttonTint">@color/blue</item>
     </style>
