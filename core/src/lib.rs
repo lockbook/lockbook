@@ -104,9 +104,9 @@ fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
 }
 
 pub fn init_logger_safely() {
-    if let Ok(_) = env_logger::try_init() {
+    if env_logger::try_init().is_ok() {
         info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
-    };
+    }
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
@@ -622,7 +622,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 },
             },
             SyncError::WorkExecutionError(err_map) => {
-                return match err_map.values().next() {
+                match err_map.values().next() {
                     Some(WorkExecutionError::DocumentGetError(api)) => match api {
                         Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
                         Error::Serialize(_)
@@ -720,7 +720,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                         Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
                     }
                     None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
-                };
+                }
             }
             SyncError::MetadataUpdateError(err) => {
                 Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
