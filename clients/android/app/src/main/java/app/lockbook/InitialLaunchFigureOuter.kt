@@ -2,6 +2,7 @@ package app.lockbook
 
 import android.content.Context
 import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
@@ -35,6 +36,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         } else {
             val intent = Intent(this, WelcomeActivity::class.java)
             startActivity(intent)
+            intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
             finish()
         }
     }
@@ -84,6 +86,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         ) {
                             super.onAuthenticationSucceeded(result)
                             val intent = Intent(applicationContext, MainScreenActivity::class.java)
+                            intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
                             startActivity(intent)
                             finish()
                         }
@@ -99,6 +102,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
                 val intent = Intent(applicationContext, MainScreenActivity::class.java)
+                intent.addFlags(FLAG_ACTIVITY_NO_ANIMATION)
                 startActivity(intent)
                 finish()
             }
