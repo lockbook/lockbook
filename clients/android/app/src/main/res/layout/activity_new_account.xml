@@ -56,47 +56,6 @@
         android:text="@string/new_account_description_five"
         android:textColor="@android:color/white" />
 
-    <TextView
-        android:id="@+id/new_account_biometric_description"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:paddingBottom="10dp"
-        android:text="@string/biometrics_title"
-        android:textColor="@android:color/white" />
-
-    <RadioGroup
-        android:id="@+id/new_account_biometric_options"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="20dp">
-
-        <RadioButton
-            android:id="@+id/new_account_biometric_none"
-            style="@style/DarkRadioButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="@string/biometric_disabled" />
-
-        <RadioButton
-            android:id="@+id/new_account_biometric_recommended"
-            style="@style/DarkRadioButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:fontFamily="monospace"
-            android:text="@string/biometric_recommended" />
-
-        <RadioButton
-            android:id="@+id/new_account_biometric_strict"
-            style="@style/DarkRadioButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="@string/biometric_strict" />
-    </RadioGroup>
-
     <EditText
         android:id="@+id/new_account_username"
         android:layout_width="match_parent"

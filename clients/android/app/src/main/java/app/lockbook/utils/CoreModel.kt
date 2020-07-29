@@ -244,7 +244,5 @@ class CoreModel(config: Config) {
 
             return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
         }
-
     }
-
 }

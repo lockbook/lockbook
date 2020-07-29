@@ -3,17 +3,13 @@ package app.lockbook.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.widget.RadioGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricManager
 import app.lockbook.R
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
-import app.lockbook.utils.CoreModel
 import app.lockbook.utils.Config
+import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
-import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
 import com.github.michaelbull.result.Err
@@ -26,7 +22,6 @@ import kotlinx.coroutines.*
 class ImportAccountActivity : AppCompatActivity() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    private var biometricHardware = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,8 +33,6 @@ class ImportAccountActivity : AppCompatActivity() {
         qr_import_button.setOnClickListener {
             navigateToQRCodeScanner()
         }
-
-        determineBiometricsOptionsAvailable()
     }
 
     private fun onClickImportAccount() {
@@ -65,11 +58,7 @@ class ImportAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
-                    if (biometricHardware) {
-                        setUpBiometricState()
-                    }
                     setUpLoggedInState()
-
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                     finishAffinity()
                 }
@@ -110,39 +99,6 @@ class ImportAccountActivity : AppCompatActivity() {
         }
     }
 
-
-    private fun determineBiometricsOptionsAvailable() {
-        if (BiometricManager.from(applicationContext)
-                .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
-        ) {
-            import_account_biometric_options.visibility = RadioGroup.GONE
-            import_account_biometric_description.visibility = TextView.GONE
-            biometricHardware = false
-        }
-    }
-
-    private fun setUpBiometricState() {
-        val pref = getSharedPreferences(
-            SHARED_PREF_FILE,
-            Context.MODE_PRIVATE
-        ).edit()
-
-        when {
-            import_account_biometric_recommended.isChecked -> pref.putInt(
-                SharedPreferences.BIOMETRIC_OPTION_KEY, SharedPreferences.BIOMETRIC_RECOMMENDED
-            ).apply()
-            import_account_biometric_strict.isChecked -> pref.putInt(
-                SharedPreferences.BIOMETRIC_OPTION_KEY, SharedPreferences.BIOMETRIC_STRICT
-            ).apply()
-            import_account_biometric_none.isChecked -> pref.putInt(
-                SharedPreferences.BIOMETRIC_OPTION_KEY, SharedPreferences.BIOMETRIC_NONE
-            ).apply()
-            else -> {
-                Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     private fun setUpLoggedInState() {
         getSharedPreferences(
             SHARED_PREF_FILE,
@@ -151,5 +107,4 @@ class ImportAccountActivity : AppCompatActivity() {
             LOGGED_IN_KEY, true
         ).apply()
     }
-
 }

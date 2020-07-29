@@ -2,7 +2,6 @@ package app.lockbook.loggedin.mainscreen
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,8 +13,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentMainScreenBinding
-import app.lockbook.loggedin.newfile.NewFileActivity
 import app.lockbook.loggedin.listfiles.FilesAdapter
+import app.lockbook.loggedin.newfile.NewFileActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.FileMetadata
@@ -53,31 +52,40 @@ class MainScreenFragment : Fragment() {
             binding.filesListRefresh.isRefreshing = false
         }
 
-        mainScreenViewModel.files.observe(viewLifecycleOwner, Observer { files ->
-            updateRecyclerView(files, adapter)
-        })
+        mainScreenViewModel.files.observe(
+            viewLifecycleOwner,
+            Observer { files ->
+                updateRecyclerView(files, adapter)
+            }
+        )
 
         mainScreenViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
             Observer { fileContents ->
                 navigateToFileEditor(fileContents)
-            })
+            }
+        )
 
         mainScreenViewModel.navigateToPopUpInfo.observe(
             viewLifecycleOwner,
             Observer { fileMetadata ->
                 navigateToPopUpInfo(fileMetadata)
-            })
+            }
+        )
 
         mainScreenViewModel.navigateToNewFile.observe(
             viewLifecycleOwner,
-            Observer { newFile ->
-                navigateToNewFile(newFile)
-            })
+            Observer {
+                navigateToNewFile()
+            }
+        )
 
-        mainScreenViewModel.errorHasOccurred.observe(viewLifecycleOwner, Observer { errorText ->
-            errorHasOccurred(errorText)
-        })
+        mainScreenViewModel.errorHasOccurred.observe(
+            viewLifecycleOwner,
+            Observer { errorText ->
+                errorHasOccurred(errorText)
+            }
+        )
 
         mainScreenViewModel.startUpFiles()
 
@@ -93,7 +101,6 @@ class MainScreenFragment : Fragment() {
         } else {
             adapter.files = files
         }
-
     }
 
     private fun navigateToFileEditor(fileContents: String) {
@@ -112,12 +119,9 @@ class MainScreenFragment : Fragment() {
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
-
-    private fun navigateToNewFile(newFile: Boolean) {
-        if (newFile) {
-            val intent = Intent(context, NewFileActivity::class.java)
-            startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
-        }
+    private fun navigateToNewFile() {
+        val intent = Intent(context, NewFileActivity::class.java)
+        startActivityForResult(intent, NEW_FILE_REQUEST_CODE)
     }
 
     private fun errorHasOccurred(errorText: String) {

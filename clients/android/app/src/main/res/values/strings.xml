@@ -23,10 +23,6 @@
     <string name="new_account_description_three">Lockbook is available on every platform, login on another device to keep your key safe.</string>
     <string name="new_account_description_four">No one can access your content besides you.</string>
     <string name="new_account_description_five">No one can keep your keys safe besides you.</string>
-    <string name="biometrics_title">Protect your key with biometrics.</string>
-    <string name="biometric_disabled">Disabled - ignore the fingerprint</string>
-    <string name="biometric_recommended">Protect key export with fingerprint (recommended)</string>
-    <string name="biometric_strict">Use fingerprint every time you open the app (strict mode)</string>
     <string name="new_account_username">Select a username.</string>
     <string name="new_account_submit">Continue</string>
 
@@ -51,9 +47,24 @@
     <string-array name="settings_names">
         <item>@string/export_account_qr</item>
         <item>@string/export_account_raw</item>
+        <item>@string/protect_account_biometric</item>
     </string-array>
 
     <string name="export_account_raw">Copy Account String To Clipboard</string>
     <string name="export_account_qr">Export Account String (QR Code)</string>
+    <string name="protect_account_biometric">Change Biometric Setting</string>
+
+    <string-array name="settings_biometric_names">
+        <item>@string/biometric_disabled</item>
+        <item>@string/biometric_recommended</item>
+        <item>@string/biometric_strict</item>
+    </string-array>
+
+    <string name="biometrics_save">Save</string>
+    <string name="biometrics_cancel">Cancel</string>
+    <string name="biometrics_title">Protect your key with biometrics.</string>
+    <string name="biometric_disabled">Disabled - ignore the fingerprint</string>
+    <string name="biometric_recommended">Protect key export with fingerprint (recommended)</string>
+    <string name="biometric_strict">Use fingerprint every time you open the app (strict mode)</string>
 
 </resources>

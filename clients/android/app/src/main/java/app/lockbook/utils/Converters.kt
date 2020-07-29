@@ -169,7 +169,6 @@ val getFileByIdConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-
 val insertFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
@@ -251,11 +250,9 @@ val createFileConverter = object : Converter {
         }
 
         return Err(CreateFileError.UnexpectedError("Unable to parse CreateFileResult!"))
-
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
-
 }
 
 val deleteFileConverter = object : Converter {
@@ -420,7 +417,6 @@ val syncAllConverter = object : Converter {
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
-
 }
 
 val calculateSyncWorkConverter = object : Converter {
@@ -476,10 +472,8 @@ val executeSyncWorkConverter = object : Converter {
             return Err(ExecuteWorkError.UnexpectedError(unexpectedError))
         }
 
-
         return ExecuteWorkError.UnexpectedError("Unable to parse ExecuteSyncWorkResult!")
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
-

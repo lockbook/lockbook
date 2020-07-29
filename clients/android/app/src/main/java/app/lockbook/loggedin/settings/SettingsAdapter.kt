@@ -1,18 +1,15 @@
 package app.lockbook.loggedin.settings
 
-import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ClickInterface
 import kotlinx.android.synthetic.main.recyclerview_content_settings.view.*
 
-class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface): RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
+class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface, val biometricAvailable: Boolean) : RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
     var settings = settings
         set(value) {
             field = value
@@ -30,11 +27,16 @@ class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface
 
     override fun onBindViewHolder(holder: SettingsViewHolder, position: Int) {
         val item = settings[position]
-
         holder.cardView.setting_title.text = item
+
+        if (holder.cardView.visibility == View.GONE && !item.contains("Bio")) {
+            holder.cardView.visibility = View.VISIBLE
+        } else if (item.contains("Bio") && !biometricAvailable) {
+            holder.cardView.visibility = View.GONE
+        }
     }
 
-    inner class SettingsViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
+    inner class SettingsViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
 
         init {
             cardView.setOnClickListener {

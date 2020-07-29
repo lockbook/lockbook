@@ -20,7 +20,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when(item.itemId) {
+        return when (item.itemId) {
             R.id.settings -> {
                 startActivity(Intent(applicationContext, SettingsActivity::class.java))
                 true
@@ -32,9 +32,9 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onBackPressed() {
         val fragments = supportFragmentManager.fragments
 
-        for(fragment in fragments) {
-            if(fragment is MainScreenFragment) {
-                if(!fragment.onBackPressed()) {
+        for (fragment in fragments) {
+            if (fragment is MainScreenFragment) {
+                if (!fragment.onBackPressed()) {
                     super.onBackPressed()
                 }
             }

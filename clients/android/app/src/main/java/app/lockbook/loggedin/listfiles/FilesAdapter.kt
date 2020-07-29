@@ -4,12 +4,12 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
+import app.lockbook.R
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
-import app.lockbook.R
 import kotlinx.android.synthetic.main.recyclerview_content_files.view.*
 
-class FilesAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
+class FilesAdapter(val clickInterface: ClickInterface) : RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
 
     var files = listOf<FileMetadata>()
         set(value) {
@@ -33,14 +33,14 @@ class FilesAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<Fil
         holder.cardView.file_name.text = item.name
         holder.cardView.file_description.text = item.id
 
-        if(item.file_type == FileType.Document) {
+        if (item.file_type == FileType.Document) {
             holder.cardView.file_icon.setImageResource(R.drawable.ic_file_24)
         } else {
             holder.cardView.file_icon.setImageResource(R.drawable.ic_folder_24)
         }
     }
 
-    inner class ListFilesViewHolder(val cardView: CardView): RecyclerView.ViewHolder(cardView) {
+    inner class ListFilesViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
         lateinit var fileMetadata: FileMetadata
 
         init {
@@ -48,12 +48,10 @@ class FilesAdapter(val clickInterface: ClickInterface): RecyclerView.Adapter<Fil
                 clickInterface.onItemClick(adapterPosition)
             }
 
-            cardView.setOnLongClickListener{
+            cardView.setOnLongClickListener {
                 clickInterface.onLongClick(adapterPosition)
                 true
             }
-
         }
     }
-
 }
