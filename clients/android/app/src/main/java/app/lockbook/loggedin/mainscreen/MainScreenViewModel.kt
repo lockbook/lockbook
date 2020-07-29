@@ -25,7 +25,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<String>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
-    private val _navigateToNewFile = MutableLiveData<Boolean>()
+    private val _navigateToNewFile = MutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
 
     val files: LiveData<List<FileMetadata>>
@@ -37,7 +37,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
 
-    val navigateToNewFile: LiveData<Boolean>
+    val navigateToNewFile: LiveData<Unit>
         get() = _navigateToNewFile
 
     val errorHasOccurred: LiveData<String>
@@ -53,7 +53,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
     }
 
     fun launchNewFileActivity() {
-        _navigateToNewFile.value = true
+        _navigateToNewFile.value = Unit
     }
 
     fun quitOrNot(): Boolean {
@@ -75,7 +75,6 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
                         is GetFileByIdError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
                     }
                 }
-
             }
             is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
         }

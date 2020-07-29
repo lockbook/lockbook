@@ -4,7 +4,6 @@ import android.app.Activity
 import android.os.Bundle
 import android.text.Editable
 import app.lockbook.R
-import app.lockbook.utils.RequestResultCodes.FAILED_RESULT_CODE
 import kotlinx.android.synthetic.main.activity_text_editor.*
 
 class TextEditorActivity : Activity() {
@@ -24,7 +23,7 @@ class TextEditorActivity : Activity() {
     }
 
     private fun submitText() {
-        if(text_editor_text.text is Editable) {
+        if (text_editor_text.text is Editable) {
             intent.putExtra("text", text_editor_text.text.toString())
         } else {
             intent.putExtra("text", "")

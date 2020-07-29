@@ -2,8 +2,6 @@
 extern crate log;
 extern crate reqwest;
 
-use jni::sys::jstring;
-use jni::JNIEnv;
 use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
@@ -94,14 +92,6 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
-
-fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
-    let serialized_result =
-        serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
-    env.new_string(serialized_result)
-        .expect("Couldn't create JString from rust string!")
-        .into_inner()
-}
 
 pub fn init_logger_safely() {
     if env_logger::try_init().is_ok() {
@@ -388,10 +378,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<FileMetadata>, GetC
 
     match DefaultFileMetadataRepo::get_children(&db, id) {
         Ok(file_metadata_list) => Ok(file_metadata_list),
-        Err(err) => Err(GetChildrenError::UnexpectedError(format!(
-            "DA FUDGE {:#?}",
-            err
-        ))),
+        Err(err) => Err(GetChildrenError::UnexpectedError(format!("{:#?}", err))),
     }
 }
 
