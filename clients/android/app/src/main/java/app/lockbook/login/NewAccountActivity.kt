@@ -3,21 +3,13 @@ package app.lockbook.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.widget.RadioGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricManager
-import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.R
-import app.lockbook.utils.CoreModel
+import app.lockbook.loggedin.mainscreen.MainScreenActivity
 import app.lockbook.utils.Config
+import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
-import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
-import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
-import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
-import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
 import com.github.michaelbull.result.Err
@@ -29,7 +21,6 @@ class NewAccountActivity : AppCompatActivity() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    private var biometricHardware = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,16 +28,6 @@ class NewAccountActivity : AppCompatActivity() {
 
         new_account_create_lockbook.setOnClickListener {
             onClickCreateAccount()
-        }
-
-        determineBiometricsAvailable()
-    }
-
-    private fun determineBiometricsAvailable() {
-        if (BiometricManager.from(applicationContext).canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS) {
-            new_account_biometric_options.visibility = RadioGroup.GONE
-            new_account_biometric_description.visibility = TextView.GONE
-            biometricHardware = false
         }
     }
 
@@ -67,19 +48,18 @@ class NewAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (createAccountResult) {
                 is Ok -> {
-                    if (biometricHardware) {
-                        setUpBiometricState()
-                    }
                     setUpLoggedInState()
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> {
                     when (createAccountResult.error) {
-                        is CreateAccountError.UsernameTaken -> new_account_username.error =
-                            "Username Taken!"
-                        is CreateAccountError.InvalidUsername -> new_account_username.error =
-                            "Invalid Username!"
+                        is CreateAccountError.UsernameTaken ->
+                            new_account_username.error =
+                                "Username Taken!"
+                        is CreateAccountError.InvalidUsername ->
+                            new_account_username.error =
+                                "Invalid Username!"
                         is CreateAccountError.CouldNotReachServer -> Toast.makeText(
                             applicationContext,
                             "Network Unavailable",
@@ -96,31 +76,6 @@ class NewAccountActivity : AppCompatActivity() {
         }
     }
 
-    private fun setUpBiometricState() {
-        val pref = getSharedPreferences(
-            SHARED_PREF_FILE,
-            Context.MODE_PRIVATE
-        ).edit()
-
-        when {
-            new_account_biometric_recommended.isChecked -> pref.putInt(
-                BIOMETRIC_OPTION_KEY, BIOMETRIC_RECOMMENDED
-            ).apply()
-            new_account_biometric_strict.isChecked -> {
-                Log.i("SmailBarkouch", "setUpBiometricState strict")
-                pref.putInt(
-                    BIOMETRIC_OPTION_KEY, BIOMETRIC_STRICT
-                ).apply()
-            }
-            new_account_biometric_none.isChecked -> pref.putInt(
-                BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
-            ).apply()
-            else -> {
-                Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     private fun setUpLoggedInState() {
         getSharedPreferences(
             SHARED_PREF_FILE,
@@ -130,4 +85,3 @@ class NewAccountActivity : AppCompatActivity() {
         ).apply()
     }
 }
-
