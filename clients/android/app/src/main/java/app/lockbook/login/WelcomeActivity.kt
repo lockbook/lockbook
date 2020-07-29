@@ -27,5 +27,4 @@ class WelcomeActivity : AppCompatActivity() {
     private fun launchImportAccount() {
         startActivity(Intent(applicationContext, ImportAccountActivity::class.java))
     }
-
 }

@@ -8,14 +8,24 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
+use serde::Serialize;
+
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
     get_children, get_file_by_id, get_root, import_account, init_logger_safely, insert_file,
-    move_file, read_document, rename_file, serialize_to_jstring, sync_all, write_document,
+    move_file, read_document, rename_file, sync_all, write_document,
     AccountExportError, CreateAccountError, CreateFileError, DeleteFileError, GetChildrenError,
     GetFileByIdError, GetRootError, ImportError, InsertFileError, ReadDocumentError,
     RenameFileError, WriteToDocumentError,
 };
+
+fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
+    let serialized_result =
+        serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
+    env.new_string(serialized_result)
+        .expect("Couldn't create JString from rust string!")
+        .into_inner()
+}
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(_env: JNIEnv, _: JClass) {

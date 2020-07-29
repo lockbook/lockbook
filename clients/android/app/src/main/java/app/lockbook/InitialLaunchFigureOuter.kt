@@ -2,7 +2,6 @@ package app.lockbook
 
 import android.content.Context
 import android.content.Intent
-import android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
@@ -13,8 +12,8 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.login.WelcomeActivity
 import app.lockbook.loggedin.mainscreen.MainScreenActivity
+import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
@@ -31,6 +30,15 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         val pref = getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE)
 
         if (pref.getBoolean(LOGGED_IN_KEY, false)) {
+            if (!isBiometricsOptionsAvailable() && pref.getInt(
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
+            ) != BIOMETRIC_NONE
+            ) {
+                pref.edit()
+                    .putInt(BIOMETRIC_SERVICE, BIOMETRIC_NONE)
+                    .apply()
+            }
             checkBiometricOptions(pref)
         } else {
             val intent = Intent(this, WelcomeActivity::class.java)
@@ -39,13 +47,19 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         }
     }
 
+    private fun isBiometricsOptionsAvailable(): Boolean =
+        BiometricManager.from(applicationContext)
+            .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
+
     private fun checkBiometricOptions(pref: SharedPreferences) {
-        when (getSharedPreferences(SHARED_PREF_FILE, MODE_PRIVATE).getInt(
-            BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
-        )) {
+        when (
+            pref.getInt(
+                BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
+            )
+        ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
                         .show()
@@ -53,7 +67,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
 
                 val executor = ContextCompat.getMainExecutor(this)
-                val biometricPrompt = BiometricPrompt(this, executor,
+                val biometricPrompt = BiometricPrompt(
+                    this, executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
                             errorCode: Int,
@@ -70,11 +85,12 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                         .show()
                                     finish()
                                 }
-                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> Toast.makeText(
-                                    applicationContext,
-                                    "Too many tries, try again later!", Toast.LENGTH_SHORT
-                                )
-                                    .show()
+                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
+                                    Toast.makeText(
+                                        applicationContext,
+                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                    )
+                                        .show()
                                 else -> finish()
                             }
                         }
@@ -83,11 +99,16 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             result: BiometricPrompt.AuthenticationResult
                         ) {
                             super.onAuthenticationSucceeded(result)
-                            val intent = Intent(applicationContext, MainScreenActivity::class.java)
-                            startActivity(intent)
+                            startActivity(
+                                Intent(
+                                    applicationContext,
+                                    MainScreenActivity::class.java
+                                )
+                            )
                             finish()
                         }
-                    })
+                    }
+                )
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
@@ -98,8 +119,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 biometricPrompt.authenticate(promptInfo)
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
-                val intent = Intent(applicationContext, MainScreenActivity::class.java)
-                startActivity(intent)
+                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                 finish()
             }
         }
