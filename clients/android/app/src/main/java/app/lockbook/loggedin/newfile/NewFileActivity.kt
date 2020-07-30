@@ -23,7 +23,7 @@ class NewFileActivity : Activity() {
         }
     }
 
-    fun createFile() {
+    private fun createFile() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val json = Klaxon()
