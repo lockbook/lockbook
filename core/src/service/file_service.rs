@@ -412,7 +412,7 @@ mod unit_tests {
     use crate::model::account::Account;
     use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::state::{dummy_config, Config};
+    use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -490,9 +490,7 @@ mod unit_tests {
 
     #[test]
     fn path_calculations_runthrough() {
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = TempBackedDB::connect_to_db(&config).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
@@ -558,9 +556,7 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = TempBackedDB::connect_to_db(&config).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
