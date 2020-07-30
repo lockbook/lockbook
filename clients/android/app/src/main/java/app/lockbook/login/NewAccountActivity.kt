@@ -56,13 +56,18 @@ class NewAccountActivity : AppCompatActivity() {
                     when (createAccountResult.error) {
                         is CreateAccountError.UsernameTaken ->
                             new_account_username.error =
-                                "Username Taken!"
+                                "Username taken!"
                         is CreateAccountError.InvalidUsername ->
                             new_account_username.error =
-                                "Invalid Username!"
+                                "Invalid username!"
                         is CreateAccountError.CouldNotReachServer -> Toast.makeText(
                             applicationContext,
-                            "Network Unavailable",
+                            "Network unavailable.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        is CreateAccountError.AccountExistsAlready -> Toast.makeText(
+                            applicationContext,
+                            "Account already exists!",
                             Toast.LENGTH_LONG
                         ).show()
                         is CreateAccountError.UnexpectedError -> Toast.makeText(
