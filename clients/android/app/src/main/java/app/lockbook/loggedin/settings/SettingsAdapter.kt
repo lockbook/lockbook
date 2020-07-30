@@ -1,16 +1,15 @@
 package app.lockbook.loggedin.settings
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.loggedin.listfiles.ClickInterface
+import app.lockbook.utils.ClickInterface
 import kotlinx.android.synthetic.main.recyclerview_content_settings.view.*
 
-class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface, val biometricAvailable: Boolean) : RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
-    var settings = settings
+class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface, private val biometricAvailable: Boolean) : RecyclerView.Adapter<SettingsAdapter.SettingsViewHolder>() {
+    private var settings = settings
         set(value) {
             field = value
             notifyDataSetChanged()
@@ -28,12 +27,6 @@ class SettingsAdapter(settings: List<String>, val clickInterface: ClickInterface
     override fun onBindViewHolder(holder: SettingsViewHolder, position: Int) {
         val item = settings[position]
         holder.cardView.setting_title.text = item
-
-        if (holder.cardView.visibility == View.GONE && !item.contains("Bio")) {
-            holder.cardView.visibility = View.VISIBLE
-        } else if (item.contains("Bio") && !biometricAvailable) {
-            holder.cardView.visibility = View.GONE
-        }
     }
 
     inner class SettingsViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {

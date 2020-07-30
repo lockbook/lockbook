@@ -3,16 +3,13 @@ package app.lockbook.loggedin.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.DialogInterface
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
 import android.widget.PopupWindow
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.view.ContextThemeWrapper
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -27,13 +24,13 @@ import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
-import kotlinx.android.synthetic.main.activity_account_qr_code.*
+import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
-import kotlinx.android.synthetic.main.activity_import_account.*
 import kotlinx.android.synthetic.main.activity_settings.*
 
 class SettingsActivity : AppCompatActivity() {
-    lateinit var settingsViewModel: SettingsViewModel
+    private lateinit var settingsViewModel: SettingsViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +41,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val settings = resources.getStringArray(R.array.settings_names).toList()
         val settingsViewModelFactory =
-            SettingsViewModelFactory(settings, application.filesDir.absolutePath)
+            SettingsViewModelFactory(application.filesDir.absolutePath)
         settingsViewModel =
             ViewModelProvider(this, settingsViewModelFactory).get(SettingsViewModel::class.java)
         val adapter = SettingsAdapter(settings, settingsViewModel, isBiometricsOptionsAvailable())
@@ -64,21 +61,32 @@ class SettingsActivity : AppCompatActivity() {
         settingsViewModel.navigateToAccountQRCode.observe(
             this,
             Observer { qrBitmap ->
-                checkBiometricOptionsQr(qrBitmap)
+                performBiometricFlow(
+                    "Authenticate your fingerprint to view your account qr code.",
+                    R.string.export_account_qr,
+                    bitmap = qrBitmap
+                )
             }
         )
 
         settingsViewModel.copyAccountString.observe(
             this,
             Observer { accountString ->
-                checkBiometricOptionsCopy(accountString)
+                performBiometricFlow(
+                    "Authenticate your fingerprint to copy your account string.",
+                    R.string.export_account_raw,
+                    accountString = accountString
+                )
             }
         )
 
         settingsViewModel.navigateToBiometricSetting.observe(
             this,
             Observer {
-                checkBiometricOptionsSettings()
+                performBiometricFlow(
+                    "Authenticate your fingerprint to change your biometric settings.",
+                    R.string.protect_account_biometric
+                )
             }
         )
     }
@@ -87,7 +95,12 @@ class SettingsActivity : AppCompatActivity() {
         BiometricManager.from(applicationContext)
             .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
 
-    private fun checkBiometricOptionsSettings() {
+    private fun performBiometricFlow(
+        subtitle: String,
+        id: Int,
+        bitmap: Bitmap? = null,
+        accountString: String = ""
+    ) {
         val checkedItem = getSharedPreferences(
             SharedPreferences.SHARED_PREF_FILE,
             Context.MODE_PRIVATE
@@ -139,159 +152,39 @@ class SettingsActivity : AppCompatActivity() {
                             result: BiometricPrompt.AuthenticationResult
                         ) {
                             super.onAuthenticationSucceeded(result)
-                            navigateToBiometricSettings(checkedItem)
+                            launchSettingsItem(id, checkedItem, bitmap, accountString)
                         }
                     }
                 )
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Login to edit your biometric settings.")
+                    .setSubtitle(subtitle)
                     .setDeviceCredentialAllowed(true)
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
             }
-            BIOMETRIC_NONE -> navigateToBiometricSettings(checkedItem)
+            BIOMETRIC_NONE -> {
+                launchSettingsItem(id, checkedItem, bitmap, accountString)
+            }
         }
     }
 
-    private fun checkBiometricOptionsCopy(accountString: String) {
-        when (
-            getSharedPreferences(
-                SharedPreferences.SHARED_PREF_FILE,
-                Context.MODE_PRIVATE
-            ).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
-        ) {
-            BIOMETRIC_RECOMMENDED -> {
-                if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
-                ) {
-                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
-                        .show()
-                    finish()
-                }
-
-                val executor = ContextCompat.getMainExecutor(this)
-                val biometricPrompt = BiometricPrompt(
-                    this, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
-                            when (errorCode) {
-                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i(
-                                        "checkBiometricOption",
-                                        "Biometric authentication error: $errString"
-                                    )
-                                    Toast.makeText(
-                                        applicationContext,
-                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                }
-                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
-                                    Toast.makeText(
-                                        applicationContext,
-                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                else -> {
-                                }
-                            }
-                        }
-
-                        override fun onAuthenticationSucceeded(
-                            result: BiometricPrompt.AuthenticationResult
-                        ) {
-                            super.onAuthenticationSucceeded(result)
-                            copyAccountString(accountString)
-                        }
-                    }
-                )
-
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Login to view your account string.")
-                    .setDeviceCredentialAllowed(true)
-                    .build()
-
-                biometricPrompt.authenticate(promptInfo)
-            }
-            BIOMETRIC_STRICT, BIOMETRIC_NONE -> copyAccountString(accountString)
-        }
-    }
-
-    private fun checkBiometricOptionsQr(qrBitmap: Bitmap) {
-        when (
-            getSharedPreferences(
-                SharedPreferences.SHARED_PREF_FILE,
-                Context.MODE_PRIVATE
-            ).getInt(SharedPreferences.BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
-        ) {
-            BIOMETRIC_RECOMMENDED -> {
-                if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
-                ) {
-                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
-                        .show()
-                    finish()
-                }
-
-                val executor = ContextCompat.getMainExecutor(this)
-                val biometricPrompt = BiometricPrompt(
-                    this, executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-
-                            super.onAuthenticationError(errorCode, errString)
-                            when (errorCode) {
-                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i(
-                                        "checkBiometricOption",
-                                        "Biometric authentication error: $errString"
-                                    )
-                                    Toast.makeText(
-                                        applicationContext,
-                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                }
-                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
-                                    Toast.makeText(
-                                        applicationContext,
-                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                else -> {
-                                }
-                            }
-                        }
-
-                        override fun onAuthenticationSucceeded(
-                            result: BiometricPrompt.AuthenticationResult
-                        ) {
-                            super.onAuthenticationSucceeded(result)
-                            navigateToAccountQRCode(qrBitmap)
-                        }
-                    }
-                )
-
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Login to view your account string.")
-                    .setDeviceCredentialAllowed(true)
-                    .build()
-
-                biometricPrompt.authenticate(promptInfo)
-            }
-            BIOMETRIC_STRICT, BIOMETRIC_NONE -> navigateToAccountQRCode(qrBitmap)
+    private fun launchSettingsItem(
+        id: Int,
+        checkedItem: Int,
+        bitmap: Bitmap?,
+        accountString: String
+    ) {
+        if (id == R.string.protect_account_biometric) {
+            navigateToBiometricSettings(checkedItem)
+        } else if (id == R.string.export_account_qr && bitmap is Bitmap) {
+            navigateToAccountQRCode(bitmap)
+        } else if (id == R.string.export_account_raw && accountString.isNotEmpty()) {
+            copyAccountString(accountString)
+        } else {
+            errorHasOccurred("An unexpected error has occurred!")
         }
     }
 
@@ -314,36 +207,32 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun navigateToBiometricSettings(checkedItem: Int) {
-        val builder = AlertDialog.Builder(
-            ContextThemeWrapper(
-                this,
-                R.style.Theme_AppCompat_Dialog
-            )
-        )
-        builder
-            .setTitle(getString(R.string.biometrics_title))
-            .setSingleChoiceItems(R.array.settings_biometric_names, checkedItem, null)
-            .setPositiveButton(
-                R.string.biometrics_save,
-                DialogInterface.OnClickListener { dialog, _ ->
-                    getSharedPreferences(
-                        SharedPreferences.SHARED_PREF_FILE,
-                        Context.MODE_PRIVATE
-                    ).edit()
-                        .putInt(
-                            BIOMETRIC_SERVICE,
-                            (dialog as AlertDialog).listView.checkedItemPosition
-                        )
-                        .apply()
-                    dialog.dismiss()
-                }
-            )
-            .setNegativeButton(
-                R.string.biometrics_cancel,
-                DialogInterface.OnClickListener { dialog, _ ->
-                    dialog.cancel()
-                }
-            )
-            .show()
+        var disabledIndices = intArrayOf()
+        if (!isBiometricsOptionsAvailable()) {
+            disabledIndices = intArrayOf(BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT)
+        }
+
+        MaterialDialog(this).show {
+            setTheme(R.style.DarkDialog)
+            title(R.string.biometrics_title)
+            listItemsSingleChoice(
+                R.array.settings_biometric_names,
+                initialSelection = checkedItem,
+                disabledIndices = disabledIndices
+            ) { _, index, _ ->
+                errorHasOccurred("Clicked $index")
+                getSharedPreferences(
+                    SharedPreferences.SHARED_PREF_FILE,
+                    Context.MODE_PRIVATE
+                ).edit()
+                    .putInt(
+                        BIOMETRIC_SERVICE,
+                        index
+                    )
+                    .apply()
+            }
+            positiveButton(R.string.biometrics_save)
+            negativeButton(R.string.biometrics_cancel)
+        }
     }
 }

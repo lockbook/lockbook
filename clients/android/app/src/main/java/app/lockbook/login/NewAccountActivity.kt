@@ -6,7 +6,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
-import app.lockbook.loggedin.mainscreen.MainScreenActivity
+import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
@@ -49,7 +49,7 @@ class NewAccountActivity : AppCompatActivity() {
             when (createAccountResult) {
                 is Ok -> {
                     setUpLoggedInState()
-                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                    startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> {
