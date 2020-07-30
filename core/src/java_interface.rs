@@ -90,7 +90,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
             error! {"Error while generating account! {:?}", &err}
             match err {
                 AccountCreationError::KeyGenerationError(_) => crypto_error,
-                AccountCreationError::PersistenceError(_) => io_error,
+                AccountCreationError::AccountRepoError(_) => io_error,
                 AccountCreationError::ApiError(api_err) => match api_err {
                     Error::<NewAccountError>::SendFailed(_) => network_error,
                     Error::<NewAccountError>::Api(real_api_error) => match real_api_error {
@@ -103,6 +103,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
                 AccountCreationError::AuthGenFailure(_) => unexpected_error,
                 AccountCreationError::FolderError(_) => unexpected_error, // TODO added during files and folders (unhandled)
                 AccountCreationError::MetadataRepoError(_) => unexpected_error, // TODO added during files and folders (unhandled)
+                AccountCreationError::AccountRepoDbError(_) => unexpected_error,
+                AccountCreationError::AccountExistsAlready => unexpected_error,
             }
         }
     }
@@ -143,6 +145,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
             AccountImportError::AccountStringFailedToDeserialize(_) => account_string_invalid,
             AccountImportError::PersistenceError(_) => io_err,
             AccountImportError::InvalidPrivateKey(_) => account_string_invalid,
+            AccountImportError::AccountRepoDbError(_) => io_err,
+            AccountImportError::AccountExistsAlready => io_err,
         },
     }
 }
