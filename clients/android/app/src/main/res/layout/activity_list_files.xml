@@ -10,9 +10,9 @@
 
     <fragment
         android:id="@+id/files_fragment"
-        android:name="app.lockbook.loggedin.mainscreen.MainScreenFragment"
+        android:name="app.lockbook.loggedin.listfiles.ListFilesFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:layout="@layout/fragment_main_screen" />
+        tools:layout="@layout/fragment_list_files" />
 
 </LinearLayout>

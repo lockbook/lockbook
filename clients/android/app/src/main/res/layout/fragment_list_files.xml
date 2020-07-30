@@ -5,8 +5,8 @@
     <data>
 
         <variable
-            name="mainScreenViewModel"
-            type="app.lockbook.loggedin.mainscreen.MainScreenViewModel" />
+            name="listFilesViewModel"
+            type="app.lockbook.loggedin.listfiles.ListFilesViewModel" />
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -14,7 +14,7 @@
         android:layout_height="match_parent">
 
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/files_list_refresh"
+            android:id="@+id/list_files_refresh"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
@@ -38,7 +38,7 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="16dp"
             android:clickable="true"
-            android:onClick="@{() -> mainScreenViewModel.launchNewFileActivity()}"
+            android:onClick="@{() -> listFilesViewModel.launchNewFileActivity()}"
             android:src="@drawable/ic_fab_24"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />

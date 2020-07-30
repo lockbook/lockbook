@@ -19,6 +19,7 @@ buildscript {
         lifecycle_version = '2.2.0'
         result_version = '1.1.7'
         fingerprint_version = '1.0.1'
+        dialog_version = '3.3.0'
     }
 
     repositories {

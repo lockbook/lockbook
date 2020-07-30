@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.listfiles
+package app.lockbook.utils
 
 interface ClickInterface {
     fun onItemClick(position: Int)

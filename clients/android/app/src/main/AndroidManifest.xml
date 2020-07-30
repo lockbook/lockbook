@@ -35,7 +35,7 @@
         <activity
             android:name=".login.WelcomeActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".loggedin.mainscreen.MainScreenActivity" />
+        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
             android:name=".login.NewAccountActivity"
             android:theme="@style/Dark.NoActionBar" />

@@ -12,7 +12,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.loggedin.mainscreen.MainScreenActivity
+import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
@@ -39,7 +39,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .putInt(BIOMETRIC_SERVICE, BIOMETRIC_NONE)
                     .apply()
             }
-            checkBiometricOptions(pref)
+            performBiometricFlow(pref)
         } else {
             val intent = Intent(this, WelcomeActivity::class.java)
             startActivity(intent)
@@ -51,7 +51,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         BiometricManager.from(applicationContext)
             .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
 
-    private fun checkBiometricOptions(pref: SharedPreferences) {
+    private fun performBiometricFlow(pref: SharedPreferences) {
         when (
             pref.getInt(
                 BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
@@ -102,7 +102,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             startActivity(
                                 Intent(
                                     applicationContext,
-                                    MainScreenActivity::class.java
+                                    ListFilesActivity::class.java
                                 )
                             )
                             finish()
@@ -119,7 +119,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 biometricPrompt.authenticate(promptInfo)
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
-                startActivity(Intent(applicationContext, MainScreenActivity::class.java))
+                startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                 finish()
             }
         }

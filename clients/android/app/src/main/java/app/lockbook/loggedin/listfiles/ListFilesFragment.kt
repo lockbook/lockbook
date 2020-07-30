@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.mainscreen
+package app.lockbook.loggedin.listfiles
 
 import android.content.Intent
 import android.os.Bundle
@@ -12,8 +12,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
-import app.lockbook.databinding.FragmentMainScreenBinding
-import app.lockbook.loggedin.listfiles.FilesAdapter
+import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.loggedin.newfile.NewFileActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
@@ -21,73 +20,80 @@ import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import kotlinx.android.synthetic.main.fragment_list_files.*
 
-class MainScreenFragment : Fragment() {
+class ListFilesFragment : Fragment() {
 
-    lateinit var mainScreenViewModel: MainScreenViewModel
+    private lateinit var listFilesViewModel: ListFilesViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val binding: FragmentMainScreenBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_main_screen, container, false
+        val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
+            inflater, R.layout.fragment_list_files, container, false
         )
         val application = requireNotNull(this.activity).application
-        val mainScreenViewModelFactory =
-            MainScreenViewModelFactory(application.filesDir.absolutePath)
-        mainScreenViewModel =
-            ViewModelProvider(this, mainScreenViewModelFactory).get(MainScreenViewModel::class.java)
-        val adapter = FilesAdapter(mainScreenViewModel)
+        val listFilesViewModelFactory =
+            ListFilesViewModelFactory(application.filesDir.absolutePath)
+        listFilesViewModel =
+            ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
+        val adapter =
+            FilesAdapter(listFilesViewModel)
 
-        binding.mainScreenViewModel = mainScreenViewModel
+        binding.listFilesViewModel = listFilesViewModel
         binding.filesList.adapter = adapter
         binding.filesList.layoutManager = LinearLayoutManager(context)
         binding.lifecycleOwner = this
 
-        binding.filesListRefresh.setOnRefreshListener {
-            mainScreenViewModel.refreshFiles()
-            mainScreenViewModel.sync()
-            binding.filesListRefresh.isRefreshing = false
+        binding.listFilesRefresh.setOnRefreshListener {
+            listFilesViewModel.syncRefresh()
         }
 
-        mainScreenViewModel.files.observe(
+        listFilesViewModel.files.observe(
             viewLifecycleOwner,
             Observer { files ->
                 updateRecyclerView(files, adapter)
             }
         )
 
-        mainScreenViewModel.navigateToFileEditor.observe(
+        listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
             Observer { fileContents ->
                 navigateToFileEditor(fileContents)
             }
         )
 
-        mainScreenViewModel.navigateToPopUpInfo.observe(
+        listFilesViewModel.navigateToPopUpInfo.observe(
             viewLifecycleOwner,
             Observer { fileMetadata ->
                 navigateToPopUpInfo(fileMetadata)
             }
         )
 
-        mainScreenViewModel.navigateToNewFile.observe(
+        listFilesViewModel.navigateToNewFile.observe(
             viewLifecycleOwner,
             Observer {
                 navigateToNewFile()
             }
         )
 
-        mainScreenViewModel.errorHasOccurred.observe(
+        listFilesViewModel.listFilesRefreshing.observe(
+            viewLifecycleOwner,
+            Observer { isRefreshing ->
+                list_files_refresh.isRefreshing = isRefreshing
+            }
+        )
+
+        listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
             Observer { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
-        mainScreenViewModel.startUpFiles()
+        listFilesViewModel.startUpFiles()
 
         return binding.root
     }
@@ -129,10 +135,10 @@ class MainScreenFragment : Fragment() {
     }
 
     fun onBackPressed(): Boolean {
-        return mainScreenViewModel.quitOrNot()
+        return listFilesViewModel.quitOrNot()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        mainScreenViewModel.handleActivityResult(requestCode, resultCode, data)
+        listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
     }
 }

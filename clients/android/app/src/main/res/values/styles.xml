@@ -6,6 +6,7 @@
         <item name="colorPrimary">@color/blue</item>
         <item name="colorAccent">@color/blue</item>
         <item name="colorPrimaryDark">@color/black</item>
+        <item name="colorBackgroundFloating">@color/dark</item>
         <item name="android:windowBackground">@color/black</item>
     </style>
 
@@ -23,4 +24,7 @@
         <item name="android:buttonTint">@color/blue</item>
     </style>
 
+    <style name="DarkDialog" >
+        <item name="android:textColorPrimary">@android:color/white</item>
+    </style>
 </resources>

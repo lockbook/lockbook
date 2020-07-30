@@ -4,19 +4,19 @@ import android.graphics.Bitmap
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.loggedin.listfiles.ClickInterface
 import app.lockbook.utils.AccountExportError
+import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
-import kotlinx.android.synthetic.main.activity_settings.*
 import kotlinx.coroutines.*
 
-class SettingsViewModel(val settings: List<String>, path: String) : ViewModel(), ClickInterface {
+class SettingsViewModel(path: String) :
+    ViewModel(),
+    ClickInterface {
 
     private val config = Config(path)
     private var job = Job()

@@ -1,12 +1,12 @@
-package app.lockbook.loggedin.mainscreen
+package app.lockbook.loggedin.listfiles
 
 import android.app.Activity.RESULT_CANCELED
 import android.content.Intent
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import app.lockbook.loggedin.listfiles.ClickInterface
 import app.lockbook.utils.*
+import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
@@ -16,7 +16,9 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
+class ListFilesViewModel(path: String) :
+    ViewModel(),
+    ClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -26,6 +28,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
     private val _navigateToFileEditor = MutableLiveData<String>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFile = MutableLiveData<Unit>()
+    private val _listFilesRefreshing = MutableLiveData<Boolean>()
     private val _errorHasOccurred = MutableLiveData<String>()
 
     val files: LiveData<List<FileMetadata>>
@@ -39,6 +42,9 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
 
     val navigateToNewFile: LiveData<Unit>
         get() = _navigateToNewFile
+
+    val listFilesRefreshing: LiveData<Boolean>
+        get() = _listFilesRefreshing
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -80,7 +86,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
         }
     }
 
-    fun refreshFiles() {
+    private fun refreshFiles() {
         when (val getChildrenResult = coreModel.getChildrenOfParent()) {
             is Ok -> _files.postValue(getChildrenResult.value)
             is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
@@ -161,7 +167,7 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
         refreshFiles()
     }
 
-    fun sync() {
+    private fun sync() {
         val syncAllResult = coreModel.syncAllFiles()
         if (syncAllResult is Err) {
             when (syncAllResult.error) {
@@ -236,6 +242,16 @@ class MainScreenViewModel(path: String) : ViewModel(), ClickInterface {
             val id = data.getStringExtra("id")
             if (id != null) {
                 deleteRefreshFiles(id)
+            }
+        }
+    }
+
+    fun syncRefresh() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                sync()
+                refreshFiles()
+                _listFilesRefreshing.postValue(false)
             }
         }
     }

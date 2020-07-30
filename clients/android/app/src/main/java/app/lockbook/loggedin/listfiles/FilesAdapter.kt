@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
+import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import kotlinx.android.synthetic.main.recyclerview_content_files.view.*

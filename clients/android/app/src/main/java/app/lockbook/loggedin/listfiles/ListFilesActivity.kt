@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.mainscreen
+package app.lockbook.loggedin.listfiles
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,10 +8,10 @@ import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
 
-class MainScreenActivity : AppCompatActivity() {
+class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main_screen)
+        setContentView(R.layout.activity_list_files)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -33,7 +33,7 @@ class MainScreenActivity : AppCompatActivity() {
         val fragments = supportFragmentManager.fragments
 
         for (fragment in fragments) {
-            if (fragment is MainScreenFragment) {
+            if (fragment is ListFilesFragment) {
                 if (!fragment.onBackPressed()) {
                     super.onBackPressed()
                 }
