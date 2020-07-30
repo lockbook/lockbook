@@ -6,46 +6,42 @@
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
-    tools:context=".Welcome">
+    tools:context=".login.WelcomeActivity">
 
 
     <TextView
-        android:id="@+id/textView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
-        android:text="@string/lockbook"
+        android:text="@string/lockbook_title"
         android:textAlignment="center"
-        android:textColor="#FFFFFF"
+        android:textColor="@android:color/white"
         android:textSize="40sp" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/secure_private_reliable"
-        android:textColor="#FFFFFF"
-        android:textAlignment="center"
         android:fontFamily="monospace"
         android:paddingTop="20dp"
         android:paddingBottom="75dp"
-        />
+        android:text="@string/lockbook_moto"
+        android:textAlignment="center"
+        android:textColor="@android:color/white" />
 
     <Button
-        android:id="@+id/new_lockbook"
+        android:id="@+id/welcome_new_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="15dp"
         android:backgroundTint="?attr/colorPrimary"
-        android:textColor="#000000"
-        android:text="@string/new_lockbook" />
+        android:text="@string/lockbook_new_account"
+        android:textColor="#000000" />
 
     <Button
-        android:id="@+id/import_lockbook"
+        android:id="@+id/welcome_import_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:backgroundTint="?attr/colorPrimary"
-        android:textColor="#000000"
-        android:text="@string/import_lockbook" />
-
-
+        android:text="@string/lockbook_import"
+        android:textColor="#000000" />
 </LinearLayout>
