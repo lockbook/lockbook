@@ -1,4 +1,5 @@
 #!/bin/sh
+# to generate key run `keytool -genkey -v -keystore android-lockbook-release-key.keystore -alias android-lockbook -keyalg RSA -keysize 2048 -validity 10000`
 
 set -ae
 
@@ -60,7 +61,7 @@ make android
 echo "Creating apk"
 cd ../clients/android/
 ./gradlew assembleRelease
-jarsigner -keystore $ANDROID_RELEASE_KEY -storepass $ANDROID_RELEASE_KEY_PASSWORD app/build/outputs/apk/release/app-release-unsigned.apk lockbook-android-release
+jarsigner -keystore $ANDROID_RELEASE_KEY -storepass $ANDROID_RELEASE_KEY_PASSWORD app/build/outputs/apk/release/app-release-unsigned.apk android-lockbook
 cd app/build/outputs/apk/release/
 $ANDROID_SDK_HOME/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
 
