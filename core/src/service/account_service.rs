@@ -81,7 +81,10 @@ impl<
 {
     fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
-        if let Some(_) = AccountDb::maybe_get_account(&db).map_err(AccountRepoDbError)? {
+        if AccountDb::maybe_get_account(&db)
+            .map_err(AccountRepoDbError)?
+            .is_some()
+        {
             return Err(AccountExistsAlready);
         }
 
@@ -140,8 +143,9 @@ impl<
 
     fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError> {
         info!("Checking if account already exists");
-        if let Some(_) =
-            AccountDb::maybe_get_account(&db).map_err(AccountImportError::AccountRepoDbError)?
+        if AccountDb::maybe_get_account(&db)
+            .map_err(AccountImportError::AccountRepoDbError)?
+            .is_some()
         {
             return Err(AccountImportError::AccountExistsAlready);
         }
