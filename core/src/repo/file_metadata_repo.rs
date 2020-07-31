@@ -341,7 +341,7 @@ mod unit_tests {
 
     use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
     use crate::model::file_metadata::{FileMetadata, FileType};
-    use crate::model::state::Config;
+    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
 
@@ -372,9 +372,7 @@ mod unit_tests {
             },
         };
 
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         FileMetadataRepoImpl::insert(&db, &test_file_metadata).unwrap();
@@ -440,9 +438,7 @@ mod unit_tests {
             },
         };
 
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         FileMetadataRepoImpl::insert(&db, &test_meta).unwrap();
@@ -463,9 +459,7 @@ mod unit_tests {
 
     #[test]
     fn test_searches() {
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
 
         let root_id = Uuid::new_v4();

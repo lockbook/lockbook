@@ -3,7 +3,9 @@ use std::io;
 use lockbook_core::{import_account, ImportError};
 
 use crate::utils::{exit_with, get_config};
-use crate::{ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR};
+use crate::{
+    ACCOUNT_ALREADY_EXISTS, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR,
+};
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
@@ -30,6 +32,7 @@ pub fn import() {
                     ACCOUNT_STRING_CORRUPTED,
                 ),
                 ImportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                ImportError::AccountExistsAlready => exit_with("Account already exists. `lockbook erase-everything` to erase your local state.", ACCOUNT_ALREADY_EXISTS)
             },
         }
     }
