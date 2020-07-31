@@ -21,11 +21,12 @@ mod account_tests {
 
     #[test]
     fn username_taken_test() {
-        let db = test_db();
+        let db1 = test_db();
+        let db2 = test_db();
         let username = &random_username();
-        DefaultAccountService::create_account(&db, username).unwrap();
+        DefaultAccountService::create_account(&db1, username).unwrap();
 
-        match DefaultAccountService::create_account(&db, username).unwrap_err() {
+        match DefaultAccountService::create_account(&db2, username).unwrap_err() {
             AccountCreationError::ApiError(api_err) => match api_err {
                 Error::Api(api_api_err) => {
                     match api_api_err {
@@ -88,5 +89,29 @@ mod account_tests {
             DefaultFileMetadataRepo::get_all(&db1).unwrap(),
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
+    }
+
+    #[test]
+    fn test_new_account_when_one_exists() {
+        let db = test_db();
+        let username = &random_username();
+
+        DefaultAccountService::create_account(&db, username).unwrap();
+        match DefaultAccountService::create_account(&db, username) {
+            Ok(_) => panic!("This action should have failed with AccountAlreadyExists!"),
+            Err(err) => match err {
+                AccountCreationError::KeyGenerationError(_)
+                | AccountCreationError::AccountRepoError(_)
+                | AccountCreationError::AccountRepoDbError(_)
+                | AccountCreationError::FolderError(_)
+                | AccountCreationError::MetadataRepoError(_)
+                | AccountCreationError::ApiError(_)
+                | AccountCreationError::KeySerializationError(_)
+                | AccountCreationError::AuthGenFailure(_) => {
+                    panic!("This action should have failed with AccountAlreadyExists!")
+                }
+                AccountCreationError::AccountExistsAlready => println!("Success."),
+            },
+        }
     }
 }

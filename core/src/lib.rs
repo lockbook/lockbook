@@ -115,6 +115,7 @@ pub enum CreateAccountError {
     UsernameTaken,
     InvalidUsername,
     CouldNotReachServer,
+    AccountExistsAlready,
     UnexpectedError(String),
 }
 
@@ -124,6 +125,9 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
     match DefaultAccountService::create_account(&db, username) {
         Ok(_) => Ok(()),
         Err(err) => match err {
+            AccountCreationError::AccountExistsAlready => {
+                Err(CreateAccountError::AccountExistsAlready)
+            }
             AccountCreationError::ApiError(network) => match network {
                 Error::Api(api_err) => match api_err {
                     NewAccountError::UsernameTaken => Err(UsernameTaken),
@@ -143,10 +147,11 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
                 ),
             },
             AccountCreationError::KeyGenerationError(_)
-            | AccountCreationError::PersistenceError(_)
+            | AccountCreationError::AccountRepoError(_)
             | AccountCreationError::FolderError(_)
             | AccountCreationError::MetadataRepoError(_)
             | AccountCreationError::KeySerializationError(_)
+            | AccountCreationError::AccountRepoDbError(_)
             | AccountCreationError::AuthGenFailure(_) => {
                 Err(CreateAccountError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -157,6 +162,7 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
 #[derive(Debug, Serialize)]
 pub enum ImportError {
     AccountStringCorrupted,
+    AccountExistsAlready,
     UnexpectedError(String),
 }
 
@@ -169,9 +175,10 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
             AccountImportError::AccountStringCorrupted(_)
             | AccountImportError::AccountStringFailedToDeserialize(_)
             | AccountImportError::InvalidPrivateKey(_) => Err(AccountStringCorrupted),
-            AccountImportError::PersistenceError(_) => {
+            AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(ImportError::UnexpectedError(format!("{:#?}", err)))
             }
+            AccountImportError::AccountExistsAlready => Err(ImportError::AccountExistsAlready),
         },
     }
 }
@@ -189,7 +196,7 @@ pub fn export_account(config: &Config) -> Result<String, AccountExportError> {
         Ok(account_string) => Ok(account_string),
         Err(err) => match err {
             ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
-                AccountRepoError::NoAccount(_) => Err(AccountExportError::NoAccount),
+                AccountRepoError::NoAccount => Err(AccountExportError::NoAccount),
                 AccountRepoError::SerdeError(_) | AccountRepoError::SledError(_) => Err(
                     AccountExportError::UnexpectedError(format!("{:#?}", db_err)),
                 ),
@@ -213,7 +220,7 @@ pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
     match DefaultAccountRepo::get_account(&db) {
         Ok(account) => Ok(account),
         Err(err) => match err {
-            AccountRepoError::NoAccount(_) => Err(GetAccountError::NoAccount),
+            AccountRepoError::NoAccount => Err(GetAccountError::NoAccount),
             AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                 Err(GetAccountError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -245,7 +252,7 @@ pub fn create_file_at_path(
             NewFileFromPathError::NoRoot => Err(NoRoot),
             NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
                 NewFileError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount(_) => Err(CreateFileAtPathError::NoAccount),
+                    AccountRepoError::NoAccount => Err(CreateFileAtPathError::NoAccount),
                     AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                         CreateFileAtPathError::UnexpectedError(format!("{:#?}", account_error)),
                     ),
@@ -293,7 +300,7 @@ pub fn write_document(
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     WriteToDocumentError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
-                AccountRepoError::NoAccount(_) => Err(WriteToDocumentError::NoAccount),
+                AccountRepoError::NoAccount => Err(WriteToDocumentError::NoAccount),
             },
             DocumentUpdateError::CouldNotFindFile => Err(FileDoesNotExist),
             DocumentUpdateError::FolderTreatedAsDocument => Err(FolderTreatedAsDocument),
@@ -472,7 +479,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedValue, ReadDo
                 Err(ReadDocumentError::TreatedFolderAsDocument)
             }
             FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount(_) => Err(ReadDocumentError::NoAccount),
+                AccountRepoError::NoAccount => Err(ReadDocumentError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     ReadDocumentError::UnexpectedError(format!("{:#?}", account_error)),
                 ),
@@ -546,7 +553,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
         Err(err) => match err {
             FileMoveError::DocumentTreatedAsFolder => Err(MoveFileError::DocumentTreatedAsFolder),
             FileMoveError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::NoAccount(_) => Err(MoveFileError::NoAccount),
+                AccountRepoError::NoAccount => Err(MoveFileError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     MoveFileError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
@@ -584,7 +591,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
                 }
-                AccountRepoError::NoAccount(_) => Err(SyncAllError::NoAccount),
+                AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
             },
             SyncError::CalculateWorkError(err) => match err {
                 SSCalculateWorkError::LocalChangesRepoError(_)
@@ -593,7 +600,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
                 }
                 SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-                    AccountRepoError::NoAccount(_) => Err(SyncAllError::NoAccount),
+                    AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
                     AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                         Err(SyncAllError::UnexpectedError(format!("{:#?}", account_err)))
                     }
@@ -713,7 +720,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
                 Err(CalculateWorkError::UnexpectedError(format!("{:#?}", err)))
             }
             SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::NoAccount(_) => Err(CalculateWorkError::NoAccount),
+                AccountRepoError::NoAccount => Err(CalculateWorkError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     CalculateWorkError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
