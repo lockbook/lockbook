@@ -20,6 +20,18 @@ then
     exit 69
 fi
 
+if [ -z "$ANDROID_RELEASE_KEY" ]
+then
+    echo "No ANDROID_RELEASE_KEY means you can't sign the app yourself."
+    exit 69
+fi
+
+if [ -z "$ANDROID_RELEASE_KEY_PASSWORD" ]
+then
+    echo "No ANDROID_RELEASE_KEY_PASSWORD means you can't sign the app yourself."
+    exit 69
+fi
+
 if ! command -v github-release &> /dev/null
 then
 	echo "You do not have the util github-release, checkout https://github.com/github-release/github-release"
@@ -48,7 +60,7 @@ make android
 echo "Creating apk"
 cd ../clients/android/
 ./gradlew assembleRelease
-jarsigner -keystore my-release-key.jks -storepass lockbook-android app/build/outputs/apk/release/app-release-unsigned.apk lockbook-android-release
+jarsigner -keystore $ANDROID_RELEASE_KEY -storepass $ANDROID_RELEASE_KEY_PASSWORD app/build/outputs/apk/release/app-release-unsigned.apk lockbook-android-release
 cd app/build/outputs/apk/release/
 $ANDROID_SDK_HOME/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
 
