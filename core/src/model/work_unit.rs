@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "tag", content = "content")]
 pub enum WorkUnit {
     LocalChange { metadata: FileMetadata },
-
     ServerChange { metadata: FileMetadata },
 }
 
