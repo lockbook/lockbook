@@ -27,6 +27,7 @@ val createAccountConverter = object : Converter {
                 CreateAccountError.InvalidUsername
             )
             CreateAccountError.UsernameTaken::class.simpleName -> return Err(CreateAccountError.UsernameTaken)
+            CreateAccountError.AccountExistsAlready::class.simpleName -> return Err(CreateAccountError.AccountExistsAlready)
         }
 
         if (unexpectedError is String) {
@@ -52,8 +53,9 @@ val importAccountConverter = object : Converter {
             return Ok(Unit)
         }
 
-        if (basicError == ImportError.AccountStringCorrupted::class.simpleName) {
-            return Err(ImportError.AccountStringCorrupted)
+        when(basicError) {
+            ImportError.AccountStringCorrupted::class.simpleName -> return Err(ImportError.AccountStringCorrupted)
+            ImportError.AccountExistsAlready::class.simpleName -> return Err(ImportError.AccountExistsAlready)
         }
 
         if (unexpectedError is String) {
