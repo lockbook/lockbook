@@ -65,7 +65,12 @@ class ImportAccountActivity : AppCompatActivity() {
                 is Err -> when (importAccountResult.error) {
                     is ImportError.AccountStringCorrupted -> Toast.makeText(
                         applicationContext,
-                        "Invalid Account String!",
+                        "Invalid account string!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.AccountExistsAlready -> Toast.makeText(
+                        applicationContext,
+                        "Account already exists!",
                         Toast.LENGTH_LONG
                     ).show()
                     is ImportError.UnexpectedError -> Toast.makeText(

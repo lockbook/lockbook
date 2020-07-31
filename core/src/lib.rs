@@ -591,7 +591,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
                 }
-                AccountRepoError::NoAccount(_) => Err(SyncAllError::NoAccount),
+                AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
             },
             SyncError::CalculateWorkError(err) => match err {
                 SSCalculateWorkError::LocalChangesRepoError(_)
@@ -600,7 +600,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
                 }
                 SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-                    AccountRepoError::NoAccount(_) => Err(SyncAllError::NoAccount),
+                    AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
                     AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                         Err(SyncAllError::UnexpectedError(format!("{:#?}", account_err)))
                     }

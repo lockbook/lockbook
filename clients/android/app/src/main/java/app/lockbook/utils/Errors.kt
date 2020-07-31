@@ -4,11 +4,13 @@ sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
     object CouldNotReachServer : CreateAccountError()
+    object AccountExistsAlready : CreateAccountError()
     data class UnexpectedError(val error: String) : CreateAccountError()
 }
 
 sealed class ImportError {
     object AccountStringCorrupted : ImportError()
+    object AccountExistsAlready : ImportError()
     data class UnexpectedError(val error: String) : ImportError()
 }
 
