@@ -8,13 +8,13 @@ then
 	exit 69
 fi
 
-if [ -z "$ANDROID_NDK_HOME"]
+if [ -z "$ANDROID_NDK_HOME" ]
 then
     echo "No ANDROID_NDK_HOME means you can't build for android architectures."
     exit 69
 fi
 
-if [ -z "$ANDROID_SDK_HOME"]
+if [ -z "$ANDROID_SDK_HOME" ]
 then
     echo "No ANDROID_SDK_HOME means you can't sign the lockbook apk."
     exit 69
@@ -28,7 +28,7 @@ fi
 
 if ! command -v jarsigner &> /dev/null
 then
-	echo "You do not have the util jarsigner, which comes installed with your JDK (Java Development Kit)"
+	echo "You do not have the util jarsigner, install a JDK (Java Development Kit)"
 	exit 69
 fi
 
@@ -82,3 +82,8 @@ github-release upload \
 	--name "android-sha256-$sha" \
 	--file ANDROID-SHA256
 
+echo "Cleaning up old apks"
+cd ../../../../../
+./gradlew clean
+
+echo "Verify this sha is part of the realse on github: $sha"
