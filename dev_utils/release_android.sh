@@ -8,16 +8,28 @@ then
 	exit 69
 fi
 
+if [ -z "$ANDROID_NDK_HOME"]
+then
+    echo "No ANDROID_NDK_HOME means you can't build for android architectures."
+    exit 69
+fi
+
+if [ -z "$ANDROID_SDK_HOME"]
+then
+    echo "No ANDROID_SDK_HOME means you can't sign the lockbook apk."
+    exit 69
+fi
+
 if ! command -v github-release &> /dev/null
 then
 	echo "You do not have the util github-release, checkout https://github.com/github-release/github-release"
 	exit 69
 fi
 
-if [! -z "ANDROID_NDK_HOME"]
+if ! command -v jarsigner &> /dev/null
 then
-    echo "No ANDROID_NDK_HOME means you can't build for android architectures."
-    exit 69
+	echo "You do not have the util jarsigner, which comes installed with your JDK (Java Development Kit)"
+	exit 69
 fi
 
 current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -30,7 +42,7 @@ then
 fi
 
 echo "Performing clean build"
-cd core
+cd ../core
 make android
 
 echo "Creating apk"
@@ -38,10 +50,10 @@ cd ../clients/android/
 ./gradlew assembleRelease
 jarsigner -keystore my-release-key.jks -storepass lockbook-android app/build/outputs/apk/release/app-release-unsigned.apk lockbook-android-release
 cd app/build/outputs/apk/release/
-~/Library/Android/sdk/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
+$ANDROID_SDK_HOME/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
 
 echo "Extracting information from release apk."
-current_version=$(~/Library/Android/sdk/build-tools/29.0.3/aapt2 dump badging lockbook-android.apk | grep "VersionName" | sed -e "s/.*versionName='//" -e "s/' .*//")
+current_version=$($ANDROID_SDK_HOME/build-tools/29.0.3/aapt2 dump badging lockbook-android.apk | grep "VersionName" | sed -e "s/.*versionName='//" -e "s/' .*//")
 sha_description=$(shasum -a 256 lockbook-android.apk)
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
