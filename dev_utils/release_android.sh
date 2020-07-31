@@ -16,7 +16,7 @@ fi
 
 if [ -z "$ANDROID_SDK_HOME" ]
 then
-    echo "No ANDROID_SDK_HOME means you can't sign the lockbook apk."
+    echo "No ANDROID_SDK_HOME means you can't sign the lockbook apk, set it to where your sdk is."
     exit 69
 fi
 
