@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp">
+
+    <TextView
+        android:id="@+id/popup_info_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/popup_info_id"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/popup_info_file_type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/popup_info_metadata_version"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/popup_info_content_version"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:textColor="@android:color/white" />
+
+    <EditText
+        android:id="@+id/new_name_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="80dp"
+        android:backgroundTint="@color/dark"
+        android:fontFamily="monospace"
+        android:hint="@string/pop_up_info_new_name"
+        android:importantForAutofill="no"
+        android:inputType="textPersonName"
+        android:textColor="@android:color/white"
+        android:textColorHint="@color/dark" />
+
+    <Button
+        android:id="@+id/popup_info_rename"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/pop_up_info_rename_button_title"
+        android:textColor="#000000" />
+
+    <Button
+        android:id="@+id/popup_info_delete"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="30dp"
+        android:backgroundTint="?attr/colorPrimary"
+        android:text="@string/pop_up_info_delete_button_title"
+        android:textColor="#000000" />
+</LinearLayout>

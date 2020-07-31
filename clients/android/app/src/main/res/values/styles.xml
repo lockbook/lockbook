@@ -6,13 +6,25 @@
         <item name="colorPrimary">@color/blue</item>
         <item name="colorAccent">@color/blue</item>
         <item name="colorPrimaryDark">@color/black</item>
+        <item name="colorBackgroundFloating">@color/dark</item>
         <item name="android:windowBackground">@color/black</item>
     </style>
+
     <style name="Dark.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
     <style name="Dark.ActionBar" parent="Dark">
         <item name="colorPrimaryDark">@color/blue</item>
+    </style>
+
+    <style name="DarkRadioButton" parent="Widget.AppCompat.CompoundButton.RadioButton">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:buttonTint">@color/blue</item>
+    </style>
+
+    <style name="DarkDialog" >
+        <item name="android:textColorPrimary">@android:color/white</item>
     </style>
 </resources>
