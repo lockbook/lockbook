@@ -4,7 +4,10 @@ use std::io::Write;
 use lockbook_core::{create_account, CreateAccountError};
 
 use crate::utils::{exit_with, get_config};
-use crate::{NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
+use crate::{
+    ACCOUNT_ALREADY_EXISTS, NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID,
+    USERNAME_TAKEN,
+};
 
 pub fn init() {
     print!("Enter a Username: ");
@@ -27,6 +30,10 @@ pub fn init() {
                 exit_with("Could not reach server.", NETWORK_ISSUE)
             }
             CreateAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CreateAccountError::AccountExistsAlready => exit_with(
+                "Account already exists. `lockbook erase-everything` to erase your local state.",
+                ACCOUNT_ALREADY_EXISTS,
+            ),
         },
     }
 }

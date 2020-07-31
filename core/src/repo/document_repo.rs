@@ -51,7 +51,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::crypto::*;
-    use crate::model::state::Config;
+    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 
@@ -66,9 +66,7 @@ mod unit_tests {
             },
         };
 
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let document_id = Uuid::new_v4();
 
