@@ -21,7 +21,7 @@ use crate::service::file_service::DocumentUpdateError::{
     CouldNotFindFile, DbError, DocumentWriteError, FolderTreatedAsDocument,
 };
 use crate::service::file_service::FileMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesntExist, TargetParentDoesntExist,
+    FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
@@ -92,8 +92,8 @@ pub enum DocumentRenameError {
 pub enum FileMoveError {
     AccountRetrievalError(account_repo::AccountRepoError),
     TargetParentHasChildNamedThat,
-    FileDoesntExist,
-    TargetParentDoesntExist,
+    FileDoesNotExist,
+    TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
@@ -331,10 +331,10 @@ impl<
         let account = AccountDb::get_account(&db).map_err(FileMoveError::AccountRetrievalError)?;
 
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
-            None => Err(FileDoesntExist),
+            None => Err(FileDNE),
             Some(mut file) => {
                 match FileMetadataDb::maybe_get(&db, new_parent).map_err(FileMoveError::DbError)? {
-                    None => Err(TargetParentDoesntExist),
+                    None => Err(TargetParentDoesNotExist),
                     Some(parent_metadata) => {
                         if parent_metadata.file_type == Document {
                             return Err(FileMoveError::DocumentTreatedAsFolder);
