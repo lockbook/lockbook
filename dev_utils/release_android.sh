@@ -47,12 +47,20 @@ then
 	exit 69
 fi
 
+if [ $current_branch != "master" ]
+then
+	echo "Do not release non-master code."
+	exit 69
+fi
+
 current_branch=$(git rev-parse --abbrev-ref HEAD)
 current_hash=$(git rev-parse --short HEAD)
 
 
 echo "Performing clean build"
 cd ../core
+touch src/lib.rs
+# TODO @parth do this everywhere
 make android
 
 echo "Creating apk"
