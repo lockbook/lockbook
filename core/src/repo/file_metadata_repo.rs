@@ -38,6 +38,16 @@ pub enum Filter {
     LeafNodesOnly,
 }
 
+pub fn filter_from_str(input: &str) -> Result<Option<Filter>, ()> {
+    match input {
+        "DocumentsOnly" => Ok(Some(Filter::DocumentsOnly)),
+        "FoldersOnly" => Ok(Some(Filter::FoldersOnly)),
+        "LeafNodesOnly" => Ok(Some(Filter::LeafNodesOnly)),
+        "Unfiltered" => Ok(None),
+        _ => Err(()),
+    }
+}
+
 pub trait FileMetadataRepo {
     fn insert(db: &Db, file: &FileMetadata) -> Result<(), DbError>;
     fn get_root(db: &Db) -> Result<Option<FileMetadata>, DbError>;
