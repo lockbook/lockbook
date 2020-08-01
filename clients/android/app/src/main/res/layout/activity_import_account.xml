@@ -1,45 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
-    tools:context=".Welcome">
-
+    tools:context=".login.WelcomeActivity">
 
     <TextView
-        android:id="@+id/textView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
-        android:text="@string/import_lockbook"
         android:paddingBottom="70dp"
-        android:textColor="#FFFFFF"
+        android:text="@string/lockbook_import"
+        android:textColor="@android:color/white"
         android:textSize="40sp" />
 
 
+
+    <ImageButton
+        android:id="@+id/qr_import_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:srcCompat="@drawable/ic_qr_code_scanner_black_48" />
+
     <EditText
-        android:id="@+id/account_string"
+        android:id="@+id/text_import_account_string"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:textColor="#FFFFFF"
-        android:hint="Enter an account string."
-        android:textColorHint="@color/dark"
+        android:layout_marginBottom="20dp"
         android:backgroundTint="@color/dark"
-        android:inputType="textVisiblePassword"
+        android:fontFamily="monospace"
+        android:hint="@string/import_description"
         android:importantForAutofill="no"
-        android:layout_marginBottom="20dp"/>
+        android:inputType="textVisiblePassword"
+        android:textColor="@android:color/white"
+        android:textColorHint="@color/dark" />
 
     <Button
-        android:id="@+id/import_lockbook"
+        android:id="@+id/welcome_import_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:backgroundTint="?attr/colorPrimary"
-        android:textColor="#000000"
-        android:text="Import" />
+        android:text="@string/import_account_import_button"
+        android:textColor="#000000" />
 
 
 </LinearLayout>
