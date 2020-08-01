@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 
 use sled::Db;
 
-use crate::{client, API_URL};
 use crate::client::Client;
 use crate::model::account::Account;
-use crate::model::api::{NewAccountError, GetPublicKeyError};
+use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::SignedValue;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -14,10 +13,13 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::account_service::AccountCreationError::{
     AccountExistsAlready, AccountRepoDbError,
 };
+use crate::service::account_service::AccountImportError::{
+    FailedToVerifyAccountServerSide, PublicKeyMismatch,
+};
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::service::account_service::AccountImportError::{FailedToVerifyAccountServerSide, PublicKeyMismatch};
+use crate::{client, API_URL};
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -169,9 +171,12 @@ impl<
             .map_err(AccountImportError::InvalidPrivateKey)?;
         debug!("RSA says the key is valid");
 
-        info!("Checking this username, public_key pair exists at {}", API_URL);
-        let server_public_key =
-            ApiClient::get_public_key(&account.username).map_err(FailedToVerifyAccountServerSide)?;
+        info!(
+            "Checking this username, public_key pair exists at {}",
+            API_URL
+        );
+        let server_public_key = ApiClient::get_public_key(&account.username)
+            .map_err(FailedToVerifyAccountServerSide)?;
         if account.keys.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }

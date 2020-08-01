@@ -45,6 +45,12 @@ pub fn test_db() -> Db {
     TempBackedDB::connect_to_db(&config).unwrap()
 }
 
+pub fn test_config() -> Config {
+    Config {
+        writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()),
+    }
+}
+
 pub fn random_username() -> String {
     Uuid::new_v4()
         .to_string()
