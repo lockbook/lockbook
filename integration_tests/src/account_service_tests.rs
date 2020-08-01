@@ -4,7 +4,7 @@ mod account_tests {
     use lockbook_core::model::api::NewAccountError::UsernameTaken;
     use lockbook_core::service::account_service::{AccountCreationError, AccountService, AccountImportError};
     use lockbook_core::{
-        DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService,
+        DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService
     };
 
     use crate::{random_username, test_db};
@@ -136,7 +136,7 @@ mod account_tests {
             ),
         };
 
-        DefaultAccountDb::insert_account(&db1, &account).unwrap();
+        DefaultAccountRepo::insert_account(&db1, &account).unwrap();
 
         let result = discriminant(
             &DefaultAccountService::import_account(
@@ -153,31 +153,7 @@ mod account_tests {
     }
 
     #[test]
-    fn test_import_export_opposites() {
-        let account_string = "BgAAAAAAAABwYXJ0aDRAAAAAAAAAAJnSeo+j1kZ6zi/Sfw/k6h8adzTImXng3ZXqvSKOUyYatb1Xm7Kh3AFPNSkTytGC/3ajran8/WhUnImJobEg0MGQoXdLiuwxtMs45RhuSDlBPPwW+Dw8EUt3ElEkgMkXXsZzcIfOSuTxTh+pmJWJJO5v4tyTu0jhXP7WJ9yK44EzQUpWVwTLb4t81wuUU5tJ/f4ybr/UrRmjXSLqKybUdjRQseF4l+aH8Ony3yC93UhlNlZtInoJIZCa+xuoJQsPHM+lzdZcHi3GhAw3t8BSnP5oW/j+mnRbb/h67RRqb+C+7b+x4ixrliCO0ekEhC/W0VhymZQh0YYMb7X/Vm6nSLoBAAAAAAAAAAEAAQBAAAAAAAAAAI1X0y8br/ltxnEYZxfO/6TLorOKEJd5H/0XeDXDiMjSvSPOCzuCbhSGWQVPdU9iegHdCHOrqA21pcSfJ5c2+0I38HRpWYZeQk2ochDTqqe23WJ27kt5CgrK6gXG5MeROCSEMSiJwcelhkdVYf5bSsdqGi681T4416lravO07oSTggy/dw/+w/BcYWXEjN07ujYgt4zOkYBQ4C1t3bVRAjEnx6EkF4UOHxlcbIbdfD/Txmm9AAhIz9MxQLq25U57bK5hoK6orOxxUMIZnpqvy9TH2+AZD2l9HjylVN2wC6gXLfIrPk0NUroxXVRcYuPhkCkvoWtq5bdW++1j5bRxAF4CAAAAAAAAACAAAAAAAAAAhx6QHKVxtuz2yNfzPOb5fJWZmuRWyDFzyrOQXFK7Q3o30iDtP+6AaQuRFX/75N6PDFJfjE/kHobsLd+yhNkDg19EkFM4dceKoR9WylGb3S2QmD9J7ew63EnPMs+mHqBqv1bsgh8+eTwo8teqA0oFSMz0OzwGRz0xn5jzmwZxKcwgAAAAAAAAAN+t+ahUxaKA8d5UDLjzjnxheC/QuneQAJVYDxExP+/9uchnBt1rxYiqBHWgaFiIHgAyfkaak4oFNZ+Cnf/Gb0qjHWGiF/f8/63rmv54XmfbpMifUNYnUSBSbEGU8KNRw1BZpofmadY6KfDV/aoyBUSX7yU9rPT9hbkpjR5oIpXp".to_string();
-        let db = test_db();
+    fn test_import_account_when_one_exists() {
 
-        DefaultAccountService::import_account(&db, &account_string).unwrap();
-        assert_eq!(
-            DefaultAccountService::export_account(&db).unwrap(),
-            account_string
-        );
-    }
-
-    #[test]
-    fn test_importing_an_account_when_one_exists() {
-        let account_string = "BgAAAAAAAABwYXJ0aDRAAAAAAAAAAJnSeo+j1kZ6zi/Sfw/k6h8adzTImXng3ZXqvSKOUyYatb1Xm7Kh3AFPNSkTytGC/3ajran8/WhUnImJobEg0MGQoXdLiuwxtMs45RhuSDlBPPwW+Dw8EUt3ElEkgMkXXsZzcIfOSuTxTh+pmJWJJO5v4tyTu0jhXP7WJ9yK44EzQUpWVwTLb4t81wuUU5tJ/f4ybr/UrRmjXSLqKybUdjRQseF4l+aH8Ony3yC93UhlNlZtInoJIZCa+xuoJQsPHM+lzdZcHi3GhAw3t8BSnP5oW/j+mnRbb/h67RRqb+C+7b+x4ixrliCO0ekEhC/W0VhymZQh0YYMb7X/Vm6nSLoBAAAAAAAAAAEAAQBAAAAAAAAAAI1X0y8br/ltxnEYZxfO/6TLorOKEJd5H/0XeDXDiMjSvSPOCzuCbhSGWQVPdU9iegHdCHOrqA21pcSfJ5c2+0I38HRpWYZeQk2ochDTqqe23WJ27kt5CgrK6gXG5MeROCSEMSiJwcelhkdVYf5bSsdqGi681T4416lravO07oSTggy/dw/+w/BcYWXEjN07ujYgt4zOkYBQ4C1t3bVRAjEnx6EkF4UOHxlcbIbdfD/Txmm9AAhIz9MxQLq25U57bK5hoK6orOxxUMIZnpqvy9TH2+AZD2l9HjylVN2wC6gXLfIrPk0NUroxXVRcYuPhkCkvoWtq5bdW++1j5bRxAF4CAAAAAAAAACAAAAAAAAAAhx6QHKVxtuz2yNfzPOb5fJWZmuRWyDFzyrOQXFK7Q3o30iDtP+6AaQuRFX/75N6PDFJfjE/kHobsLd+yhNkDg19EkFM4dceKoR9WylGb3S2QmD9J7ew63EnPMs+mHqBqv1bsgh8+eTwo8teqA0oFSMz0OzwGRz0xn5jzmwZxKcwgAAAAAAAAAN+t+ahUxaKA8d5UDLjzjnxheC/QuneQAJVYDxExP+/9uchnBt1rxYiqBHWgaFiIHgAyfkaak4oFNZ+Cnf/Gb0qjHWGiF/f8/63rmv54XmfbpMifUNYnUSBSbEGU8KNRw1BZpofmadY6KfDV/aoyBUSX7yU9rPT9hbkpjR5oIpXp".to_string();
-        let db = test_db();
-
-        DefaultAccountService::import_account(&db, &account_string).unwrap();
-        match DefaultAccountService::import_account(&db, &account_string) {
-            Ok(_) => {
-                panic!("You should not have been able to import an account if one exists already")
-            }
-            Err(err) => match err {
-                AccountImportError::AccountExistsAlready => println!("Success."),
-                _ => panic!("The wrong type of error was returned: {:#?}", err),
-            },
-        }
     }
 }
