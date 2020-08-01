@@ -56,6 +56,9 @@ val importAccountConverter = object : Converter {
         when(basicError) {
             ImportError.AccountStringCorrupted::class.simpleName -> return Err(ImportError.AccountStringCorrupted)
             ImportError.AccountExistsAlready::class.simpleName -> return Err(ImportError.AccountExistsAlready)
+            ImportError.AccountDoesNotExist::class.simpleName -> return Err(ImportError.AccountDoesNotExist)
+            ImportError.UsernamePKMismatch::class.simpleName -> return Err(ImportError.UsernamePKMismatch)
+            ImportError.CouldNotReachServer::class.simpleName -> return Err(ImportError.CouldNotReachServer)
         }
 
         if (unexpectedError is String) {
