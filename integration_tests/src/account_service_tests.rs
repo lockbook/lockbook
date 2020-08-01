@@ -5,17 +5,20 @@ mod account_tests {
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
-    use lockbook_core::{create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService, ImportError, DefaultDbProvider};
+    use lockbook_core::{
+        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
+        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, ImportError,
+    };
 
     use crate::{random_username, test_config, test_db};
     use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
+    use lockbook_core::repo::db_provider::DbProvider;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::sync_service::SyncService;
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
-    use lockbook_core::repo::db_provider::DbProvider;
 
     #[test]
     fn create_account_successfully() {
@@ -213,11 +216,11 @@ mod account_tests {
             Ok(_) => panic!("Should not have passed"),
             Err(err) => match err {
                 ImportError::AccountDoesNotExist => println!("Test passed!"),
-                ImportError::AccountStringCorrupted |
-                ImportError::AccountExistsAlready |
-                ImportError::UsernamePKMismatch |
-                ImportError::CouldNotReachServer |
-                ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
+                ImportError::AccountStringCorrupted
+                | ImportError::AccountExistsAlready
+                | ImportError::UsernamePKMismatch
+                | ImportError::CouldNotReachServer
+                | ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
             },
         }
     }
@@ -228,7 +231,8 @@ mod account_tests {
             let db1 = test_db();
             let db2 = test_db();
             let account1 = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
-            let mut account2 = DefaultAccountService::create_account(&db2, &random_username()).unwrap();
+            let mut account2 =
+                DefaultAccountService::create_account(&db2, &random_username()).unwrap();
 
             account2.username = account1.username;
             DefaultAccountRepo::insert_account(&db2, &account2).unwrap();
@@ -239,11 +243,11 @@ mod account_tests {
             Ok(_) => panic!("Should have failed"),
             Err(err) => match err {
                 ImportError::UsernamePKMismatch => println!("Test passed!"),
-                ImportError::AccountStringCorrupted |
-                ImportError::AccountExistsAlready |
-                ImportError::AccountDoesNotExist |
-                ImportError::CouldNotReachServer |
-                ImportError::UnexpectedError(_) => panic!{"Wrong error: {:#?}", err},
+                ImportError::AccountStringCorrupted
+                | ImportError::AccountExistsAlready
+                | ImportError::AccountDoesNotExist
+                | ImportError::CouldNotReachServer
+                | ImportError::UnexpectedError(_) => panic! {"Wrong error: {:#?}", err},
             },
         }
     }
