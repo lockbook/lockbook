@@ -2,10 +2,6 @@
 extern crate log;
 extern crate reqwest;
 
-use serde::Serialize;
-pub use sled::Db;
-use uuid::Uuid;
-
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
 use crate::model::api::{GetPublicKeyError, NewAccountError};
@@ -46,6 +42,9 @@ use crate::CreateFileAtPathError::{
 use crate::GetFileByPathError::NoFileAtThatPath;
 use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
+use serde::Serialize;
+pub use sled::Db;
+use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;

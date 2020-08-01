@@ -1,120 +1,55 @@
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
-use std::path::Path;
-
 use serde_json::json;
 pub use sled::Db;
-
-use crate::model::account::{Account, Username};
-use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
-use crate::repo::account_repo::AccountRepo;
-use crate::repo::db_provider::DbProvider;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::service::account_service::AccountService;
-use crate::service::file_service::FileService;
-use crate::service::sync_service::SyncService;
-use crate::{
-    init_logger_safely, repo, service, DefaultAccountRepo, DefaultAccountService,
-    DefaultDbProvider, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService, DB_NAME,
-};
-use serde::export::fmt::Debug;
-use serde::Serialize;
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+use std::str::FromStr;
 use uuid::Uuid;
 
-#[repr(C)]
-pub struct ResultWrapper {
-    is_error: bool,
-    value: Value,
-    error: LockbookError,
+use crate::model::account::Account;
+use crate::model::crypto::DecryptedValue;
+use crate::model::file_metadata::FileType;
+use crate::model::state::Config;
+use crate::model::work_unit::WorkUnit;
+use crate::repo::file_metadata_repo::{filter_from_str, Filter};
+use serde::Serialize;
+
+fn json_c_string<T: Serialize>(value: T) -> *const c_char {
+    CString::new(json!(value).to_string())
+        .expect("Could not Rust String -> C String")
+        .into_raw()
 }
 
-#[repr(C)]
-pub union Value {
-    success: *const c_char,
-    error: *const c_char,
-}
-
-// TODO: make these better (they're the errors clients will actually handle)
-#[repr(C)]
-pub enum LockbookError {
-    Network,
-    Database,
-}
-
-impl<T: Serialize, E: Debug> From<Result<T, E>> for ResultWrapper {
-    fn from(result: Result<T, E>) -> Self {
-        ResultWrapper {
-            is_error: result.is_err(),
-            value: {
-                match result {
-                    Ok(value) => Value {
-                        success: CString::new(json!(value).to_string()).unwrap().into_raw(),
-                    },
-                    Err(err) => Value {
-                        error: CString::new(format!("{:?}", err)).unwrap().into_raw(),
-                    },
-                }
-            },
-            error: LockbookError::Database,
-        }
-    }
-}
-
-impl From<uuid::Error> for Error {
-    fn from(err: uuid::Error) -> Self {
-        Self::Uuid(err)
-    }
-}
-
-#[derive(Debug)]
-enum Error {
-    // Uncategorized, // TODO: ideally nothing is in here, but we know that can be hard
-    Db(repo::db_provider::Error),
-    Metas(repo::file_metadata_repo::DbError),
-    Uuid(uuid::Error),
-    Json(serde_json::Error),
-    Sync(service::sync_service::SyncError),
-    Calculation(service::sync_service::CalculateWorkError),
-    Execution(service::sync_service::WorkExecutionError),
-    AccountCreate(service::account_service::AccountCreationError),
-    AccountRetrieve(repo::account_repo::AccountRepoError),
-    AccountImport(service::account_service::AccountImportError),
-    FileCreate(service::file_service::NewFileError),
-    FileRetrieve(service::file_service::ReadDocumentError),
-    FileUpdate(service::file_service::DocumentUpdateError),
-    Unimplemented,
-    NoRoot,
-}
-
-unsafe fn from_ptr(c_path: *const c_char) -> String {
-    CStr::from_ptr(c_path)
+unsafe fn str_from_ptr(s: *const c_char) -> String {
+    CStr::from_ptr(s)
         .to_str()
         .expect("Could not C String -> Rust String")
         .to_string()
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn init_logger() {
-    init_logger_safely()
+unsafe fn config_from_ptr(s: *const c_char) -> Config {
+    Config {
+        writeable_path: str_from_ptr(s),
+    }
 }
 
-unsafe fn connect(path: String) -> Result<Db, Error> {
-    let config = Config {
-        writeable_path: path,
-    };
-    DefaultDbProvider::connect_to_db(&config).map_err(Error::Db)
+unsafe fn uuid_from_ptr(s: *const c_char) -> Uuid {
+    Uuid::from_str(&str_from_ptr(s)).expect("Could not String -> Uuid")
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn is_db_present(c_path: *const c_char) -> bool {
-    let path = from_ptr(c_path);
-    let db_path = path + "/" + DB_NAME;
-    debug!("Checking if {:?} exists", db_path);
-    Path::new(db_path.as_str()).exists()
+unsafe fn file_type_from_ptr(s: *const c_char) -> FileType {
+    FileType::from_str(&str_from_ptr(s)).expect("Could not String -> FileType")
+}
+
+unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
+    filter_from_str(&str_from_ptr(s)).expect("Could not String -> Option<Filter>")
+}
+
+unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
+    serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> WorkUnit")
+}
+
+unsafe fn account_from_ptr(s: *const c_char) -> Account {
+    serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> Account")
 }
 
 #[no_mangle]
@@ -125,184 +60,188 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     CString::from_raw(s);
 }
 
-/// Account
-
 #[no_mangle]
-pub unsafe extern "C" fn get_account(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<Username, Error> {
-        let db = connect(path)?;
-        DefaultAccountRepo::get_account(&db)
-            .map(|a| a.username)
-            .map_err(Error::AccountRetrieve)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path)))
+pub unsafe extern "C" fn init_logger_safely() {
+    crate::init_logger_safely();
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
-    c_path: *const c_char,
-    c_username: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, username: String) -> Result<Account, Error> {
-        let db = connect(path)?;
-        DefaultAccountService::create_account(&db, &username).map_err(Error::AccountCreate)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_username)))
+    writeable_path: *const c_char,
+    username: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::create_account(
+        &config_from_ptr(writeable_path),
+        &str_from_ptr(username),
+    ))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn import_account(
-    c_path: *const c_char,
-    c_account: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, account_string: String) -> Result<Account, Error> {
-        let db = connect(path)?;
-        DefaultAccountService::import_account(&db, &account_string).map_err(Error::AccountImport)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_account)))
-}
-
-/// Work
-
-#[no_mangle]
-pub unsafe extern "C" fn sync_files(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<bool, Error> {
-        let db = connect(path)?;
-        DefaultSyncService::sync(&db)
-            .map_err(Error::Sync)
-            .map(|_| true)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path)))
+    writeable_path: *const c_char,
+    account_string: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::import_account(
+        &config_from_ptr(writeable_path),
+        &str_from_ptr(account_string),
+    ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn calculate_work(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<Vec<WorkUnit>, Error> {
-        let db = connect(path)?;
-        let work = DefaultSyncService::calculate_work(&db).map_err(Error::Calculation)?;
-        Ok(work.work_units)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path)))
+pub unsafe extern "C" fn export_account(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::export_account(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn execute_work(
-    c_path: *const c_char,
-    c_work_unit: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, work_str: String) -> Result<bool, Error> {
-        let db = connect(path)?;
-        let work: WorkUnit = serde_json::from_str(&work_str).map_err(Error::Json)?;
-        let account = DefaultAccountRepo::get_account(&db).map_err(Error::AccountRetrieve)?;
-        DefaultSyncService::execute_work(&db, &account, work)
-            .map_err(Error::Execution)
-            .map(|_| true)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_work_unit)))
-}
-
-/// Directory
-
-#[no_mangle]
-pub unsafe extern "C" fn get_root(c_path: *const c_char) -> ResultWrapper {
-    unsafe fn inner(path: String) -> Result<FileMetadata, Error> {
-        let db = connect(path)?;
-        DefaultFileMetadataRepo::get_root(&db)
-            .map_err(Error::Metas)?
-            .ok_or(Error::NoRoot)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path)))
+pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::get_account(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_files(
-    c_path: *const c_char,
-    c_parent_id: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, parent_id: String) -> Result<Vec<FileMetadata>, Error> {
-        let db = connect(path)?;
-        let parent_uuid = Uuid::parse_str(parent_id.as_str()).map_err(Error::Uuid)?;
-        DefaultFileMetadataRepo::get_children(&db, parent_uuid).map_err(Error::Metas)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_parent_id)))
+pub unsafe extern "C" fn create_file_at_path(
+    writeable_path: *const c_char,
+    path_and_name: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::create_file_at_path(
+        &config_from_ptr(writeable_path),
+        &str_from_ptr(path_and_name),
+    ))
 }
 
-/// Document
-
 #[no_mangle]
-pub unsafe extern "C" fn get_file(
-    c_path: *const c_char,
-    c_file_id: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String) -> Result<DecryptedValue, Error> {
-        let db = connect(path)?;
-        let file_uuid = Uuid::parse_str(file_id.as_str())?;
-        DefaultFileService::read_document(&db, file_uuid).map_err(Error::FileRetrieve)
-    }
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
+pub unsafe extern "C" fn write_document(
+    writeable_path: *const c_char,
+    id: *const c_char,
+    content: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::write_document(
+        &config_from_ptr(writeable_path),
+        Uuid::from_str(&str_from_ptr(id)).expect("Could not String -> Uuid"),
+        &DecryptedValue {
+            secret: str_from_ptr(content),
+        },
+    ))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn create_file(
-    c_path: *const c_char,
-    c_file_name: *const c_char,
-    c_file_parent_id: *const c_char,
-    c_is_folder: bool,
-) -> ResultWrapper {
-    unsafe fn inner(
-        path: String,
-        file_name: String,
-        file_parent: String,
-        is_folder: bool,
-    ) -> Result<FileMetadata, Error> {
-        let db = connect(path)?;
-        let file_parent_uuid = Uuid::parse_str(&file_parent)?;
-        // TODO @raayan make this function work for docs & folders
-        let file_type = if is_folder { Folder } else { Document };
-        DefaultFileService::create(&db, &file_name, file_parent_uuid, file_type)
-            .map_err(Error::FileCreate)
-    }
-    ResultWrapper::from(inner(
-        from_ptr(c_path),
-        from_ptr(c_file_name),
-        from_ptr(c_file_parent_id),
-        c_is_folder,
+    writeable_path: *const c_char,
+    name: *const c_char,
+    parent: *const c_char,
+    file_type: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::create_file(
+        &config_from_ptr(writeable_path),
+        &str_from_ptr(name),
+        uuid_from_ptr(parent),
+        file_type_from_ptr(file_type),
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn update_file(
-    c_path: *const c_char,
-    c_file_id: *const c_char,
-    c_file_content: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String, file_content: String) -> Result<bool, Error> {
-        let db = connect(path)?;
-        let file_uuid = Uuid::parse_str(file_id.as_str())?;
-        let value = &DecryptedValue {
-            secret: file_content,
-        };
-        DefaultFileService::write_document(&db, file_uuid, value)
-            .map_err(Error::FileUpdate)
-            .map(|_| true)
-    }
-    ResultWrapper::from(inner(
-        from_ptr(c_path),
-        from_ptr(c_file_id),
-        from_ptr(c_file_content),
+pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::get_root(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_file_by_path(
+    writeable_path: *const c_char,
+    path: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::get_file_by_path(
+        &config_from_ptr(writeable_path),
+        &str_from_ptr(path),
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn mark_file_for_deletion(
-    c_path: *const c_char,
-    c_file_id: *const c_char,
-) -> ResultWrapper {
-    unsafe fn inner(path: String, file_id: String) -> Result<bool, Error> {
-        let _ = connect(path)?;
-        let _ = Uuid::parse_str(file_id.as_str())?;
-        Err(Error::Unimplemented)
-    }
-    // TODO: @raayan implement this when there's a good way to delete files
-    ResultWrapper::from(inner(from_ptr(c_path), from_ptr(c_file_id)))
+pub unsafe extern "C" fn read_document(
+    writeable_path: *const c_char,
+    id: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::read_document(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn list_paths(
+    writeable_path: *const c_char,
+    filter: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::list_paths(
+        &config_from_ptr(writeable_path),
+        filter_from_ptr(filter),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rename_file(
+    writeable_path: *const c_char,
+    id: *const c_char,
+    new_name: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::rename_file(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
+        &str_from_ptr(new_name),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn move_file(
+    writeable_path: *const c_char,
+    id: *const c_char,
+    new_parent: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::move_file(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
+        uuid_from_ptr(new_parent),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::calculate_work(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn execute_work(
+    writeable_path: *const c_char,
+    account: *const c_char,
+    work_unit: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::execute_work(
+        &config_from_ptr(writeable_path),
+        &account_from_ptr(account),
+        work_unit_from_ptr(work_unit),
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn set_last_synced(
+    writeable_path: *const c_char,
+    last_sync: u64,
+) -> *const c_char {
+    json_c_string(crate::set_last_synced(
+        &config_from_ptr(writeable_path),
+        last_sync,
+    ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::get_last_synced(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
 }
