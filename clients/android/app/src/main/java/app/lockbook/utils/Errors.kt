@@ -11,6 +11,9 @@ sealed class CreateAccountError {
 sealed class ImportError {
     object AccountStringCorrupted : ImportError()
     object AccountExistsAlready : ImportError()
+    object AccountDoesNotExist : ImportError()
+    object UsernamePKMismatch : ImportError()
+    object CouldNotReachServer : ImportError()
     data class UnexpectedError(val error: String) : ImportError()
 }
 
