@@ -5,10 +5,7 @@ mod account_tests {
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
-    use lockbook_core::{
-        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultFileMetadataRepo, DefaultSyncService, ImportError,
-    };
+    use lockbook_core::{create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService, ImportError, DefaultDbProvider};
 
     use crate::{random_username, test_config, test_db};
     use lockbook_core::model::account::Account;
@@ -18,6 +15,7 @@ mod account_tests {
     use lockbook_core::service::sync_service::SyncService;
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
+    use lockbook_core::repo::db_provider::DbProvider;
 
     #[test]
     fn create_account_successfully() {
@@ -173,6 +171,79 @@ mod account_tests {
                 | ImportError::UsernamePKMismatch
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
+            },
+        }
+    }
+
+    #[test]
+    fn test_account_string_corrupted() {
+        let cfg1 = test_config();
+
+        match import_account(&cfg1, "clearly a bad account string") {
+            Ok(_) => panic!("This should not be a valid account string"),
+            Err(err) => match err {
+                ImportError::AccountStringCorrupted => println!("Test passed!"),
+                ImportError::AccountExistsAlready
+                | ImportError::AccountDoesNotExist
+                | ImportError::UsernamePKMismatch
+                | ImportError::CouldNotReachServer
+                | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
+            },
+        }
+    }
+
+    #[test]
+    fn test_importing_nonexistent_account() {
+        let cfg1 = test_config();
+
+        create_account(&cfg1, &random_username()).unwrap();
+
+        {
+            let db = DefaultDbProvider::connect_to_db(&cfg1).unwrap();
+            let mut account = DefaultAccountRepo::get_account(&db).unwrap();
+            account.username = random_username();
+            DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        } // release lock on db
+
+        let account_string = export_account(&cfg1).unwrap();
+
+        let cfg2 = test_config();
+
+        match import_account(&cfg2, &account_string) {
+            Ok(_) => panic!("Should not have passed"),
+            Err(err) => match err {
+                ImportError::AccountDoesNotExist => println!("Test passed!"),
+                ImportError::AccountStringCorrupted |
+                ImportError::AccountExistsAlready |
+                ImportError::UsernamePKMismatch |
+                ImportError::CouldNotReachServer |
+                ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
+            },
+        }
+    }
+
+    #[test]
+    fn test_account_public_key_mismatch_import() {
+        let bad_account_string = {
+            let db1 = test_db();
+            let db2 = test_db();
+            let account1 = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+            let mut account2 = DefaultAccountService::create_account(&db2, &random_username()).unwrap();
+
+            account2.username = account1.username;
+            DefaultAccountRepo::insert_account(&db2, &account2).unwrap();
+            DefaultAccountService::export_account(&db2).unwrap()
+        };
+
+        match import_account(&test_config(), &bad_account_string) {
+            Ok(_) => panic!("Should have failed"),
+            Err(err) => match err {
+                ImportError::UsernamePKMismatch => println!("Test passed!"),
+                ImportError::AccountStringCorrupted |
+                ImportError::AccountExistsAlready |
+                ImportError::AccountDoesNotExist |
+                ImportError::CouldNotReachServer |
+                ImportError::UnexpectedError(_) => panic!{"Wrong error: {:#?}", err},
             },
         }
     }
