@@ -2,10 +2,6 @@
 extern crate log;
 extern crate reqwest;
 
-use serde::Serialize;
-pub use sled::Db;
-use uuid::Uuid;
-
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
 use crate::model::api::NewAccountError;
@@ -697,6 +693,7 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
     }
 }
 
+#[derive(Debug, Serialize)]
 pub enum CalculateWorkError {
     NoAccount,
     CouldNotReachServer,
