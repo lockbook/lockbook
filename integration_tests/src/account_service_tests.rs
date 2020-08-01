@@ -2,18 +2,21 @@
 mod account_tests {
     use lockbook_core::client::Error;
     use lockbook_core::model::api::NewAccountError::UsernameTaken;
-    use lockbook_core::service::account_service::{AccountCreationError, AccountService, AccountImportError};
+    use lockbook_core::service::account_service::{
+        AccountCreationError, AccountImportError, AccountService,
+    };
     use lockbook_core::{
-        DefaultAccountRepo, DefaultAccountService, DefaultFileMetadataRepo, DefaultSyncService
+        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
+        DefaultFileMetadataRepo, DefaultSyncService, ImportError,
     };
 
-    use crate::{random_username, test_db};
+    use crate::{random_username, test_config, test_db};
+    use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::model::account::Account;
-    use rsa::{RSAPrivateKey, BigUint};
+    use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 
     #[test]
@@ -143,7 +146,7 @@ mod account_tests {
                 &db2,
                 &DefaultAccountService::export_account(&db1).unwrap(),
             )
-                .unwrap_err(),
+            .unwrap_err(),
         );
         let err = discriminant(&AccountImportError::InvalidPrivateKey(
             rsa::errors::Error::InvalidModulus,
@@ -154,6 +157,23 @@ mod account_tests {
 
     #[test]
     fn test_import_account_when_one_exists() {
+        let cfg1 = test_config();
 
+        create_account(&cfg1, &random_username()).unwrap();
+        let account_string = export_account(&cfg1).unwrap();
+
+        match import_account(&cfg1, &account_string) {
+            Ok(_) => panic!(
+                "This should not have allowed this account to be imported as one exists already"
+            ),
+            Err(err) => match err {
+                ImportError::AccountExistsAlready => println!("Test passed!"),
+                ImportError::AccountStringCorrupted
+                | ImportError::AccountDoesNotExist
+                | ImportError::UsernamePKMismatch
+                | ImportError::CouldNotReachServer
+                | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
+            },
+        }
     }
 }
