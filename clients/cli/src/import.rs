@@ -3,7 +3,10 @@ use std::io;
 use lockbook_core::{import_account, ImportError};
 
 use crate::utils::{exit_with, get_config};
-use crate::{ACCOUNT_ALREADY_EXISTS, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR, ACCOUNT_DOES_NOT_EXIST, USERNAME_PK_MISMATCH, NETWORK_ISSUE};
+use crate::{
+    ACCOUNT_ALREADY_EXISTS, ACCOUNT_DOES_NOT_EXIST, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN,
+    NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_PK_MISMATCH,
+};
 
 pub fn import() {
     if atty::is(atty::Stream::Stdin) {
