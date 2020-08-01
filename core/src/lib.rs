@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
-use crate::model::api::{NewAccountError, GetPublicKeyError};
+use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
@@ -44,7 +44,7 @@ use crate::CreateFileAtPathError::{
     DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
 use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::ImportError::{AccountStringCorrupted, UsernamePKMismatch, AccountDoesNotExist};
+use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 
 pub mod c_interface;
@@ -184,13 +184,14 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
                 Error::SendFailed(_) => Err(ImportError::CouldNotReachServer),
                 Error::Api(api_err) => match api_err {
                     GetPublicKeyError::UserNotFound => Err(AccountDoesNotExist),
-                    GetPublicKeyError::InvalidUsername |
-                    GetPublicKeyError::InternalError => Err(ImportError::UnexpectedError(format!("{:#?}", api_err))),
+                    GetPublicKeyError::InvalidUsername | GetPublicKeyError::InternalError => {
+                        Err(ImportError::UnexpectedError(format!("{:#?}", api_err)))
+                    }
                 },
-                Error::Serialize(_) |
-                Error::ReceiveFailed(_) |
-                Error::Deserialize(_) => Err(ImportError::UnexpectedError(format!("{:#?}", client_err))),
-            }
+                Error::Serialize(_) | Error::ReceiveFailed(_) | Error::Deserialize(_) => {
+                    Err(ImportError::UnexpectedError(format!("{:#?}", client_err)))
+                }
+            },
             AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(ImportError::UnexpectedError(format!("{:#?}", err)))
             }
