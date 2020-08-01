@@ -61,8 +61,8 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init_logger_safely() -> *const c_char {
-    json_c_string(crate::init_logger_safely())
+pub unsafe extern "C" fn init_logger_safely() {
+    crate::init_logger_safely();
 }
 
 #[no_mangle]
