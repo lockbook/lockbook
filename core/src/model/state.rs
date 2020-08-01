@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
     pub writeable_path: String,
 }

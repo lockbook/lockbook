@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="app.lockbook">
+
+    <uses-sdk tools:overrideLibrary="com.google.zxing.client.android" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <!--
         allowBackup is set to false because it may backup keys in plaintext to google drive
@@ -18,23 +25,27 @@
         android:theme="@style/Dark">
         <activity
             android:name=".InitialLaunchFigureOuter"
-            android:noHistory="true">
+            android:noHistory="true"
+            android:theme="@style/Dark.NoActionBar" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name=".Welcome"
+            android:name=".login.WelcomeActivity"
             android:theme="@style/Dark.NoActionBar" />
-        <activity android:name=".ListFiles" />
+        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
-            android:name=".NewAccount"
+            android:name=".login.NewAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
         <activity
-            android:name=".ImportAccount"
+            android:name=".login.ImportAccountActivity"
             android:theme="@style/Dark.NoActionBar" />
-
+        <activity android:name=".loggedin.settings.SettingsActivity" />
+        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity"/>
+        <activity android:name=".loggedin.newfile.NewFileActivity" />
+        <activity android:name=".loggedin.texteditor.TextEditorActivity" />
     </application>
 
 </manifest>

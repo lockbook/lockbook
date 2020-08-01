@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp"
+    tools:context=".login.WelcomeActivity">
+
+    <fragment
+        android:id="@+id/files_fragment"
+        android:name="app.lockbook.loggedin.listfiles.ListFilesFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:layout="@layout/fragment_list_files" />
+
+</LinearLayout>
