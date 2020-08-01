@@ -24,7 +24,7 @@ disableKinds = ["page", "section", "taxonomy", "taxonomyTerm"]
     [[params.links]]
         icon = "android"
         title = "Play Store"
-        url = "mailto:mail@example.org"
+        url = "https://github.com/lockbook/lockbook/blob/master/docs/installing-android.md"
 	
 	[[params.links]]
         icon = "windows"
