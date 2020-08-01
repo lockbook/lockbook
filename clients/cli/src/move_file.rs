@@ -17,10 +17,10 @@ pub fn move_file(path1: &str, path2: &str) {
                     Ok(_) => exit(0),
                     Err(move_file_error) => match move_file_error {
                         MoveFileError::NoAccount => exit_with_no_account(),
-                        MoveFileError::FileDoesntExist => {
+                        MoveFileError::FileDoesNotExist => {
                             exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
                         }
-                        MoveFileError::TargetParentDoesntExist => {
+                        MoveFileError::TargetParentDoesNotExist => {
                             exit_with(&format!("No file found at {}", path2), FILE_NOT_FOUND)
                         }
                         MoveFileError::TargetParentHasChildNamedThat => exit_with(
