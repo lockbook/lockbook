@@ -22,26 +22,23 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Dark">
+        android:theme="@style/DarkBlue">
         <activity
             android:name=".InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/Dark.NoActionBar" >
+            android:theme="@style/DarkBlue" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name=".login.WelcomeActivity"
-            android:theme="@style/Dark.NoActionBar" />
+            android:name=".login.WelcomeActivity" />
         <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
-            android:name=".login.NewAccountActivity"
-            android:theme="@style/Dark.NoActionBar" />
+            android:name=".login.NewAccountActivity" />
         <activity
-            android:name=".login.ImportAccountActivity"
-            android:theme="@style/Dark.NoActionBar" />
+            android:name=".login.ImportAccountActivity" />
         <activity android:name=".loggedin.settings.SettingsActivity" />
         <activity android:name=".loggedin.popupinfo.PopUpInfoActivity"/>
         <activity android:name=".loggedin.newfile.NewFileActivity" />

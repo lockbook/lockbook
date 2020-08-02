@@ -11,6 +11,7 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
@@ -19,7 +20,6 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,22 +27,21 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(R.layout.splash_screen)
         loadLockbookCore()
 
-        val pref = getSharedPreferences(SHARED_PREF_FILE, Context.MODE_PRIVATE)
+        val pref = PreferenceManager.getDefaultSharedPreferences(this)
 
         if (pref.getBoolean(LOGGED_IN_KEY, false)) {
-            if (!isBiometricsOptionsAvailable() && pref.getInt(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            ) != BIOMETRIC_NONE
+            if (!isBiometricsOptionsAvailable() && pref.getString(
+                    BIOMETRIC_OPTION_KEY,
+                    BIOMETRIC_NONE
+                ) != BIOMETRIC_NONE
             ) {
                 pref.edit()
-                    .putInt(BIOMETRIC_SERVICE, BIOMETRIC_NONE)
+                    .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
                     .apply()
             }
             performBiometricFlow(pref)
         } else {
-            val intent = Intent(this, WelcomeActivity::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, WelcomeActivity::class.java))
             finish()
         }
     }
@@ -53,13 +52,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun performBiometricFlow(pref: SharedPreferences) {
         when (
-            pref.getInt(
+            pref.getString(
                 BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
             )
-        ) {
+            ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
                         .show()
@@ -117,6 +116,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
+
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
                 startActivity(Intent(applicationContext, ListFilesActivity::class.java))
