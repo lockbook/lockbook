@@ -1035,4 +1035,17 @@ mod unit_tests {
             2
         );
     }
+
+    #[test]
+    fn test_integrity_no_problems() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+    }
 }
