@@ -32,7 +32,7 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onBackPressed() {
         val fragments = supportFragmentManager.fragments
 
-        for (fragment in fragments) {
+        for (fragment in fragments) { // maybe do fragments[0] cause there is only 1
             if (fragment is ListFilesFragment) {
                 if (!fragment.onBackPressed()) {
                     super.onBackPressed()
