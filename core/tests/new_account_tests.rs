@@ -1,12 +1,16 @@
+mod integration_test;
+
 #[cfg(test)]
 mod new_account_tests {
-    use crate::{aes_key, generate_account, rsa_key, sign};
+    use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     // use rsa::{BigUint, RSAPrivateKey};
     use uuid::Uuid;
+
+   use crate::assert_matches;
 
     #[test]
     fn new_account() {
