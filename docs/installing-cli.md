@@ -22,3 +22,13 @@ API_URL="http://api.lockbook.app:8000" cargo build --release
 ```
 
 In the `target/release` folder you'll find the `lockbook` binary. Place it anywhere on your `$PATH`. To upgrade, `git pull origin master` and repeat the process.
+
+## Configuration
+
+Design priorities for CLI are inspired by the [Unix philosophy](https://en.wikipedia.org/wiki/Unix_philosophy), this allows it to be minimal and extensible.
+
+Essentially:
+
+What files need to be synced, can be answered by: `lockbook status`, how many files need to be synced should be answered by `lockbook status | wc -l`.
+
+[A sample configuration for a zsh user.](https://github.com/Parth/dotfiles/blob/master/zsh/lockbook.sh)
