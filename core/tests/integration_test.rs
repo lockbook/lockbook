@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use lockbook_core::model::account::Account;
 use lockbook_core::model::crypto::SignedValue;
 use lockbook_core::model::crypto::*;
