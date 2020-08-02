@@ -371,7 +371,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 // Find files that don't descend from root
                 {
                     let mut not_orphaned = HashMap::new();
-                    not_orphaned.insert(root.id, root.clone());
+                    not_orphaned.insert(root.id, root);
 
                     for file in all.clone() {
                         let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
