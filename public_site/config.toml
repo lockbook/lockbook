@@ -19,7 +19,7 @@ disableKinds = ["page", "section", "taxonomy", "taxonomyTerm"]
        	iconset = "fas"
         icon = "terminal"
         title = "Terminal"
-        url = "https://github.com/lockbook/lockbook/tree/master/clients/cli"
+        url = "https://github.com/lockbook/lockbook/blob/master/docs/installing-cli.md"
 
     [[params.links]]
         icon = "android"
