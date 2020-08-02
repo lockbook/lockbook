@@ -10,7 +10,7 @@ mod new_account_tests {
     // use rsa::{BigUint, RSAPrivateKey};
     use uuid::Uuid;
 
-   use crate::assert_matches;
+    use crate::assert_matches;
 
     #[test]
     fn new_account() {

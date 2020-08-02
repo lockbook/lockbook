@@ -12,6 +12,7 @@ mod account_tests {
         DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, ImportError,
     };
 
+    use crate::integration_test::{random_username, test_config, test_db};
     use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
@@ -20,7 +21,6 @@ mod account_tests {
     use lockbook_core::service::sync_service::SyncService;
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
-    use crate::integration_test::{test_db, random_username, test_config};
 
     #[test]
     fn create_account_successfully() {

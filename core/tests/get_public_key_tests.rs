@@ -1,7 +1,5 @@
 mod integration_test;
 
-
-
 #[cfg(test)]
 mod get_public_key_tests {
     use crate::integration_test::{aes_key, generate_account, random_username, rsa_key, sign};
@@ -11,7 +9,7 @@ mod get_public_key_tests {
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
-   use crate::assert_matches;
+    use crate::assert_matches;
 
     #[test]
     fn get_public_key() {
