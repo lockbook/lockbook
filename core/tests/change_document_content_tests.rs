@@ -2,14 +2,16 @@ mod integration_test;
 
 #[cfg(test)]
 mod change_document_content_tests {
-    use crate::integration_test::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
+    use crate::integration_test::{
+        aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
+    };
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
-   use crate::assert_matches;
+    use crate::assert_matches;
 
     #[test]
     fn change_document_content() {
