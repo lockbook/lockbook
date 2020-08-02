@@ -52,6 +52,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, ()> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Problem {
     NoRootFolder,
     FileOrphaned(Uuid),
@@ -77,7 +78,7 @@ pub trait FileMetadataRepo {
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
-    fn check_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError>;
+    fn test_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -311,7 +312,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn check_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError> {
+    fn test_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError> {
         let all = Self::get_all(&db)?;
         let mut probs = vec![];
         match Self::get_root(&db)? {
@@ -461,11 +462,21 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
+    use crate::model::account::Account;
     use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
+    use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl};
+    use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
+    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl, Problem};
+    use crate::service::crypto_service::PubKeyCryptoService;
+    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_service::FileService;
+    use crate::{
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService,
+    };
 
     type DefaultDbProvider = TempBackedDB;
 
@@ -738,5 +749,513 @@ mod unit_tests {
 
         let children = FileMetadataRepoImpl::get_children(&db, root.id).unwrap();
         assert_eq!(children.len(), 2);
+    }
+
+    #[test]
+    fn test_integrity_no_problems() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: root_id,
+                file_type: FileType::Folder,
+                parent: root_id,
+                name: "".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_no_root() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        assert_eq!(
+            *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .get(0)
+                .unwrap(),
+            Problem::NoRootFolder
+        );
+    }
+
+    #[test]
+    fn test_orphaned_children() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
+        DefaultFileService::create_at_path(&db, "username/folder2/file2.txt").unwrap();
+        DefaultFileService::create_at_path(&db, "username/folder2/file3.txt").unwrap();
+        DefaultFileService::create_at_path(&db, "username/folder2/file4.txt").unwrap();
+        DefaultFileService::create_at_path(&db, "username/folder3/file5.txt").unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
+        let orphan_file_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: orphan_file_id,
+                file_type: FileType::Document,
+                parent: Uuid::new_v4(),
+                name: "test".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .get(0)
+                .unwrap(),
+            Problem::FileOrphaned(orphan_file_id)
+        );
+
+        assert_eq!(
+            DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let orphan_file_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: orphan_file_id,
+                file_type: FileType::Document,
+                parent: Uuid::new_v4(),
+                name: "test".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn test_files_invalid_names() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: root_id,
+                file_type: FileType::Folder,
+                parent: root_id,
+                name: "uh/oh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        assert_eq!(
+            *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .get(0)
+                .unwrap(),
+            Problem::FileNameContainsSlash(root_id)
+        );
+    }
+
+    #[test]
+    fn test_cycle_detection() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: root_id,
+                file_type: FileType::Folder,
+                parent: root_id,
+                name: "uhoh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        let folder1 = Uuid::new_v4();
+        let folder2 = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: folder2,
+                file_type: FileType::Folder,
+                parent: folder1,
+                name: "uhoh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: folder1,
+                file_type: FileType::Folder,
+                parent: folder2,
+                name: "uhoh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .into_iter()
+                .filter(|prob| *prob == CycleDetected(folder1) || *prob == CycleDetected(folder2))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn test_name_conflicts() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: root_id,
+                file_type: FileType::Folder,
+                parent: root_id,
+                name: "uhoh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+        let id1 = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: id1,
+                file_type: FileType::Document,
+                parent: root_id,
+                name: "a".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        let id2 = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: id2,
+                file_type: FileType::Document,
+                parent: root_id,
+                name: "a".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert!(
+            *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .get(0)
+                .unwrap()
+                == NameConflictDetected(id1)
+                || *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    == NameConflictDetected(id2)
+        );
+    }
+
+    #[test]
+    fn test_document_treated_as_folder() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root_id = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: root_id,
+                file_type: FileType::Folder,
+                parent: root_id,
+                name: "uhoh".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+        let id1 = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: id1,
+                file_type: FileType::Document,
+                parent: root_id,
+                name: "a".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        let id2 = Uuid::new_v4();
+
+        DefaultFileMetadataRepo::insert(
+            &db,
+            &FileMetadata {
+                id: id2,
+                file_type: FileType::Document,
+                parent: id1,
+                name: "a".to_string(),
+                owner: "".to_string(),
+                signature: SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                metadata_version: 0,
+                content_version: 0,
+                deleted: false,
+                user_access_keys: Default::default(),
+                folder_access_keys: FolderAccessInfo {
+                    folder_id: Default::default(),
+                    access_key: EncryptedValueWithNonce {
+                        garbage: "".to_string(),
+                        nonce: "".to_string(),
+                    },
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            *DefaultFileMetadataRepo::test_repo_integrity(&db)
+                .unwrap()
+                .get(0)
+                .unwrap(),
+            Problem::DocumentTreatedAsFolder(id1)
+        )
     }
 }
