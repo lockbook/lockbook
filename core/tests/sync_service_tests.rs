@@ -2,6 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
+    use crate::integration_test::{random_username, test_db};
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -11,8 +12,6 @@ mod sync_tests {
     use lockbook_core::{
         DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
     };
-    use crate::integration_test::{test_db, random_username};
-
 
     #[test]
     fn test_create_files_and_folders_sync() {
