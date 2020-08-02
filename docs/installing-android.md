@@ -12,6 +12,6 @@
 
 TBD
 
-## FDroid
+## F-Droid
 
 TBD
