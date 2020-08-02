@@ -1,6 +1,8 @@
+mod integration_test;
+
 #[cfg(test)]
 mod get_updates_test {
-    use crate::{aes_key, generate_account, rsa_key, sign};
+    use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl};
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};

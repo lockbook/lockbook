@@ -108,10 +108,6 @@ jobs:
       run: make integration_tests
     - name: Compile and run tests
       run: make integration_tests_run
-    - name: Check Formatting
-      run: make integration_tests_fmt
-    - name: Lint
-      run: make integration_tests_lint
     - name: Notify Slack
       uses: 8398a7/action-slack@v3
       with:

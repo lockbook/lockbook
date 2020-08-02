@@ -1,14 +1,18 @@
+mod integration_test;
+
 #[cfg(test)]
-mod delete_document_tests {
-    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
+mod create_document_tests {
+    use crate::integration_test::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
+   use crate::assert_matches;
+
     #[test]
-    fn delete_document() {
+    fn create_document() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -32,29 +36,26 @@ mod delete_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
-        )
-        .unwrap();
 
-        // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::create_document(
+                &account.username,
+                &sign(&account),
+                doc_id,
+                &random_filename(),
+                folder_id,
+                aes_str(&doc_key, "doc content"),
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &doc_key),
+                },
+            ),
             Ok(_)
         );
     }
 
     #[test]
-    fn delete_document_not_found() {
+    fn create_document_duplicate_id() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -75,17 +76,48 @@ mod delete_document_tests {
             Ok(_)
         );
 
-        // delete document that wasn't created
+        // create document
+        let doc_id = Uuid::new_v4();
+        let doc_key = AesImpl::generate_key();
+
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), Uuid::new_v4(), 0,),
-            Err(Error::<DeleteDocumentError>::Api(
-                DeleteDocumentError::DocumentNotFound
+            ClientImpl::create_document(
+                &account.username,
+                &sign(&account),
+                doc_id,
+                &random_filename(),
+                folder_id,
+                aes_str(&doc_key, "doc content"),
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &doc_key),
+                },
+            ),
+            Ok(_)
+        );
+
+        // create document with same id and key
+        assert_matches!(
+            ClientImpl::create_document(
+                &account.username,
+                &sign(&account),
+                doc_id,
+                &random_filename(),
+                folder_id,
+                aes_str(&doc_key, "doc content"),
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &doc_key),
+                },
+            ),
+            Err(Error::<CreateDocumentError>::Api(
+                CreateDocumentError::FileIdTaken
             ))
         );
     }
 
     #[test]
-    fn delete_document_deleted() {
+    fn create_document_duplicate_path() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -109,79 +141,43 @@ mod delete_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
-        )
-        .unwrap();
-
-        // delete document
-        assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
-            Ok(_)
-        );
-
-        // delete document again
-        assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
-            Err(Error::<DeleteDocumentError>::Api(
-                DeleteDocumentError::DocumentDeleted
-            ))
-        );
-    }
-
-    #[test]
-    fn delete_document_conflict() {
-        // new account
-        let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+        let doc_name = random_filename();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::create_document(
                 &account.username,
                 &sign(&account),
-                account.keys.to_public_key(),
+                doc_id,
+                &doc_name,
                 folder_id,
+                aes_str(&doc_key, "doc content"),
                 FolderAccessInfo {
                     folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
+                    access_key: aes_key(&folder_key, &doc_key),
                 },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
 
-        // create document
+        // create document with same path
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
-        )
-        .unwrap();
 
-        // delete document with wrong version
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version - 1,),
-            Err(Error::<DeleteDocumentError>::Api(
-                DeleteDocumentError::EditConflict
+            ClientImpl::create_document(
+                &account.username,
+                &sign(&account),
+                doc_id,
+                &doc_name,
+                folder_id,
+                aes_str(&doc_key, "doc content"),
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &doc_key),
+                },
+            ),
+            Err(Error::<CreateDocumentError>::Api(
+                CreateDocumentError::DocumentPathTaken
             ))
         );
     }

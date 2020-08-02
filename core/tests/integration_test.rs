@@ -12,31 +12,17 @@ use lockbook_core::Db;
 use rsa::RSAPublicKey;
 use uuid::Uuid;
 
-#[cfg(test)]
-#[macro_use]
-mod macros {
-    macro_rules! assert_matches (
-        ($actual:expr, $expected:pat) => {
-            // Only compute actual once
-            let actual_value = $actual;
-            match actual_value {
-                $expected => {},
-                _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
-            }
+#[macro_export]
+macro_rules! assert_matches (
+    ($actual:expr, $expected:pat) => {
+        // Only compute actual once
+        let actual_value = $actual;
+        match actual_value {
+            $expected => {},
+            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
         }
-    );
-}
-mod account_service_tests;
-mod change_document_content_tests;
-mod create_document_tests;
-mod delete_document_tests;
-mod get_document_tests;
-mod get_public_key_tests;
-mod get_updates_test;
-mod move_document_tests;
-mod new_account_tests;
-mod rename_document_tests;
-mod sync_service_tests;
+    }
+);
 
 pub fn test_db() -> Db {
     let config = Config {
