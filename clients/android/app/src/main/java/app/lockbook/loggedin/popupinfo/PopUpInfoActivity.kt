@@ -10,6 +10,7 @@ import kotlinx.android.synthetic.main.activity_popup_info.*
 class PopUpInfoActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_popup_info)
 
         popup_info_delete.setOnClickListener {
             rename()
