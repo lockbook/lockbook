@@ -6,6 +6,10 @@ use uuid::Uuid;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
+use crate::repo::file_metadata_repo::Problem::{
+    CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileOrphaned,
+    NameConflictDetected, NoRootFolder,
+};
 
 #[derive(Debug)]
 pub enum DbError {
@@ -48,6 +52,15 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, ()> {
     }
 }
 
+pub enum Problem {
+    NoRootFolder,
+    FileOrphaned(Uuid),
+    FileNameContainsSlash(Uuid),
+    CycleDetected(Uuid),
+    NameConflictDetected(Uuid),
+    DocumentTreatedAsFolder(Uuid),
+}
+
 pub trait FileMetadataRepo {
     fn insert(db: &Db, file: &FileMetadata) -> Result<(), DbError>;
     fn get_root(db: &Db) -> Result<Option<FileMetadata>, DbError>;
@@ -64,6 +77,7 @@ pub trait FileMetadataRepo {
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
+    fn check_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError>;
 }
 
 pub struct FileMetadataRepoImpl;
@@ -270,7 +284,6 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
-    // TODO should this indicate something special if the parent doesn't exist?
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
@@ -296,6 +309,105 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             None => Ok(0),
             Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
         }
+    }
+
+    fn check_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError> {
+        let all = Self::get_all(&db)?;
+        let mut probs = vec![];
+        match Self::get_root(&db)? {
+            None => {
+                if all.is_empty() {
+                    probs.push(NoRootFolder);
+                } else {
+                    for file in all {
+                        probs.push(FileOrphaned(file.id));
+                        if file.name.contains('/') {
+                            probs.push(FileNameContainsSlash(file.id));
+                        }
+                    }
+                }
+            }
+            Some(root) => {
+                let mut cache = HashMap::new();
+
+                // Saturate a cache
+                for file in all.clone() {
+                    cache.insert(file.id, file);
+                }
+
+                // Find files with invalid names
+                for file in all.clone() {
+                    if file.name.contains('/') {
+                        probs.push(FileNameContainsSlash(file.id));
+                    }
+                }
+
+                // Find naming conflicts
+                {
+                    let mut children = HashMap::new();
+                    for file in all.clone() {
+                        if children.contains_key(&format!(
+                            "{}.{}",
+                            file.parent.to_string(),
+                            file.name
+                        )) {
+                            probs.push(NameConflictDetected(file.id));
+                        }
+                        children.insert(format!("{}.{}", file.parent, file.name), file.file_type);
+                    }
+                }
+
+                // Find Documents treated as Folders
+                for file in all.clone() {
+                    if file.file_type == Document {
+                        for potential_child in all.clone() {
+                            if file.id == potential_child.parent {
+                                probs.push(DocumentTreatedAsFolder(file.id));
+                            }
+                        }
+                    }
+                }
+
+                // Find files that don't descend from root
+                {
+                    let mut not_orphaned = HashMap::new();
+                    not_orphaned.insert(root.id, root.clone());
+
+                    for file in all.clone() {
+                        let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
+                        let mut current = file.clone();
+                        'parent_finder: loop {
+                            if visited.contains_key(&current.id) {
+                                probs.push(CycleDetected(current.id));
+                                break 'parent_finder;
+                            }
+                            visited.insert(current.id, current.clone());
+
+                            match cache.get(&current.parent) {
+                                None => {
+                                    probs.push(FileOrphaned(current.id));
+                                    break 'parent_finder;
+                                }
+                                Some(parent) => {
+                                    // No Problems
+                                    if not_orphaned.contains_key(&parent.id) {
+                                        for node in visited.values() {
+                                            not_orphaned.insert(node.id, node.clone());
+                                        }
+
+                                        break 'parent_finder;
+                                    } else {
+                                        current = parent.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(probs)
     }
 }
 
@@ -628,11 +740,3 @@ mod unit_tests {
         assert_eq!(children.len(), 2);
     }
 }
-/*
-TODO validations we may want to add here:
-1. Don't insert a file with a non existent parent -- causes problems for sync so maybe not
-2. Don't insert a file as a child to a document
-3. Don't insert a file with a name shared by another file with the same parent (files vs folders?)
-4. Don't delete a folder with children, or delete all children when you delete a folder
-5. File names should not contain `/` otherwise it'll mess up path parsing
- */
