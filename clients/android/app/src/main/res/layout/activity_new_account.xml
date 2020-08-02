@@ -8,74 +8,63 @@
 
 
     <TextView
+        style="@style/Text.Headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:paddingBottom="70dp"
-        android:text="@string/lockbook_new_account"
-        android:textColor="@android:color/white"
-        android:textSize="40sp" />
+        android:paddingBottom="40dp"
+        android:text="@string/lockbook_new_account" />
 
     <TextView
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
         android:paddingBottom="15dp"
-        android:text="@string/new_account_description_one"
-        android:textColor="@android:color/white" />
+        android:text="@string/new_account_description_one" />
 
     <TextView
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
         android:paddingBottom="15dp"
-        android:text="@string/new_account_description_two"
-        android:textColor="@android:color/white" />
+        android:text="@string/new_account_description_two" />
 
     <TextView
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
         android:paddingBottom="15dp"
-        android:text="@string/new_account_description_three"
-        android:textColor="@android:color/white" />
+        android:text="@string/new_account_description_three" />
 
     <TextView
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
         android:paddingBottom="15dp"
-        android:text="@string/new_account_description_four"
-        android:textColor="@android:color/white" />
+        android:text="@string/new_account_description_four" />
 
     <TextView
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
         android:paddingBottom="50dp"
-        android:text="@string/new_account_description_five"
-        android:textColor="@android:color/white" />
+        android:text="@string/new_account_description_five" />
 
     <EditText
         android:id="@+id/new_account_username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
-        android:backgroundTint="@color/dark"
         android:fontFamily="monospace"
         android:hint="@string/new_account_username"
         android:importantForAutofill="no"
-        android:inputType="textVisiblePassword"
-        android:textColor="@android:color/white"
-        android:textColorHint="@color/dark" />
+        android:inputType="textVisiblePassword" />
 
 
     <Button
         android:id="@+id/new_account_create_lockbook"
+        style="@style/Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimary"
-        android:text="@string/new_account_submit"
-        android:textColor="#000000" />
+        android:text="@string/new_account_submit" />
 
 </LinearLayout>
