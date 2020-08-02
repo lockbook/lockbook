@@ -459,10 +459,10 @@ mod sync_tests {
         let db2 = test_db();
 
         let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
-        let file =
+        let file1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
                 .unwrap();
-        let file =
+        let file2 =
             DefaultFileService::create_at_path(&db1, &format!("{}/test2.txt", account.username))
                 .unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -472,5 +472,7 @@ mod sync_tests {
             &DefaultAccountService::export_account(&db1).unwrap(),
         )
         .unwrap();
+
+
     }
 }
