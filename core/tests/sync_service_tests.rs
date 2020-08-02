@@ -1,6 +1,7 @@
+mod integration_test;
+
 #[cfg(test)]
 mod sync_tests {
-    use crate::{random_username, test_db};
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -10,6 +11,8 @@ mod sync_tests {
     use lockbook_core::{
         DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
     };
+    use crate::integration_test::{test_db, random_username};
+
 
     #[test]
     fn test_create_files_and_folders_sync() {
@@ -449,5 +452,26 @@ mod sync_tests {
         DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("noice")).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
+    }
+
+    #[test]
+    fn sync_fs_invalid_state_via_move() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
+                .unwrap();
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/test2.txt", account.username))
+                .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
     }
 }
