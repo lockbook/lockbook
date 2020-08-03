@@ -65,7 +65,27 @@ class ImportAccountActivity : AppCompatActivity() {
                 is Err -> when (importAccountResult.error) {
                     is ImportError.AccountStringCorrupted -> Toast.makeText(
                         applicationContext,
-                        "Invalid Account String!",
+                        "Invalid account string!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.AccountExistsAlready -> Toast.makeText(
+                        applicationContext,
+                        "Account already exists!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.AccountDoesNotExist -> Toast.makeText(
+                        applicationContext,
+                        "That account does not exist on this server!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.UsernamePKMismatch -> Toast.makeText(
+                        applicationContext,
+                        "That username does not correspond with that public_key on this server!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    is ImportError.CouldNotReachServer -> Toast.makeText(
+                        applicationContext,
+                        "Could not access server to ensure this !",
                         Toast.LENGTH_LONG
                     ).show()
                     is ImportError.UnexpectedError -> Toast.makeText(
