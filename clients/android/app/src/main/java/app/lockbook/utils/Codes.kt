@@ -3,6 +3,8 @@ package app.lockbook.utils
 object SharedPreferences {
     const val LOGGED_IN_KEY = "loggedin"
     const val BIOMETRIC_OPTION_KEY = "biometric"
+    const val EXPORT_ACCOUNT_RAW_KEY = "export_account_raw"
+    const val EXPORT_ACCOUNT_QR_KEY = "export_account_qr"
 
     const val BIOMETRIC_NONE = "biometric_none"
     const val BIOMETRIC_RECOMMENDED = "biometric_recommended"

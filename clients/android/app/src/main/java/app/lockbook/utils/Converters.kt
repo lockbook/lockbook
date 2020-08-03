@@ -1,5 +1,6 @@
 package app.lockbook.utils
 
+import android.util.Log
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
