@@ -517,4 +517,85 @@ mod sync_tests {
 
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
+
+    #[test]
+    fn sync_fs_invalid_state_via_move() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file1 =
+            DefaultFileService::create_at_path(&db1, &format!("{}/a/test.txt", account.username))
+                .unwrap();
+        let file2 =
+            DefaultFileService::create_at_path(&db1, &format!("{}/b/test.txt", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::move_file(
+            &db1,
+            file1.id,
+            DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap().id,
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::move_file(
+            &db2,
+            file2.id,
+            DefaultFileMetadataRepo::get_root(&db2).unwrap().unwrap().id,
+        )
+        .unwrap();
+
+        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
+
+        DefaultSyncService::calculate_work(&db2)
+            .unwrap()
+            .work_units
+            .into_iter()
+            .filter(|work| match work {
+                WorkUnit::LocalChange { .. } => false,
+                WorkUnit::ServerChange { .. } => true,
+            })
+            .for_each(|work| DefaultSyncService::execute_work(&db2, &account, work).unwrap());
+
+        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db2)
+            .unwrap()
+            .is_empty());
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            1
+        );
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
+
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
 }
