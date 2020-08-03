@@ -499,12 +499,21 @@ mod sync_tests {
             .unwrap()
             .is_empty());
 
-        assert_eq!(DefaultSyncService::calculate_work(&db1).unwrap().work_units.len(), 1);
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            1
+        );
 
         DefaultSyncService::sync(&db1).unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        assert_eq!(DefaultFileMetadataRepo::get_all(&db1).unwrap(), DefaultFileMetadataRepo::get_all(&db2).unwrap());
+        assert_eq!(
+            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
+            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+        );
 
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
