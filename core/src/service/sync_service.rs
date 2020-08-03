@@ -25,14 +25,16 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
+use crate::service::file_service;
+use crate::service::file_service::FileService;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentGetError,
-    DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError,
-    FolderRenameError, SaveDocumentError,
+    AutoRenameError, DocumentChangeError, DocumentCreateError, DocumentDeleteError,
+    DocumentGetError, DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError,
+    FolderMoveError, FolderRenameError, SaveDocumentError,
 };
 
 #[derive(Debug)]
@@ -61,6 +63,7 @@ pub enum WorkExecutionError {
     SaveDocumentError(document_repo::Error),
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
+    AutoRenameError(file_service::DocumentRenameError),
 }
 
 #[derive(Debug)]
@@ -98,6 +101,7 @@ pub struct FileSyncService<
     DocsDb: DocumentRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
+    Files: FileService,
     Auth: AuthService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
@@ -105,6 +109,7 @@ pub struct FileSyncService<
     docs: PhantomData<DocsDb>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
+    file: PhantomData<Files>,
     auth: PhantomData<Auth>,
 }
 
@@ -114,9 +119,10 @@ impl<
         DocsDb: DocumentRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
+        Files: FileService,
         Auth: AuthService,
     > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
+    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Files, Auth>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -134,7 +140,6 @@ impl<
             last_sync,
         )
         .map_err(GetUpdatesError)?;
-        debug!("Server Updates: {:#?}", server_updates);
 
         let mut most_recent_update_from_server: u64 = last_sync;
         for metadata in server_updates {
@@ -160,7 +165,7 @@ impl<
 
             work_units.push(LocalChange { metadata });
         }
-        debug!("Local Changes: {:#?}", work_units);
+        debug!("Work Calculated: {:#?}", work_units);
 
         Ok(WorkCalculated {
             work_units,
@@ -183,6 +188,27 @@ impl<
         db: &Db,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
+        // Make sure no naming conflicts occur as a result of this metadata
+        let conflicting_files = FileMetadataDb::get_children(&db, metadata.parent)
+            .map_err(WorkExecutionError::MetadataRepoError)?
+            .into_iter()
+            .filter(|potential_conflict| potential_conflict.name == metadata.name)
+            .filter(|potential_conflict| potential_conflict.id != metadata.id)
+            .collect::<Vec<FileMetadata>>();
+
+        // There should only be one of these
+        for conflicting_file in conflicting_files {
+            Files::rename_file(
+                &db,
+                conflicting_file.id,
+                &format!(
+                    "{}-NAME-CONFLICT-{}",
+                    conflicting_file.name, conflicting_file.id
+                ),
+            )
+            .map_err(AutoRenameError)?
+        }
+
         match FileMetadataDb::maybe_get(&db, metadata.id)
             .map_err(WorkExecutionError::MetadataRepoError)?
         {
@@ -471,13 +497,11 @@ impl<
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
         for _ in 0..10 {
-            // Retry sync n times
+            // Retry sync n timesr
             info!("Syncing");
             let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
             let work_calculated =
                 Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
-
-            debug!("Work calculated: {:#?}", work_calculated);
 
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");

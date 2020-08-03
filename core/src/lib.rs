@@ -82,6 +82,7 @@ pub type DefaultSyncService = FileSyncService<
     DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,
+    DefaultFileService,
     DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
@@ -706,7 +707,8 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 | Some(WorkExecutionError::SaveDocumentError(_))
                 | Some(WorkExecutionError::LocalChangesRepoError(_)) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
-                }
+                },
+                Some(WorkExecutionError::AutoRenameError(_)) => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
                 None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
             },
             SyncError::MetadataUpdateError(err) => {
@@ -843,6 +845,7 @@ pub fn execute_work(
             WorkExecutionError::MetadataRepoError(_)
             | WorkExecutionError::MetadataRepoErrorOpt(_)
             | WorkExecutionError::SaveDocumentError(_)
+            | WorkExecutionError::AutoRenameError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", err)))
             }

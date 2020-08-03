@@ -454,7 +454,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_fs_invalid_state_via_move() {
+    fn sync_fs_invalid_state_via_rename() {
         let db1 = test_db();
         let db2 = test_db();
 
@@ -472,7 +472,40 @@ mod sync_tests {
             &DefaultAccountService::export_account(&db1).unwrap(),
         )
         .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
 
+        DefaultFileService::rename_file(&db2, file1.id, "test3.txt").unwrap();
 
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::rename_file(&db1, file2.id, "test3.txt").unwrap();
+        // Just operate on the server work
+        DefaultSyncService::calculate_work(&db1)
+            .unwrap()
+            .work_units
+            .into_iter()
+            .filter(|work| match work {
+                WorkUnit::LocalChange { .. } => false,
+                WorkUnit::ServerChange { .. } => true,
+            })
+            .for_each(|work| DefaultSyncService::execute_work(&db1, &account, work).unwrap());
+
+        println!(
+            "{:#?}",
+            DefaultFileMetadataRepo::test_repo_integrity(&db1).unwrap()
+        );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db1)
+            .unwrap()
+            .is_empty());
+
+        assert_eq!(DefaultSyncService::calculate_work(&db1).unwrap().work_units.len(), 1);
+
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert_eq!(DefaultFileMetadataRepo::get_all(&db1).unwrap(), DefaultFileMetadataRepo::get_all(&db2).unwrap());
+
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
 }
