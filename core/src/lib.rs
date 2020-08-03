@@ -707,8 +707,10 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 | Some(WorkExecutionError::SaveDocumentError(_))
                 | Some(WorkExecutionError::LocalChangesRepoError(_)) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
-                },
-                Some(WorkExecutionError::AutoRenameError(_)) => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
+                }
+                Some(WorkExecutionError::AutoRenameError(_)) => {
+                    Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
+                }
                 None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
             },
             SyncError::MetadataUpdateError(err) => {
