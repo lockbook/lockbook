@@ -10,7 +10,7 @@
     <string name="hello_first_fragment">Hello first fragment</string>
     <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
 
-    <string name="lockbook_title">Lockbook</string>
+    <string name="lockbook_title">lockbook</string>
     <string name="lockbook_moto">Secure. Private. Reliable.</string>
     <string name="lockbook_import">Import Lockbook</string>
     <string name="lockbook_new_account">New Lockbook</string>
@@ -45,7 +45,7 @@
 
     <string name="export_account_raw">Copy account string to clipboard</string>
     <string name="export_account_qr">Export account string (QR Code)</string>
-    <string name="protect_account_biometric">Change biometric setting</string>
+    <string name="protect_account_biometric">Biometric options</string>
 
     <array name="settings_biometric_names">
         <item>@string/biometric_disabled</item>

@@ -1,10 +1,8 @@
 package app.lockbook
 
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
@@ -20,20 +18,23 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
+import timber.log.Timber
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.splash_screen)
         loadLockbookCore()
+        Timber.plant(Timber.DebugTree())
 
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
 
         if (pref.getBoolean(LOGGED_IN_KEY, false)) {
             if (!isBiometricsOptionsAvailable() && pref.getString(
-                    BIOMETRIC_OPTION_KEY,
-                    BIOMETRIC_NONE
-                ) != BIOMETRIC_NONE
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
+            ) != BIOMETRIC_NONE
             ) {
                 pref.edit()
                     .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
@@ -46,6 +47,14 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         }
     }
 
+    private fun launchListFilesActivity() {
+        val intent = Intent(this, ListFilesActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        overridePendingTransition(0, 0)
+        startActivity(intent)
+        finish()
+    }
+
     private fun isBiometricsOptionsAvailable(): Boolean =
         BiometricManager.from(applicationContext)
             .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
@@ -55,12 +64,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             pref.getString(
                 BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
             )
-            ) {
+        ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
-                    Toast.makeText(this, "An unexpected error has occurred!", Toast.LENGTH_LONG)
+                    Timber.e("Biometric shared preference is strict despite no biometrics.")
+                    Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
                         .show()
                     finish()
                 }
@@ -76,10 +86,10 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             super.onAuthenticationError(errorCode, errString)
                             when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i("Launch", "Biometric authentication error: $errString")
+                                    Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         applicationContext,
-                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                                        UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_SHORT
                                     )
                                         .show()
                                     finish()
@@ -98,13 +108,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             result: BiometricPrompt.AuthenticationResult
                         ) {
                             super.onAuthenticationSucceeded(result)
-                            startActivity(
-                                Intent(
-                                    applicationContext,
-                                    ListFilesActivity::class.java
-                                )
-                            )
-                            finish()
+                            launchListFilesActivity()
                         }
                     }
                 )
@@ -116,12 +120,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
-
             }
-            BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> {
-                startActivity(Intent(applicationContext, ListFilesActivity::class.java))
-                finish()
-            }
+            BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> launchListFilesActivity()
         }
     }
 }

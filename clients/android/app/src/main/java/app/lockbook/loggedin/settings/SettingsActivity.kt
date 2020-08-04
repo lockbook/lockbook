@@ -1,7 +1,6 @@
 package app.lockbook.loggedin.settings
 
 import android.os.Bundle
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
 import app.lockbook.utils.Config

@@ -79,7 +79,8 @@ dependencies {
     implementation "com.google.zxing:core:$qr_core_version"
     implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
     implementation "androidx.biometric:biometric:$fingerprint_version"
-
+    implementation "io.noties.markwon:editor:$markdown_version"
+    implementation "com.jakewharton.timber:timber:$logger_version"
 
     implementation project(':core')
 }

@@ -1,5 +1,7 @@
 package app.lockbook.utils
 
+import com.github.michaelbull.result.Result
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
@@ -84,6 +86,7 @@ sealed class MoveFileError {
 sealed class SyncAllError {
     object NoAccount : SyncAllError()
     object CouldNotReachServer : SyncAllError()
+    data class ExecuteWorkError(val error: List<app.lockbook.utils.ExecuteWorkError>): SyncAllError()
     data class UnexpectedError(val error: String) : SyncAllError()
 }
 

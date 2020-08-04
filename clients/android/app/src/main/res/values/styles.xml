@@ -1,9 +1,10 @@
 <resources>
-
-    <style name="DarkBlue" parent="Theme.AppCompat">
-        <item name="colorPrimary">@color/primaryColorBlueGray</item>
-        <item name="colorPrimaryDark">@color/primaryDarkColorBlueGray</item>
-        <item name="colorAccent">@color/secondaryColorBlueGray</item>
+    <style name="DarkBlue" parent="Theme.AppCompat"> // revert to original colors
+        <item name="android:navigationBarColor">@color/black</item>
+        <item name="colorPrimary">@color/blue</item>
+        <item name="colorAccent">@color/blue</item>
+        <item name="colorPrimaryDark">@color/black</item>
+        <item name="android:windowBackground">@color/black</item>
     </style>
 
     <style name="DarkBlue.NoActionBar" parent="DarkBlue">
@@ -26,7 +27,9 @@
         <item name="android:fontFamily">monospace</item>
     </style>
 
-    <style name="File.Title" parent="TextAppearance.AppCompat.Medium">
+    <style name="File.Title" parent="TextAppearance.AppCompat">
+        <item name="android:textColor">?attr/colorAccent</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:layout_marginStart">16dp</item>
