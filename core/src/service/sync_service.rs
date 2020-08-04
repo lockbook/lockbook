@@ -5,7 +5,6 @@ use serde::Serialize;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api;
@@ -16,7 +15,7 @@ use crate::model::api::{
 };
 use crate::model::crypto::SignedValue;
 use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
@@ -34,8 +33,9 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DocumentChangeError, DocumentCreateError, DocumentDeleteError,
     DocumentGetError, DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError,
-    FolderMoveError, FolderRenameError, SaveDocumentError,
+    FolderMoveError, FolderRenameError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
 };
+use crate::{client, DefaultFileService};
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -60,10 +60,11 @@ pub enum WorkExecutionError {
     DocumentChangeError(client::Error<ChangeDocumentContentError>),
     DocumentDeleteError(client::Error<DeleteDocumentError>),
     FolderDeleteError(client::Error<DeleteFolderError>),
-    SaveDocumentError(document_repo::Error),
+    SaveDocumentError(document_repo::Error), // Delete uses this and it shouldn't
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
     AutoRenameError(file_service::DocumentRenameError),
+    ResolveConflictByCreatingNewFileError(file_service::NewFileError),
 }
 
 #[derive(Debug)]
@@ -89,7 +90,7 @@ pub trait SyncService {
     fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
@@ -273,7 +274,7 @@ impl<
                                     ChangeDb::untrack_rename(&db, metadata.id)
                                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
                                 } else {
-                                    metadata.name = local_metadata.name;
+                                    metadata.name = local_metadata.name.clone();
                                 }
                             }
 
@@ -296,7 +297,52 @@ impl<
                             if local_changes.content_edited
                                 && local_metadata.content_version != metadata.content_version
                             {
-                                error!("Local changes conflict with server changes, implement diffing! unimplemented!() server wins for now");
+                                if metadata.file_type == Folder {
+                                    // Should be unreachable
+                                    error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
+                                }
+
+                                if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt")
+                                {
+                                    // Content is mergable
+                                } else {
+                                    // Content is not mergable
+
+                                    // Create a new file
+                                    let new_file = DefaultFileService::create(
+                                        &db,
+                                        &format!(
+                                            "{}-CONTENT-CONFLICT-{}",
+                                            &local_metadata.name, local_metadata.id
+                                        ),
+                                        local_metadata.parent,
+                                        Document,
+                                    )
+                                    .map_err(ResolveConflictByCreatingNewFileError)?;
+
+                                    // Copy the local copy over
+                                    DocsDb::insert(
+                                        &db,
+                                        new_file.id,
+                                        &DocsDb::get(&db, local_changes.id)
+                                            .map_err(SaveDocumentError)?,
+                                    )
+                                    .map_err(SaveDocumentError)?;
+
+                                    // Overwrite local file with server copy
+                                    let new_content = ApiClient::get_document(
+                                        metadata.id,
+                                        metadata.content_version,
+                                    )
+                                    .map_err(DocumentGetError)?;
+
+                                    DocsDb::insert(&db, metadata.id, &new_content)
+                                        .map_err(SaveDocumentError)?;
+
+                                    // Mark content as synced
+                                    ChangeDb::untrack_edit(&db, metadata.id)
+                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                }
                             }
 
                             // You deleted a file, but you didn't have the most recent content, server wins
@@ -489,15 +535,10 @@ impl<
     }
 
     fn sync(db: &Db) -> Result<(), SyncError> {
-        // If you create a/b/c/file.txt and sync, if it syncs out of order this could cause errors
-        // This isn't an issue as we have a retry policy built in, taking the approach that sync shall
-        // eventually succeed. But there may be genuine errors (renamed to an invalid name) that aren't
-        // simply retryable. Keep track of every error for every file and there's only a problem if we
-        // were never able to sync a file.
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
         for _ in 0..10 {
-            // Retry sync n timesr
+            // Retry sync n times
             info!("Syncing");
             let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
             let work_calculated =
@@ -505,17 +546,17 @@ impl<
 
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
-                if sync_errors.is_empty() {
+                return if sync_errors.is_empty() {
                     FileMetadataDb::set_last_synced(
                         &db,
                         work_calculated.most_recent_update_from_server,
                     )
                     .map_err(SyncError::MetadataUpdateError)?;
-                    return Ok(());
+                    Ok(())
                 } else {
                     error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
-                    return Err(SyncError::WorkExecutionError(sync_errors));
-                }
+                    Err(SyncError::WorkExecutionError(sync_errors))
+                };
             }
 
             for work_unit in work_calculated.work_units {

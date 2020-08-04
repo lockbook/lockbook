@@ -708,7 +708,8 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                 | Some(WorkExecutionError::LocalChangesRepoError(_)) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
                 }
-                Some(WorkExecutionError::AutoRenameError(_)) => {
+                Some(WorkExecutionError::AutoRenameError(_))
+                | Some(WorkExecutionError::ResolveConflictByCreatingNewFileError(_)) => {
                     Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map)))
                 }
                 None => Err(SyncAllError::UnexpectedError(format!("{:#?}", err_map))),
@@ -848,6 +849,7 @@ pub fn execute_work(
             | WorkExecutionError::MetadataRepoErrorOpt(_)
             | WorkExecutionError::SaveDocumentError(_)
             | WorkExecutionError::AutoRenameError(_)
+            | WorkExecutionError::ResolveConflictByCreatingNewFileError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", err)))
             }
