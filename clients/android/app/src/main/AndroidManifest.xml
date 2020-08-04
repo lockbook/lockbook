@@ -26,21 +26,24 @@
         <activity
             android:name=".InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/DarkBlue" >
+            android:theme="@style/DarkBlue.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name=".login.WelcomeActivity" />
+            android:name=".login.WelcomeActivity"
+            android:theme="@style/DarkBlue.NoActionBar" />
         <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
-            android:name=".login.NewAccountActivity" />
+            android:name=".login.NewAccountActivity"
+            android:theme="@style/DarkBlue.NoActionBar" />
         <activity
-            android:name=".login.ImportAccountActivity" />
+            android:name=".login.ImportAccountActivity"
+            android:theme="@style/DarkBlue.NoActionBar" />
         <activity android:name=".loggedin.settings.SettingsActivity" />
-        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity"/>
+        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
         <activity android:name=".loggedin.newfile.NewFileActivity" />
         <activity android:name=".loggedin.texteditor.TextEditorActivity" />
     </application>

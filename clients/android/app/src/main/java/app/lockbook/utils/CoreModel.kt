@@ -1,6 +1,5 @@
 package app.lockbook.utils
 
-import android.util.Log
 import app.lockbook.core.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
