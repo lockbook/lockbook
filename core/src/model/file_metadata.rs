@@ -3,12 +3,24 @@ use crate::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
     Document,
     Folder,
+}
+
+impl FromStr for FileType {
+    type Err = ();
+    fn from_str(input: &str) -> Result<FileType, Self::Err> {
+        match input {
+            "Document" => Ok(FileType::Document),
+            "Folder" => Ok(FileType::Folder),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
