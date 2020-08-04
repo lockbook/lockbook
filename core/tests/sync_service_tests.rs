@@ -598,4 +598,71 @@ mod sync_tests {
 
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
+
+    #[test]
+    fn test_content_conflict_unmergable() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/test.bin", account.username))
+                .unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("some good content"),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("some new content"),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::write_document(
+            &db2,
+            file.id,
+            &DecryptedValue::from("some offline content"),
+        )
+        .unwrap();
+        let works = DefaultSyncService::calculate_work(&db2).unwrap();
+
+        assert_eq!(works.work_units.len(), 2);
+
+        for work in works.clone().work_units {
+            DefaultSyncService::execute_work(&db2, &account, work).unwrap();
+        }
+
+        let works = DefaultSyncService::calculate_work(&db2).unwrap();
+        assert_eq!(works.work_units.len(), 1);
+
+        match works.work_units.get(0).unwrap() {
+            WorkUnit::LocalChange { metadata } => {
+                assert!(metadata.name.contains("CONTENT-CONFLICT"))
+            }
+            WorkUnit::ServerChange { .. } => panic!("This should not be the work type"),
+        }
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_content_conflict_mergable() {}
 }
