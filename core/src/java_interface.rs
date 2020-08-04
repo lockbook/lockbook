@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
