@@ -1,6 +1,5 @@
 package app.lockbook.utils
 
-import android.util.Log
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
@@ -54,7 +53,7 @@ val importAccountConverter = object : Converter {
             return Ok(Unit)
         }
 
-        when(basicError) {
+        when (basicError) {
             ImportError.AccountStringCorrupted::class.simpleName -> return Err(ImportError.AccountStringCorrupted)
             ImportError.AccountExistsAlready::class.simpleName -> return Err(ImportError.AccountExistsAlready)
         }
@@ -410,6 +409,13 @@ val syncAllConverter = object : Converter {
             SyncAllError.CouldNotReachServer::class.simpleName -> return Err(
                 SyncAllError.CouldNotReachServer
             )
+            SyncAllError.ExecuteWorkError::class.simpleName -> {
+                val jsonArray = jv.obj?.array<ExecuteWorkError>("Err")
+                jsonArray?.let {
+                    return Err(Klaxon().parseFromJsonArray<ExecuteWorkError>(jsonArray))
+                }
+                return Err(SyncAllError.UnexpectedError("Unable to retrieve WorkExecutionError from SyncAll!"))
+            }
         }
 
         if (unexpectedError is String) {
