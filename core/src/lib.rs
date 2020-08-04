@@ -2,24 +2,13 @@
 extern crate log;
 extern crate reqwest;
 
-use serde::Serialize;
-pub use sled::Db;
-use uuid::Uuid;
-
 use crate::client::{ClientImpl, Error};
-use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
-use crate::CreateFileAtPathError::{
-    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
-};
-use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::ImportError::AccountStringCorrupted;
 use crate::model::account::Account;
-use crate::model::api::NewAccountError;
+use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::repo::{document_repo, file_metadata_repo};
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
@@ -27,10 +16,11 @@ use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::repo::{document_repo, file_metadata_repo};
+use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
-use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
@@ -45,7 +35,16 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
+use crate::CreateFileAtPathError::{
+    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+};
+use crate::GetFileByPathError::NoFileAtThatPath;
+use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
+use serde::Serialize;
+pub use sled::Db;
+use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -163,6 +162,9 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
 pub enum ImportError {
     AccountStringCorrupted,
     AccountExistsAlready,
+    AccountDoesNotExist,
+    UsernamePKMismatch,
+    CouldNotReachServer,
     UnexpectedError(String),
 }
 
@@ -175,10 +177,23 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
             AccountImportError::AccountStringCorrupted(_)
             | AccountImportError::AccountStringFailedToDeserialize(_)
             | AccountImportError::InvalidPrivateKey(_) => Err(AccountStringCorrupted),
+            AccountImportError::AccountExistsAlready => Err(ImportError::AccountExistsAlready),
+            AccountImportError::PublicKeyMismatch => Err(UsernamePKMismatch),
+            AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
+                Error::SendFailed(_) => Err(ImportError::CouldNotReachServer),
+                Error::Api(api_err) => match api_err {
+                    GetPublicKeyError::UserNotFound => Err(AccountDoesNotExist),
+                    GetPublicKeyError::InvalidUsername | GetPublicKeyError::InternalError => {
+                        Err(ImportError::UnexpectedError(format!("{:#?}", api_err)))
+                    }
+                },
+                Error::Serialize(_) | Error::ReceiveFailed(_) | Error::Deserialize(_) => {
+                    Err(ImportError::UnexpectedError(format!("{:#?}", client_err)))
+                }
+            },
             AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(ImportError::UnexpectedError(format!("{:#?}", err)))
             }
-            AccountImportError::AccountExistsAlready => Err(ImportError::AccountExistsAlready),
         },
     }
 }
@@ -616,84 +631,109 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                     }
                 },
             },
-            SyncError::WorkExecutionError(err_map) => Err(SyncAllError::ExecuteWorkError(err_map.iter().map(|err| match err.1 {
-                WorkExecutionError::DocumentGetError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::DocumentRenameError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::FolderRenameError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::DocumentMoveError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::FolderMoveError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::DocumentCreateError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::FolderCreateError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::DocumentChangeError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::DocumentDeleteError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::FolderDeleteError(api) => match api {
-                    Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
-                    Error::Serialize(_)
-                    | Error::ReceiveFailed(_)
-                    | Error::Deserialize(_)
-                    | Error::Api(_) => ExecuteWorkError::UnexpectedError(format!("{:#?}", api)),
-                },
-                WorkExecutionError::MetadataRepoError(_)
-                | WorkExecutionError::MetadataRepoErrorOpt(_)
-                | WorkExecutionError::SaveDocumentError(_)
-                | WorkExecutionError::LocalChangesRepoError(_) => {
-                    ExecuteWorkError::UnexpectedError(format!("{:#?}", err))
-                }
-            }).collect::<Vec<_>>())),
+            SyncError::WorkExecutionError(err_map) => Err(SyncAllError::ExecuteWorkError(
+                err_map
+                    .iter()
+                    .map(|err| match err.1 {
+                        WorkExecutionError::DocumentGetError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentRenameError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderRenameError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentMoveError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderMoveError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentCreateError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderCreateError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentChangeError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentDeleteError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderDeleteError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::MetadataRepoError(_)
+                        | WorkExecutionError::MetadataRepoErrorOpt(_)
+                        | WorkExecutionError::SaveDocumentError(_)
+                        | WorkExecutionError::LocalChangesRepoError(_) => {
+                            ExecuteWorkError::UnexpectedError(format!("{:#?}", err))
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            )),
             SyncError::MetadataUpdateError(err) => {
                 Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
             }
