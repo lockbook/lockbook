@@ -19,7 +19,7 @@ IndexDb and FileDb integrity is maintained by API nodes.
 + Has this person cryptographically demonstrated that they possess the `private_key` associated with the operation they're trying to do?
 + Is this person updating a file they don't have the most recent version of?
 
-The endpoints are documented [here](api_endpoints.md).
+The contract between `core` and `server` is specified in [rust](https://github.com/lockbook/lockbook/blob/master/core/src/model/api.rs) and checked at compile time.
 
 ### Clients
 

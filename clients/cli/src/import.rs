@@ -4,7 +4,8 @@ use lockbook_core::{import_account, ImportError};
 
 use crate::utils::{exit_with, get_config};
 use crate::{
-    ACCOUNT_ALREADY_EXISTS, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN, SUCCESS, UNEXPECTED_ERROR,
+    ACCOUNT_ALREADY_EXISTS, ACCOUNT_DOES_NOT_EXIST, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN,
+    NETWORK_ISSUE, SUCCESS, UNEXPECTED_ERROR, USERNAME_PK_MISMATCH,
 };
 
 pub fn import() {
@@ -32,7 +33,10 @@ pub fn import() {
                     ACCOUNT_STRING_CORRUPTED,
                 ),
                 ImportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                ImportError::AccountExistsAlready => exit_with("Account already exists. `lockbook erase-everything` to erase your local state.", ACCOUNT_ALREADY_EXISTS)
+                ImportError::AccountExistsAlready => exit_with("Account already exists. `lockbook erase-everything` to erase your local state.", ACCOUNT_ALREADY_EXISTS),
+                ImportError::AccountDoesNotExist => exit_with("An account with this username was not found on the server.", ACCOUNT_DOES_NOT_EXIST),
+                ImportError::UsernamePKMismatch => exit_with("The public_key in this account_string does not match what is on the server", USERNAME_PK_MISMATCH),
+                ImportError::CouldNotReachServer => exit_with("Could not reach server.", NETWORK_ISSUE)
             },
         }
     }
