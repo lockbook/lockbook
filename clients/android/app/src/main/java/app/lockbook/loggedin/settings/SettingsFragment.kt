@@ -1,9 +1,7 @@
 package app.lockbook.loggedin.settings
 
-import android.annotation.SuppressLint
 import android.content.*
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.widget.PopupWindow
 import android.widget.Toast
@@ -11,11 +9,7 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.MutableLiveData
-import androidx.preference.ListPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceFragmentCompat
-import androidx.preference.PreferenceManager
+import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
@@ -26,23 +20,29 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
+import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
+import timber.log.Timber
 
 class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
+        Timber.plant(Timber.DebugTree())
 
         findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { preference, newValue ->
             if (newValue is String) {
-                Log.i("SmailBarkouch", "HERE1")
                 performBiometricFlow(preference.key, newValue)
             }
 
             false
+        }
+
+        if (!isBiometricsOptionsAvailable()) {
+            findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
     }
 
@@ -63,14 +63,15 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                 BIOMETRIC_OPTION_KEY,
                 BIOMETRIC_NONE
             )
-            ) {
-            BIOMETRIC_RECOMMENDED -> {
+        ) {
+            BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
+                    Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(
                         requireContext(),
-                        "An unexpected error has occurred!",
+                        UNEXPECTED_ERROR_OCCURRED,
                         Toast.LENGTH_LONG
                     )
                         .show()
@@ -88,13 +89,10 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                             super.onAuthenticationError(errorCode, errString)
                             when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
-                                    Log.i(
-                                        "SettingsFragment",
-                                        "Biometric authentication error: $errString"
-                                    )
+                                    Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         requireContext(),
-                                        "An unexpected error has occurred!", Toast.LENGTH_SHORT
+                                        UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 }
@@ -124,12 +122,8 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
-
             }
-            BIOMETRIC_NONE, BIOMETRIC_STRICT -> {
-                Log.i("SmailBarkouch", "HERE2")
-                matchKey(key, newValue)
-            }
+            BIOMETRIC_NONE -> matchKey(key, newValue)
         }
     }
 
@@ -144,7 +138,6 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
     private fun changeBiometricPreference(newValue: String) {
         findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.value = newValue
     }
-
 
     private fun exportAccountQR() {
         when (val exportResult = CoreModel.exportAccount(config)) {
@@ -162,17 +155,20 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
             }
             is Err -> {
-                when (exportResult.error) {
+                when (val error = exportResult.error) {
                     is AccountExportError.NoAccount -> Toast.makeText(
                         context,
                         "Error! No account!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is AccountExportError.UnexpectedError -> Toast.makeText(
-                        context,
-                        "An unexpected error has occurred!",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    is AccountExportError.UnexpectedError -> {
+                        Timber.e("Unable to export account: ${error.error}")
+                        Toast.makeText(
+                            context,
+                            UNEXPECTED_ERROR_OCCURRED,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
@@ -188,18 +184,25 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                 Toast.makeText(context, "Account string copied!", Toast.LENGTH_LONG)
                     .show()
             }
-            is Err -> when (exportResult.error) {
+            is Err -> when (val error = exportResult.error) {
                 is AccountExportError.NoAccount -> Toast.makeText(
                     context,
                     "Error! No account!",
                     Toast.LENGTH_LONG
                 ).show()
-                is AccountExportError.UnexpectedError -> Toast.makeText(
-                    context,
-                    "An unexpected error has occurred!",
-                    Toast.LENGTH_LONG
-                ).show()
+                is AccountExportError.UnexpectedError -> {
+                    Timber.e("Unable to export account: ${error.error}")
+                    Toast.makeText(
+                        context,
+                        UNEXPECTED_ERROR_OCCURRED,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
+
+    private fun isBiometricsOptionsAvailable(): Boolean =
+        BiometricManager.from(requireContext())
+            .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
 }

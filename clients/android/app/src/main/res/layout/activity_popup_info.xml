@@ -8,7 +8,7 @@
 
     <TextView
         android:id="@+id/popup_info_name"
-        style="@style/Text.Medium"
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="monospace"
@@ -16,28 +16,28 @@
 
     <TextView
         android:id="@+id/popup_info_id"
-        style="@style/Text.Medium"
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp" />
 
     <TextView
         android:id="@+id/popup_info_file_type"
-        style="@style/Text.Medium"
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp" />
 
     <TextView
         android:id="@+id/popup_info_metadata_version"
-        style="@style/Text.Medium"
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp" />
 
     <TextView
         android:id="@+id/popup_info_content_version"
-        style="@style/Text.Medium"
+        style="@style/Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp" />
