@@ -37,7 +37,7 @@ class ListFilesActivity : AppCompatActivity() {
                 if (fragment is ListFilesFragment) {
                     fragment.onSortPressed()
                 } else {
-                    Timber.e("Unable to get result of back press.")
+                    Timber.e("Unable to retrieve ListFilesFragment.")
                     Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
                 }
                 true
