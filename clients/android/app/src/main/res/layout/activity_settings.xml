@@ -1,23 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout xmlns:android="http://schemas.android.com/apk/res/android">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/settings_preference_layout" />
 
-    <data>
-
-        <variable
-            name="settingsViewModel"
-            type="app.lockbook.loggedin.settings.SettingsViewModel" />
-    </data>
-
-    <LinearLayout
-        android:id="@+id/settings_linear_layout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/settings_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical" />
-
-    </LinearLayout>
-</layout>
