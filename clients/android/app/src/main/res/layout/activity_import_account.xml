@@ -12,13 +12,9 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:paddingBottom="70dp"
+        android:paddingBottom="20dp"
         android:text="@string/lockbook_import"
-        android:textColor="@android:color/white"
-        android:textSize="40sp" />
-
-
+        style="@style/Text.Headline" />
 
     <ImageButton
         android:id="@+id/qr_import_button"
@@ -31,21 +27,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
-        android:backgroundTint="@color/dark"
         android:fontFamily="monospace"
         android:hint="@string/import_description"
         android:importantForAutofill="no"
-        android:inputType="textVisiblePassword"
-        android:textColor="@android:color/white"
-        android:textColorHint="@color/dark" />
+        android:inputType="textVisiblePassword" />
 
     <Button
         android:id="@+id/welcome_import_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimary"
-        android:text="@string/import_account_import_button"
-        android:textColor="#000000" />
+        style="@style/Button.Colored"
+        android:text="@string/import_account_import_button" />
 
 
 </LinearLayout>
