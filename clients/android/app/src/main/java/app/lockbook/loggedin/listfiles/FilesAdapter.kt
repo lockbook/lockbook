@@ -32,7 +32,7 @@ class FilesAdapter(val clickInterface: ClickInterface) : RecyclerView.Adapter<Fi
 
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
-        holder.cardView.file_description.text = item.id
+        holder.cardView.file_description.text = item.metadata_version.toString()
 
         if (item.file_type == FileType.Document) {
             holder.cardView.file_icon.setImageResource(R.drawable.ic_file_24)

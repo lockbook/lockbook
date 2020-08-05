@@ -15,6 +15,7 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import timber.log.Timber
 
 class ListFilesViewModel(path: String) :
     ViewModel(),
@@ -71,36 +72,56 @@ class ListFilesViewModel(path: String) :
         return true
     }
 
+    init {
+        Timber.plant(Timber.DebugTree())
+    }
+
     private fun upADirectory() {
         when (val getSiblingsOfParentResult = coreModel.getSiblingsOfParent()) {
             is Ok -> {
                 when (val getParentOfParentResult = coreModel.getParentOfParent()) {
-                    is Ok -> _files.postValue(getSiblingsOfParentResult.value)
-                    is Err -> when (getParentOfParentResult.error) {
+                    is Ok -> sortFiles(getSiblingsOfParentResult.value)
+                    is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                        is GetFileByIdError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                        is GetFileByIdError.UnexpectedError -> {
+                            Timber.e("Unable to get the parent of the current path: ${error.error}")
+                            _errorHasOccurred.postValue(
+                                UNEXPECTED_ERROR_OCCURRED
+                            )
+                        }
                     }
                 }
             }
-            is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            is Err -> {
+                Timber.e("Unable to get siblings of the parent: ${getSiblingsOfParentResult.error}")
+                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            }
         }
     }
 
     private fun refreshFiles() {
         when (val getChildrenResult = coreModel.getChildrenOfParent()) {
-            is Ok -> _files.postValue(getChildrenResult.value)
-            is Err -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+            is Ok -> sortFiles(getChildrenResult.value)
+            is Err -> {
+                Timber.e("Unable to get children: ${getChildrenResult.error}")
+                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            }
         }
     }
 
     private fun writeNewTextToDocument(content: String) {
         val writeToDocumentResult = coreModel.writeContentToDocument(content)
         if (writeToDocumentResult is Err) {
-            when (writeToDocumentResult.error) {
+            when (val error = writeToDocumentResult.error) {
                 is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
                 is WriteToDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 is WriteToDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is WriteToDocumentError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is WriteToDocumentError.UnexpectedError -> {
+                    Timber.e("Unable to write document changes: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -110,17 +131,23 @@ class ListFilesViewModel(path: String) :
             is Ok -> {
                 val insertFileResult = coreModel.insertFile(createFileResult.value)
                 if (insertFileResult is Err) {
-                    _errorHasOccurred.postValue("An unexpected error has occurred!")
+                    Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
                 refreshFiles()
             }
-            is Err -> when (createFileResult.error) {
+            is Err -> when (val error = createFileResult.error) {
                 is CreateFileError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is CreateFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! Document is treated as folder!")
                 is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
                 is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
-                is CreateFileError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is CreateFileError.UnexpectedError -> {
+                    Timber.e("Unable to create a file: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -128,11 +155,16 @@ class ListFilesViewModel(path: String) :
     private fun renameRefreshFiles(id: String, newName: String) {
         when (val renameFileResult = coreModel.renameFile(id, newName)) {
             is Ok -> refreshFiles()
-            is Err -> when (renameFileResult.error) {
+            is Err -> when (val error = renameFileResult.error) {
                 is RenameFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 is RenameFileError.NewNameContainsSlash -> _errorHasOccurred.postValue("Error! New name contains slash!")
                 is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
-                is RenameFileError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is RenameFileError.UnexpectedError -> {
+                    Timber.e("Unable to rename file: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -140,10 +172,30 @@ class ListFilesViewModel(path: String) :
     private fun deleteRefreshFiles(id: String) {
         when (val deleteFileResult = coreModel.deleteFile(id)) {
             is Ok -> refreshFiles()
-            is Err -> when (deleteFileResult.error) {
+            is Err -> when (val error = deleteFileResult.error) {
                 is DeleteFileError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                is DeleteFileError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is DeleteFileError.UnexpectedError -> {
+                    Timber.e("Unable to delete file: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
+        }
+    }
+
+    private fun sortFiles(files: List<FileMetadata>) {
+        val sortedFiles = files.sortedBy { fileMetadata ->
+            fileMetadata.name
+        }
+        if (sortedFiles == files) {
+            _files.postValue(
+                files.sortedByDescending { fileMetadata ->
+                    fileMetadata.name
+                }
+            )
+        } else {
+            _files.postValue(sortedFiles)
         }
     }
 
@@ -153,11 +205,16 @@ class ListFilesViewModel(path: String) :
                 _navigateToFileEditor.postValue(documentResult.value)
                 coreModel.lastDocumentAccessed = fileMetadata
             }
-            is Err -> when (documentResult.error) {
+            is Err -> when (val error = documentResult.error) {
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
                 is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is ReadDocumentError.UnexpectedError -> {
+                    Timber.e("Unable to get content of file: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -170,10 +227,18 @@ class ListFilesViewModel(path: String) :
     private fun sync() {
         val syncAllResult = coreModel.syncAllFiles()
         if (syncAllResult is Err) {
-            when (syncAllResult.error) {
+            when (val error = syncAllResult.error) {
                 is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
-                is SyncAllError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
+                    _errorHasOccurred.postValue("Unable to sync work.")
+                }
+                is SyncAllError.UnexpectedError -> {
+                    Timber.e("Unable to sync all files: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -181,9 +246,14 @@ class ListFilesViewModel(path: String) :
     private fun startUpInRoot() {
         when (val result = coreModel.setParentToRoot()) {
             is Ok -> refreshFiles()
-            is Err -> when (result.error) {
+            is Err -> when (val error = result.error) {
                 is GetRootError.NoRoot -> _errorHasOccurred.postValue("No root!")
-                is GetRootError.UnexpectedError -> _errorHasOccurred.postValue("An unexpected error has occurred!")
+                is GetRootError.UnexpectedError -> {
+                    Timber.e("Unable to set parent to root: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
     }
@@ -193,18 +263,13 @@ class ListFilesViewModel(path: String) :
             withContext(Dispatchers.IO) {
                 if (data is Intent) {
                     when (requestCode) {
-                        NEW_FILE_REQUEST_CODE -> {
-                            handleNewFileRequest(data)
-                        }
-                        TEXT_EDITOR_REQUEST_CODE -> {
-                            handleTextEditorRequest(data)
-                        }
-                        POP_UP_INFO_REQUEST_CODE -> {
-                            handlePopUpInfoRequest(resultCode, data)
-                        }
+                        NEW_FILE_REQUEST_CODE -> handleNewFileRequest(data)
+                        TEXT_EDITOR_REQUEST_CODE -> handleTextEditorRequest(data)
+                        POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
                     }
                 } else if (resultCode != RESULT_CANCELED) {
-                    _errorHasOccurred.postValue("An unexpected error has occurred!")
+                    Timber.e("Unable to recognize resultCode.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
             }
         }
@@ -216,7 +281,8 @@ class ListFilesViewModel(path: String) :
         if (name != null && fileType != null) {
             createInsertRefreshFiles(name, fileType)
         } else {
-            _errorHasOccurred.postValue("An unexpected error has occurred!")
+            Timber.e("Name or fileType is null.")
+            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
         }
     }
 
@@ -225,24 +291,33 @@ class ListFilesViewModel(path: String) :
         if (text != null) {
             writeNewTextToDocument(text)
         } else {
-            _errorHasOccurred.postValue("An unexpected error has occurred!")
+            Timber.e("text is null.")
+            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
         }
     }
 
     private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
-        if (resultCode == RENAME_RESULT_CODE) {
-            val id = data.getStringExtra("id")
-            val newName = data.getStringExtra("new_name")
-            if (id != null && newName != null) {
-                renameRefreshFiles(id, newName)
-            } else {
-                _errorHasOccurred.postValue("An unexpected error has occurred!")
+        val id = data.getStringExtra("id")
+        if (id is String) {
+            when (resultCode) {
+                RENAME_RESULT_CODE -> {
+                    val newName = data.getStringExtra("new_name")
+                    if (newName != null) {
+                        renameRefreshFiles(id, newName)
+                    } else {
+                        Timber.e("newName is null.")
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    }
+                }
+                DELETE_RESULT_CODE -> deleteRefreshFiles(id)
+                else -> {
+                    Timber.e("Unrecognized result code.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
-        } else if (resultCode == DELETE_RESULT_CODE) {
-            val id = data.getStringExtra("id")
-            if (id != null) {
-                deleteRefreshFiles(id)
-            }
+        } else {
+            Timber.e("id is null.")
+            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
         }
     }
 
@@ -253,6 +328,13 @@ class ListFilesViewModel(path: String) :
                 refreshFiles()
                 _listFilesRefreshing.postValue(false)
             }
+        }
+    }
+
+    fun onSortPressed() {
+        val files = _files.value
+        if (files is List<FileMetadata>) {
+            sortFiles(files)
         }
     }
 
