@@ -1,17 +1,16 @@
 package app.lockbook.login
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.utils.SharedPreferences.SHARED_PREF_FILE
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.android.synthetic.main.activity_new_account.*
@@ -82,10 +81,7 @@ class NewAccountActivity : AppCompatActivity() {
     }
 
     private fun setUpLoggedInState() {
-        getSharedPreferences(
-            SHARED_PREF_FILE,
-            Context.MODE_PRIVATE
-        ).edit().putBoolean(
+        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
             LOGGED_IN_KEY, true
         ).apply()
     }

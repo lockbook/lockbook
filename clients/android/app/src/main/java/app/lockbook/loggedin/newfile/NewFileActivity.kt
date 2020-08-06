@@ -6,7 +6,6 @@ import app.lockbook.R
 import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_new_file.*
-import kotlinx.android.synthetic.main.activity_new_file.name_text
 import kotlinx.coroutines.*
 
 class NewFileActivity : Activity() {

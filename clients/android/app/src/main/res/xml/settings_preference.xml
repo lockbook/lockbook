@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <PreferenceCategory
+        android:key="biometric_category"
+        android:title="Biometrics">
+        <ListPreference
+            android:defaultValue="@string/biometric_none_value"
+            android:entries="@array/settings_biometric_names"
+            android:entryValues="@array/settings_biometric_values"
+            android:key="biometric"
+            android:summary="Secure your account with biometrics"
+            android:title="@string/protect_account_biometric" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Export Account">
+        <Preference
+            android:key="export_account_raw"
+            android:title="@string/export_account_raw" />
+
+        <Preference
+            android:key="export_account_qr"
+            android:title="@string/export_account_qr" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

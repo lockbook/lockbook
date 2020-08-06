@@ -5,30 +5,26 @@
     android:orientation="vertical">
 
     <TextView
+        style="@style/Text.Headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:gravity="center"
-        android:paddingBottom="70dp"
-        android:text="@string/text_editor_text"
-        android:textColor="@android:color/white"
-        android:textSize="40sp" />
+        android:paddingBottom="30dp"
+        android:text="@string/text_editor_text" />
 
     <EditText
-        android:id="@+id/text_editor_text"
+        android:id="@+id/text_editor"
         android:layout_width="match_parent"
-        android:layout_height="474dp"
+        android:layout_height="500dp"
         android:fontFamily="monospace"
-        android:gravity="top|left"
-        android:inputType="textMultiLine|textNoSuggestions"
-        android:textColor="@android:color/white" />
+        android:gravity="top|start"
+        android:importantForAutofill="no"
+        android:inputType="textMultiLine|textNoSuggestions" />
 
     <Button
         android:id="@+id/popup_info_rename"
+        style="@style/Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimary"
-        android:text="@string/text_editor_save_button_title"
-        android:textColor="#000000" />
+        android:text="@string/text_editor_save_button_title" />
 
 </LinearLayout>
