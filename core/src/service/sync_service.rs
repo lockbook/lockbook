@@ -301,7 +301,8 @@ impl<
                                         error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
                                     }
 
-                                    if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt")
+                                    if metadata.name.ends_with(".md")
+                                        || metadata.name.ends_with(".txt")
                                     {
                                         // Content is mergable
                                     } else {
@@ -317,7 +318,7 @@ impl<
                                             local_metadata.parent,
                                             Document,
                                         )
-                                            .map_err(ResolveConflictByCreatingNewFileError)?;
+                                        .map_err(ResolveConflictByCreatingNewFileError)?;
 
                                         // Copy the local copy over
                                         DocsDb::insert(
@@ -326,14 +327,14 @@ impl<
                                             &DocsDb::get(&db, local_changes.id)
                                                 .map_err(SaveDocumentError)?,
                                         )
-                                            .map_err(SaveDocumentError)?;
+                                        .map_err(SaveDocumentError)?;
 
                                         // Overwrite local file with server copy
                                         let new_content = ApiClient::get_document(
                                             metadata.id,
                                             metadata.content_version,
                                         )
-                                            .map_err(DocumentGetError)?;
+                                        .map_err(DocumentGetError)?;
 
                                         DocsDb::insert(&db, metadata.id, &new_content)
                                             .map_err(SaveDocumentError)?;
