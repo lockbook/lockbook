@@ -294,54 +294,54 @@ impl<
                                 error!("Server has modified a file this client has marked as new! This should not be possible. id: {}", metadata.id);
                             }
 
-                            if local_changes.content_edited
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                if metadata.file_type == Folder {
-                                    // Should be unreachable
-                                    error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
-                                }
+                            if let Some(_edited_locally) = local_changes.content_edited {
+                                if local_metadata.content_version != metadata.content_version {
+                                    if metadata.file_type == Folder {
+                                        // Should be unreachable
+                                        error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
+                                    }
 
-                                if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt")
-                                {
-                                    // Content is mergable
-                                } else {
-                                    // Content is not mergable
+                                    if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt")
+                                    {
+                                        // Content is mergable
+                                    } else {
+                                        // Content is not mergable
 
-                                    // Create a new file
-                                    let new_file = DefaultFileService::create(
-                                        &db,
-                                        &format!(
-                                            "{}-CONTENT-CONFLICT-{}",
-                                            &local_metadata.name, local_metadata.id
-                                        ),
-                                        local_metadata.parent,
-                                        Document,
-                                    )
-                                    .map_err(ResolveConflictByCreatingNewFileError)?;
+                                        // Create a new file
+                                        let new_file = DefaultFileService::create(
+                                            &db,
+                                            &format!(
+                                                "{}-CONTENT-CONFLICT-{}",
+                                                &local_metadata.name, local_metadata.id
+                                            ),
+                                            local_metadata.parent,
+                                            Document,
+                                        )
+                                            .map_err(ResolveConflictByCreatingNewFileError)?;
 
-                                    // Copy the local copy over
-                                    DocsDb::insert(
-                                        &db,
-                                        new_file.id,
-                                        &DocsDb::get(&db, local_changes.id)
-                                            .map_err(SaveDocumentError)?,
-                                    )
-                                    .map_err(SaveDocumentError)?;
+                                        // Copy the local copy over
+                                        DocsDb::insert(
+                                            &db,
+                                            new_file.id,
+                                            &DocsDb::get(&db, local_changes.id)
+                                                .map_err(SaveDocumentError)?,
+                                        )
+                                            .map_err(SaveDocumentError)?;
 
-                                    // Overwrite local file with server copy
-                                    let new_content = ApiClient::get_document(
-                                        metadata.id,
-                                        metadata.content_version,
-                                    )
-                                    .map_err(DocumentGetError)?;
+                                        // Overwrite local file with server copy
+                                        let new_content = ApiClient::get_document(
+                                            metadata.id,
+                                            metadata.content_version,
+                                        )
+                                            .map_err(DocumentGetError)?;
 
-                                    DocsDb::insert(&db, metadata.id, &new_content)
-                                        .map_err(SaveDocumentError)?;
+                                        DocsDb::insert(&db, metadata.id, &new_content)
+                                            .map_err(SaveDocumentError)?;
 
-                                    // Mark content as synced
-                                    ChangeDb::untrack_edit(&db, metadata.id)
-                                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                        // Mark content as synced
+                                        ChangeDb::untrack_edit(&db, metadata.id)
+                                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                    }
                                 }
                             }
 
@@ -355,7 +355,7 @@ impl<
 
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if !local_changes.content_edited {
+                        } else if local_changes.content_edited.is_none() {
                             FileMetadataDb::actually_delete(&db, metadata.id)
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
 
@@ -486,7 +486,7 @@ impl<
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
 
-                    if local_change.content_edited && metadata.file_type == Document {
+                    if local_change.content_edited.is_some() && metadata.file_type == Document {
                         let version = ApiClient::change_document_content(
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },

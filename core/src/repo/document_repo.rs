@@ -10,9 +10,16 @@ pub enum Error {
     FileRowMissing(()), // TODO remove from insert
 }
 
+#[derive(Debug)]
+pub enum DbError {
+    SledError(sled::Error),
+    SerdeError(serde_json::Error),
+}
+
 pub trait DocumentRepo {
     fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error>;
     fn get(db: &Db, id: Uuid) -> Result<Document, Error>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError>;
     fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
 }
 
@@ -37,6 +44,19 @@ impl DocumentRepo for DocumentRepoImpl {
             serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(document)
+    }
+
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError> {
+        let tree = db.open_tree(b"documents").map_err(DbError::SledError)?;
+        match tree.get(id.as_bytes()).map_err(DbError::SledError)? {
+            None => Ok(None),
+            Some(file) => {
+                let document: Document =
+                    serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
+
+                Ok(Some(document))
+            },
+        }
     }
 
     fn delete(db: &Db, id: Uuid) -> Result<(), Error> {

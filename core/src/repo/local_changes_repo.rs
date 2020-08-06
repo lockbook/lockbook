@@ -1,7 +1,8 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::local_changes::{LocalChange, Moved, Renamed};
+use crate::model::local_changes::{LocalChange, Moved, Renamed, Edited};
+use crate::model::crypto::DecryptedValue;
 
 #[derive(Debug)]
 pub enum DbError {
@@ -15,7 +16,7 @@ pub trait LocalChangesRepo {
     fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError>;
     fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError>;
-    fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn track_edit(db: &Db, id: Uuid, old_value: &DecryptedValue, new_value: &DecryptedValue) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
@@ -64,7 +65,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             renamed: None,
             moved: None,
             new: true,
-            content_edited: false,
+            content_edited: None,
             deleted: false,
         };
 
@@ -86,7 +87,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: Some(Renamed::from(old_name)),
                     moved: None,
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: false,
                 };
 
@@ -128,7 +129,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: Some(Moved::from(old_parent)),
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: false,
                 };
 
@@ -160,7 +161,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         }
     }
 
-    fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn track_edit(db: &Db, id: Uuid, old_value: &DecryptedValue, new_value: &DecryptedValue) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -170,7 +171,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: None,
                     new: false,
-                    content_edited: true,
+                    content_edited: Some(Edited{ old_value: old_value.clone() }),
                     deleted: false,
                 };
                 tree.insert(
@@ -180,18 +181,21 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 .map_err(DbError::SledError)?;
                 Ok(())
             }
-            Some(mut change) => {
-                if change.content_edited {
-                    Ok(())
-                } else {
-                    change.content_edited = true;
+            Some(mut change) => match change.content_edited {
+                None => {
+                    change.content_edited = Some(Edited{ old_value: old_value.clone() });
                     tree.insert(
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                     )
-                    .map_err(DbError::SledError)?;
+                        .map_err(DbError::SledError)?;
                     Ok(())
-                }
+                },
+                Some(edited) => if edited.old_value == new_value.clone() {
+                    Self::untrack_edit(&db, id)
+                } else {
+                    Ok(())
+                },
             }
         }
     }
@@ -206,7 +210,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: None,
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: true,
                 };
                 tree.insert(
@@ -288,7 +292,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         match Self::get_local_changes(&db, id)? {
             None => Ok(()),
             Some(mut edit) => {
-                edit.content_edited = false;
+                edit.content_edited = None;
 
                 if edit.ready_to_be_deleted() {
                     Self::delete_if_exists(&db, edit.id)?
@@ -326,10 +330,11 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::local_changes::{LocalChange, Moved, Renamed};
+    use crate::model::local_changes::{LocalChange, Moved, Renamed, Edited};
     use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
+    use crate::model::crypto::DecryptedValue;
 
     type DefaultDbProvider = TempBackedDB;
 
@@ -360,7 +365,7 @@ mod unit_tests {
                 renamed: None,
                 moved: None,
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -376,7 +381,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: None,
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -387,7 +392,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file2")),
                 moved: None,
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -403,7 +408,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -414,14 +419,14 @@ mod unit_tests {
                 renamed: None,
                 moved: Some(Moved::from(id2)),
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
 
         let id4 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_edit(&db, id).unwrap();
-        LocalChangesRepoImpl::track_edit(&db, id4).unwrap();
+        LocalChangesRepoImpl::track_edit(&db, id, &DecryptedValue::from("old"), &DecryptedValue::from("new")).unwrap();
+        LocalChangesRepoImpl::track_edit(&db, id4,&DecryptedValue::from("old"), &DecryptedValue::from("new")).unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -430,7 +435,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: true,
+                content_edited: Some( Edited{ old_value: DecryptedValue::from("old") }),
                 deleted: false,
             })
         );
@@ -441,7 +446,7 @@ mod unit_tests {
                 renamed: None,
                 moved: None,
                 new: false,
-                content_edited: true,
+                content_edited: Some( Edited{ old_value: DecryptedValue::from("old") }),
                 deleted: false,
             })
         );
@@ -457,7 +462,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: true,
+                content_edited: Some( Edited{ old_value: DecryptedValue::from("old") }),
                 deleted: true,
             })
         );
@@ -468,7 +473,7 @@ mod unit_tests {
                 renamed: None,
                 moved: None,
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: true,
             })
         );
@@ -507,7 +512,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: true,
             })
         );

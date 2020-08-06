@@ -80,6 +80,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi_term"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
+dependencies = [
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "arc-swap"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -381,6 +390,15 @@ checksum = "4434400df11d95d556bac068ddfedd482915eb18fe8bea89bc80b6e4b1c179e5"
 dependencies = [
  "generic-array",
  "subtle 1.0.0",
+]
+
+[[package]]
+name = "diffy"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f807f0e94954d20729e378653f4caf2a654c7ad5032dc591d6214255a672e1e7"
+dependencies = [
+ "ansi_term",
 ]
 
 [[package]]
@@ -961,6 +979,7 @@ dependencies = [
  "aes-gcm",
  "base64 0.11.0",
  "bincode",
+ "diffy",
  "env_logger",
  "jni",
  "log",
