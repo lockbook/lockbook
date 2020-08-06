@@ -1,29 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item android:id="@+id/menu_text_editor_done"
-        android:icon="@drawable/ic_baseline_done_24"
-        app:showAsAction="always"
-        android:orderInCategory="5"
-        android:title="@string/menu_text_editor_done"/>
-    <item android:id="@+id/menu_text_editor_search"
-        android:icon="@drawable/ic_baseline_search_24"
-        app:showAsAction="always"
+    <item
+        android:id="@+id/menu_text_editor_overflow"
+        android:icon="@drawable/ic_baseline_more_vert_24"
         android:orderInCategory="4"
-        android:title="@string/menu_text_editor_search"/>
-    <item android:id="@+id/menu_text_editor_view_md"
+        android:title=""
+        app:showAsAction="always">
+        <menu>
+            <item
+                android:id="@+id/menu_text_editor_done"
+                android:icon="@drawable/ic_baseline_done_24"
+                android:title="@string/menu_text_editor_done"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/menu_text_editor_search"
+                android:icon="@drawable/ic_baseline_search_24"
+                android:title="@string/menu_text_editor_search"
+                app:showAsAction="never" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/menu_text_editor_view_md"
         android:icon="@drawable/ic_baseline_remove_red_eye_24"
-        app:showAsAction="always"
         android:orderInCategory="3"
-        android:title="@string/menu_text_editor_view_md"/>
-    <item android:id="@+id/menu_text_editor_redo"
+        android:title="@string/menu_text_editor_view_md"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/menu_text_editor_redo"
         android:icon="@drawable/ic_baseline_arrow_forward_24"
-        app:showAsAction="always"
         android:orderInCategory="2"
-        android:title="@string/menu_text_editor_redo"/>
-    <item android:id="@+id/menu_text_editor_undo"
+        android:title="@string/menu_text_editor_redo"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/menu_text_editor_undo"
         android:icon="@drawable/ic_baseline_arrow_back_24"
-        app:showAsAction="always"
         android:orderInCategory="1"
-        android:title="@string/menu_text_editor_undo"/>
+        android:title="@string/menu_text_editor_undo"
+        app:showAsAction="always" />
+
 </menu>
