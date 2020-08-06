@@ -12,11 +12,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
-        android:backgroundTint="@color/dark"
         android:hint="@string/new_file_name"
-        android:importantForAutofill="no"
-        android:textColor="@android:color/white"
-        android:textColorHint="@color/dark" />
+        android:importantForAutofill="no" />
 
     <RadioGroup
         android:id="@+id/file_type_radio_group"
@@ -26,29 +23,26 @@
 
         <RadioButton
             android:id="@+id/file_radio_button"
+            style="@style/Text.Caption"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:buttonTint="@color/blue"
             android:checked="true"
-            android:text="@string/new_file_file"
-            android:textColor="@android:color/white" />
+            android:text="@string/new_file_file" />
 
         <RadioButton
             android:id="@+id/folder_radio_button"
+            style="@style/Text.Caption"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:buttonTint="@color/blue"
-            android:text="@string/new_file_folder"
-            android:textColor="@android:color/white" />
+            android:text="@string/new_file_folder" />
     </RadioGroup>
 
     <Button
         android:id="@+id/new_file_create_file"
+        style="@style/Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
-        android:backgroundTint="?attr/colorPrimary"
-        android:text="@string/new_file_create"
-        android:textColor="#000000" />
+        android:text="@string/new_file_create" />
 
 </LinearLayout>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="biometric_none_value">biometric_none</string>
+    <string name="biometric_recommended_value">biometric_recommended</string>
+    <string name="biometric_strict_value">biometric_strict</string>
+
+    <array name="settings_biometric_values">
+        <item>@string/biometric_none_value</item>
+        <item>@string/biometric_recommended_value</item>
+        <item>@string/biometric_strict_value</item>
+    </array>
+</resources>
