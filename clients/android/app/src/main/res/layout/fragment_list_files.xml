@@ -38,7 +38,7 @@
             android:clickable="true"
             android:focusable="true"
             android:onClick="@{() -> listFilesViewModel.launchNewFileActivity()}"
-            android:src="@drawable/ic_fab_24"
+            android:src="@drawable/ic_baseline_add_24"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 

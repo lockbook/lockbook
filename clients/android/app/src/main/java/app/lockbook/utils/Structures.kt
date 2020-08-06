@@ -68,3 +68,8 @@ data class LocalChange(val metadata: FileMetadata)
 data class ServerChange(val metadata: FileMetadata)
 
 data class Config(val writeable_path: String)
+
+data class EditableFile(
+    val name: String,
+    val contents: String
+)
