@@ -11,6 +11,7 @@ import io.noties.markwon.*
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import timber.log.Timber
 import java.util.concurrent.Executors
 
 class TextEditorActivity : AppCompatActivity() {
@@ -18,31 +19,6 @@ class TextEditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
         setUpView()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.menu_text_editor, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.menu_text_editor_done -> submitText()
-            R.id.menu_text_editor_search -> {
-            }
-            R.id.menu_text_editor_view_md -> viewMarkdown()
-            R.id.menu_text_editor_redo -> {
-            }
-            R.id.menu_text_editor_undo -> {
-            }
-        }
-
-        return false
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
     }
 
     private fun setUpView() {
@@ -79,5 +55,29 @@ class TextEditorActivity : AppCompatActivity() {
 
         setResult(RESULT_OK, intent)
         finish()
+    }
+
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_text_editor, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        Timber.i("lmao: ${item.itemId == R.id.menu_text_editor_done}")
+        when (item.itemId) {
+            R.id.menu_text_editor_done -> submitText()
+            R.id.menu_text_editor_search -> {}
+            R.id.menu_text_editor_view_md -> viewMarkdown()
+            R.id.menu_text_editor_redo -> {}
+            R.id.menu_text_editor_undo -> {}
+        }
+
+        return true
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }
