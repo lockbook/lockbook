@@ -138,6 +138,10 @@ class ListFilesFragment : Fragment() {
         return listFilesViewModel.quitOrNot()
     }
 
+    fun onSortPressed() {
+        listFilesViewModel.onSortPressed()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
     }
