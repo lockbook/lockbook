@@ -26,7 +26,7 @@ class ListFilesViewModel(path: String) :
     private val coreModel = CoreModel(Config(path))
 
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _navigateToFileEditor = MutableLiveData<String>()
+    private val _navigateToFileEditor = MutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
     private val _navigateToNewFile = MutableLiveData<Unit>()
     private val _listFilesRefreshing = MutableLiveData<Boolean>()
@@ -35,7 +35,7 @@ class ListFilesViewModel(path: String) :
     val files: LiveData<List<FileMetadata>>
         get() = _files
 
-    val navigateToFileEditor: LiveData<String>
+    val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
 
     val navigateToPopUpInfo: LiveData<FileMetadata>
@@ -202,7 +202,7 @@ class ListFilesViewModel(path: String) :
     private fun handleReadDocument(fileMetadata: FileMetadata) {
         when (val documentResult = coreModel.getDocumentContent(fileMetadata.id)) {
             is Ok -> {
-                _navigateToFileEditor.postValue(documentResult.value)
+                _navigateToFileEditor.postValue(EditableFile(fileMetadata.name, documentResult.value))
                 coreModel.lastDocumentAccessed = fileMetadata
             }
             is Err -> when (val error = documentResult.error) {
@@ -287,11 +287,11 @@ class ListFilesViewModel(path: String) :
     }
 
     private fun handleTextEditorRequest(data: Intent) {
-        val text = data.getStringExtra("text")
+        val text = data.getStringExtra("contents")
         if (text != null) {
             writeNewTextToDocument(text)
         } else {
-            Timber.e("text is null.")
+            Timber.e("contents is null.")
             _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
         }
     }
@@ -332,9 +332,13 @@ class ListFilesViewModel(path: String) :
     }
 
     fun onSortPressed() {
-        val files = _files.value
-        if (files is List<FileMetadata>) {
-            sortFiles(files)
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val files = _files.value
+                if (files is List<FileMetadata>) {
+                    sortFiles(files)
+                }
+            }
         }
     }
 
