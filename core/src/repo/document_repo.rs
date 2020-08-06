@@ -55,7 +55,7 @@ impl DocumentRepo for DocumentRepoImpl {
                     serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
 
                 Ok(Some(document))
-            },
+            }
         }
     }
 

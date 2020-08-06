@@ -1,6 +1,6 @@
+use crate::model::crypto::DecryptedValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::crypto::DecryptedValue;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalChange {
@@ -54,5 +54,5 @@ impl From<Uuid> for Moved {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Edited {
-    pub old_value: DecryptedValue
+    pub old_value: DecryptedValue,
 }
