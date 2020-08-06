@@ -18,7 +18,6 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
-        Timber.plant(Timber.DebugTree())
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -28,11 +27,11 @@ class ListFilesActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.menu_settings -> {
+            R.id.menu_list_files_settings -> {
                 startActivity(Intent(applicationContext, SettingsActivity::class.java))
                 true
             }
-            R.id.menu_sort -> {
+            R.id.menu_list_files_sort -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
                     fragment.onSortPressed()

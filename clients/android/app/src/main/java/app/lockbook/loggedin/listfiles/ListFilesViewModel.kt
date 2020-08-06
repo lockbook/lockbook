@@ -72,10 +72,6 @@ class ListFilesViewModel(path: String) :
         return true
     }
 
-    init {
-        Timber.plant(Timber.DebugTree())
-    }
-
     private fun upADirectory() {
         when (val getSiblingsOfParentResult = coreModel.getSiblingsOfParent()) {
             is Ok -> {
@@ -110,7 +106,9 @@ class ListFilesViewModel(path: String) :
     }
 
     private fun writeNewTextToDocument(content: String) {
+        Timber.i("HERE1")
         val writeToDocumentResult = coreModel.writeContentToDocument(content)
+        Timber.i("HERE2")
         if (writeToDocumentResult is Err) {
             when (val error = writeToDocumentResult.error) {
                 is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
@@ -287,9 +285,9 @@ class ListFilesViewModel(path: String) :
     }
 
     private fun handleTextEditorRequest(data: Intent) {
-        val text = data.getStringExtra("contents")
-        if (text != null) {
-            writeNewTextToDocument(text)
+        val contents = data.getStringExtra("contents")
+        if (contents != null) {
+            writeNewTextToDocument(contents)
         } else {
             Timber.e("contents is null.")
             _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
