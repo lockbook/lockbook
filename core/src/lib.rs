@@ -324,6 +324,8 @@ pub fn write_document(
             | DocumentUpdateError::FileCryptoError(_)
             | DocumentUpdateError::DocumentWriteError(_)
             | DocumentUpdateError::DbError(_)
+            | DocumentUpdateError::FetchOldVersionError(_)
+            | DocumentUpdateError::DecryptOldVersionError(_)
             | DocumentUpdateError::FailedToRecordChange(_) => {
                 Err(WriteToDocumentError::UnexpectedError(format!("{:#?}", err)))
             }
