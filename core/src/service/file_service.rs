@@ -17,7 +17,9 @@ use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure,
 };
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
-use crate::service::file_service::DocumentUpdateError::{CouldNotFindFile, DbError, DocumentWriteError, FolderTreatedAsDocument, FetchOldVersionError};
+use crate::service::file_service::DocumentUpdateError::{
+    CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError, FolderTreatedAsDocument,
+};
 use crate::service::file_service::FileMoveError::{
     FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
 };
@@ -287,14 +289,18 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
-        let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents.clone())
-            .map_err(DocumentUpdateError::FileCryptoError)?;
+        let new_file =
+            FileCrypto::write_to_document(&account, &content, &file_metadata, parents.clone())
+                .map_err(DocumentUpdateError::FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
         let maybe_old_version = FileDb::maybe_get(&db, id).map_err(FetchOldVersionError)?;
         let old_version = match maybe_old_version {
             None => DecryptedValue::from(""),
-            Some(old_encrypted) => FileCrypto::read_document(&account, &old_encrypted, &file_metadata, parents).map_err(DocumentUpdateError::DecryptOldVersionError)?,
+            Some(old_encrypted) => {
+                FileCrypto::read_document(&account, &old_encrypted, &file_metadata, parents)
+                    .map_err(DocumentUpdateError::DecryptOldVersionError)?
+            }
         };
         FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
         ChangesDb::track_edit(&db, file_metadata.id, &old_version, &content)
