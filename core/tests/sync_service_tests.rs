@@ -3,7 +3,6 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use crate::integration_test::{random_username, test_db};
-    use env_logger::init;
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -666,7 +665,6 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_mergable() {
-        init();
         let db1 = test_db();
         let db2 = test_db();
 
@@ -723,7 +721,6 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_local_move_before_mergable() {
-        init();
         let db1 = test_db();
         let db2 = test_db();
 
@@ -784,7 +781,6 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_local_after_before_mergable() {
-        init();
         let db1 = test_db();
         let db2 = test_db();
 
@@ -845,7 +841,6 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_server_after_before_mergable() {
-        init();
         let db1 = test_db();
         let db2 = test_db();
 
