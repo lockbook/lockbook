@@ -1109,7 +1109,7 @@ mod unit_tests {
         assert!(DefaultFileService::write_document(
             &db,
             folder1.id,
-            &DecryptedValue::from("should fail")
+            &DecryptedValue::from("should fail"),
         )
         .is_err());
 
@@ -1188,5 +1188,52 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn test_keeping_track_of_edits() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let file = DefaultFileService::create_at_path(&db, "username/file1.md").unwrap();
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+            .unwrap();
+
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+                .unwrap()
+                .unwrap()
+                .new
+        );
+
+        DefaultLocalChangesRepo::untrack_new_file(&db, file.id).unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultLocalChangesRepo::get_all_local_changes(&db)
+            .unwrap()
+            .is_empty());
+
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content2"))
+            .unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .unwrap()
+            .content_edited
+            .is_some());
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+            .unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .is_none());
     }
 }

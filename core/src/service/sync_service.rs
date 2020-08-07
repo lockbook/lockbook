@@ -326,7 +326,7 @@ impl<
                                     if metadata.name.ends_with(".md")
                                         || metadata.name.ends_with(".txt")
                                     {
-                                        debug!("File is mergable: {}", metadata.id);
+                                        debug!("File {} is mergable: {}", metadata.id, metadata.id);
 
                                         let common_ansestor = FileCrypto::user_read_document(
                                             &account,
@@ -336,10 +336,13 @@ impl<
                                         .map_err(DecryptingOldVersionForMergeError)?
                                         .secret;
 
+                                        debug!("{} Common ans: {}", metadata.id, &common_ansestor);
+
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
                                                 .map_err(ReadingCurrentVersionError)?
                                                 .secret;
+                                        debug!("{} current: {}", metadata.id, &current_version);
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
@@ -356,6 +359,7 @@ impl<
                                             .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
                                             .secret
                                         };
+                                        debug!("{} server: {}", metadata.id, &server_version);
 
                                         let result = match diffy::merge(
                                             &common_ansestor,
@@ -372,15 +376,14 @@ impl<
                                             }
                                         };
 
+                                        debug!("{} result: {}", metadata.id, &result);
+
                                         Files::write_document(
                                             &db,
                                             metadata.id,
                                             &DecryptedValue::from(result),
                                         )
                                         .map_err(WritingMergedFileError)?;
-
-                                        ChangeDb::untrack_edit(&db, metadata.id)
-                                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                                     } else {
                                         debug!("File is not mergable: {}", metadata.id);
 
