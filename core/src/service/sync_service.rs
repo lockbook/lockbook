@@ -39,7 +39,6 @@ use crate::service::sync_service::WorkExecutionError::{
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
-use diffy;
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
