@@ -16,6 +16,7 @@ import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.loggedin.newfile.NewFileActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
@@ -60,8 +61,8 @@ class ListFilesFragment : Fragment() {
 
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
-            Observer { fileContents ->
-                navigateToFileEditor(fileContents)
+            Observer { editableFile ->
+                navigateToFileEditor(editableFile)
             }
         )
 
@@ -109,9 +110,10 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun navigateToFileEditor(fileContents: String) {
+    private fun navigateToFileEditor(editableFile: EditableFile) {
         val intent = Intent(context, TextEditorActivity::class.java)
-        intent.putExtra("text", fileContents)
+        intent.putExtra("name", editableFile.name)
+        intent.putExtra("contents", editableFile.contents)
         startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
     }
 
