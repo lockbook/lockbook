@@ -1,14 +1,20 @@
+mod integration_test;
+
 #[cfg(test)]
-mod move_document_tests {
-    use crate::{aes_key, aes_str, generate_account, random_filename, rsa_key, sign};
+mod rename_document_tests {
+    use crate::integration_test::{
+        aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
+    };
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
+    use crate::assert_matches;
+
     #[test]
-    fn move_document() {
+    fn rename_document() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -46,44 +52,21 @@ mod move_document_tests {
         )
         .unwrap();
 
-        // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
+        // rename document
         assert_matches!(
-            ClientImpl::create_folder(
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        // move document
-        assert_matches!(
-            ClientImpl::move_document(
+            ClientImpl::rename_document(
                 &account.username,
                 &sign(&account),
                 doc_id,
                 version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                }
+                &random_filename(),
             ),
             Ok(_)
         );
     }
 
     #[test]
-    fn move_document_not_found() {
+    fn rename_document_not_found() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -104,27 +87,23 @@ mod move_document_tests {
             Ok(_)
         );
 
-        // move document that wasn't created
+        // rename document that wasn't created
         assert_matches!(
-            ClientImpl::move_document(
+            ClientImpl::rename_document(
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),
                 0,
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
+                &random_filename(),
             ),
-            Err(Error::<MoveDocumentError>::Api(
-                MoveDocumentError::DocumentNotFound
+            Err(Error::<RenameDocumentError>::Api(
+                RenameDocumentError::DocumentNotFound
             ))
         );
     }
 
     #[test]
-    fn move_document_deleted() {
+    fn rename_document_deleted() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -161,25 +140,6 @@ mod move_document_tests {
             },
         )
         .unwrap();
-
-        // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Ok(_)
-        );
 
         // delete document
         assert_matches!(
@@ -187,27 +147,23 @@ mod move_document_tests {
             Ok(_)
         );
 
-        // move deleted document
+        // rename deleted document
         assert_matches!(
-            ClientImpl::move_document(
+            ClientImpl::rename_document(
                 &account.username,
                 &sign(&account),
                 doc_id,
                 version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+                &random_filename(),
             ),
-            Err(Error::<MoveDocumentError>::Api(
-                MoveDocumentError::DocumentDeleted
+            Err(Error::<RenameDocumentError>::Api(
+                RenameDocumentError::DocumentDeleted
             ))
         );
     }
 
     #[test]
-    fn move_document_conflict() {
+    fn rename_document_conflict() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -245,46 +201,23 @@ mod move_document_tests {
         )
         .unwrap();
 
-        // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
+        // rename document
         assert_matches!(
-            ClientImpl::create_folder(
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        // move document
-        assert_matches!(
-            ClientImpl::move_document(
+            ClientImpl::rename_document(
                 &account.username,
                 &sign(&account),
                 doc_id,
                 version - 1,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+                &random_filename(),
             ),
-            Err(Error::<MoveDocumentError>::Api(
-                MoveDocumentError::EditConflict
+            Err(Error::<RenameDocumentError>::Api(
+                RenameDocumentError::EditConflict
             ))
         );
     }
 
     #[test]
-    fn move_document_path_taken() {
+    fn rename_document_path_taken() {
         // new account
         let account = generate_account();
         let folder_id = Uuid::new_v4();
@@ -308,12 +241,11 @@ mod move_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
-        let doc_name = random_filename();
         let version = ClientImpl::create_document(
             &account.username,
             &sign(&account),
             doc_id,
-            &doc_name,
+            &random_filename(),
             folder_id,
             aes_str(&doc_key, "doc content"),
             FolderAccessInfo {
@@ -323,38 +255,20 @@ mod move_document_tests {
         )
         .unwrap();
 
-        // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        // create document with same name in that folder
+        // create document in same folder
         let doc_id2 = Uuid::new_v4();
         let doc_key2 = AesImpl::generate_key();
+        let doc_name2 = random_filename();
         assert_matches!(
             ClientImpl::create_document(
                 &account.username,
                 &sign(&account),
                 doc_id2,
-                &doc_name,
-                subfolder_id,
+                &doc_name2,
+                folder_id,
                 aes_str(&doc_key2, "doc content"),
                 FolderAccessInfo {
-                    folder_id: subfolder_id,
+                    folder_id: folder_id,
                     access_key: aes_key(&folder_key, &doc_key2),
                 },
             ),
@@ -363,19 +277,15 @@ mod move_document_tests {
 
         // move document
         assert_matches!(
-            ClientImpl::move_document(
+            ClientImpl::rename_document(
                 &account.username,
                 &sign(&account),
                 doc_id,
                 version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+                &doc_name2,
             ),
-            Err(Error::<MoveDocumentError>::Api(
-                MoveDocumentError::DocumentPathTaken
+            Err(Error::<RenameDocumentError>::Api(
+                RenameDocumentError::DocumentPathTaken
             ))
         );
     }
