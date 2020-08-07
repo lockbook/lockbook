@@ -13,7 +13,7 @@ use crate::model::api::{
     DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
     RenameFolderError,
 };
-use crate::model::crypto::SignedValue;
+use crate::model::crypto::{DecryptedValue, SignedValue};
 use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
@@ -24,18 +24,22 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
-use crate::service::file_service;
+use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::FileService;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    AutoRenameError, DocumentChangeError, DocumentCreateError, DocumentDeleteError,
-    DocumentGetError, DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError,
-    FolderMoveError, FolderRenameError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
+    AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
+    DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
+    FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
+    ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
+    WritingMergedFileError,
 };
+use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
+use diffy;
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -65,6 +69,10 @@ pub enum WorkExecutionError {
     LocalChangesRepoError(local_changes_repo::DbError),
     AutoRenameError(file_service::DocumentRenameError),
     ResolveConflictByCreatingNewFileError(file_service::NewFileError),
+    DecryptingOldVersionForMergeError(file_encryption_service::UnableToReadFileAsUser),
+    ReadingCurrentVersionError(file_service::ReadDocumentError),
+    WritingMergedFileError(file_service::DocumentUpdateError),
+    FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
 }
 
 #[derive(Debug)]
@@ -80,6 +88,7 @@ pub trait SyncService {
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
     fn handle_server_change(
         db: &Db,
+        account: &Account,
         local_change: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError>;
     fn handle_local_change(
@@ -103,6 +112,7 @@ pub struct FileSyncService<
     AccountDb: AccountRepo,
     ApiClient: Client,
     Files: FileService,
+    FileCrypto: FileEncryptionService,
     Auth: AuthService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
@@ -111,6 +121,7 @@ pub struct FileSyncService<
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
     file: PhantomData<Files>,
+    file_crypto: PhantomData<FileCrypto>,
     auth: PhantomData<Auth>,
 }
 
@@ -121,9 +132,19 @@ impl<
         AccountDb: AccountRepo,
         ApiClient: Client,
         Files: FileService,
+        FileCrypto: FileEncryptionService,
         Auth: AuthService,
     > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Files, Auth>
+    for FileSyncService<
+        FileMetadataDb,
+        ChangeDb,
+        DocsDb,
+        AccountDb,
+        ApiClient,
+        Files,
+        FileCrypto,
+        Auth,
+    >
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -180,13 +201,14 @@ impl<
                 Self::handle_local_change(&db, &account, &mut metadata)
             }
             WorkUnit::ServerChange { mut metadata } => {
-                Self::handle_server_change(&db, &mut metadata)
+                Self::handle_server_change(&db, &account, &mut metadata)
             }
         }
     }
 
     fn handle_server_change(
         db: &Db,
+        account: &Account,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
         // Make sure no naming conflicts occur as a result of this metadata
@@ -294,7 +316,8 @@ impl<
                                 error!("Server has modified a file this client has marked as new! This should not be possible. id: {}", metadata.id);
                             }
 
-                            if let Some(_edited_locally) = local_changes.content_edited {
+                            if let Some(edited_locally) = local_changes.content_edited {
+                                info!("Content conflict for: {}", metadata.id);
                                 if local_metadata.content_version != metadata.content_version {
                                     if metadata.file_type == Folder {
                                         // Should be unreachable
@@ -304,9 +327,63 @@ impl<
                                     if metadata.name.ends_with(".md")
                                         || metadata.name.ends_with(".txt")
                                     {
-                                        // Content is mergable
+                                        debug!("File is mergable: {}", metadata.id);
+
+                                        let common_ansestor = FileCrypto::user_read_document(
+                                            &account,
+                                            &edited_locally.old_value,
+                                            &edited_locally.access_info,
+                                        )
+                                        .map_err(DecryptingOldVersionForMergeError)?
+                                        .secret;
+
+                                        let current_version =
+                                            Files::read_document(&db, metadata.id)
+                                                .map_err(ReadingCurrentVersionError)?
+                                                .secret;
+
+                                        let server_version = {
+                                            let server_document = ApiClient::get_document(
+                                                metadata.id,
+                                                metadata.content_version,
+                                            )
+                                            .map_err(DocumentGetError)?;
+
+                                            FileCrypto::user_read_document(
+                                                &account,
+                                                &server_document,
+                                                &edited_locally.access_info,
+                                            )
+                                            .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
+                                            .secret
+                                        };
+
+                                        let result = match diffy::merge(
+                                            &common_ansestor,
+                                            &current_version,
+                                            &server_version,
+                                        ) {
+                                            Ok(no_conflicts) => {
+                                                info!("File {} was merged cleanly", metadata.id);
+                                                no_conflicts
+                                            }
+                                            Err(conflicts) => {
+                                                info!("File {} has merge conflicts!", metadata.id);
+                                                conflicts
+                                            }
+                                        };
+
+                                        Files::write_document(
+                                            &db,
+                                            metadata.id,
+                                            &DecryptedValue::from(result),
+                                        )
+                                        .map_err(WritingMergedFileError)?;
+
+                                        ChangeDb::untrack_edit(&db, metadata.id)
+                                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                                     } else {
-                                        // Content is not mergable
+                                        debug!("File is not mergable: {}", metadata.id);
 
                                         // Create a new file
                                         let new_file = DefaultFileService::create(

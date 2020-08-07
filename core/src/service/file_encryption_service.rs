@@ -11,6 +11,8 @@ use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
 };
+use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
+use std::collections::hash_map::RandomState;
 
 #[derive(Debug)]
 pub enum KeyDecryptionFailure {
@@ -43,6 +45,18 @@ pub enum UnableToReadFile {
     AesDecryptionFailed(AesDecryptionFailed),
 }
 
+#[derive(Debug)]
+pub enum UnableToReadFileAsUser {
+    FileKeyDecryptionFailed(DecryptionFailed),
+    AesDecryptionFailed(AesDecryptionFailed),
+}
+
+#[derive(Debug)]
+pub enum UnableToGetKeyForUser {
+    UnableToDecryptKey(KeyDecryptionFailure),
+    FailedToPKEncryptAccessKey(rsa::errors::Error),
+}
+
 pub trait FileEncryptionService {
     fn decrypt_key_for_file(
         keys: &Account,
@@ -56,6 +70,12 @@ pub trait FileEncryptionService {
         new_parent_id: Uuid,
         parents: HashMap<Uuid, FileMetadata>,
     ) -> Result<FolderAccessInfo, FileCreationError>;
+
+    fn get_key_for_user(
+        key: &Account,
+        id: Uuid,
+        parents: HashMap<Uuid, FileMetadata>,
+    ) -> Result<UserAccessInfo, UnableToGetKeyForUser>;
 
     fn create_file_metadata(
         name: &str,
@@ -78,12 +98,17 @@ pub trait FileEncryptionService {
     ) -> Result<Document, FileWriteError>;
 
     fn read_document(
-        // TODO add checks for folders?
         account: &Account,
         file: &Document,
         metadata: &FileMetadata,
         parents: HashMap<Uuid, FileMetadata>,
     ) -> Result<DecryptedValue, UnableToReadFile>;
+
+    fn user_read_document(
+        account: &Account,
+        file: &Document,
+        user_access_info: &UserAccessInfo,
+    ) -> Result<DecryptedValue, UnableToReadFileAsUser>;
 }
 
 pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> {
@@ -141,6 +166,25 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 
         Ok(FolderAccessInfo {
             folder_id: new_parent_id,
+            access_key,
+        })
+    }
+
+    fn get_key_for_user(
+        account: &Account,
+        id: Uuid,
+        parents: HashMap<Uuid, FileMetadata, RandomState>,
+    ) -> Result<UserAccessInfo, UnableToGetKeyForUser> {
+        let key = Self::decrypt_key_for_file(&account, id, parents).map_err(UnableToDecryptKey)?;
+
+        let public_key = account.keys.to_public_key();
+
+        let access_key = PK::encrypt(&public_key, &DecryptedValue::from(key.key))
+            .map_err(UnableToGetKeyForUser::FailedToPKEncryptAccessKey)?;
+
+        Ok(UserAccessInfo {
+            username: account.username.clone(),
+            public_key,
             access_key,
         })
     }
@@ -253,6 +297,20 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             .map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
 
         Ok(AES::decrypt(&key, &file.content).map_err(UnableToReadFile::AesDecryptionFailed)?)
+    }
+
+    fn user_read_document(
+        account: &Account,
+        file: &Document,
+        user_access_info: &UserAccessInfo,
+    ) -> Result<DecryptedValue, UnableToReadFileAsUser> {
+        let key = PK::decrypt(&account.keys, &user_access_info.access_key)
+            .map_err(UnableToReadFileAsUser::FileKeyDecryptionFailed)?;
+
+        let content = AES::decrypt(&AesKey::from(key), &file.content)
+            .map_err(UnableToReadFileAsUser::AesDecryptionFailed)?;
+
+        Ok(content)
     }
 }
 
