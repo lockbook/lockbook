@@ -3,7 +3,6 @@
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
-use log::Level;
 use serde::Serialize;
 use uuid::Uuid;
 
