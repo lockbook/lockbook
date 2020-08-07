@@ -105,8 +105,7 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_text_editor_done -> submitText()
-            R.id.menu_text_editor_search -> {
-            }
+//            R.id.menu_text_editor_search -> { }
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
             R.id.menu_text_editor_undo -> handleTextUndo()
