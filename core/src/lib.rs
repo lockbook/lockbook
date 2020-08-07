@@ -83,6 +83,7 @@ pub type DefaultSyncService = FileSyncService<
     DefaultAccountRepo,
     DefaultClient,
     DefaultFileService,
+    DefaultFileEncryptionService,
     DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
@@ -326,6 +327,7 @@ pub fn write_document(
             | DocumentUpdateError::DbError(_)
             | DocumentUpdateError::FetchOldVersionError(_)
             | DocumentUpdateError::DecryptOldVersionError(_)
+            | DocumentUpdateError::AccessInfoCreationError(_)
             | DocumentUpdateError::FailedToRecordChange(_) => {
                 Err(WriteToDocumentError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -733,6 +735,10 @@ pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
                         | WorkExecutionError::SaveDocumentError(_)
                         | WorkExecutionError::LocalChangesRepoError(_)
                         | WorkExecutionError::AutoRenameError(_)
+                        | WorkExecutionError::DecryptingOldVersionForMergeError(_)
+                        | WorkExecutionError::ReadingCurrentVersionError(_)
+                        | WorkExecutionError::WritingMergedFileError(_)
+                        | WorkExecutionError::FindingParentsForConflictingFileError(_)
                         | WorkExecutionError::ResolveConflictByCreatingNewFileError(_) => {
                             ExecuteWorkError::UnexpectedError(format!("{:#?}", err))
                         }
@@ -875,6 +881,10 @@ pub fn execute_work(
             | WorkExecutionError::SaveDocumentError(_)
             | WorkExecutionError::AutoRenameError(_)
             | WorkExecutionError::ResolveConflictByCreatingNewFileError(_)
+            | WorkExecutionError::DecryptingOldVersionForMergeError(_)
+            | WorkExecutionError::ReadingCurrentVersionError(_)
+            | WorkExecutionError::WritingMergedFileError(_)
+            | WorkExecutionError::FindingParentsForConflictingFileError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", err)))
             }

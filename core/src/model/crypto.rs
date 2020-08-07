@@ -46,6 +46,14 @@ pub struct AesKey {
     pub key: String,
 }
 
+impl From<DecryptedValue> for AesKey {
+    fn from(decrypted: DecryptedValue) -> Self {
+        AesKey {
+            key: decrypted.secret,
+        }
+    }
+}
+
 impl AesKey {
     pub fn to_decrypted_value(&self) -> DecryptedValue {
         DecryptedValue {

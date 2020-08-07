@@ -1,4 +1,4 @@
-use crate::model::crypto::DecryptedValue;
+use crate::model::crypto::{Document, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -54,5 +54,7 @@ impl From<Uuid> for Moved {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Edited {
-    pub old_value: DecryptedValue,
+    pub old_value: Document,
+    pub access_info: UserAccessInfo,
+    pub old_content_checksum: Vec<u8>,
 }

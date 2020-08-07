@@ -14,11 +14,12 @@ use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
-    FileCreationError, FileEncryptionService, KeyDecryptionFailure,
+    FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
-    CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError, FolderTreatedAsDocument,
+    AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
+    FolderTreatedAsDocument,
 };
 use crate::service::file_service::FileMoveError::{
     FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
@@ -32,6 +33,7 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -66,6 +68,7 @@ pub enum DocumentUpdateError {
     DocumentWriteError(document_repo::Error),
     FetchOldVersionError(document_repo::DbError),
     DecryptOldVersionError(file_encryption_service::UnableToReadFile),
+    AccessInfoCreationError(UnableToGetKeyForUser),
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
@@ -294,17 +297,31 @@ impl<
                 .map_err(DocumentUpdateError::FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
-        let maybe_old_version = FileDb::maybe_get(&db, id).map_err(FetchOldVersionError)?;
-        let old_version = match maybe_old_version {
-            None => DecryptedValue::from(""),
-            Some(old_encrypted) => {
-                FileCrypto::read_document(&account, &old_encrypted, &file_metadata, parents)
-                    .map_err(DocumentUpdateError::DecryptOldVersionError)?
-            }
-        };
-        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
-        ChangesDb::track_edit(&db, file_metadata.id, &old_version, &content)
+
+        if let Some(old_encrypted) = FileDb::maybe_get(&db, id).map_err(FetchOldVersionError)? {
+            let decrypted = FileCrypto::read_document(
+                &account,
+                &old_encrypted,
+                &file_metadata,
+                parents.clone(),
+            )
+            .map_err(DocumentUpdateError::DecryptOldVersionError)?;
+
+            let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
+                .map_err(AccessInfoCreationError)?;
+
+            ChangesDb::track_edit(
+                &db,
+                file_metadata.id,
+                &old_encrypted,
+                &permanent_access_info,
+                Sha256::digest(decrypted.secret.as_bytes()).to_vec(),
+                Sha256::digest(content.secret.as_bytes()).to_vec(),
+            )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
+        };
+
+        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
 
         Ok(())
     }

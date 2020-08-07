@@ -1,7 +1,7 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::DecryptedValue;
+use crate::model::crypto::{Document, UserAccessInfo};
 use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 
 #[derive(Debug)]
@@ -19,8 +19,10 @@ pub trait LocalChangesRepo {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_value: &DecryptedValue,
-        new_value: &DecryptedValue,
+        old_version: &Document,
+        access_info_for_old_version: &UserAccessInfo,
+        old_content_checksum: Vec<u8>,
+        new_content_checksum: Vec<u8>,
     ) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
@@ -169,8 +171,10 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_value: &DecryptedValue,
-        new_value: &DecryptedValue,
+        old_version: &Document,
+        access_info_for_old_version: &UserAccessInfo,
+        old_content_checksum: Vec<u8>,
+        new_content_checksum: Vec<u8>,
     ) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
@@ -182,7 +186,9 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     moved: None,
                     new: false,
                     content_edited: Some(Edited {
-                        old_value: old_value.clone(),
+                        old_value: old_version.clone(),
+                        access_info: access_info_for_old_version.clone(),
+                        old_content_checksum,
                     }),
                     deleted: false,
                 };
@@ -196,7 +202,9 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             Some(mut change) => match change.content_edited {
                 None => {
                     change.content_edited = Some(Edited {
-                        old_value: old_value.clone(),
+                        old_value: old_version.clone(),
+                        access_info: access_info_for_old_version.clone(),
+                        old_content_checksum,
                     });
                     tree.insert(
                         id.as_bytes(),
@@ -206,7 +214,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     Ok(())
                 }
                 Some(edited) => {
-                    if edited.old_value == new_value.clone() {
+                    if edited.old_content_checksum == new_content_checksum {
                         Self::untrack_edit(&db, id)
                     } else {
                         Ok(())
@@ -346,8 +354,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::crypto::DecryptedValue;
-    use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
+    use crate::model::local_changes::{LocalChange, Moved, Renamed};
     use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
@@ -441,20 +448,6 @@ mod unit_tests {
         );
 
         let id4 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_edit(
-            &db,
-            id,
-            &DecryptedValue::from("old"),
-            &DecryptedValue::from("new"),
-        )
-        .unwrap();
-        LocalChangesRepoImpl::track_edit(
-            &db,
-            id4,
-            &DecryptedValue::from("old"),
-            &DecryptedValue::from("new"),
-        )
-        .unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -463,24 +456,13 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: Some(Edited {
-                    old_value: DecryptedValue::from("old")
-                }),
+                content_edited: None,
                 deleted: false,
             })
         );
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
-            Some(LocalChange {
-                id: id4,
-                renamed: None,
-                moved: None,
-                new: false,
-                content_edited: Some(Edited {
-                    old_value: DecryptedValue::from("old")
-                }),
-                deleted: false,
-            })
+            None
         );
 
         let id5 = Uuid::new_v4();
@@ -494,9 +476,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: Some(Edited {
-                    old_value: DecryptedValue::from("old")
-                }),
+                content_edited: None,
                 deleted: true,
             })
         );
@@ -515,7 +495,7 @@ mod unit_tests {
             LocalChangesRepoImpl::get_all_local_changes(&db)
                 .unwrap()
                 .len(),
-            5
+            4
         );
 
         LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
