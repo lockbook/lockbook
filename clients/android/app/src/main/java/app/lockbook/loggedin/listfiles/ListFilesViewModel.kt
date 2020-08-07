@@ -106,9 +106,7 @@ class ListFilesViewModel(path: String) :
     }
 
     private fun writeNewTextToDocument(content: String) {
-        Timber.i("HERE1")
         val writeToDocumentResult = coreModel.writeContentToDocument(content)
-        Timber.i("HERE2")
         if (writeToDocumentResult is Err) {
             when (val error = writeToDocumentResult.error) {
                 is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
