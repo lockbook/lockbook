@@ -3,6 +3,7 @@
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::model::account::Account;
@@ -10,8 +11,6 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use serde::Serialize;
-
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
     get_children, get_file_by_id, get_root, import_account, init_logger_safely, insert_file,

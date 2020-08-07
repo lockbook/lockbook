@@ -24,3 +24,4 @@ object RequestResultCodes {
 }
 
 const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
+const val TEXT_EDITOR_REGRET_KEY = "contents"
