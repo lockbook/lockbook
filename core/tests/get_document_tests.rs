@@ -1,6 +1,8 @@
+mod integration_test;
+
 #[cfg(test)]
 mod get_document_tests {
-    use crate::{
+    use crate::integration_test::{
         aes_decrypt_str, aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
     use lockbook_core::client::{Client, ClientImpl, Error};
@@ -8,6 +10,8 @@ mod get_document_tests {
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
     use uuid::Uuid;
+
+    use crate::assert_matches;
 
     #[test]
     fn get_document() {

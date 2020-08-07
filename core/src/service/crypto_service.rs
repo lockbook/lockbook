@@ -33,10 +33,7 @@ pub trait PubKeyCryptoService {
         public_key: &RSAPublicKey,
         decrypted: &DecryptedValue,
     ) -> Result<EncryptedValue, rsa::errors::Error>;
-    fn sign(
-        private_key: &RSAPrivateKey,
-        to_sign: &str, // TODO borrow here
-    ) -> Result<SignedValue, rsa::errors::Error>;
+    fn sign(private_key: &RSAPrivateKey, to_sign: &str) -> Result<SignedValue, rsa::errors::Error>;
     fn verify(
         public_key: &RSAPublicKey,
         signed_value: &SignedValue,

@@ -1,3 +1,5 @@
+mod integration_test;
+
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::client::Error;
@@ -10,7 +12,7 @@ mod account_tests {
         DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, ImportError,
     };
 
-    use crate::{random_username, test_config, test_db};
+    use crate::integration_test::{random_username, test_config, test_db};
     use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;

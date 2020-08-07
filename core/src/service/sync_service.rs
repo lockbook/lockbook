@@ -5,7 +5,6 @@ use serde::Serialize;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api;
@@ -14,9 +13,9 @@ use crate::model::api::{
     DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
     RenameFolderError,
 };
-use crate::model::crypto::SignedValue;
+use crate::model::crypto::{DecryptedValue, SignedValue};
 use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::Document;
+use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
@@ -25,15 +24,21 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
+use crate::service::file_encryption_service::FileEncryptionService;
+use crate::service::file_service::FileService;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    DocumentChangeError, DocumentCreateError, DocumentDeleteError, DocumentGetError,
-    DocumentMoveError, DocumentRenameError, FolderCreateError, FolderDeleteError, FolderMoveError,
-    FolderRenameError, SaveDocumentError,
+    AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
+    DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
+    FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
+    ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
+    WritingMergedFileError,
 };
+use crate::service::{file_encryption_service, file_service};
+use crate::{client, DefaultFileService};
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -58,9 +63,15 @@ pub enum WorkExecutionError {
     DocumentChangeError(client::Error<ChangeDocumentContentError>),
     DocumentDeleteError(client::Error<DeleteDocumentError>),
     FolderDeleteError(client::Error<DeleteFolderError>),
-    SaveDocumentError(document_repo::Error),
+    SaveDocumentError(document_repo::Error), // Delete uses this and it shouldn't
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
+    AutoRenameError(file_service::DocumentRenameError),
+    ResolveConflictByCreatingNewFileError(file_service::NewFileError),
+    DecryptingOldVersionForMergeError(file_encryption_service::UnableToReadFileAsUser),
+    ReadingCurrentVersionError(file_service::ReadDocumentError),
+    WritingMergedFileError(file_service::DocumentUpdateError),
+    FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
 }
 
 #[derive(Debug)]
@@ -76,6 +87,7 @@ pub trait SyncService {
     fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
     fn handle_server_change(
         db: &Db,
+        account: &Account,
         local_change: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError>;
     fn handle_local_change(
@@ -86,7 +98,7 @@ pub trait SyncService {
     fn sync(db: &Db) -> Result<(), SyncError>;
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
@@ -98,6 +110,8 @@ pub struct FileSyncService<
     DocsDb: DocumentRepo,
     AccountDb: AccountRepo,
     ApiClient: Client,
+    Files: FileService,
+    FileCrypto: FileEncryptionService,
     Auth: AuthService,
 > {
     metadatas: PhantomData<FileMetadataDb>,
@@ -105,6 +119,8 @@ pub struct FileSyncService<
     docs: PhantomData<DocsDb>,
     accounts: PhantomData<AccountDb>,
     client: PhantomData<ApiClient>,
+    file: PhantomData<Files>,
+    file_crypto: PhantomData<FileCrypto>,
     auth: PhantomData<Auth>,
 }
 
@@ -114,9 +130,20 @@ impl<
         DocsDb: DocumentRepo,
         AccountDb: AccountRepo,
         ApiClient: Client,
+        Files: FileService,
+        FileCrypto: FileEncryptionService,
         Auth: AuthService,
     > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Auth>
+    for FileSyncService<
+        FileMetadataDb,
+        ChangeDb,
+        DocsDb,
+        AccountDb,
+        ApiClient,
+        Files,
+        FileCrypto,
+        Auth,
+    >
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -134,7 +161,6 @@ impl<
             last_sync,
         )
         .map_err(GetUpdatesError)?;
-        debug!("Server Updates: {:#?}", server_updates);
 
         let mut most_recent_update_from_server: u64 = last_sync;
         for metadata in server_updates {
@@ -160,7 +186,7 @@ impl<
 
             work_units.push(LocalChange { metadata });
         }
-        debug!("Local Changes: {:#?}", work_units);
+        debug!("Work Calculated: {:#?}", work_units);
 
         Ok(WorkCalculated {
             work_units,
@@ -174,15 +200,37 @@ impl<
                 Self::handle_local_change(&db, &account, &mut metadata)
             }
             WorkUnit::ServerChange { mut metadata } => {
-                Self::handle_server_change(&db, &mut metadata)
+                Self::handle_server_change(&db, &account, &mut metadata)
             }
         }
     }
 
     fn handle_server_change(
         db: &Db,
+        account: &Account,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
+        // Make sure no naming conflicts occur as a result of this metadata
+        let conflicting_files = FileMetadataDb::get_children(&db, metadata.parent)
+            .map_err(WorkExecutionError::MetadataRepoError)?
+            .into_iter()
+            .filter(|potential_conflict| potential_conflict.name == metadata.name)
+            .filter(|potential_conflict| potential_conflict.id != metadata.id)
+            .collect::<Vec<FileMetadata>>();
+
+        // There should only be one of these
+        for conflicting_file in conflicting_files {
+            Files::rename_file(
+                &db,
+                conflicting_file.id,
+                &format!(
+                    "{}-NAME-CONFLICT-{}",
+                    conflicting_file.name, conflicting_file.id
+                ),
+            )
+            .map_err(AutoRenameError)?
+        }
+
         match FileMetadataDb::maybe_get(&db, metadata.id)
             .map_err(WorkExecutionError::MetadataRepoError)?
         {
@@ -247,7 +295,7 @@ impl<
                                     ChangeDb::untrack_rename(&db, metadata.id)
                                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
                                 } else {
-                                    metadata.name = local_metadata.name;
+                                    metadata.name = local_metadata.name.clone();
                                 }
                             }
 
@@ -267,10 +315,114 @@ impl<
                                 error!("Server has modified a file this client has marked as new! This should not be possible. id: {}", metadata.id);
                             }
 
-                            if local_changes.content_edited
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                error!("Local changes conflict with server changes, implement diffing! unimplemented!() server wins for now");
+                            if let Some(edited_locally) = local_changes.content_edited {
+                                info!("Content conflict for: {}", metadata.id);
+                                if local_metadata.content_version != metadata.content_version {
+                                    if metadata.file_type == Folder {
+                                        // Should be unreachable
+                                        error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
+                                    }
+
+                                    if metadata.name.ends_with(".md")
+                                        || metadata.name.ends_with(".txt")
+                                    {
+                                        debug!("File {} is mergable: {}", metadata.id, metadata.id);
+
+                                        let common_ansestor = FileCrypto::user_read_document(
+                                            &account,
+                                            &edited_locally.old_value,
+                                            &edited_locally.access_info,
+                                        )
+                                        .map_err(DecryptingOldVersionForMergeError)?
+                                        .secret;
+
+                                        debug!("{} Common ans: {}", metadata.id, &common_ansestor);
+
+                                        let current_version =
+                                            Files::read_document(&db, metadata.id)
+                                                .map_err(ReadingCurrentVersionError)?
+                                                .secret;
+                                        debug!("{} current: {}", metadata.id, &current_version);
+
+                                        let server_version = {
+                                            let server_document = ApiClient::get_document(
+                                                metadata.id,
+                                                metadata.content_version,
+                                            )
+                                            .map_err(DocumentGetError)?;
+
+                                            FileCrypto::user_read_document(
+                                                &account,
+                                                &server_document,
+                                                &edited_locally.access_info,
+                                            )
+                                            .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
+                                            .secret
+                                        };
+                                        debug!("{} server: {}", metadata.id, &server_version);
+
+                                        let result = match diffy::merge(
+                                            &common_ansestor,
+                                            &current_version,
+                                            &server_version,
+                                        ) {
+                                            Ok(no_conflicts) => {
+                                                info!("File {} was merged cleanly", metadata.id);
+                                                no_conflicts
+                                            }
+                                            Err(conflicts) => {
+                                                info!("File {} has merge conflicts!", metadata.id);
+                                                conflicts
+                                            }
+                                        };
+
+                                        debug!("{} result: {}", metadata.id, &result);
+
+                                        Files::write_document(
+                                            &db,
+                                            metadata.id,
+                                            &DecryptedValue::from(result),
+                                        )
+                                        .map_err(WritingMergedFileError)?;
+                                    } else {
+                                        debug!("File is not mergable: {}", metadata.id);
+
+                                        // Create a new file
+                                        let new_file = DefaultFileService::create(
+                                            &db,
+                                            &format!(
+                                                "{}-CONTENT-CONFLICT-{}",
+                                                &local_metadata.name, local_metadata.id
+                                            ),
+                                            local_metadata.parent,
+                                            Document,
+                                        )
+                                        .map_err(ResolveConflictByCreatingNewFileError)?;
+
+                                        // Copy the local copy over
+                                        DocsDb::insert(
+                                            &db,
+                                            new_file.id,
+                                            &DocsDb::get(&db, local_changes.id)
+                                                .map_err(SaveDocumentError)?,
+                                        )
+                                        .map_err(SaveDocumentError)?;
+
+                                        // Overwrite local file with server copy
+                                        let new_content = ApiClient::get_document(
+                                            metadata.id,
+                                            metadata.content_version,
+                                        )
+                                        .map_err(DocumentGetError)?;
+
+                                        DocsDb::insert(&db, metadata.id, &new_content)
+                                            .map_err(SaveDocumentError)?;
+
+                                        // Mark content as synced
+                                        ChangeDb::untrack_edit(&db, metadata.id)
+                                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                                    }
+                                }
                             }
 
                             // You deleted a file, but you didn't have the most recent content, server wins
@@ -283,7 +435,7 @@ impl<
 
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if !local_changes.content_edited {
+                        } else if local_changes.content_edited.is_none() {
                             FileMetadataDb::actually_delete(&db, metadata.id)
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
 
@@ -414,7 +566,7 @@ impl<
                         ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
 
-                    if local_change.content_edited && metadata.file_type == Document {
+                    if local_change.content_edited.is_some() && metadata.file_type == Document {
                         let version = ApiClient::change_document_content(
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
@@ -463,11 +615,6 @@ impl<
     }
 
     fn sync(db: &Db) -> Result<(), SyncError> {
-        // If you create a/b/c/file.txt and sync, if it syncs out of order this could cause errors
-        // This isn't an issue as we have a retry policy built in, taking the approach that sync shall
-        // eventually succeed. But there may be genuine errors (renamed to an invalid name) that aren't
-        // simply retryable. Keep track of every error for every file and there's only a problem if we
-        // were never able to sync a file.
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
         for _ in 0..10 {
@@ -477,21 +624,19 @@ impl<
             let work_calculated =
                 Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
-            debug!("Work calculated: {:#?}", work_calculated);
-
             if work_calculated.work_units.is_empty() {
                 info!("Done syncing");
-                if sync_errors.is_empty() {
+                return if sync_errors.is_empty() {
                     FileMetadataDb::set_last_synced(
                         &db,
                         work_calculated.most_recent_update_from_server,
                     )
                     .map_err(SyncError::MetadataUpdateError)?;
-                    return Ok(());
+                    Ok(())
                 } else {
                     error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
-                    return Err(SyncError::WorkExecutionError(sync_errors));
-                }
+                    Err(SyncError::WorkExecutionError(sync_errors))
+                };
             }
 
             for work_unit in work_calculated.work_units {

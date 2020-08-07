@@ -1,3 +1,4 @@
+use crate::model::crypto::{Document, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -7,7 +8,7 @@ pub struct LocalChange {
     pub renamed: Option<Renamed>,
     pub moved: Option<Moved>,
     pub new: bool,
-    pub content_edited: bool,
+    pub content_edited: Option<Edited>,
     pub deleted: bool,
 }
 
@@ -16,7 +17,7 @@ impl LocalChange {
         self.renamed.is_none()
             && self.moved.is_none()
             && !self.new
-            && !self.content_edited
+            && self.content_edited.is_none()
             && !self.deleted
     }
 }
@@ -49,4 +50,11 @@ impl From<Uuid> for Moved {
     fn from(id: Uuid) -> Self {
         Moved { old_value: id }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Edited {
+    pub old_value: Document,
+    pub access_info: UserAccessInfo,
+    pub old_content_checksum: Vec<u8>,
 }

@@ -1,7 +1,8 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::local_changes::{LocalChange, Moved, Renamed};
+use crate::model::crypto::{Document, UserAccessInfo};
+use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 
 #[derive(Debug)]
 pub enum DbError {
@@ -15,7 +16,14 @@ pub trait LocalChangesRepo {
     fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError>;
     fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError>;
-    fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn track_edit(
+        db: &Db,
+        id: Uuid,
+        old_version: &Document,
+        access_info_for_old_version: &UserAccessInfo,
+        old_content_checksum: Vec<u8>,
+        new_content_checksum: Vec<u8>,
+    ) -> Result<(), DbError>;
     fn track_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
@@ -64,7 +72,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             renamed: None,
             moved: None,
             new: true,
-            content_edited: false,
+            content_edited: None,
             deleted: false,
         };
 
@@ -86,7 +94,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: Some(Renamed::from(old_name)),
                     moved: None,
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: false,
                 };
 
@@ -128,7 +136,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: Some(Moved::from(old_parent)),
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: false,
                 };
 
@@ -160,7 +168,14 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         }
     }
 
-    fn track_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn track_edit(
+        db: &Db,
+        id: Uuid,
+        old_version: &Document,
+        access_info_for_old_version: &UserAccessInfo,
+        old_content_checksum: Vec<u8>,
+        new_content_checksum: Vec<u8>,
+    ) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -170,7 +185,11 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: None,
                     new: false,
-                    content_edited: true,
+                    content_edited: Some(Edited {
+                        old_value: old_version.clone(),
+                        access_info: access_info_for_old_version.clone(),
+                        old_content_checksum,
+                    }),
                     deleted: false,
                 };
                 tree.insert(
@@ -180,11 +199,13 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 .map_err(DbError::SledError)?;
                 Ok(())
             }
-            Some(mut change) => {
-                if change.content_edited {
-                    Ok(())
-                } else {
-                    change.content_edited = true;
+            Some(mut change) => match change.content_edited {
+                None => {
+                    change.content_edited = Some(Edited {
+                        old_value: old_version.clone(),
+                        access_info: access_info_for_old_version.clone(),
+                        old_content_checksum,
+                    });
                     tree.insert(
                         id.as_bytes(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
@@ -192,7 +213,14 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     .map_err(DbError::SledError)?;
                     Ok(())
                 }
-            }
+                Some(edited) => {
+                    if edited.old_content_checksum == new_content_checksum {
+                        Self::untrack_edit(&db, id)
+                    } else {
+                        Ok(())
+                    }
+                }
+            },
         }
     }
 
@@ -206,7 +234,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     renamed: None,
                     moved: None,
                     new: false,
-                    content_edited: false,
+                    content_edited: None,
                     deleted: true,
                 };
                 tree.insert(
@@ -288,7 +316,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         match Self::get_local_changes(&db, id)? {
             None => Ok(()),
             Some(mut edit) => {
-                edit.content_edited = false;
+                edit.content_edited = None;
 
                 if edit.ready_to_be_deleted() {
                     Self::delete_if_exists(&db, edit.id)?
@@ -360,7 +388,7 @@ mod unit_tests {
                 renamed: None,
                 moved: None,
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -376,7 +404,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: None,
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -387,7 +415,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file2")),
                 moved: None,
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -403,7 +431,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
@@ -414,14 +442,12 @@ mod unit_tests {
                 renamed: None,
                 moved: Some(Moved::from(id2)),
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: false,
             })
         );
 
         let id4 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_edit(&db, id).unwrap();
-        LocalChangesRepoImpl::track_edit(&db, id4).unwrap();
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -430,20 +456,13 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: true,
+                content_edited: None,
                 deleted: false,
             })
         );
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
-            Some(LocalChange {
-                id: id4,
-                renamed: None,
-                moved: None,
-                new: false,
-                content_edited: true,
-                deleted: false,
-            })
+            None
         );
 
         let id5 = Uuid::new_v4();
@@ -457,7 +476,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: true,
+                content_edited: None,
                 deleted: true,
             })
         );
@@ -468,7 +487,7 @@ mod unit_tests {
                 renamed: None,
                 moved: None,
                 new: false,
-                content_edited: false,
+                content_edited: None,
                 deleted: true,
             })
         );
@@ -476,7 +495,7 @@ mod unit_tests {
             LocalChangesRepoImpl::get_all_local_changes(&db)
                 .unwrap()
                 .len(),
-            5
+            4
         );
 
         LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
@@ -507,7 +526,7 @@ mod unit_tests {
                 renamed: Some(Renamed::from("old_file")),
                 moved: Some(Moved::from(id2)),
                 new: true,
-                content_edited: false,
+                content_edited: None,
                 deleted: true,
             })
         );
