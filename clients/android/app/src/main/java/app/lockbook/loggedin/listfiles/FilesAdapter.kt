@@ -3,6 +3,7 @@ package app.lockbook.loggedin.listfiles
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
+import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.utils.ClickInterface
@@ -10,7 +11,8 @@ import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import kotlinx.android.synthetic.main.recyclerview_content_files.view.*
 
-class FilesAdapter(val clickInterface: ClickInterface) : RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
+class FilesAdapter(val clickInterface: ClickInterface) :
+    RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
 
     var files = listOf<FileMetadata>()
         set(value) {
@@ -20,7 +22,8 @@ class FilesAdapter(val clickInterface: ClickInterface) : RecyclerView.Adapter<Fi
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val view = layoutInflater.inflate(R.layout.recyclerview_content_files, parent, false) as CardView
+        val view =
+            layoutInflater.inflate(R.layout.recyclerview_content_files, parent, false) as CardView
 
         return ListFilesViewHolder(view)
     }
@@ -32,12 +35,28 @@ class FilesAdapter(val clickInterface: ClickInterface) : RecyclerView.Adapter<Fi
 
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
-        holder.cardView.file_description.text = item.metadata_version.toString()
-
+        holder.cardView.file_description.text = holder.cardView.resources.getString(
+            R.string.list_files_last_synced,
+            item.metadata_version.toString()
+        )
         if (item.file_type == FileType.Document) {
-            holder.cardView.file_icon.setImageResource(R.drawable.ic_file_24)
+            holder.cardView.file_name.setTextColor(
+                ResourcesCompat.getColor(
+                    holder.cardView.resources,
+                    R.color.light,
+                    null
+                )
+            )
+            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
         } else {
-            holder.cardView.file_icon.setImageResource(R.drawable.ic_folder_24)
+            holder.cardView.file_name.setTextColor(
+                ResourcesCompat.getColor(
+                    holder.cardView.resources,
+                    R.color.blue,
+                    null
+                )
+            )
+            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_folder_24)
         }
     }
 
