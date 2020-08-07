@@ -7,7 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import timber.log.Timber
 
-class TextEditorViewModel(initialContents: String): ViewModel(), TextWatcher {
+class TextEditorViewModel(initialContents: String) : ViewModel(), TextWatcher {
     private var history: MutableList<String> = mutableListOf()
     private var historyIndex = 0
     var ignoreChange = false
@@ -25,7 +25,7 @@ class TextEditorViewModel(initialContents: String): ViewModel(), TextWatcher {
     }
 
     override fun afterTextChanged(s: Editable?) {
-        if(!ignoreChange) {
+        if (!ignoreChange) {
             if (history.size - 1 > historyIndex) {
                 history.subList(historyIndex, history.size).clear()
             }
@@ -64,10 +64,7 @@ class TextEditorViewModel(initialContents: String): ViewModel(), TextWatcher {
         _canRedo.value = historyIndex != history.lastIndex
     }
 
-
     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
-
 }

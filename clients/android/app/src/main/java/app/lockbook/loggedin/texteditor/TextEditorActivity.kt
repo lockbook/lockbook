@@ -1,6 +1,5 @@
 package app.lockbook.loggedin.texteditor
 
-import android.graphics.Color
 import android.os.Bundle
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
@@ -30,13 +29,19 @@ class TextEditorActivity : AppCompatActivity() {
         textEditorViewModel =
             ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
 
-        textEditorViewModel.canUndo.observe(this, Observer { canUndo ->
-            menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = canUndo
-        })
+        textEditorViewModel.canUndo.observe(
+            this,
+            Observer { canUndo ->
+                menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = canUndo
+            }
+        )
 
-        textEditorViewModel.canRedo.observe(this, Observer { canRedo ->
-            menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = canRedo
-        })
+        textEditorViewModel.canRedo.observe(
+            this,
+            Observer { canRedo ->
+                menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = canRedo
+            }
+        )
 
         setUpView()
     }
@@ -88,7 +93,6 @@ class TextEditorActivity : AppCompatActivity() {
         setResult(RESULT_OK, intent)
         finish()
     }
-
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
