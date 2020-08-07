@@ -31,7 +31,6 @@ import timber.log.Timber
 class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
-        Timber.plant(Timber.DebugTree())
 
         findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { preference, newValue ->
             if (newValue is String) {
