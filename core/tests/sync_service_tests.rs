@@ -3,6 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use crate::integration_test::{random_username, test_db};
+    use env_logger::init;
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -665,6 +666,7 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_mergable() {
+        init();
         let db1 = test_db();
         let db2 = test_db();
 
@@ -702,5 +704,203 @@ mod sync_tests {
         .unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 1"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 2"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Offline Line"));
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_content_conflict_local_move_before_mergable() {
+        init();
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/mergable_file.md", account.username),
+        )
+        .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("Line 1\nLine 2\n"),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        let folder =
+            DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
+                .unwrap();
+        DefaultFileService::move_file(&db2, file.id, folder.id).unwrap();
+        DefaultFileService::write_document(
+            &db2,
+            file.id,
+            &DecryptedValue::from("Line 1\nOffline Line\n"),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 1"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 2"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Offline Line"));
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_content_conflict_local_after_before_mergable() {
+        init();
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/mergable_file.md", account.username),
+        )
+        .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("Line 1\nLine 2\n"),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        let folder =
+            DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
+                .unwrap();
+        DefaultFileService::write_document(
+            &db2,
+            file.id,
+            &DecryptedValue::from("Line 1\nOffline Line\n"),
+        )
+        .unwrap();
+        DefaultFileService::move_file(&db2, file.id, folder.id).unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 1"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 2"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Offline Line"));
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+    }
+
+    #[test]
+    fn test_content_conflict_server_after_before_mergable() {
+        init();
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/mergable_file.md", account.username),
+        )
+        .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("Line 1\nLine 2\n"),
+        )
+        .unwrap();
+        let folder =
+            DefaultFileService::create_at_path(&db1, &format!("{}/folder1/", account.username))
+                .unwrap();
+        DefaultFileService::move_file(&db1, file.id, folder.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultFileService::write_document(
+            &db2,
+            file.id,
+            &DecryptedValue::from("Line 1\nOffline Line\n"),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 1"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Line 2"));
+        assert!(DefaultFileService::read_document(&db1, file.id)
+            .unwrap()
+            .secret
+            .contains("Offline Line"));
+        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
 }
