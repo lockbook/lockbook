@@ -664,5 +664,43 @@ mod sync_tests {
     }
 
     #[test]
-    fn test_content_conflict_mergable() {}
+    fn test_content_conflict_mergable() {
+        let db1 = test_db();
+        let db2 = test_db();
+
+        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let file = DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/mergable_file.md", account.username),
+        )
+        .unwrap();
+
+        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::write_document(
+            &db1,
+            file.id,
+            &DecryptedValue::from("Line 1\nLine 2\n"),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultFileService::write_document(
+            &db2,
+            file.id,
+            &DecryptedValue::from("Line 1\nOffline Line\n"),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+    }
 }
