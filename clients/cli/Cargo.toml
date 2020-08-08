@@ -1,6 +1,6 @@
 [package]
 name = "lockbook"
-version = "0.2.11"
+version = "0.2.12"
 authors = ["parth"]
 edition = "2018"
 
