@@ -85,6 +85,10 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
     }
 
     fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError> {
+        if old_name == new_name {
+            return Ok(());
+        }
+
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -127,6 +131,10 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
     }
 
     fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError> {
+        if old_parent == new_parent {
+            return Ok(());
+        }
+
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -176,6 +184,10 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
     ) -> Result<(), DbError> {
+        if old_content_checksum == new_content_checksum {
+            return Ok(());
+        }
+
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
