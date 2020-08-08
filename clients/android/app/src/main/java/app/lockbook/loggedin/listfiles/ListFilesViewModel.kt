@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
@@ -76,7 +77,7 @@ class ListFilesViewModel(path: String) :
         when (val getSiblingsOfParentResult = coreModel.getSiblingsOfParent()) {
             is Ok -> {
                 when (val getParentOfParentResult = coreModel.getParentOfParent()) {
-                    is Ok -> sortFiles(getSiblingsOfParentResult.value)
+                    is Ok -> sortFilesAlpha(getSiblingsOfParentResult.value)
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
                         is GetFileByIdError.UnexpectedError -> {
@@ -97,7 +98,7 @@ class ListFilesViewModel(path: String) :
 
     private fun refreshFiles() {
         when (val getChildrenResult = coreModel.getChildrenOfParent()) {
-            is Ok -> sortFiles(getChildrenResult.value)
+            is Ok -> sortFilesAlpha(getChildrenResult.value)
             is Err -> {
                 Timber.e("Unable to get children: ${getChildrenResult.error}")
                 _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -180,7 +181,7 @@ class ListFilesViewModel(path: String) :
         }
     }
 
-    private fun sortFiles(files: List<FileMetadata>) {
+    private fun sortFilesAlpha(files: List<FileMetadata>) {
         val sortedFiles = files.sortedBy { fileMetadata ->
             fileMetadata.name
         }
@@ -195,10 +196,30 @@ class ListFilesViewModel(path: String) :
         }
     }
 
+    private fun sortFilesLastChanged(files: List<FileMetadata>) {
+        val sortedFiles = files.sortedBy { fileMetadata ->
+            fileMetadata.metadata_version
+        }
+        if (sortedFiles == files) {
+            _files.postValue(
+                files.sortedByDescending { fileMetadata ->
+                    fileMetadata.metadata_version
+                }
+            )
+        } else {
+            _files.postValue(sortedFiles)
+        }
+    }
+
     private fun handleReadDocument(fileMetadata: FileMetadata) {
         when (val documentResult = coreModel.getDocumentContent(fileMetadata.id)) {
             is Ok -> {
-                _navigateToFileEditor.postValue(EditableFile(fileMetadata.name, documentResult.value))
+                _navigateToFileEditor.postValue(
+                    EditableFile(
+                        fileMetadata.name,
+                        documentResult.value
+                    )
+                )
                 coreModel.lastDocumentAccessed = fileMetadata
             }
             is Err -> when (val error = documentResult.error) {
@@ -327,13 +348,20 @@ class ListFilesViewModel(path: String) :
         }
     }
 
-    fun onSortPressed() {
+    fun onSortPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val files = _files.value
                 if (files is List<FileMetadata>) {
-                    sortFiles(files)
+                    sortFilesAlpha(files)
+                    when (id) {
+                        R.id.menu_list_files_sort_alpha -> sortFilesAlpha(files)
+                        R.id.menu_list_files_sort_last_changed -> sortFilesLastChanged(files)
+                    }
+                } else {
+                    _errorHasOccurred.postValue("Unable to retrieve files from LiveData.")
                 }
+
             }
         }
     }
