@@ -6,6 +6,8 @@ import app.lockbook.R
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import kotlinx.android.synthetic.main.activity_popup_info.*
+import java.sql.Date
+import java.sql.Timestamp
 
 class PopUpInfoActivity : Activity() {
     lateinit var id: String
@@ -24,12 +26,11 @@ class PopUpInfoActivity : Activity() {
     }
 
     private fun setUpInfo() {
-        val tempId = intent.getStringExtra("id")
-        id = if (tempId is String) {
-            tempId
-        } else {
-            "ERROR"
-        }
+        val id = intent.getStringExtra("id") ?: "ERROR"
+        val tempMetadataVersion = intent.getStringExtra("metadataVersion") ?: "ERROR"
+        val tempContentVersion = intent.getStringExtra("contentVersion") ?: "ERROR"
+        val dateMetadataVersion = Date(Timestamp(tempMetadataVersion.toLongOrNull() ?: 0L).time)
+        val dateContentVersion = Date(Timestamp(tempContentVersion.toLongOrNull() ?: 0L).time)
 
         popup_info_name.text = getString(R.string.popup_info_name, intent.getStringExtra("name"))
         popup_info_id.text = getString(R.string.popup_info_id, id)
@@ -37,10 +38,10 @@ class PopUpInfoActivity : Activity() {
             getString(R.string.popup_info_file_type, intent.getStringExtra("fileType"))
         popup_info_metadata_version.text = getString(
             R.string.popup_info_metadata_version,
-            intent.getStringExtra("metadataVersion")
+            dateMetadataVersion
         )
         popup_info_content_version.text =
-            getString(R.string.popup_info_content_version, intent.getStringExtra("contentVersion"))
+            getString(R.string.popup_info_content_version, dateContentVersion)
     }
 
     private fun rename() {
