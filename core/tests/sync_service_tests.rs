@@ -929,4 +929,42 @@ mod sync_tests {
             0
         );
     }
+
+    #[test]
+    fn test_not_really_renaming_should_not_cause_work() {
+        let db = test_db();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
+
+        assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err())
+    }
+
+    #[test]
+    fn test_not_really_moving_should_not_cause_work() {
+        let db = test_db();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
+
+        assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err())
+    }
 }
