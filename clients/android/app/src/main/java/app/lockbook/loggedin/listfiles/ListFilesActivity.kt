@@ -31,10 +31,10 @@ class ListFilesActivity : AppCompatActivity() {
                 startActivity(Intent(applicationContext, SettingsActivity::class.java))
                 true
             }
-            R.id.menu_list_files_sort -> {
+            R.id.menu_list_files_sort_last_changed, R.id.menu_list_files_sort_alpha -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed()
+                    fragment.onSortPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
