@@ -10,14 +10,12 @@
         android:title="@string/menu_sort"
         app:showAsAction="always">
         <menu>
-            <group android:checkableBehavior="single">
-                <item
-                    android:id="@+id/menu_list_files_sort_alpha"
-                    android:title="@string/menu_list_files_sort_alpha" />
-                <item
-                    android:id="@+id/menu_list_files_sort_last_changed"
-                    android:title="@string/menu_list_files_last_changed" />
-            </group>
+            <item
+                android:id="@+id/menu_list_files_sort_alpha"
+                android:title="@string/menu_list_files_sort_alpha" />
+            <item
+                android:id="@+id/menu_list_files_sort_last_changed"
+                android:title="@string/menu_list_files_last_changed" />
         </menu>
     </item>
 
