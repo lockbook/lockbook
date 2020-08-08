@@ -898,4 +898,73 @@ mod sync_tests {
             .contains("Offline Line"));
         assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
     }
+
+    #[test]
+    fn test_not_really_editing_should_not_cause_work() {
+        let db = test_db();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("original"))
+            .unwrap();
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
+
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("original"))
+            .unwrap();
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn test_not_really_renaming_should_not_cause_work() {
+        let db = test_db();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
+
+        assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err())
+    }
+
+    #[test]
+    fn test_not_really_moving_should_not_cause_work() {
+        let db = test_db();
+        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db).unwrap();
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
+
+        assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err())
+    }
 }
