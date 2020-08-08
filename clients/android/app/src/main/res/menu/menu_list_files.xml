@@ -13,7 +13,6 @@
             <group android:checkableBehavior="single">
                 <item
                     android:id="@+id/menu_list_files_sort_alpha"
-                    android:icon="@drawable/ic_baseline_sort_by_alpha_24"
                     android:title="@string/menu_list_files_sort_alpha" />
                 <item
                     android:id="@+id/menu_list_files_sort_last_changed"
