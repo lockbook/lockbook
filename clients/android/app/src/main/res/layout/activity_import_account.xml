@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="25dp"
+    tools:context=".login.WelcomeActivity">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="20dp"
+        android:text="@string/lockbook_import"
+        style="@style/Text.Headline" />
+
+    <ImageButton
+        android:id="@+id/qr_import_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:srcCompat="@drawable/ic_qr_code_scanner_black_48" />
+
+    <EditText
+        android:id="@+id/text_import_account_string"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:fontFamily="monospace"
+        android:hint="@string/import_description"
+        android:importantForAutofill="no"
+        android:inputType="textVisiblePassword" />
+
+    <Button
+        android:id="@+id/welcome_import_lockbook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Button.Colored"
+        android:text="@string/import_account_import_button" />
+
+
+</LinearLayout>

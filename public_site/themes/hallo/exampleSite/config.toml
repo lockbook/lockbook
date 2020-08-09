@@ -1,0 +1,28 @@
+baseURL = "https://example.com/"
+languageCode = "en"
+defaultContentLanguage = "en"
+title = "Hallo"
+theme = "hallo"
+disableKinds = ["page", "section", "taxonomy", "taxonomyTerm"]
+
+[Author]
+    name = "Hallo"
+
+[params]
+
+    [[params.links]]
+        iconset = "fas"
+        icon = "envelope"
+        title = "E-mail"
+        url = "mailto:mail@example.org"
+
+    [[params.links]]
+        icon = "github"
+        title = "Github"
+        url = "https://github.com/"
+
+    [[params.links]]
+        icon = "twitter"
+        title = "Twitter"
+        url = "https://twitter.com/"
+      

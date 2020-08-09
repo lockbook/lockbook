@@ -6,46 +6,35 @@
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
-    tools:context=".Welcome">
+    tools:context=".login.WelcomeActivity">
 
 
     <TextView
-        android:id="@+id/textView"
+        style="@style/Text.Headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:text="@string/lockbook"
-        android:textAlignment="center"
-        android:textColor="#FFFFFF"
-        android:textSize="40sp" />
+        android:paddingBottom="20dp"
+        android:text="@string/lockbook_title" />
 
     <TextView
+        style="@style/Text.Body"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/secure_private_reliable"
-        android:textColor="#FFFFFF"
-        android:textAlignment="center"
-        android:fontFamily="monospace"
-        android:paddingTop="20dp"
         android:paddingBottom="75dp"
-        />
+        android:text="@string/lockbook_moto" />
 
     <Button
-        android:id="@+id/new_lockbook"
+        android:id="@+id/welcome_new_lockbook"
+        style="@style/Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="15dp"
-        android:backgroundTint="?attr/colorPrimary"
-        android:textColor="#000000"
-        android:text="@string/new_lockbook" />
+        android:text="@string/lockbook_new_account" />
 
     <Button
-        android:id="@+id/import_lockbook"
+        android:id="@+id/welcome_import_lockbook"
+        style="@style/Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimary"
-        android:textColor="#000000"
-        android:text="@string/import_lockbook" />
-
-
+        android:text="@string/lockbook_import" />
 </LinearLayout>
