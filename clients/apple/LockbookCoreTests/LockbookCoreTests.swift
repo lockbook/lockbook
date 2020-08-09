@@ -1,27 +1,27 @@
 //
-//  iosTests.swift
-//  iosTests
+//  LockbookCoreTests.swift
+//  LockbookCoreTests
 //
-//  Created by Raayan Pillai on 7/6/20.
+//  Created by Raayan Pillai on 8/9/20.
 //  Copyright © 2020 Lockbook. All rights reserved.
 //
 
 import XCTest
-@testable import Lockbook
+@testable import LockbookCore
 
-class CoreApiTests: XCTestCase {
+class LockbookCoreTests: XCTestCase {
     static let fileMan = FileManager.init()
     static let tempDir = NSTemporaryDirectory().appending(UUID.init().uuidString)
-    static let core = CoreApi(documentsDirectory: CoreApiTests.tempDir)
+    static let core = CoreApi(documentsDirectory: LockbookCoreTests.tempDir)
 //    let core = CoreApi(documentsDirectory: "/Users/raayanpillai/.lockbook")
     
     override class func setUp() {
         // Start logger
-        init_logger()
+        init_logger_safely()
     }
     
     override func setUp() {
-        print(CoreApiTests.self.core.documentsDirectory)
+        print(LockbookCoreTests.self.core.documentsDirectory)
     }
     
     func test00ImportAccount() {
@@ -30,7 +30,7 @@ class CoreApiTests: XCTestCase {
             return XCTFail("Could not load Account String")
         }
         
-        let result = CoreApiTests.core.importAccount(accountString: data)
+        let result = LockbookCoreTests.core.importAccount(accountString: data)
         
         switch result {
         case .success(let account):
@@ -42,7 +42,7 @@ class CoreApiTests: XCTestCase {
     
     func test01CreateAccount() {
         let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
-        let result = CoreApiTests.core.createAccount(username: username)
+        let result = LockbookCoreTests.core.createAccount(username: username)
         
         switch result {
         case .success(let acc):
@@ -55,11 +55,11 @@ class CoreApiTests: XCTestCase {
     func test02CreateFile() {
         let filename = "swiftfile"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")+".md"
         
-        guard let root = try? CoreApiTests.core.getRoot().get() else {
+        guard let root = try? LockbookCoreTests.core.getRoot().get() else {
             return XCTFail("Could not get root!")
         }
         
-        let result = CoreApiTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
+        let result = LockbookCoreTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
         
         switch result {
         case .success(let file):
@@ -70,7 +70,7 @@ class CoreApiTests: XCTestCase {
     }
     
     func test03Sync() {
-        let result = CoreApiTests.core.synchronize()
+        let result = LockbookCoreTests.core.synchronize()
         
         switch result {
         case .success(let b):
@@ -82,8 +82,8 @@ class CoreApiTests: XCTestCase {
     
     func test04ListFiles() {
         do {
-            let root = try CoreApiTests.core.getRoot().get()
-            let result = CoreApiTests.core.listFiles(dirId: root.id)
+            let root = try LockbookCoreTests.core.getRoot().get()
+            let result = LockbookCoreTests.core.listFiles(dirId: root.id)
             
             switch result {
             case .success(let files):
@@ -99,11 +99,11 @@ class CoreApiTests: XCTestCase {
     }
     
     func test05CreateFile() {
-        guard let root = try? CoreApiTests.core.getRoot().get() else {
+        guard let root = try? LockbookCoreTests.core.getRoot().get() else {
             return XCTFail("Couldn't get root!")
         }
         
-        let result = CoreApiTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
+        let result = LockbookCoreTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
         
         switch result {
         case .success(let meta):
@@ -114,7 +114,7 @@ class CoreApiTests: XCTestCase {
     }
     
     func test06CalculateWork() {
-        let result = CoreApiTests.core.calculateWork()
+        let result = LockbookCoreTests.core.calculateWork()
         
         switch result {
         case .success(let workUnits):
@@ -123,10 +123,8 @@ class CoreApiTests: XCTestCase {
             XCTFail(error.message)
         }
     }
-}
-
-class UtilTests: XCTestCase {
-    func testWorkUnitDecoding() {
+    
+    func test07WorkUnitDecoding() {
         let bundle = Bundle(for: type(of: self))
         guard let url = bundle.url(forResource: "workUnits", withExtension: "json"), let data = try? String(contentsOf: url) else {
             return XCTFail("Could not load JSON")
@@ -138,4 +136,5 @@ class UtilTests: XCTestCase {
             XCTFail()
         }
     }
+
 }
