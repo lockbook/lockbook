@@ -26,16 +26,18 @@ class PopUpInfoActivity : Activity() {
     }
 
     private fun setUpInfo() {
-        val id = intent.getStringExtra("id") ?: "ERROR"
+        val name = intent.getStringExtra("name") ?: "ERROR"
+        id = intent.getStringExtra("id") ?: "ERROR"
         val tempMetadataVersion = intent.getStringExtra("metadataVersion") ?: "ERROR"
         val tempContentVersion = intent.getStringExtra("contentVersion") ?: "ERROR"
+        val fileType = intent.getStringExtra("fileType") ?: "ERROR"
         val dateMetadataVersion = Date(Timestamp(tempMetadataVersion.toLongOrNull() ?: 0L).time)
         val dateContentVersion = Date(Timestamp(tempContentVersion.toLongOrNull() ?: 0L).time)
 
-        popup_info_name.text = getString(R.string.popup_info_name, intent.getStringExtra("name"))
+        popup_info_name.text = getString(R.string.popup_info_name, name)
         popup_info_id.text = getString(R.string.popup_info_id, id)
         popup_info_file_type.text =
-            getString(R.string.popup_info_file_type, intent.getStringExtra("fileType"))
+            getString(R.string.popup_info_file_type, fileType)
         popup_info_metadata_version.text = getString(
             R.string.popup_info_metadata_version,
             dateMetadataVersion
