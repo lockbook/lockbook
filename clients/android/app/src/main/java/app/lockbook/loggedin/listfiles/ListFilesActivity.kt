@@ -62,7 +62,6 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_sort_z_a,
             R.id.menu_list_files_sort_first_changed,
             R.id.menu_list_files_sort_type -> {
-                Timber.i("HERE1")
                 menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {

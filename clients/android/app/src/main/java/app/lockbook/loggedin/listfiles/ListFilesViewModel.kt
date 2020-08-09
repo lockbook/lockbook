@@ -192,7 +192,6 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun matchToDefaultSortOption(files: List<FileMetadata>) {
-        Timber.i("HERE5")
         when (PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
@@ -219,7 +218,6 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun sortFilesChanged(files: List<FileMetadata>, inReverse: Boolean) {
-        Timber.i("HERE6")
         if (inReverse) {
             _files.postValue(
                 files.sortedByDescending { fileMetadata ->
@@ -244,9 +242,11 @@ class ListFilesViewModel(path: String, application: Application) :
         }
         _files.postValue(
             tempFolders.union(
-                tempDocuments.sortedBy { fileMetadata ->
+                tempDocuments.sortedWith( compareBy({  fileMetadata ->
                     Regex(".[^.]+\$").find(fileMetadata.name)?.value
-                }
+                }, {fileMetaData ->
+                    fileMetaData.name
+                }))
             ).toList()
         )
     }
@@ -391,7 +391,6 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onSortPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                Timber.i("HERE3")
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
                 when (id) {
                     R.id.menu_list_files_sort_last_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_LAST_CHANGED).apply()

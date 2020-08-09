@@ -40,10 +40,13 @@ class PopUpInfoActivity : Activity() {
             getString(R.string.popup_info_file_type, fileType)
         popup_info_metadata_version.text = getString(
             R.string.popup_info_metadata_version,
-            dateMetadataVersion
+            if (dateMetadataVersion.time != 0L) dateMetadataVersion else resources.getString(R.string.pop_up_info_never_synced)
         )
         popup_info_content_version.text =
-            getString(R.string.popup_info_content_version, dateContentVersion)
+            getString(
+                R.string.popup_info_content_version,
+                if (dateContentVersion.time != 0L) dateContentVersion else resources.getString(R.string.pop_up_info_never_synced)
+            )
     }
 
     private fun rename() {
