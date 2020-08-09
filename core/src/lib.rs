@@ -1,21 +1,22 @@
-extern crate reqwest;
-
 #[macro_use]
 extern crate log;
+extern crate reqwest;
+
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
-use crate::model::api::NewAccountError;
+use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
-use crate::repo::document_repo::DocumentRepoImpl;
+use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::repo::{document_repo, file_metadata_repo};
 use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
@@ -31,7 +32,7 @@ use crate::service::file_service::{
     DocumentUpdateError, FileService, FileServiceImpl, NewFileError, NewFileFromPathError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, WorkExecutionError,
+    CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
@@ -39,9 +40,9 @@ use crate::CreateFileAtPathError::{
     DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
 };
 use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::GetRootError::UnexpectedError;
-use crate::ImportError::AccountStringCorrupted;
+use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
+use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
 
@@ -81,6 +82,8 @@ pub type DefaultSyncService = FileSyncService<
     DefaultDocumentRepo,
     DefaultAccountRepo,
     DefaultClient,
+    DefaultFileService,
+    DefaultFileEncryptionService,
     DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
@@ -92,8 +95,9 @@ pub type DefaultFileService = FileServiceImpl<
 >;
 
 pub fn init_logger_safely() {
-    env_logger::init();
-    info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
+    if env_logger::try_init().is_ok() {
+        info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
+    }
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
@@ -107,11 +111,12 @@ fn connect_to_db(config: &Config) -> Result<Db, String> {
     Ok(db)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CreateAccountError {
     UsernameTaken,
     InvalidUsername,
     CouldNotReachServer,
+    AccountExistsAlready,
     UnexpectedError(String),
 }
 
@@ -121,6 +126,9 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
     match DefaultAccountService::create_account(&db, username) {
         Ok(_) => Ok(()),
         Err(err) => match err {
+            AccountCreationError::AccountExistsAlready => {
+                Err(CreateAccountError::AccountExistsAlready)
+            }
             AccountCreationError::ApiError(network) => match network {
                 Error::Api(api_err) => match api_err {
                     NewAccountError::UsernameTaken => Err(UsernameTaken),
@@ -140,10 +148,11 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
                 ),
             },
             AccountCreationError::KeyGenerationError(_)
-            | AccountCreationError::PersistenceError(_)
+            | AccountCreationError::AccountRepoError(_)
             | AccountCreationError::FolderError(_)
             | AccountCreationError::MetadataRepoError(_)
             | AccountCreationError::KeySerializationError(_)
+            | AccountCreationError::AccountRepoDbError(_)
             | AccountCreationError::AuthGenFailure(_) => {
                 Err(CreateAccountError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -151,9 +160,13 @@ pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccou
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ImportError {
     AccountStringCorrupted,
+    AccountExistsAlready,
+    AccountDoesNotExist,
+    UsernamePKMismatch,
+    CouldNotReachServer,
     UnexpectedError(String),
 }
 
@@ -166,14 +179,28 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Impor
             AccountImportError::AccountStringCorrupted(_)
             | AccountImportError::AccountStringFailedToDeserialize(_)
             | AccountImportError::InvalidPrivateKey(_) => Err(AccountStringCorrupted),
-            AccountImportError::PersistenceError(_) => {
+            AccountImportError::AccountExistsAlready => Err(ImportError::AccountExistsAlready),
+            AccountImportError::PublicKeyMismatch => Err(UsernamePKMismatch),
+            AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
+                Error::SendFailed(_) => Err(ImportError::CouldNotReachServer),
+                Error::Api(api_err) => match api_err {
+                    GetPublicKeyError::UserNotFound => Err(AccountDoesNotExist),
+                    GetPublicKeyError::InvalidUsername | GetPublicKeyError::InternalError => {
+                        Err(ImportError::UnexpectedError(format!("{:#?}", api_err)))
+                    }
+                },
+                Error::Serialize(_) | Error::ReceiveFailed(_) | Error::Deserialize(_) => {
+                    Err(ImportError::UnexpectedError(format!("{:#?}", client_err)))
+                }
+            },
+            AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(ImportError::UnexpectedError(format!("{:#?}", err)))
             }
         },
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum AccountExportError {
     NoAccount,
     UnexpectedError(String),
@@ -186,7 +213,7 @@ pub fn export_account(config: &Config) -> Result<String, AccountExportError> {
         Ok(account_string) => Ok(account_string),
         Err(err) => match err {
             ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
-                AccountRepoError::NoAccount(_) => Err(AccountExportError::NoAccount),
+                AccountRepoError::NoAccount => Err(AccountExportError::NoAccount),
                 AccountRepoError::SerdeError(_) | AccountRepoError::SledError(_) => Err(
                     AccountExportError::UnexpectedError(format!("{:#?}", db_err)),
                 ),
@@ -198,7 +225,7 @@ pub fn export_account(config: &Config) -> Result<String, AccountExportError> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetAccountError {
     NoAccount,
     UnexpectedError(String),
@@ -210,7 +237,7 @@ pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
     match DefaultAccountRepo::get_account(&db) {
         Ok(account) => Ok(account),
         Err(err) => match err {
-            AccountRepoError::NoAccount(_) => Err(GetAccountError::NoAccount),
+            AccountRepoError::NoAccount => Err(GetAccountError::NoAccount),
             AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
                 Err(GetAccountError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -218,6 +245,7 @@ pub fn get_account(config: &Config) -> Result<Account, GetAccountError> {
     }
 }
 
+#[derive(Debug, Serialize)]
 pub enum CreateFileAtPathError {
     FileAlreadyExists,
     NoAccount,
@@ -241,7 +269,7 @@ pub fn create_file_at_path(
             NewFileFromPathError::NoRoot => Err(NoRoot),
             NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
                 NewFileError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount(_) => Err(CreateFileAtPathError::NoAccount),
+                    AccountRepoError::NoAccount => Err(CreateFileAtPathError::NoAccount),
                     AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                         CreateFileAtPathError::UnexpectedError(format!("{:#?}", account_error)),
                     ),
@@ -267,7 +295,7 @@ pub fn create_file_at_path(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum WriteToDocumentError {
     NoAccount,
     FileDoesNotExist,
@@ -289,7 +317,7 @@ pub fn write_document(
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     WriteToDocumentError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
-                AccountRepoError::NoAccount(_) => Err(WriteToDocumentError::NoAccount),
+                AccountRepoError::NoAccount => Err(WriteToDocumentError::NoAccount),
             },
             DocumentUpdateError::CouldNotFindFile => Err(FileDoesNotExist),
             DocumentUpdateError::FolderTreatedAsDocument => Err(FolderTreatedAsDocument),
@@ -297,6 +325,9 @@ pub fn write_document(
             | DocumentUpdateError::FileCryptoError(_)
             | DocumentUpdateError::DocumentWriteError(_)
             | DocumentUpdateError::DbError(_)
+            | DocumentUpdateError::FetchOldVersionError(_)
+            | DocumentUpdateError::DecryptOldVersionError(_)
+            | DocumentUpdateError::AccessInfoCreationError(_)
             | DocumentUpdateError::FailedToRecordChange(_) => {
                 Err(WriteToDocumentError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -304,7 +335,7 @@ pub fn write_document(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum CreateFileError {
     NoAccount,
     DocumentTreatedAsFolder,
@@ -346,7 +377,7 @@ pub fn create_file(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetRootError {
     NoRoot,
     UnexpectedError(String),
@@ -360,11 +391,45 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
             None => Err(GetRootError::NoRoot),
             Some(file_metadata) => Ok(file_metadata),
         },
-        Err(err) => Err(UnexpectedError(format!("{:#?}", err))),
+        Err(err) => Err(GetRootError::UnexpectedError(format!("{:#?}", err))),
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+pub enum GetChildrenError {
+    UnexpectedError(String),
+}
+
+pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<FileMetadata>, GetChildrenError> {
+    let db = connect_to_db(&config).map_err(GetChildrenError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_children(&db, id) {
+        Ok(file_metadata_list) => Ok(file_metadata_list),
+        Err(err) => Err(GetChildrenError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum GetFileByIdError {
+    NoFileWithThatId,
+    UnexpectedError(String),
+}
+
+pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, GetFileByIdError> {
+    let db = connect_to_db(&config).map_err(GetFileByIdError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get(&db, id) {
+        Ok(file_metadata) => Ok(file_metadata),
+        Err(err) => match err {
+            file_metadata_repo::Error::FileRowMissing(_) => Err(GetFileByIdError::NoFileWithThatId),
+            file_metadata_repo::Error::SledError(_) | file_metadata_repo::Error::SerdeError(_) => {
+                Err(GetFileByIdError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub enum GetFileByPathError {
     NoFileAtThatPath,
     UnexpectedError(String),
@@ -382,7 +447,41 @@ pub fn get_file_by_path(config: &Config, path: &str) -> Result<FileMetadata, Get
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+pub enum InsertFileError {
+    UnexpectedError(String),
+}
+
+pub fn insert_file(config: &Config, file_metadata: FileMetadata) -> Result<(), InsertFileError> {
+    let db = connect_to_db(&config).map_err(InsertFileError::UnexpectedError)?;
+
+    match FileMetadataRepoImpl::insert(&db, &file_metadata) {
+        Ok(()) => Ok(()),
+        Err(err) => Err(InsertFileError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum DeleteFileError {
+    NoFileWithThatId,
+    UnexpectedError(String),
+}
+
+pub fn delete_file(config: &Config, id: Uuid) -> Result<(), DeleteFileError> {
+    let db = connect_to_db(&config).map_err(DeleteFileError::UnexpectedError)?;
+
+    match DocumentRepoImpl::delete(&db, id) {
+        Ok(()) => Ok(()),
+        Err(err) => match err {
+            document_repo::Error::SledError(_) | document_repo::Error::SerdeError(_) => {
+                Err(DeleteFileError::UnexpectedError(format!("{:#?}", err)))
+            }
+            document_repo::Error::FileRowMissing(_) => Err(DeleteFileError::NoFileWithThatId),
+        },
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub enum ReadDocumentError {
     TreatedFolderAsDocument,
     NoAccount,
@@ -400,7 +499,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedValue, ReadDo
                 Err(ReadDocumentError::TreatedFolderAsDocument)
             }
             FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount(_) => Err(ReadDocumentError::NoAccount),
+                AccountRepoError::NoAccount => Err(ReadDocumentError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     ReadDocumentError::UnexpectedError(format!("{:#?}", account_error)),
                 ),
@@ -416,7 +515,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedValue, ReadDo
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ListPathsError {
     UnexpectedError(String),
 }
@@ -430,7 +529,7 @@ pub fn list_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameContainsSlash,
@@ -456,12 +555,12 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Rena
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum MoveFileError {
     NoAccount,
-    FileDoesntExist,
+    FileDoesNotExist,
     DocumentTreatedAsFolder,
-    TargetParentDoesntExist,
+    TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
     UnexpectedError(String),
 }
@@ -474,7 +573,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
         Err(err) => match err {
             FileMoveError::DocumentTreatedAsFolder => Err(MoveFileError::DocumentTreatedAsFolder),
             FileMoveError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::NoAccount(_) => Err(MoveFileError::NoAccount),
+                AccountRepoError::NoAccount => Err(MoveFileError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     MoveFileError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
@@ -482,8 +581,8 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
             FileMoveError::TargetParentHasChildNamedThat => {
                 Err(MoveFileError::TargetParentHasChildNamedThat)
             }
-            FileMoveError::FileDoesntExist => Err(MoveFileError::FileDoesntExist),
-            FileMoveError::TargetParentDoesntExist => Err(MoveFileError::TargetParentDoesntExist),
+            FileMoveError::FileDoesNotExist => Err(MoveFileError::FileDoesNotExist),
+            FileMoveError::TargetParentDoesNotExist => Err(MoveFileError::TargetParentDoesNotExist),
             FileMoveError::DbError(_)
             | FileMoveError::FailedToRecordChange(_)
             | FileMoveError::FailedToDecryptKey(_)
@@ -495,7 +594,165 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+pub enum SyncAllError {
+    NoAccount,
+    CouldNotReachServer,
+    ExecuteWorkError(Vec<ExecuteWorkError>),
+    UnexpectedError(String),
+}
+
+pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
+    let db = connect_to_db(&config).map_err(SyncAllError::UnexpectedError)?;
+
+    match DefaultSyncService::sync(&db) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            SyncError::AccountRetrievalError(err) => match err {
+                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                    Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
+                }
+                AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
+            },
+            SyncError::CalculateWorkError(err) => match err {
+                SSCalculateWorkError::LocalChangesRepoError(_)
+                | SSCalculateWorkError::MetadataRepoError(_)
+                | SSCalculateWorkError::GetMetadataError(_) => {
+                    Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
+                }
+                SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
+                    AccountRepoError::NoAccount => Err(SyncAllError::NoAccount),
+                    AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                        Err(SyncAllError::UnexpectedError(format!("{:#?}", account_err)))
+                    }
+                },
+                SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
+                    Error::SendFailed(_) => Err(SyncAllError::CouldNotReachServer),
+                    Error::Serialize(_)
+                    | Error::ReceiveFailed(_)
+                    | Error::Deserialize(_)
+                    | Error::Api(_) => {
+                        Err(SyncAllError::UnexpectedError(format!("{:#?}", api_err)))
+                    }
+                },
+            },
+            SyncError::WorkExecutionError(err_map) => Err(SyncAllError::ExecuteWorkError(
+                err_map
+                    .iter()
+                    .map(|err| match err.1 {
+                        WorkExecutionError::DocumentGetError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentRenameError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderRenameError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentMoveError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderMoveError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentCreateError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderCreateError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentChangeError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::DocumentDeleteError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::FolderDeleteError(api) => match api {
+                            Error::SendFailed(_) => ExecuteWorkError::CouldNotReachServer,
+                            Error::Serialize(_)
+                            | Error::ReceiveFailed(_)
+                            | Error::Deserialize(_)
+                            | Error::Api(_) => {
+                                ExecuteWorkError::UnexpectedError(format!("{:#?}", api))
+                            }
+                        },
+                        WorkExecutionError::MetadataRepoError(_)
+                        | WorkExecutionError::MetadataRepoErrorOpt(_)
+                        | WorkExecutionError::SaveDocumentError(_)
+                        | WorkExecutionError::LocalChangesRepoError(_)
+                        | WorkExecutionError::AutoRenameError(_)
+                        | WorkExecutionError::DecryptingOldVersionForMergeError(_)
+                        | WorkExecutionError::ReadingCurrentVersionError(_)
+                        | WorkExecutionError::WritingMergedFileError(_)
+                        | WorkExecutionError::FindingParentsForConflictingFileError(_)
+                        | WorkExecutionError::ResolveConflictByCreatingNewFileError(_) => {
+                            ExecuteWorkError::UnexpectedError(format!("{:#?}", err))
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            )),
+            SyncError::MetadataUpdateError(err) => {
+                Err(SyncAllError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub enum CalculateWorkError {
     NoAccount,
     CouldNotReachServer,
@@ -514,7 +771,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
                 Err(CalculateWorkError::UnexpectedError(format!("{:#?}", err)))
             }
             SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::NoAccount(_) => Err(CalculateWorkError::NoAccount),
+                AccountRepoError::NoAccount => Err(CalculateWorkError::NoAccount),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => Err(
                     CalculateWorkError::UnexpectedError(format!("{:#?}", account_err)),
                 ),
@@ -533,9 +790,9 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ExecuteWorkError {
-    NetworkIssue,
+    CouldNotReachServer,
     UnexpectedError(String),
 }
 
@@ -550,70 +807,70 @@ pub fn execute_work(
         Ok(_) => Ok(()),
         Err(err) => match err {
             WorkExecutionError::DocumentGetError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentRenameError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderRenameError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentMoveError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderMoveError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentCreateError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderCreateError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentChangeError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentDeleteError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
                 | Error::Api(_) => Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderDeleteError(api) => match api {
-                Error::SendFailed(_) => Err(ExecuteWorkError::NetworkIssue),
+                Error::SendFailed(_) => Err(ExecuteWorkError::CouldNotReachServer),
                 Error::Serialize(_)
                 | Error::ReceiveFailed(_)
                 | Error::Deserialize(_)
@@ -622,6 +879,12 @@ pub fn execute_work(
             WorkExecutionError::MetadataRepoError(_)
             | WorkExecutionError::MetadataRepoErrorOpt(_)
             | WorkExecutionError::SaveDocumentError(_)
+            | WorkExecutionError::AutoRenameError(_)
+            | WorkExecutionError::ResolveConflictByCreatingNewFileError(_)
+            | WorkExecutionError::DecryptingOldVersionForMergeError(_)
+            | WorkExecutionError::ReadingCurrentVersionError(_)
+            | WorkExecutionError::WritingMergedFileError(_)
+            | WorkExecutionError::FindingParentsForConflictingFileError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -629,7 +892,7 @@ pub fn execute_work(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum SetLastSyncedError {
     UnexpectedError(String),
 }
@@ -643,7 +906,7 @@ pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), SetLastSyn
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GetLastSyncedError {
     UnexpectedError(String),
 }
