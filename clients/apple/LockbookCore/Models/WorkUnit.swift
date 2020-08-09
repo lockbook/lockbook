@@ -33,6 +33,11 @@ extension WorkUnit: Decodable {
     }
 }
 
+struct WorkMetadata: Decodable {
+    var mostRecentUpdateFromServer: Date
+    var workUnits: [WorkUnit]
+}
+
 struct Content: Decodable {
     var metadata: FileMetadata
 }

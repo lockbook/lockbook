@@ -525,6 +525,20 @@ pub fn list_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>
 }
 
 #[derive(Debug, Serialize)]
+pub enum ListMetasError {
+    UnexpectedError(String),
+}
+
+pub fn list_metas(config: &Config) -> Result<Vec<FileMetadata>, ListMetasError> {
+    let db = connect_to_db(&config).map_err(ListMetasError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_all(&db) {
+        Ok(metas) => Ok(metas),
+        Err(err) => Err(ListMetasError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameContainsSlash,
