@@ -142,7 +142,6 @@ class ListFilesFragment : Fragment() {
     }
 
     fun onSortPressed(id: Int) {
-        Timber.i("HERE2")
         listFilesViewModel.onSortPressed(id)
     }
 
