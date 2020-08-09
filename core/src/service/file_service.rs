@@ -14,11 +14,12 @@ use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
-    FileCreationError, FileEncryptionService, KeyDecryptionFailure,
+    FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
 use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
 use crate::service::file_service::DocumentUpdateError::{
-    CouldNotFindFile, DbError, DocumentWriteError, FolderTreatedAsDocument,
+    AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
+    FolderTreatedAsDocument,
 };
 use crate::service::file_service::FileMoveError::{
     FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
@@ -32,6 +33,7 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -64,6 +66,9 @@ pub enum DocumentUpdateError {
     FolderTreatedAsDocument,
     FileCryptoError(file_encryption_service::FileWriteError),
     DocumentWriteError(document_repo::Error),
+    FetchOldVersionError(document_repo::DbError),
+    DecryptOldVersionError(file_encryption_service::UnableToReadFile),
+    AccessInfoCreationError(UnableToGetKeyForUser),
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
@@ -287,13 +292,36 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
-        let new_file = FileCrypto::write_to_document(&account, &content, &file_metadata, parents)
-            .map_err(DocumentUpdateError::FileCryptoError)?;
+        let new_file =
+            FileCrypto::write_to_document(&account, &content, &file_metadata, parents.clone())
+                .map_err(DocumentUpdateError::FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
-        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
-        ChangesDb::track_edit(&db, file_metadata.id)
+
+        if let Some(old_encrypted) = FileDb::maybe_get(&db, id).map_err(FetchOldVersionError)? {
+            let decrypted = FileCrypto::read_document(
+                &account,
+                &old_encrypted,
+                &file_metadata,
+                parents.clone(),
+            )
+            .map_err(DocumentUpdateError::DecryptOldVersionError)?;
+
+            let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
+                .map_err(AccessInfoCreationError)?;
+
+            ChangesDb::track_edit(
+                &db,
+                file_metadata.id,
+                &old_encrypted,
+                &permanent_access_info,
+                Sha256::digest(decrypted.secret.as_bytes()).to_vec(),
+                Sha256::digest(content.secret.as_bytes()).to_vec(),
+            )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
+        };
+
+        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
 
         Ok(())
     }
@@ -444,12 +472,45 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
         assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_some());
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder3 = DefaultFileService::create(&db, "TestFolder3", folder2.id, Folder).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder4 = DefaultFileService::create(&db, "TestFolder4", folder3.id, Folder).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder5 = DefaultFileService::create(&db, "TestFolder5", folder4.id, Folder).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let file = DefaultFileService::create(&db, "test.text", folder5.id, Document).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
@@ -486,6 +547,9 @@ mod unit_tests {
             "5 folders deep".to_string()
         );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -520,6 +584,10 @@ mod unit_tests {
             "username/"
         );
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, None)
@@ -533,6 +601,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
             .unwrap()
             .contains(&"username/TestFolder1/".to_string()));
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
         let folder3 = DefaultFileService::create(&db, "TestFolder3", folder2.id, Folder).unwrap();
         let folder4 = DefaultFileService::create(&db, "TestFolder4", folder3.id, Folder).unwrap();
@@ -543,6 +616,10 @@ mod unit_tests {
         DefaultFileService::create(&db, "test3.text", folder2.id, Document).unwrap();
         DefaultFileService::create(&db, "test4.text", folder2.id, Document).unwrap();
         DefaultFileService::create(&db, "test5.text", folder2.id, Document).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
             .unwrap()
@@ -608,7 +685,11 @@ mod unit_tests {
                 assert!(DefaultFileMetadataRepo::get_by_path(&db, &path)
                     .unwrap()
                     .is_some())
-            })
+            });
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -666,6 +747,10 @@ mod unit_tests {
             1
         );
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         assert_eq!(
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/folder3/test2.txt")
                 .unwrap()
@@ -690,6 +775,11 @@ mod unit_tests {
                 .len(),
             2
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         println!(
             "{:?}",
             DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
@@ -754,6 +844,10 @@ mod unit_tests {
                 .len(),
             5
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -772,6 +866,10 @@ mod unit_tests {
 
         DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(&db, "username/test.txt").is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -790,6 +888,10 @@ mod unit_tests {
 
         let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(&db, "test.txt", file.parent, Document).is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -808,6 +910,10 @@ mod unit_tests {
 
         DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(&db, "username/test.txt/oops.txt").is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -826,6 +932,10 @@ mod unit_tests {
 
         let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(&db, "oops.txt", file.id, Document).is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -843,6 +953,10 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         assert!(DefaultFileService::create(&db, "oops/txt", root.id, Document).is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -858,6 +972,10 @@ mod unit_tests {
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         let file = DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
         assert!(
@@ -879,6 +997,10 @@ mod unit_tests {
             2
         );
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         DefaultLocalChangesRepo::untrack_new_file(&db, file.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file.parent).unwrap();
         assert_eq!(
@@ -898,6 +1020,10 @@ mod unit_tests {
                 .old_value,
             "file1.txt"
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         DefaultFileService::rename_file(&db, file.id, "file23.txt").unwrap();
         assert_eq!(
@@ -930,6 +1056,10 @@ mod unit_tests {
             0
         );
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         assert!(DefaultFileService::rename_file(&db, Uuid::new_v4(), "not_used").is_err());
         assert!(DefaultFileService::rename_file(&db, file.id, "file/1.txt").is_err());
         assert_eq!(
@@ -949,6 +1079,10 @@ mod unit_tests {
             "file2.txt"
         );
         assert!(DefaultFileService::rename_file(&db, file2.id, "file1.txt").is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -965,15 +1099,23 @@ mod unit_tests {
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
         let folder1 = DefaultFileService::create_at_path(&db, "username/folder2/").unwrap();
         assert!(DefaultFileService::write_document(
             &db,
             folder1.id,
-            &DecryptedValue::from("should fail")
+            &DecryptedValue::from("should fail"),
         )
         .is_err());
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         DefaultFileService::write_document(&db, file1.id, &DecryptedValue::from("nice doc ;)"))
             .unwrap();
@@ -984,6 +1126,10 @@ mod unit_tests {
                 .len(),
             3
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.parent).unwrap();
@@ -1004,6 +1150,10 @@ mod unit_tests {
                 .secret,
             "nice doc ;)"
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
 
         assert_eq!(
             DefaultFileMetadataRepo::get(&db, file1.id).unwrap().parent,
@@ -1034,5 +1184,56 @@ mod unit_tests {
                 .len(),
             2
         );
+
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_keeping_track_of_edits() {
+        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let keys = DefaultCrypto::generate_key().unwrap();
+
+        let account = Account {
+            username: String::from("username"),
+            keys,
+        };
+
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let file = DefaultFileService::create_at_path(&db, "username/file1.md").unwrap();
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+            .unwrap();
+
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+                .unwrap()
+                .unwrap()
+                .new
+        );
+
+        DefaultLocalChangesRepo::untrack_new_file(&db, file.id).unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultLocalChangesRepo::get_all_local_changes(&db)
+            .unwrap()
+            .is_empty());
+
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content2"))
+            .unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .unwrap()
+            .content_edited
+            .is_some());
+        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+            .unwrap();
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
+            .unwrap()
+            .is_none());
     }
 }
