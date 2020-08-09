@@ -9,7 +9,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
-import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
@@ -38,10 +37,12 @@ class ListFilesActivity : AppCompatActivity() {
     }
 
     private fun matchToDefaultSortOption() {
-        when (PreferenceManager.getDefaultSharedPreferences(application).getString(
-            SORT_FILES_KEY,
-            SORT_FILES_A_Z
-        )) {
+        when (
+            PreferenceManager.getDefaultSharedPreferences(application).getString(
+                SORT_FILES_KEY,
+                SORT_FILES_A_Z
+            )
+        ) {
             SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
             SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
             SORT_FILES_LAST_CHANGED -> menu?.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true

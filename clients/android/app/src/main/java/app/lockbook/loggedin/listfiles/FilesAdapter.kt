@@ -40,7 +40,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
         holder.cardView.file_name.text = item.name
         holder.cardView.file_description.text = holder.cardView.resources.getString(
             R.string.list_files_last_synced,
-            if(item.metadata_version != 0L) date else holder.cardView.resources.getString(R.string.list_files_never_synced)
+            if (item.metadata_version != 0L) date else holder.cardView.resources.getString(R.string.list_files_never_synced)
         )
         if (item.file_type == FileType.Document) {
             holder.cardView.file_name.setTextColor(
