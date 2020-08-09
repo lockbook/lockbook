@@ -31,19 +31,15 @@ pub fn sync() {
 
     while !work_calculated.work_units.is_empty() {
         for work_unit in work_calculated.work_units {
-            print!(
-                "{}",
-                match work_unit.clone() {
-                    WorkUnit::LocalChange { metadata } =>
-                        format!("Syncing: {} to server\t", metadata.name),
-                    WorkUnit::ServerChange { metadata } =>
-                        format!("Syncing: {} from server\t", metadata.name),
-                }
-            );
+            let action = match work_unit.clone() {
+                WorkUnit::LocalChange { metadata } => format!("Pushing: {}", metadata.name),
+                WorkUnit::ServerChange { metadata } => format!("Pulling: {}", metadata.name),
+            };
+
             let _ = io::stdout().flush();
             match execute_work(&get_config(), &account, work_unit) {
-                Ok(_) => println!("Success."),
-                Err(error) => eprintln!("Failed: {:?}", error),
+                Ok(_) => println!("{:<50}Done.", action),
+                Err(error) => eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error)),
             }
         }
 
