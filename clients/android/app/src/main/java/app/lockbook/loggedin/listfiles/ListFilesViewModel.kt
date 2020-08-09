@@ -193,7 +193,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun matchToDefaultSortOption(files: List<FileMetadata>) {
         Timber.i("HERE5")
-        when(PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
+        when (PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -210,9 +210,11 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             )
         } else {
-            _files.postValue(files.sortedBy { fileMetadata ->
-                fileMetadata.name
-            })
+            _files.postValue(
+                files.sortedBy { fileMetadata ->
+                    fileMetadata.name
+                }
+            )
         }
     }
 
@@ -225,9 +227,11 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             )
         } else {
-            _files.postValue(files.sortedBy { fileMetadata ->
-                fileMetadata.metadata_version
-            })
+            _files.postValue(
+                files.sortedBy { fileMetadata ->
+                    fileMetadata.metadata_version
+                }
+            )
         }
     }
 
@@ -238,9 +242,13 @@ class ListFilesViewModel(path: String, application: Application) :
         val tempDocuments = files.filter { fileMetadata ->
             fileMetadata.file_type.name == FileType.Document.name
         }
-        _files.postValue(tempFolders.union(tempDocuments.sortedBy { fileMetadata ->
-            Regex(".[^.]+\$").find(fileMetadata.name)?.value
-        }).toList())
+        _files.postValue(
+            tempFolders.union(
+                tempDocuments.sortedBy { fileMetadata ->
+                    Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                }
+            ).toList()
+        )
     }
 
     private fun handleReadDocument(fileMetadata: FileMetadata) {
@@ -385,7 +393,7 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 Timber.i("HERE3")
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
-                when(id) {
+                when (id) {
                     R.id.menu_list_files_sort_last_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_LAST_CHANGED).apply()
                     R.id.menu_list_files_sort_a_z -> pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z).apply()
                     R.id.menu_list_files_sort_z_a -> pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A).apply()
@@ -403,7 +411,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 } else {
                     _errorHasOccurred.postValue("Unable to retrieve files from LiveData.")
                 }
-
             }
         }
     }
