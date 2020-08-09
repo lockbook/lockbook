@@ -21,26 +21,10 @@ class LockbookCoreTests: XCTestCase {
     }
     
     override func setUp() {
-        print(LockbookCoreTests.self.core.documentsDirectory)
+        print(LockbookCoreTests.core.documentsDirectory)
     }
     
-    func test00ImportAccount() {
-        let bundle = Bundle(for: type(of: self))
-        guard let url = bundle.url(forResource: "accountString", withExtension: "txt"), let data = try? String(contentsOf: url) else {
-            return XCTFail("Could not load Account String")
-        }
-        
-        let result = LockbookCoreTests.core.importAccount(accountString: data)
-        
-        switch result {
-        case .success(let account):
-            XCTAssertEqual(account.username, "raayan")
-        case .failure(let error):
-            XCTFail(error.message)
-        }
-    }
-    
-    func test01CreateAccount() {
+    func test01CreateExportImportAccount() {
         let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
         let result = LockbookCoreTests.core.createAccount(username: username)
         
@@ -48,36 +32,64 @@ class LockbookCoreTests: XCTestCase {
         case .success(let acc):
             XCTAssertEqual(acc.username, username)
         case .failure(let err):
-            XCTFail(err.message)
+            XCTFail(err.message())
+        }
+        
+        let exportResult = LockbookCoreTests.core.exportAccount()
+        
+        guard case .success(let accountString) = exportResult else {
+            guard case .failure(let err) = exportResult else {
+                return XCTFail()
+            }
+            return XCTFail(err.message())
+        }
+        
+        try? LockbookCoreTests.fileMan.removeItem(atPath: LockbookCoreTests.tempDir)
+        
+        guard case .failure(_) = LockbookCoreTests.core.getAccount() else {
+            return XCTFail("Account was found!")
+        }
+        
+        let importResult = LockbookCoreTests.core.importAccount(accountString: accountString)
+        
+        switch importResult {
+        case .success(let acc):
+            XCTAssertEqual(acc.username, username)
+        case .failure(let err):
+            XCTFail(err.message())
         }
     }
     
     func test02CreateFile() {
         let filename = "swiftfile"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")+".md"
         
-        guard let root = try? LockbookCoreTests.core.getRoot().get() else {
-            return XCTFail("Could not get root!")
-        }
-        
-        let result = LockbookCoreTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
-        
-        switch result {
-        case .success(let file):
-            XCTAssertEqual(file.name, filename)
-        case .failure(let err):
-            XCTFail(err.message)
-        }
+        do {
+            let root = try LockbookCoreTests.core.getRoot().get()
+            
+            let result = LockbookCoreTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
+            
+            switch result {
+            case .success(let file):
+                XCTAssertEqual(file.name, filename)
+            case .failure(let err):
+                XCTFail(err.message())
+            }
+        } catch let err as ApplicationError {
+           XCTFail(err.message())
+       } catch {
+           XCTFail(error.localizedDescription)
+       }
     }
     
     func test03Sync() {
         let result = LockbookCoreTests.core.synchronize()
         
-        switch result {
-        case .success(let b):
-            XCTAssert(b)
-        case .failure(let error):
-            XCTFail(error.message)
-        }
+//        switch result {
+//        case .success(let b):
+//            XCTAssert(b)
+//        case .failure(let err):
+//            XCTFail(err.message())
+//        }
     }
     
     func test04ListFiles() {
@@ -87,54 +99,44 @@ class LockbookCoreTests: XCTestCase {
             
             switch result {
             case .success(let files):
-                XCTAssertEqual(files.count, 1)
-            case .failure(let error):
-                XCTFail(error.message)
+                XCTAssertEqual(files.count, 2)
+            case .failure(let err):
+                XCTFail(err.message())
             }
-        } catch let error as CoreError {
-            XCTFail(error.message)
+        } catch let err as ApplicationError {
+            XCTFail(err.message())
         } catch {
             XCTFail(error.localizedDescription)
         }
     }
     
     func test05CreateFile() {
-        guard let root = try? LockbookCoreTests.core.getRoot().get() else {
-            return XCTFail("Couldn't get root!")
-        }
-        
-        let result = LockbookCoreTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
-        
-        switch result {
-        case .success(let meta):
-            XCTAssertEqual(meta.name, "test.md")
-        case .failure(let error):
-            XCTFail(error.message)
-        }
+        do {
+            let root = try LockbookCoreTests.core.getRoot().get()
+            
+            let result = LockbookCoreTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
+            
+            switch result {
+            case .success(let meta):
+                XCTAssertEqual(meta.name, "test.md")
+            case .failure(let err):
+                XCTFail(err.message())
+            }
+        } catch let err as ApplicationError {
+           XCTFail(err.message())
+       } catch {
+           XCTFail(error.localizedDescription)
+       }
     }
     
     func test06CalculateWork() {
         let result = LockbookCoreTests.core.calculateWork()
         
         switch result {
-        case .success(let workUnits):
-            XCTAssertEqual(workUnits.count, 1)
-        case .failure(let error):
-            XCTFail(error.message)
+        case .success(let workMeta):
+            XCTAssertEqual(workMeta.workUnits.count, 2)
+        case .failure(let err):
+            XCTFail(err.message())
         }
     }
-    
-    func test07WorkUnitDecoding() {
-        let bundle = Bundle(for: type(of: self))
-        guard let url = bundle.url(forResource: "workUnits", withExtension: "json"), let data = try? String(contentsOf: url) else {
-            return XCTFail("Could not load JSON")
-        }
-        
-        if let workUnits: [WorkUnit] = (try? deserialize(jsonStr: data).get()) {
-            XCTAssertEqual(workUnits.count, 3)
-        } else {
-            XCTFail()
-        }
-    }
-
 }

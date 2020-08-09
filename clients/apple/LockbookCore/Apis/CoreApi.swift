@@ -8,17 +8,18 @@
 
 import Foundation
 
-typealias CoreResult<T> = Result<T, CoreError>
+typealias CoreResult<T> = Result<T, ApplicationError>
 
 protocol LockbookApi {
     // Account
-    func getAccount() -> CoreResult<Account.Username>
+    func getAccount() -> CoreResult<Account>
     func createAccount(username: String) -> CoreResult<Account>
     func importAccount(accountString: String) -> CoreResult<Account>
+    func exportAccount() -> CoreResult<String>
     
     // Work
     func synchronize() -> CoreResult<Bool>
-    func calculateWork() -> CoreResult<[WorkUnit]>
+    func calculateWork() -> CoreResult<WorkMetadata>
     func executeWork(work: [WorkUnit]) -> CoreResult<Bool>
     
     // Directory
@@ -33,81 +34,93 @@ protocol LockbookApi {
 }
 
 struct CoreApi: LockbookApi {
-    let documentsDirectory: String
+    var documentsDirectory: String
     
-    func getAccount() -> CoreResult<Account.Username> {
-        return fromPrimitiveResult(result: get_account(documentsDirectory))
+    func getAccount() -> CoreResult<Account> {
+        fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
     func createAccount(username: String) -> CoreResult<Account> {
-        return fromPrimitiveResult(result: create_account(documentsDirectory, username))
+        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username))
+        
+        return result.flatMap { print($0 as Any); return getAccount() }
     }
     
     func importAccount(accountString: String) -> CoreResult<Account> {
-        return fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+        
+        return result.flatMap { print($0 as Any); return getAccount() }
+    }
+    
+    func exportAccount() -> CoreResult<String> {
+        fromPrimitiveResult(result: export_account(documentsDirectory))
     }
     
     func synchronize() -> CoreResult<Bool> {
-        return CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func calculateWork() -> CoreResult<[WorkUnit]> {
-        return fromPrimitiveResult(result: calculate_work(documentsDirectory))
+    func calculateWork() -> CoreResult<WorkMetadata> {
+        fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
     func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
-        return CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func getRoot() -> CoreResult<FileMetadata> {
-        return fromPrimitiveResult(result: get_root(documentsDirectory))
+        fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
     func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
-        return fromPrimitiveResult(result: list_paths(documentsDirectory, dirId.uuidString))
+        fromPrimitiveResult(result: list_files(documentsDirectory))
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        return fromPrimitiveResult(result: get_file_by_path(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: get_file_by_path(documentsDirectory, id.uuidString))
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
-        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, "File"))
+        fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, "Document"))
     }
     
     func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
-        return fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
+        fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
     func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        return CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
 }
 
 
 struct FakeApi: LockbookApi {
-    func getAccount() -> CoreResult<Account.Username> {
-        CoreResult.success(username)
+    func getAccount() -> CoreResult<Account> {
+        CoreResult.success(Account(username: username))
     }
     
     func createAccount(username: String) -> CoreResult<Account> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func importAccount(accountString: String) -> CoreResult<Account> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    }
+    
+    func exportAccount() -> CoreResult<String> {
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func synchronize() -> CoreResult<Bool> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func calculateWork() -> CoreResult<[WorkUnit]> {
-        return Result.failure(CoreError.lazy())
+    func calculateWork() -> CoreResult<WorkMetadata> {
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func getRoot() -> CoreResult<FileMetadata> {
@@ -119,7 +132,7 @@ struct FakeApi: LockbookApi {
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
@@ -128,11 +141,11 @@ struct FakeApi: LockbookApi {
     }
     
     func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        CoreResult.failure(CoreError.lazy())
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
     let username: Account.Username = "tester"

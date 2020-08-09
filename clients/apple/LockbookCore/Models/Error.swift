@@ -8,6 +8,23 @@
 
 import Foundation
 
+enum ApplicationError: Error {
+    case Lockbook(CoreError)
+    case Serialization(String)
+    case General(Error)
+    
+    func message() -> String {
+        switch self {
+        case .Lockbook(let coreErr):
+            return coreErr.message
+        case .Serialization(let errMsg):
+            return errMsg
+        case .General(let err):
+            return err.localizedDescription
+        }
+    }
+}
+
 struct CoreError: Error {
     var message: String
     var type: ErrorType
