@@ -19,7 +19,7 @@ object SharedPreferences {
     const val SORT_FILES_Z_A = "sort_files_z_a"
     const val SORT_FILES_TYPE = "sort_files_type"
     const val SORT_FILES_FIRST_CHANGED = "sort_files_first_changed"
-    const val SORT_FILES_LAST_CHANGED ="sort_files_last_changed"
+    const val SORT_FILES_LAST_CHANGED = "sort_files_last_changed"
 }
 
 object RequestResultCodes {
