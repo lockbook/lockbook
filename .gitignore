@@ -82,17 +82,15 @@ core/target/
 clients/cli/target/
 core/lockbook_core.h
 
-qa_env.sh
 server/target/
 server/**/*.rs.bk
-server/qa_secrets.sh
-core/qa_secrets.sh
 server/ca-certificate.crt
+server/qa-ca-certificate.crt
 .idea/
 *.iml
 integration_tests/target/
 containers/qa.env
+containers/prod.env
 containers/devtest.env
 server/qa-ca-certificate.crt
 clients/android/core/src/main/jniLibs/
-

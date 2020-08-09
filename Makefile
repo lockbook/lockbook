@@ -64,15 +64,6 @@ cli_test: cli
 integration_tests: is_docker_running
 	docker build -f containers/Dockerfile.integration_tests . --tag integration_tests:$(hash)
 
-.PHONY: integration_tests_fmt
-integration_tests_fmt: integration_tests
-	@echo The following files need formatting:
-	docker run integration_tests:$(hash) cargo +stable fmt -- --check -l
-
-.PHONY: integration_tests_lint
-integration_tests_lint: integration_tests
-	docker run integration_tests:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
-
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
 	HASH=$(hash) docker-compose down

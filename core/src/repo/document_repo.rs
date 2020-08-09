@@ -10,9 +10,16 @@ pub enum Error {
     FileRowMissing(()), // TODO remove from insert
 }
 
+#[derive(Debug)]
+pub enum DbError {
+    SledError(sled::Error),
+    SerdeError(serde_json::Error),
+}
+
 pub trait DocumentRepo {
     fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error>;
     fn get(db: &Db, id: Uuid) -> Result<Document, Error>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError>;
     fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
 }
 
@@ -39,6 +46,19 @@ impl DocumentRepo for DocumentRepoImpl {
         Ok(document)
     }
 
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError> {
+        let tree = db.open_tree(b"documents").map_err(DbError::SledError)?;
+        match tree.get(id.as_bytes()).map_err(DbError::SledError)? {
+            None => Ok(None),
+            Some(file) => {
+                let document: Document =
+                    serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
+
+                Ok(Some(document))
+            }
+        }
+    }
+
     fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
         tree.remove(id.as_bytes()).map_err(Error::SledError)?;
@@ -51,7 +71,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::crypto::*;
-    use crate::model::state::Config;
+    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 
@@ -66,9 +86,7 @@ mod unit_tests {
             },
         };
 
-        let config = Config {
-            writeable_path: "ignored".to_string(),
-        };
+        let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let document_id = Uuid::new_v4();
 

@@ -3,22 +3,19 @@ FROM rust
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
-WORKDIR integration_tests
-
-# Test depends on core via a relative import
-COPY core ../core
+WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs src/lib.rs
-COPY integration_tests/Cargo.toml .
-COPY integration_tests/Cargo.lock .
-# Dependency on core which has compile-time env var - must match values in test.env
-ENV API_URL=http://lockbook_server:8000
+COPY core/Cargo.toml .
+COPY core/Cargo.lock .
 RUN cargo build
 
 # Build our source
-COPY integration_tests .
+COPY core .
+# Compile-time env var
+ENV API_URL=http://lockbook_server:8000
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
-RUN cargo build --tests
+RUN cargo build

@@ -74,6 +74,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi_term"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
+dependencies = [
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "arc-swap"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,7 +271,7 @@ version = "2.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
 dependencies = [
- "ansi_term",
+ "ansi_term 0.11.0",
  "atty",
  "bitflags",
  "strsim",
@@ -351,6 +360,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "057b7146d02fb50175fd7dbe5158f6097f33d02831f43b4ee8ae4ddf67b68f5c"
 dependencies = [
  "winapi 0.3.8",
+]
+
+[[package]]
+name = "diffy"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f807f0e94954d20729e378653f4caf2a654c7ad5032dc591d6214255a672e1e7"
+dependencies = [
+ "ansi_term 0.12.1",
 ]
 
 [[package]]
@@ -788,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "0.1.0"
+version = "0.2.13"
 dependencies = [
  "atty",
  "chrono",
@@ -808,6 +826,7 @@ dependencies = [
  "aes-gcm",
  "base64 0.11.0",
  "bincode",
+ "diffy",
  "env_logger",
  "jni",
  "log",

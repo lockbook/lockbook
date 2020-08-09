@@ -10,6 +10,3 @@ cargo fmt
 
 cd ../clients/cli
 cargo fmt
-
-cd ../../integration_tests
-cargo fmt
