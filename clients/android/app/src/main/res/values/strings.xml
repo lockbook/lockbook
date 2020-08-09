@@ -76,8 +76,10 @@
     <string name="biometric_none_value">biometric_none</string>
     <string name="biometric_recommended_value">biometric_recommended</string>
     <string name="biometric_strict_value">biometric_strict</string>
-    <string name="menu_list_files_sort_alpha">Sort Alphabetically</string>
-    <string name="menu_list_files_last_changed">Sort By Last Changed</string>
+    <string name="menu_list_files_sort_a_z">Sort from a-z</string>
+    <string name="menu_list_files_last_changed">Sort by last changed</string>
+    <string name="menu_list_files_sort_z_a">Sort from z-a</string>
+    <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
 
     <array name="settings_biometric_values">
         <item>@string/biometric_none_value</item>
