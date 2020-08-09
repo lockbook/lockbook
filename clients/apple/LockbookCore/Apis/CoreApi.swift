@@ -35,10 +35,6 @@ protocol LockbookApi {
 struct CoreApi: LockbookApi {
     let documentsDirectory: String
     
-    private func isDbPresent() -> Bool {
-        is_db_present(documentsDirectory)
-    }
-    
     func getAccount() -> CoreResult<Account.Username> {
         return fromPrimitiveResult(result: get_account(documentsDirectory))
     }
@@ -52,7 +48,7 @@ struct CoreApi: LockbookApi {
     }
     
     func synchronize() -> CoreResult<Bool> {
-        return fromPrimitiveResult(result: sync_files(documentsDirectory))
+        return CoreResult.failure(CoreError.lazy())
     }
     
     func calculateWork() -> CoreResult<[WorkUnit]> {
@@ -68,23 +64,23 @@ struct CoreApi: LockbookApi {
     }
     
     func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
-        return fromPrimitiveResult(result: list_files(documentsDirectory, dirId.uuidString))
+        return fromPrimitiveResult(result: list_paths(documentsDirectory, dirId.uuidString))
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        return fromPrimitiveResult(result: get_file(documentsDirectory, id.uuidString))
+        return fromPrimitiveResult(result: get_file_by_path(documentsDirectory, id.uuidString))
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
-        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, isFolder))
+        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, "File"))
     }
     
     func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
-        return fromPrimitiveResult(result: update_file(documentsDirectory, id.uuidString, content))
+        return fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
     func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        return fromPrimitiveResult(result: mark_file_for_deletion(documentsDirectory, id.uuidString))
+        return CoreResult.failure(CoreError.lazy())
     }
 }
 
