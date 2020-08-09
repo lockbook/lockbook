@@ -44,6 +44,9 @@
 		EABF8E1524E065CC00BF0532 /* LockbookCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EABF8E1424E065CC00BF0532 /* LockbookCoreTests.swift */; };
 		EABF8E1724E065CC00BF0532 /* libLockbookCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EABF8DFF24E0657B00BF0532 /* libLockbookCore.a */; };
 		EABF8E1E24E0664900BF0532 /* liblockbook_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BD617523E3C34600945B25 /* liblockbook_core.a */; };
+		EABF8E1F24E06BF600BF0532 /* workUnits.json in Resources */ = {isa = PBXBuildFile; fileRef = EAA71C1824B363660003BDEC /* workUnits.json */; };
+		EABF8E2024E06BF600BF0532 /* accountString.txt in Resources */ = {isa = PBXBuildFile; fileRef = EA1BFA3D24B41DDE00975851 /* accountString.txt */; };
+		EABF8E2224E0AC3300BF0532 /* UtilTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EABF8E2124E0AC3300BF0532 /* UtilTests.swift */; };
 		EAC93E70244267F400FFC629 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E6F244267F400FFC629 /* FileBrowserView.swift */; };
 		EAC93E732442811C00FFC629 /* FileMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E722442811C00FFC629 /* FileMetadata.swift */; };
 		EAC93E75244284EF00FFC629 /* CoreApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC93E74244284EF00FFC629 /* CoreApi.swift */; };
@@ -116,6 +119,7 @@
 		EABF8E1224E065CC00BF0532 /* LockbookCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LockbookCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EABF8E1424E065CC00BF0532 /* LockbookCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookCoreTests.swift; sourceTree = "<group>"; };
 		EABF8E1624E065CC00BF0532 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		EABF8E2124E0AC3300BF0532 /* UtilTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UtilTests.swift; sourceTree = "<group>"; };
 		EAC93E6F244267F400FFC629 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
@@ -278,6 +282,7 @@
 				EAA71C1824B363660003BDEC /* workUnits.json */,
 				EA1BFA3D24B41DDE00975851 /* accountString.txt */,
 				EABF8E1424E065CC00BF0532 /* LockbookCoreTests.swift */,
+				EABF8E2124E0AC3300BF0532 /* UtilTests.swift */,
 				EABF8E1624E065CC00BF0532 /* Info.plist */,
 			);
 			path = LockbookCoreTests;
@@ -459,6 +464,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EABF8E1F24E06BF600BF0532 /* workUnits.json in Resources */,
+				EABF8E2024E06BF600BF0532 /* accountString.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -529,6 +536,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EABF8E1524E065CC00BF0532 /* LockbookCoreTests.swift in Sources */,
+				EABF8E2224E0AC3300BF0532 /* UtilTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
