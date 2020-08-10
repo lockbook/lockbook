@@ -37,9 +37,9 @@
         <FrameLayout
             android:id="@+id/list_files_layout"
             android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:animateLayoutChanges="true"
-            android:onClick="@{() -> listFilesViewModel.collapseFAB()}"
-            android:layout_height="match_parent">
+            android:clickable="false">
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -53,10 +53,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    android:src="@drawable/round_folder_white_18dp"
-                    android:tint="@color/light"
-                    android:visibility="gone"
                     android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
+                    android:src="@drawable/round_folder_white_18dp"
+                    android:visibility="gone"
                     app:rippleColor="@color/light" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -64,10 +63,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    android:src="@drawable/round_insert_drive_file_white_18dp"
-                    android:tint="@color/light"
-                    android:visibility="gone"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked()}"
+                    android:src="@drawable/round_insert_drive_file_white_18dp"
+                    android:visibility="gone"
                     app:rippleColor="@color/light" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -78,8 +76,8 @@
                     android:layout_marginTop="10dp"
                     android:layout_marginRight="18dp"
                     android:layout_marginBottom="18dp"
-                    android:src="@drawable/ic_baseline_add_24"
                     android:onClick="@{() -> listFilesViewModel.collapseFAB()}"
+                    android:src="@drawable/ic_baseline_add_24"
                     app:rippleColor="@color/light" />
             </LinearLayout>
         </FrameLayout>
