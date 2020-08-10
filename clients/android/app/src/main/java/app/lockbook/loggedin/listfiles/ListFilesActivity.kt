@@ -4,10 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
@@ -45,13 +43,15 @@ class ListFilesActivity : AppCompatActivity() {
                 SORT_FILES_KEY,
                 SORT_FILES_A_Z
             )
-            ) {
+        ) {
             SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
             SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-            SORT_FILES_LAST_CHANGED -> menu?.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked =
-                true
-            SORT_FILES_FIRST_CHANGED -> menu?.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
-                true
+            SORT_FILES_LAST_CHANGED ->
+                menu?.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked =
+                    true
+            SORT_FILES_FIRST_CHANGED ->
+                menu?.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
+                    true
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
         }
     }

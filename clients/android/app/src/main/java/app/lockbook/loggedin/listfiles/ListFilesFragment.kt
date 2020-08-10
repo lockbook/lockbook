@@ -1,11 +1,9 @@
 package app.lockbook.loggedin.listfiles
 
 import android.app.Dialog
-import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -22,12 +20,10 @@ import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
-import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.dialog_create_file_name.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
 
