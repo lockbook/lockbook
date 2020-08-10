@@ -3,7 +3,6 @@ package app.lockbook.loggedin.listfiles
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Intent
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -12,7 +11,6 @@ import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
@@ -245,11 +243,16 @@ class ListFilesViewModel(path: String, application: Application) :
         }
         _files.postValue(
             tempFolders.union(
-                tempDocuments.sortedWith( compareBy({  fileMetadata ->
-                    Regex(".[^.]+\$").find(fileMetadata.name)?.value
-                }, {fileMetaData ->
-                    fileMetaData.name
-                }))
+                tempDocuments.sortedWith(
+                    compareBy(
+                        { fileMetadata ->
+                            Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                        },
+                        { fileMetaData ->
+                            fileMetaData.name
+                        }
+                    )
+                )
             ).toList()
         )
     }
