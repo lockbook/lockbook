@@ -58,6 +58,27 @@ class LockbookCoreTests: XCTestCase {
         case .failure(let err):
             XCTFail(err.message())
         }
+        
+        let workResult = LockbookCoreTests.core.calculateWork()
+        
+        switch workResult {
+        case .success(let work):
+            XCTAssertEqual(work.workUnits.count, 1)
+            
+            let syncRes = LockbookCoreTests.core.synchronize()
+            if case .failure(let err) = syncRes {
+                return XCTFail(err.message())
+            }
+            
+            switch  LockbookCoreTests.core.calculateWork() {
+            case .success(let workMeta):
+                XCTAssertEqual(workMeta.workUnits.count, 0)
+            case .failure(let err):
+                XCTFail(err.message())
+            }
+        case .failure(let err):
+            XCTFail(err.message())
+        }
     }
     
     func test02CreateFile() {
@@ -134,7 +155,7 @@ class LockbookCoreTests: XCTestCase {
         
         switch result {
         case .success(let workMeta):
-            XCTAssertEqual(workMeta.workUnits.count, 2)
+            XCTAssertEqual(workMeta.workUnits.count, 1)
         case .failure(let err):
             XCTFail(err.message())
         }
