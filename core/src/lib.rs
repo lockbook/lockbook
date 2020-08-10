@@ -808,6 +808,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
 pub enum ExecuteWorkError {
     CouldNotReachServer,
     UnexpectedError(String),
+    BadAccount(GetAccountError),
 }
 
 pub fn execute_work(
