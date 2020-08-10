@@ -11,6 +11,8 @@ use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
+use crate::ExecuteWorkError;
+use crate::GetAccountError;
 use serde::Serialize;
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -223,14 +225,20 @@ pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const
 #[no_mangle]
 pub unsafe extern "C" fn execute_work(
     writeable_path: *const c_char,
-    account: *const c_char,
     work_unit: *const c_char,
 ) -> *const c_char {
-    json_c_string(crate::execute_work(
-        &config_from_ptr(writeable_path),
-        &account_from_ptr(account),
-        work_unit_from_ptr(work_unit),
-    ))
+    let config = &config_from_ptr(writeable_path);
+    json_c_string(
+        crate::get_account(config)
+            .map_err(ExecuteWorkError::BadAccount)
+            .and_then(|acc| crate::execute_work(config, &acc, work_unit_from_ptr(work_unit))),
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
+    let config = &config_from_ptr(writeable_path);
+    json_c_string(crate::sync_all(config))
 }
 
 #[no_mangle]

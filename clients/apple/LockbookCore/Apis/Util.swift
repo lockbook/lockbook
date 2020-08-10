@@ -15,6 +15,19 @@ func intEpochToString(epoch: Int) -> String {
     return formatter.string(from: date)
 }
 
+func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
+    let encoder = JSONEncoder.init()
+    encoder.keyEncodingStrategy = .convertToSnakeCase
+    do {
+        let data = (try? encoder.encode(obj))!
+        let output = String(data: data, encoding: .utf8) ?? ""
+        print("Outgoing JSON \(output)")
+        return Result.success(output)
+    } catch let error {
+        return Result.failure(error)
+    }
+}
+
 func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -23,12 +36,12 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
         let result = try decoder.decode(T.self, from: data)
         return Result.success(result)
     } catch let error {
-//        print("Incoming JSON \(data)")
         return Result.failure(error)
     }
 }
 
 func deserializeResult<T: Decodable>(jsonResultStr: String) -> Result<T, ApplicationError> {
+    print("Incoming JSON \(jsonResultStr)")
     guard let dict = try? JSONSerialization.jsonObject(with: Data(jsonResultStr.utf8), options: []) as? [String: Any] else {
         return Result.failure(ApplicationError.Serialization("Couldn't deserialize dict!"))
     }

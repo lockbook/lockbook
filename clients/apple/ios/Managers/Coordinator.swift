@@ -25,7 +25,7 @@ final class Coordinator: ObservableObject {
         self.root = (try? api.getRoot().get())!
         self.currentId = self.root.id
         self.account = Account(username: "tester")
-        self.files = (try? api.listFiles(dirId: api.rootUuid).get())!
+        self.files = (try? api.listFiles().get())!
         self.progress = Optional.some((0.0, "Something"))
     }
     
@@ -35,7 +35,7 @@ final class Coordinator: ObservableObject {
         self.root = try self.lockbookApi.getRoot().get()
         self.currentId = self.root.id
         self.account = account
-        self.files = try self.lockbookApi.listFiles(dirId: root.id).get()
+        self.files = try self.lockbookApi.listFiles().get()
         self.progress = Optional.none
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             self.sync()
@@ -43,8 +43,8 @@ final class Coordinator: ObservableObject {
     }
     
     func sync() -> Void {
-        let result = self.lockbookApi.synchronize().flatMap { (_) -> Result<[FileMetadata], CoreError> in
-            self.lockbookApi.listFiles(dirId: currentId)
+        let result = self.lockbookApi.synchronize().flatMap { (_) -> CoreResult<[FileMetadata]> in
+            self.lockbookApi.listFiles()
         }
         switch result {
         case .success(let newFiles):
@@ -66,7 +66,7 @@ final class Coordinator: ObservableObject {
     
     func navigateAndListFiles(dirId: UUID) -> [FileMetadata] {
         self.currentId = dirId
-        switch (self.lockbookApi.listFiles(dirId: dirId)) {
+        switch (self.lockbookApi.listFiles()) {
         case .success(let files):
             return files
         case .failure(let err):

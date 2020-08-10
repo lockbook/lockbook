@@ -19,8 +19,8 @@ class LoginManager: ObservableObject {
         self.lockbookApi = lockbookApi
         let result = lockbookApi.getAccount()
         switch result {
-        case .success(let username):
-            self.account = Account(username: username)
+        case .success(let account):
+            self.account = account
         case .failure(let error):
             print("No account! \(error)")
         }
