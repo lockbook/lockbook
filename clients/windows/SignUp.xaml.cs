@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using Windows.Foundation;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
@@ -14,16 +15,6 @@ namespace lockbook
         public SignUp()
         {
             InitializeComponent();
-        }
-
-        private void CreateAccount(object sender, RoutedEventArgs e)
-        {
-            Frame.Navigate(typeof(Home));
-        }
-
-        private void ImportAccount(object sender, RoutedEventArgs e)
-        {
-            Frame.Navigate(typeof(Home));
         }
     }
 }
