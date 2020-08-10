@@ -31,6 +31,7 @@
     <string name="new_file_file">File</string>
     <string name="new_file_folder">Folder</string>
     <string name="new_file_create">Create</string>
+    <string name="new_file_cancel">Cancel</string>
 
     <string name="pop_up_info_new_name">New Name</string>
     <string name="pop_up_info_rename_button_title">Rename File</string>
@@ -81,6 +82,8 @@
     <string name="menu_list_files_last_changed">Sort by last changed</string>
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
+    <string name="dialog_file_name">File name</string>
+    <string name="new_file_title">New File</string>
 
     <array name="settings_biometric_values">
         <item>@string/biometric_none_value</item>
