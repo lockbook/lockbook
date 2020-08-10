@@ -18,13 +18,14 @@ protocol LockbookApi {
     func exportAccount() -> CoreResult<String>
     
     // Work
-    func synchronize() -> CoreResult<Bool>
+    func synchronize() -> CoreResult<Empty>
     func calculateWork() -> CoreResult<WorkMetadata>
-    func executeWork(work: [WorkUnit]) -> CoreResult<Bool>
+    func executeWork(work: WorkUnit) -> CoreResult<Empty>
+    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty>
     
     // Directory
     func getRoot() -> CoreResult<FileMetadata>
-    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]>
+    func listFiles() -> CoreResult<[FileMetadata]>
     
     // Document
     func getFile(id: UUID) -> CoreResult<DecryptedValue>
@@ -56,23 +57,32 @@ struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: export_account(documentsDirectory))
     }
     
-    func synchronize() -> CoreResult<Bool> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    func synchronize() -> CoreResult<Empty> {
+        fromPrimitiveResult(result: sync_all(documentsDirectory))
     }
     
     func calculateWork() -> CoreResult<WorkMetadata> {
         fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    func executeWork(work: WorkUnit) -> CoreResult<Empty> {
+        switch serialize(obj: work) {
+        case .success(let workUnitStr):
+            return fromPrimitiveResult(result: execute_work(documentsDirectory, workUnitStr))
+        case .failure(let err):
+            return CoreResult.failure(ApplicationError.General(err))
+        }
+    }
+    
+    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
+        fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
     }
     
     func getRoot() -> CoreResult<FileMetadata> {
         fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
-    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
+    func listFiles() -> CoreResult<[FileMetadata]> {
         fromPrimitiveResult(result: list_files(documentsDirectory))
     }
     
@@ -111,7 +121,7 @@ struct FakeApi: LockbookApi {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func synchronize() -> CoreResult<Bool> {
+    func synchronize() -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
@@ -119,7 +129,11 @@ struct FakeApi: LockbookApi {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func executeWork(work: [WorkUnit]) -> CoreResult<Bool> {
+    func executeWork(work: WorkUnit) -> CoreResult<Empty> {
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    }
+    
+    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
@@ -127,7 +141,7 @@ struct FakeApi: LockbookApi {
         return CoreResult.success(FileMetadata(fileType: .Folder, id: rootUuid, parent: rootUuid, name: "first_file.md", owner: "root", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false))
     }
     
-    func listFiles(dirId: UUID) -> CoreResult<[FileMetadata]> {
+    func listFiles() -> CoreResult<[FileMetadata]> {
         return Result.success(fileMetas)
     }
     

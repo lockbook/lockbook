@@ -17,9 +17,42 @@ struct FileMetadata: Codable, Identifiable {
     var contentVersion: Int
     var metadataVersion: Int
     var deleted: Bool
+    var signature: SignedValue = SignedValue(content: "", signature: "")
+    var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
+    var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(garbage: "", nonce: ""))
 }
 
 enum FileType: String, Codable {
     case Document
     case Folder
+}
+
+struct FolderAccessInfo: Codable {
+    var folderId: UUID
+    var accessKey: EncryptedValueWithNonce
+}
+
+struct UserAccessInfo: Codable {
+    var username: Account.Username
+    var publicKey: RSAPublicKey
+    var accessKey: EncryptedValue
+}
+
+struct SignedValue: Codable {
+    var content: String
+    var signature: String
+}
+
+struct EncryptedValueWithNonce: Codable {
+    var garbage: String
+    var nonce: String
+}
+
+struct EncryptedValue: Codable {
+    var garbage: String
+}
+
+struct RSAPublicKey: Codable {
+    var n: [UInt]
+    var e: [UInt]
 }
