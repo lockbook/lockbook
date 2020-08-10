@@ -87,7 +87,7 @@ struct CoreApi: LockbookApi {
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        fromPrimitiveResult(result: get_file_by_path(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: get_file_by_id(documentsDirectory, id.uuidString))
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
