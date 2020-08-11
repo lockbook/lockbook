@@ -1,90 +1,123 @@
-﻿<Page
-    x:Class="lockbook.SignUp"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:lockbook"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:Windows10version1903="http://schemas.microsoft.com/winfx/2006/xaml/presentation?IsApiContractPresent(Windows.Foundation.UniversalApiContract, 8)"
-    mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+﻿<Page x:Class="lockbook.SignUp"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="using:lockbook"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:Windows10version1903="http://schemas.microsoft.com/winfx/2006/xaml/presentation?IsApiContractPresent(Windows.Foundation.UniversalApiContract, 8)"
+      mc:Ignorable="d"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <ScrollViewer
-        VerticalScrollBarVisibility="Auto"
-        HorizontalScrollBarVisibility="Auto">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition/>
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition />
-        </Grid.RowDefinitions>
-        <StackPanel Grid.Row="0" Margin="40,30,40,100" >
-            <TextBlock Text="Lockbook" Style="{StaticResource HeaderTextBlockStyle}"/>
-            <TextBlock TextWrapping="WrapWholeWords" Style="{StaticResource TitleTextBlockStyle}">
-                <Span xml:space="preserve"><Run>Get started with the document editing platform of the future. </Run><Hyperlink NavigateUri="https://lockbook.app">Learn more.</Hyperlink></Span>
-            </TextBlock>
-        </StackPanel>
-
-        <Grid
-            Grid.Row="1">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto">
+        <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition />
-                <ColumnDefinition Width="auto" />
                 <ColumnDefinition />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto" />
+                <RowDefinition />
             </Grid.RowDefinitions>
-
-            <StackPanel Grid.Column="0" Spacing="50">
-                <TextBlock 
-                    Grid.Row="0"
-                    Text="Import an existing account"
-                    Style="{StaticResource SubtitleTextBlockStyle}"
-                    HorizontalAlignment="Center">
+            <StackPanel Grid.Row="0"
+                        Margin="40,30,40,100">
+                <TextBlock Text="Lockbook"
+                           Style="{StaticResource HeaderTextBlockStyle}" />
+                <TextBlock TextWrapping="WrapWholeWords"
+                           Style="{StaticResource TitleTextBlockStyle}">
+                <Span xml:space="preserve"><Run>Get started with the document editing platform of the future. </Run><Hyperlink NavigateUri="https://lockbook.app">Learn more.</Hyperlink></Span>
                 </TextBlock>
-                <TextBox AcceptsReturn="True" TextWrapping="Wrap" 
-                     Height="172" Width="300" Header="Account String"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
-                <Button Click="play_Click">
-                    <StackPanel Orientation="Horizontal">
-                    <SymbolIcon Symbol="Camera"/>
-                    <TextBlock Text=" Scan QR Code"
-                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
-                <Button Click="play_Click">
-                    <StackPanel Orientation="Horizontal">
-                    <SymbolIcon Symbol="Download"/>
-                    <TextBlock Text=" Import Account String"
-                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
-                </StackPanel>
             </StackPanel>
-            <Line X1="0" Y1="0" X2="0" Y2="1" Stretch="Fill" Stroke="#30FFFFFF" Grid.Row="0" Grid.Column="1" Margin="0,100,0,100" />
 
-                <StackPanel Grid.Column="2" Spacing="50">
-                    <TextBlock 
-                Grid.Row="0"
-                Text="Create a new account"
-                Style="{StaticResource SubtitleTextBlockStyle}"
-                HorizontalAlignment="Center">
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="auto" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Spacing="50">
+                    <TextBlock Grid.Row="0"
+                               Text="Import an existing account"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center">
                     </TextBlock>
-                    <TextBox Width="300" Header="Select a Username"/>
+                    <TextBox AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             Height="172"
+                             Width="300"
+                             Header="Account String"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
-                    <Button Click="play_Click" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Spacing="10">
+                        <Button IsEnabled="False">
+                            <StackPanel Orientation="Horizontal">
+                                <SymbolIcon Symbol="Camera" />
+                                <TextBlock Text=" Scan QR Code"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="ImportAccount">
+                            <StackPanel Orientation="Horizontal">
+                                <SymbolIcon Symbol="Download" />
+                                <TextBlock Text=" Import Account String"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+                <Line X1="0"
+                      Y1="0"
+                      X2="0"
+                      Y2="1"
+                      Stretch="Fill"
+                      Stroke="#30FFFFFF"
+                      Grid.Row="0"
+                      Grid.Column="1"
+                      Margin="0,100,0,100" />
+
+                <StackPanel Grid.Column="2"
+                            Spacing="50">
+                    <TextBlock Grid.Row="0"
+                               Text="Create a new account"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center">
+                    </TextBlock>
+                    <TextBox Width="300"
+                             x:Name="username"
+                             Header="Select a Username" />
+
+                    <Button Click="CreateAccount"
+                            x:Name="createAccount"
+                            HorizontalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <SymbolIcon Symbol="Forward"/>
+                            <SymbolIcon Symbol="Forward" />
                             <TextBlock Text=" Create Account"
-                         HorizontalAlignment="Center"/>
+                                       HorizontalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <TextBlock x:Name="error"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource BaseTextBlockStyle}"
+                               Foreground="Red" />
+                    <StackPanel HorizontalAlignment="Center"
+                                x:Name="progressGroup"
+                                Visibility="Collapsed">
+                        <TextBlock Text="Generating Keys..."
+                                   HorizontalAlignment="Center"
+                                   Style="{StaticResource BaseTextBlockStyle}" />
+                        <ProgressRing x:Name="progressRing"
+                                      Margin="0,20,0,0"
+                                      Width="50"
+                                      Height="50" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
-    </Grid>
+        </Grid>
     </ScrollViewer>
 </Page>
