@@ -22,6 +22,7 @@ import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
 
@@ -37,7 +38,7 @@ class ListFilesFragment : Fragment() {
         )
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
-            ListFilesViewModelFactory(application.filesDir.absolutePath)
+            ListFilesViewModelFactory(application.filesDir.absolutePath, application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
         val adapter =
@@ -140,8 +141,8 @@ class ListFilesFragment : Fragment() {
         return listFilesViewModel.quitOrNot()
     }
 
-    fun onSortPressed() {
-        listFilesViewModel.onSortPressed()
+    fun onSortPressed(id: Int) {
+        listFilesViewModel.onSortPressed(id)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
