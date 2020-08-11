@@ -6,8 +6,15 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
+import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
+import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
+import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
+import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
+import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
+import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -15,6 +22,8 @@ import com.github.michaelbull.result.Result
 import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
+    var menu: Menu? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
@@ -22,7 +31,24 @@ class ListFilesActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_list_files, menu)
+        this.menu = menu
+        matchToDefaultSortOption()
         return true
+    }
+
+    private fun matchToDefaultSortOption() {
+        when (
+            PreferenceManager.getDefaultSharedPreferences(application).getString(
+                SORT_FILES_KEY,
+                SORT_FILES_A_Z
+            )
+        ) {
+            SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
+            SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
+            SORT_FILES_LAST_CHANGED -> menu?.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
+            SORT_FILES_FIRST_CHANGED -> menu?.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked = true
+            SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -31,10 +57,15 @@ class ListFilesActivity : AppCompatActivity() {
                 startActivity(Intent(applicationContext, SettingsActivity::class.java))
                 true
             }
-            R.id.menu_list_files_sort -> {
+            R.id.menu_list_files_sort_last_changed,
+            R.id.menu_list_files_sort_a_z,
+            R.id.menu_list_files_sort_z_a,
+            R.id.menu_list_files_sort_first_changed,
+            R.id.menu_list_files_sort_type -> {
+                menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed()
+                    fragment.onSortPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
