@@ -2,6 +2,7 @@ package app.lockbook.loggedin.listfiles
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,10 +24,13 @@ import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
+import java.util.*
 
 class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel
+    private var timer: Timer = Timer()
+    private val handler = Handler()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -98,6 +102,30 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.startUpFiles()
 
         return binding.root
+    }
+
+    override fun onPause() {
+        super.onPause()
+        startBackgroundSync()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        timer.cancel()
+        timer = Timer()
+    }
+
+    private fun startBackgroundSync() {
+        timer.schedule(
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        listFilesViewModel.sync()
+                    }
+                }
+            },
+            1800000, 1000
+        )
     }
 
     private fun updateRecyclerView(
