@@ -10,6 +10,8 @@ import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.FileType
 import kotlinx.android.synthetic.main.recyclerview_content_files.view.*
+import java.sql.Date
+import java.sql.Timestamp
 
 class FilesAdapter(val clickInterface: ClickInterface) :
     RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
@@ -33,11 +35,12 @@ class FilesAdapter(val clickInterface: ClickInterface) :
     override fun onBindViewHolder(holder: ListFilesViewHolder, position: Int) {
         val item = files[position]
 
+        val date = Date(Timestamp(item.metadata_version).time)
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
         holder.cardView.file_description.text = holder.cardView.resources.getString(
-            R.string.list_files_last_synced,
-            item.metadata_version.toString()
+            R.string.last_synced,
+            if (item.metadata_version != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
         if (item.file_type == FileType.Document) {
             holder.cardView.file_name.setTextColor(
