@@ -116,23 +116,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun writeNewTextToDocument(content: String) {
-        val writeToDocumentResult = coreModel.writeContentToDocument(content)
-        if (writeToDocumentResult is Err) {
-            when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                is WriteToDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is WriteToDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is WriteToDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
-            }
-        }
-    }
-
     private fun createInsertRefreshFiles(name: String, fileType: String) {
         when (val createFileResult = coreModel.createFile(name, fileType)) {
             is Ok -> {
@@ -257,6 +240,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 _navigateToFileEditor.postValue(
                     EditableFile(
                         fileMetadata.name,
+                        fileMetadata.id,
                         documentResult.value
                     )
                 )
@@ -321,7 +305,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 if (data is Intent) {
                     when (requestCode) {
                         NEW_FILE_REQUEST_CODE -> handleNewFileRequest(data)
-                        TEXT_EDITOR_REQUEST_CODE -> handleTextEditorRequest(data)
                         POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
                     }
                 } else if (resultCode != RESULT_CANCELED) {
@@ -339,16 +322,6 @@ class ListFilesViewModel(path: String, application: Application) :
             createInsertRefreshFiles(name, fileType)
         } else {
             Timber.e("Name or fileType is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-        }
-    }
-
-    private fun handleTextEditorRequest(data: Intent) {
-        val contents = data.getStringExtra("contents")
-        if (contents != null) {
-            writeNewTextToDocument(contents)
-        } else {
-            Timber.e("contents is null.")
             _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
         }
     }
