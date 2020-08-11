@@ -91,7 +91,8 @@ struct CoreApi: LockbookApi {
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
-        fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, "Document"))
+        let fileType = isFolder ? "Folder" : "Document"
+        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }
     
     func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
