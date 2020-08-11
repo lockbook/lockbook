@@ -161,6 +161,7 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         timer.cancel()
+        textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
     }
 }
 

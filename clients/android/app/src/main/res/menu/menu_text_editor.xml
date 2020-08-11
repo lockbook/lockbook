@@ -1,25 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item
-        android:id="@+id/menu_text_editor_overflow"
-        android:icon="@drawable/ic_baseline_more_vert_24"
-        android:orderInCategory="4"
-        android:title=""
-        app:showAsAction="always">
-        <menu>
-            <item
-                android:id="@+id/menu_text_editor_done"
-                android:icon="@drawable/ic_baseline_done_24"
-                android:title="@string/menu_text_editor_done"
-                app:showAsAction="never" />
-            <item
-                android:id="@+id/menu_text_editor_search"
-                android:icon="@drawable/ic_baseline_search_24"
-                android:title="@string/menu_text_editor_search"
-                app:showAsAction="never" />
-        </menu>
-    </item>
 
     <item
         android:id="@+id/menu_text_editor_view_md"
