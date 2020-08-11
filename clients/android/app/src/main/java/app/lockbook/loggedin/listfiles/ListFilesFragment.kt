@@ -114,6 +114,7 @@ class ListFilesFragment : Fragment() {
     private fun navigateToFileEditor(editableFile: EditableFile) {
         val intent = Intent(context, TextEditorActivity::class.java)
         intent.putExtra("name", editableFile.name)
+        intent.putExtra("id", editableFile.id)
         intent.putExtra("contents", editableFile.contents)
         startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
     }

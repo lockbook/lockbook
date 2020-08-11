@@ -1,10 +1,12 @@
 package app.lockbook.loggedin.texteditor
 
 import android.os.Bundle
+import android.os.Handler
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Observer
@@ -14,10 +16,13 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import java.util.*
 import java.util.concurrent.Executors
 
 class TextEditorActivity : AppCompatActivity() {
-    lateinit var textEditorViewModel: TextEditorViewModel
+    private lateinit var textEditorViewModel: TextEditorViewModel
+    private var timer: Timer = Timer()
+    private val handler = Handler()
     var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,7 +30,12 @@ class TextEditorActivity : AppCompatActivity() {
         setContentView(R.layout.activity_text_editor)
 
         val textEditorViewModelFactory =
-            TextEditorViewModelFactory(intent.getStringExtra("contents") ?: "")
+            TextEditorViewModelFactory(
+                intent.getStringExtra("id") ?: "INVALID ID",
+                filesDir.absolutePath,
+                intent.getStringExtra("contents") ?: ""
+            ) //TODO handle this more appropriately
+
         textEditorViewModel =
             ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
 
@@ -43,7 +53,27 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
+        textEditorViewModel.errorHasOccurred.observe(
+            this,
+            Observer { errorText ->
+                errorHasOccurred(errorText)
+            }
+        )
+
         setUpView()
+
+        timer.schedule(object : TimerTask() {
+            override fun run() {
+                handler.post {
+                    textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
+                }
+            }
+        }, 5000, 1000)
+    }
+
+    private fun errorHasOccurred(errorText: String) {
+        finish()
+        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
     }
 
     private fun setUpView() {
@@ -88,12 +118,6 @@ class TextEditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun submitText() {
-        intent.putExtra("contents", text_editor.text.toString())
-        setResult(RESULT_OK, intent)
-        finish()
-    }
-
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
@@ -104,7 +128,6 @@ class TextEditorActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menu_text_editor_done -> submitText()
 //            R.id.menu_text_editor_search -> { }
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
@@ -130,6 +153,11 @@ class TextEditorActivity : AppCompatActivity() {
         textEditorViewModel.ignoreChange = true
         text_editor.setText(newText)
         text_editor.setSelection(selectionPosition - diff)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        timer.cancel()
     }
 }
 
