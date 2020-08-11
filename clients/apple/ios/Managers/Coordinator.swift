@@ -68,7 +68,7 @@ final class Coordinator: ObservableObject {
         self.currentId = dirId
         switch (self.lockbookApi.listFiles()) {
         case .success(let files):
-            return files
+            return files.filter { $0.parent == dirId && $0.id != dirId }
         case .failure(let err):
             print("List files failed with error: \(err)")
             return []
