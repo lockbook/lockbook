@@ -33,6 +33,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val coreModel = CoreModel(Config(path))
+    private val syncErrors = mutableListOf<SyncAllError>()
 
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<EditableFile>()
@@ -281,17 +282,17 @@ class ListFilesViewModel(path: String, application: Application) :
         refreshFiles()
     }
 
-    private fun sync() {
+    fun sync() {
         val syncAllResult = coreModel.syncAllFiles()
         if (syncAllResult is Err) {
             when (val error = syncAllResult.error) {
-                is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
+                is SyncAllError.NoAccount -> syncErrors.add(error)
+                is SyncAllError.CouldNotReachServer -> syncErrors.add(error)
                 is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
-                    _errorHasOccurred.postValue("Unable to sync work.")
+                    syncErrors.add(error)
                 }
                 is SyncAllError.UnexpectedError -> {
-                    Timber.e("Unable to sync all files: ${error.error}")
+                    syncErrors.add(error)
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
                     )
@@ -299,6 +300,20 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
     }
+//
+//    when (val error = syncAllResult.error) {
+//        is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+//        is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
+//        is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
+//            _errorHasOccurred.postValue("Unable to sync work.")
+//        }
+//        is SyncAllError.UnexpectedError -> {
+//            Timber.e("Unable to sync all files: ${error.error}")
+//            _errorHasOccurred.postValue(
+//                UNEXPECTED_ERROR_OCCURRED
+//            )
+//        }
+//    }
 
     private fun startUpInRoot() {
         when (val result = coreModel.setParentToRoot()) {
