@@ -14,7 +14,6 @@ import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
@@ -225,11 +224,16 @@ class ListFilesViewModel(path: String, application: Application) :
         }
         _files.postValue(
             tempFolders.union(
-                tempDocuments.sortedWith( compareBy({  fileMetadata ->
-                    Regex(".[^.]+\$").find(fileMetadata.name)?.value
-                }, {fileMetaData ->
-                    fileMetaData.name
-                }))
+                tempDocuments.sortedWith(
+                    compareBy(
+                        { fileMetadata ->
+                            Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                        },
+                        { fileMetaData ->
+                            fileMetaData.name
+                        }
+                    )
+                )
             ).toList()
         )
     }

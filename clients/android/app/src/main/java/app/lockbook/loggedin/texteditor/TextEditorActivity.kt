@@ -34,7 +34,7 @@ class TextEditorActivity : AppCompatActivity() {
                 intent.getStringExtra("id") ?: "INVALID ID",
                 filesDir.absolutePath,
                 intent.getStringExtra("contents") ?: ""
-            ) //TODO handle this more appropriately
+            ) // TODO handle this more appropriately
 
         textEditorViewModel =
             ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
@@ -62,13 +62,16 @@ class TextEditorActivity : AppCompatActivity() {
 
         setUpView()
 
-        timer.schedule(object : TimerTask() {
-            override fun run() {
-                handler.post {
-                    textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
+        timer.schedule(
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
+                    }
                 }
-            }
-        }, 5000, 1000)
+            },
+            5000, 1000
+        )
     }
 
     private fun errorHasOccurred(errorText: String) {

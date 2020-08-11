@@ -1,6 +1,5 @@
 package app.lockbook.loggedin.texteditor
 
-import android.os.Handler
 import android.text.Editable
 import android.text.TextWatcher
 import androidx.lifecycle.LiveData

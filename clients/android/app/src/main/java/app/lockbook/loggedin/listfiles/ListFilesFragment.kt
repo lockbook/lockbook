@@ -22,7 +22,6 @@ import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
 
