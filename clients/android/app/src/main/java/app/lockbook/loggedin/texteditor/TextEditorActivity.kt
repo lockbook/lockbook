@@ -12,6 +12,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
+import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -73,7 +74,7 @@ class TextEditorActivity : AppCompatActivity() {
                     }
                 }
             },
-            5000, 1000
+            1000, TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
     }
 
