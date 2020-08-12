@@ -3,6 +3,7 @@ package app.lockbook.loggedin.listfiles
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Intent
+import android.os.Handler
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -25,6 +26,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.util.*
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
@@ -33,7 +35,8 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val coreModel = CoreModel(Config(path))
-    private val syncErrors = mutableListOf<SyncAllError>()
+    private var timer: Timer = Timer()
+    private val handler = Handler()
 
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<EditableFile>()
@@ -63,7 +66,7 @@ class ListFilesViewModel(path: String, application: Application) :
     fun startUpFiles() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                sync()
+                startBackgroundSync()
                 startUpInRoot()
             }
         }
@@ -80,6 +83,25 @@ class ListFilesViewModel(path: String, application: Application) :
         upADirectory()
 
         return true
+    }
+
+    private fun endBackgroundSync() {
+        timer.cancel()
+        timer = Timer()
+        syncRefresh()
+    }
+
+    private fun startBackgroundSync() {
+        timer.schedule(
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        sync()
+                    }
+                }
+            },
+            100, BACKGROUND_SYNC_PERIOD
+        )
     }
 
     private fun upADirectory() {
@@ -286,13 +308,18 @@ class ListFilesViewModel(path: String, application: Application) :
         val syncAllResult = coreModel.syncAllFiles()
         if (syncAllResult is Err) {
             when (val error = syncAllResult.error) {
-                is SyncAllError.NoAccount -> syncErrors.add(error)
-                is SyncAllError.CouldNotReachServer -> syncErrors.add(error)
-                is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
-                    syncErrors.add(error)
+                is SyncAllError.NoAccount -> {
+                    Timber.e("No account exists.")
+                    _errorHasOccurred.postValue("Error! No account!")
+                }
+                is SyncAllError.CouldNotReachServer -> {
+                    _errorHasOccurred.postValue("Error! Could not reach server!")
+                }
+                is SyncAllError.ExecuteWorkError -> {
+                    _errorHasOccurred.postValue("Unable to sync work.")
                 }
                 is SyncAllError.UnexpectedError -> {
-                    syncErrors.add(error)
+                    Timber.e("Unable to sync all files: ${error.error}")
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
                     )
@@ -300,20 +327,7 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
     }
-//
-//    when (val error = syncAllResult.error) {
-//        is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-//        is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
-//        is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
-//            _errorHasOccurred.postValue("Unable to sync work.")
-//        }
-//        is SyncAllError.UnexpectedError -> {
-//            Timber.e("Unable to sync all files: ${error.error}")
-//            _errorHasOccurred.postValue(
-//                UNEXPECTED_ERROR_OCCURRED
-//            )
-//        }
-//    }
+
 
     private fun startUpInRoot() {
         when (val result = coreModel.setParentToRoot()) {
@@ -403,6 +417,14 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
+    fun onRestart() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+
+            }
+        }
+    }
+
     fun onSortPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -453,5 +475,10 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        endBackgroundSync()
     }
 }
