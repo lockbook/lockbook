@@ -61,7 +61,10 @@ class TextEditorActivity : AppCompatActivity() {
         )
 
         setUpView()
+        startBackgroundSave()
+    }
 
+    private fun startBackgroundSave() {
         timer.schedule(
             object : TimerTask() {
                 override fun run() {
