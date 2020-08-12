@@ -11,7 +11,6 @@ import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
@@ -21,6 +20,7 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -33,12 +33,14 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val coreModel = CoreModel(Config(path))
+    private lateinit var fileCreationType: FileType
 
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
-    private val _navigateToNewFile = MutableLiveData<Unit>()
     private val _listFilesRefreshing = MutableLiveData<Boolean>()
+    private val _collapseExpandFAB = MutableLiveData<Unit>()
+    private val _createFileNameDialog = MutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
 
     val files: LiveData<List<FileMetadata>>
@@ -50,11 +52,14 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
 
-    val navigateToNewFile: LiveData<Unit>
-        get() = _navigateToNewFile
-
     val listFilesRefreshing: LiveData<Boolean>
         get() = _listFilesRefreshing
+
+    val collapseExpandFAB: LiveData<Unit>
+        get() = _collapseExpandFAB
+
+    val createFileNameDialog: LiveData<Unit>
+        get() = _createFileNameDialog
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -66,10 +71,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 startUpInRoot()
             }
         }
-    }
-
-    fun launchNewFileActivity() {
-        _navigateToNewFile.value = Unit
     }
 
     fun quitOrNot(): Boolean {
@@ -242,11 +243,16 @@ class ListFilesViewModel(path: String, application: Application) :
         }
         _files.postValue(
             tempFolders.union(
-                tempDocuments.sortedWith( compareBy({  fileMetadata ->
-                    Regex(".[^.]+\$").find(fileMetadata.name)?.value
-                }, {fileMetaData ->
-                    fileMetaData.name
-                }))
+                tempDocuments.sortedWith(
+                    compareBy(
+                        { fileMetadata ->
+                            Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                        },
+                        { fileMetaData ->
+                            fileMetaData.name
+                        }
+                    )
+                )
             ).toList()
         )
     }
@@ -320,7 +326,6 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 if (data is Intent) {
                     when (requestCode) {
-                        NEW_FILE_REQUEST_CODE -> handleNewFileRequest(data)
                         TEXT_EDITOR_REQUEST_CODE -> handleTextEditorRequest(data)
                         POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
                     }
@@ -332,15 +337,8 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun handleNewFileRequest(data: Intent) {
-        val name = data.getStringExtra("name")
-        val fileType = data.getStringExtra("fileType")
-        if (name != null && fileType != null) {
-            createInsertRefreshFiles(name, fileType)
-        } else {
-            Timber.e("Name or fileType is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-        }
+    fun handleNewFileRequest(name: String) {
+        createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
     }
 
     private fun handleTextEditorRequest(data: Intent) {
@@ -386,6 +384,22 @@ class ListFilesViewModel(path: String, application: Application) :
                 _listFilesRefreshing.postValue(false)
             }
         }
+    }
+
+    fun onNewDocumentFABClicked() {
+        fileCreationType = FileType.Document
+        _collapseExpandFAB.postValue(Unit)
+        _createFileNameDialog.postValue(Unit)
+    }
+
+    fun onNewFolderFABClicked() {
+        fileCreationType = FileType.Folder
+        _collapseExpandFAB.postValue(Unit)
+        _createFileNameDialog.postValue(Unit)
+    }
+
+    fun collapseFAB() {
+        _collapseExpandFAB.postValue(Unit)
     }
 
     fun onSortPressed(id: Int) {
