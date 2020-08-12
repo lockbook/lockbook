@@ -94,6 +94,7 @@ class TextEditorActivity : AppCompatActivity() {
         finish()
     }
 
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu

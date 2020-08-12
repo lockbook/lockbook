@@ -30,8 +30,6 @@ import java.util.*
 class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel
-    private var timer: Timer = Timer()
-    private val handler = Handler()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -105,31 +103,6 @@ class ListFilesFragment : Fragment() {
         return binding.root
     }
 
-    override fun onPause() {
-        super.onPause()
-        startBackgroundSync()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        timer.cancel()
-        timer = Timer()
-        listFilesViewModel.syncRefresh()
-    }
-
-    private fun startBackgroundSync() {
-        timer.schedule(
-            object : TimerTask() {
-                override fun run() {
-                    handler.post {
-                        listFilesViewModel.sync()
-                    }
-                }
-            },
-            100, BACKGROUND_SYNC_PERIOD
-        )
-    }
-
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
@@ -169,6 +142,10 @@ class ListFilesFragment : Fragment() {
 
     fun onBackPressed(): Boolean {
         return listFilesViewModel.quitOrNot()
+    }
+
+    fun onRestart() {
+        listFilesViewModel.onRestart()
     }
 
     fun onSortPressed(id: Int) {
