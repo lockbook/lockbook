@@ -30,12 +30,26 @@ class TextEditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
 
+        val id = intent.getStringExtra("id")
+        val contents = intent.getStringExtra("contents")
+
+        if(id == null) {
+            errorHasOccurred("Unable to retrieve id.")
+            finish()
+            return
+        }
+        if(contents == null) {
+            errorHasOccurred("Unable to retrieve contents.")
+            finish()
+            return
+        }
+
         val textEditorViewModelFactory =
             TextEditorViewModelFactory(
-                intent.getStringExtra("id") ?: "INVALID ID",
+                 id,
                 filesDir.absolutePath,
-                intent.getStringExtra("contents") ?: ""
-            ) // TODO handle this more appropriately
+                 contents
+            )
 
         textEditorViewModel =
             ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
