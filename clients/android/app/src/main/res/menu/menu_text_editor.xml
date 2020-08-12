@@ -7,6 +7,7 @@
         android:icon="@drawable/ic_baseline_remove_red_eye_24"
         android:orderInCategory="3"
         android:title="@string/menu_text_editor_view_md"
+        android:visible="false"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_text_editor_redo"
