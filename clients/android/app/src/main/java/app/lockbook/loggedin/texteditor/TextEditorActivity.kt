@@ -130,12 +130,15 @@ class TextEditorActivity : AppCompatActivity() {
         if (text_editor_scroller.visibility == View.VISIBLE) {
             val markdown = Markwon.create(this)
             markdown.setMarkdown(markdown_viewer, text_editor.text.toString())
-
+            menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
+            menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             text_editor_scroller.visibility = View.GONE
             markdown_viewer_scroller.visibility = View.VISIBLE
         } else {
             markdown_viewer_scroller.visibility = View.GONE
             text_editor_scroller.visibility = View.VISIBLE
+            menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = true
+            menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = true
         }
     }
 
