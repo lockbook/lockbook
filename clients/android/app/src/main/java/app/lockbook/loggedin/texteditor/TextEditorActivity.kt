@@ -99,7 +99,14 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpView() {
-        title = intent.getStringExtra("name") ?: "ERROR"
+        val name = intent.getStringExtra("name")
+        if(name == null) {
+            errorHasOccurred("Unable to retrieve file name.")
+            finish()
+            return
+        }
+
+        title = intent.getStringExtra("name")
         if (title.endsWith(".md")) {
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
