@@ -17,6 +17,7 @@ import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.loggedin.newfile.NewFileActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.utils.BACKGROUND_SYNC_PERIOD
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
@@ -124,7 +125,7 @@ class ListFilesFragment : Fragment() {
                     }
                 }
             },
-            1800000, 1000
+            100, BACKGROUND_SYNC_PERIOD
         )
     }
 
