@@ -114,6 +114,7 @@ class ListFilesFragment : Fragment() {
         super.onResume()
         timer.cancel()
         timer = Timer()
+        listFilesViewModel.syncRefresh()
     }
 
     private fun startBackgroundSync() {
