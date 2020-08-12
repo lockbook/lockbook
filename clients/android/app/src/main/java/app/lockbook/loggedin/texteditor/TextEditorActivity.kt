@@ -13,6 +13,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -33,12 +34,12 @@ class TextEditorActivity : AppCompatActivity() {
         val id = intent.getStringExtra("id")
         val contents = intent.getStringExtra("contents")
 
-        if(id == null) {
+        if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
             finish()
             return
         }
-        if(contents == null) {
+        if (contents == null) {
             errorHasOccurred("Unable to retrieve contents.")
             finish()
             return
@@ -46,9 +47,9 @@ class TextEditorActivity : AppCompatActivity() {
 
         val textEditorViewModelFactory =
             TextEditorViewModelFactory(
-                 id,
+                id,
                 filesDir.absolutePath,
-                 contents
+                contents
             )
 
         textEditorViewModel =
@@ -98,28 +99,30 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpView() {
-        title = intent.getStringExtra("name")
-        val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
-            .punctuationSpan(
-                CustomPunctuationSpan::class.java
-            ) {
-                CustomPunctuationSpan(
-                    ResourcesCompat.getColor(
-                        resources,
-                        R.color.blue,
-                        null
+        title = intent.getStringExtra("name") ?: "ERROR"
+        if (title.endsWith(".md")) {
+            val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
+                .punctuationSpan(
+                    CustomPunctuationSpan::class.java
+                ) {
+                    CustomPunctuationSpan(
+                        ResourcesCompat.getColor(
+                            resources,
+                            R.color.blue,
+                            null
+                        )
                     )
-                )
-            }
-            .build()
+                }
+                .build()
 
-        text_editor.addTextChangedListener(
-            MarkwonEditorTextWatcher.withPreRender(
-                markdownEditor,
-                Executors.newCachedThreadPool(),
-                text_editor
+            text_editor.addTextChangedListener(
+                MarkwonEditorTextWatcher.withPreRender(
+                    markdownEditor,
+                    Executors.newCachedThreadPool(),
+                    text_editor
+                )
             )
-        )
+        }
 
         text_editor.setText(intent.getStringExtra("contents"))
 
@@ -145,6 +148,9 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
+        if(title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+        }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
         return true
