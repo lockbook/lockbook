@@ -6,13 +6,18 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Data.Json;
 using Windows.UI.Popups;
+using Windows.Web.AtomPub;
 
 namespace lockbook {
-    class Core {
+    class CoreService {
         static String path = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
 
         [DllImport("lockbook_core.dll")]
         private static extern System.IntPtr create_account(string path, string username);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern System.IntPtr get_account(string path);
+
 
         [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(System.IntPtr str_pointer);
@@ -24,49 +29,49 @@ namespace lockbook {
             return result;
         }
 
-        public enum CreateAccountResult {
-            Success,
-            UsernameTaken,
-            InvalidUsername,
-            CouldNotReachServer,
-            AccountExistsAlready,
-            ContractError,
-            UnexpectedError,
-        }
+        public static async Task<Core.CreateAccount.Result> CreateAccount(String username) {
+            String result = await Task.Run(() => getStringAndRelease(create_account(path, username)));
 
-        public static async Task<(CreateAccountResult, String)> CreateAccount(String username) {
-            return await Task.Run(() => {
-                string result = getStringAndRelease(create_account(path, username));
+            JObject obj = JObject.Parse(result);
 
-                JObject obj = JObject.Parse(result);
-                
-                JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-                JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-                JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
 
-                if (unexpectedError != null) {
-                    return (CreateAccountResult.UnexpectedError, result);
+            if (unexpectedError != null) {
+                return new Core.CreateAccount.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "InvalidUsername":
+                        return new Core.CreateAccount.ExpectedError {
+                            error = Core.CreateAccount.PossibleErrors.InvalidUsername
+                        };
+                    case "UsernameTaken":
+                        return new Core.CreateAccount.ExpectedError {
+                            error = Core.CreateAccount.PossibleErrors.UsernameTaken
+                        };
+                    case "CouldNotReachServer":
+                        return new Core.CreateAccount.ExpectedError {
+                            error = Core.CreateAccount.PossibleErrors.CouldNotReachServer
+                        };
+                    case "AccountExistsAlready":
+                        return new Core.CreateAccount.ExpectedError {
+                            error = Core.CreateAccount.PossibleErrors.AccountExistsAlready
+                        };
                 }
+            }
 
-                if (expectedError != null) {
-                    switch (expectedError.ToString()) {
-                        case "InvalidUsername":
-                            return (CreateAccountResult.InvalidUsername, null);
-                        case "UsernameTaken":
-                            return (CreateAccountResult.UsernameTaken, null);
-                        case "CouldNotReachServer":
-                            return (CreateAccountResult.CouldNotReachServer, null);
-                        case "AccountExistsAlready":
-                            return (CreateAccountResult.AccountExistsAlready, null);
-                    }
-                }
+            if (ok != null) {
+                return new Core.CreateAccount.Success { };
+            }
 
-                if (ok != null) {
-                    return (CreateAccountResult.Success, null);
-                }
-
-                return (CreateAccountResult.ContractError, null);
-            });
+            return new Core.CreateAccount.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
         }
     }
 }

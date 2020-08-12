@@ -5,7 +5,6 @@ using Windows.UI.Popups;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using static lockbook.Core;
 
 namespace lockbook {
 
@@ -24,34 +23,34 @@ namespace lockbook {
             progressRing.Visibility = Visibility.Visible;
             progressRing.IsActive = true;
             error.Visibility = Visibility.Collapsed;
-            var (result, message) = await Core.CreateAccount(username.Text);
+            var createAccountResult = await CoreService.CreateAccount(username.Text);
 
-            switch (result) {
-                case CreateAccountResult.Success:
+            switch (createAccountResult) {
+                case Core.CreateAccount.Success:
                     Frame.Navigate(typeof(FileExplorer));
                     break;
-                case CreateAccountResult.UnexpectedError:
-                    await new MessageDialog(message, "Unexpected Error!").ShowAsync();
+                case Core.CreateAccount.UnexpectedError ohNo:
+                    await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
                     break;
-                case CreateAccountResult.ContractError:
-                    await new MessageDialog("See logs and file a bug report!", "Contract Error!").ShowAsync();
-                    break;
-                case CreateAccountResult.InvalidUsername:
-                    error.Text = "Invalid username!";
-                    error.Visibility = Visibility.Visible;
-                    break;
-                case CreateAccountResult.UsernameTaken:
-                    error.Text = "Username taken!";
-                    error.Visibility = Visibility.Visible;
-
-                    break;
-                case CreateAccountResult.CouldNotReachServer:
-                    error.Text = "Could not reach server!";
-                    error.Visibility = Visibility.Visible;
-                    break;
-                case CreateAccountResult.AccountExistsAlready:
-                    error.Text = "An account exists already!";
-                    error.Visibility = Visibility.Visible;
+                case Core.CreateAccount.ExpectedError exptectedError:
+                    switch (exptectedError.error) {
+                        case Core.CreateAccount.PossibleErrors.InvalidUsername:
+                            error.Text = "Invalid username!";
+                            error.Visibility = Visibility.Visible;
+                            break;
+                        case Core.CreateAccount.PossibleErrors.UsernameTaken:
+                            error.Text = "Username taken!";
+                            error.Visibility = Visibility.Visible;
+                            break;
+                        case Core.CreateAccount.PossibleErrors.CouldNotReachServer:
+                            error.Text = "Could not reach server!";
+                            error.Visibility = Visibility.Visible;
+                            break;
+                        case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
+                            error.Text = "An account exists already!";
+                            error.Visibility = Visibility.Visible;
+                            break;
+                    };
                     break;
             }
 
