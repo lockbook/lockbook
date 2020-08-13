@@ -20,6 +20,10 @@ object SharedPreferences {
     const val SORT_FILES_TYPE = "sort_files_type"
     const val SORT_FILES_FIRST_CHANGED = "sort_files_first_changed"
     const val SORT_FILES_LAST_CHANGED = "sort_files_last_changed"
+
+    const val BACKGROUND_SYNC_PERIOD_KEY = "background_sync_period"
+
+    const val SYNC_POST_EDIT_KEY = "sync_post_edit"
 }
 
 object RequestResultCodes {

@@ -2,6 +2,7 @@ package app.lockbook.loggedin.listfiles
 
 import android.app.Dialog
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -105,6 +106,10 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+
+        }
+
         listFilesViewModel.startUpFiles()
 
         return binding.root
@@ -200,4 +205,6 @@ class ListFilesFragment : Fragment() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
     }
+
+
 }
