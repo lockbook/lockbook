@@ -15,7 +15,6 @@ import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
@@ -128,23 +127,6 @@ class ListFilesViewModel(path: String, application: Application) :
             is Err -> {
                 Timber.e("Unable to get children: ${getChildrenResult.error}")
                 _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-            }
-        }
-    }
-
-    private fun writeNewTextToDocument(content: String) {
-        val writeToDocumentResult = coreModel.writeContentToDocument(content)
-        if (writeToDocumentResult is Err) {
-            when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                is WriteToDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is WriteToDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is WriteToDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
             }
         }
     }
@@ -281,6 +263,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 _navigateToFileEditor.postValue(
                     EditableFile(
                         fileMetadata.name,
+                        fileMetadata.id,
                         documentResult.value
                     )
                 )
@@ -325,7 +308,6 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 if (data is Intent) {
                     when (requestCode) {
-                        TEXT_EDITOR_REQUEST_CODE -> handleTextEditorRequest(data)
                         POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
                     }
                 } else if (resultCode != RESULT_CANCELED) {
@@ -338,16 +320,6 @@ class ListFilesViewModel(path: String, application: Application) :
 
     fun handleNewFileRequest(name: String) {
         createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
-    }
-
-    private fun handleTextEditorRequest(data: Intent) {
-        val contents = data.getStringExtra("contents")
-        if (contents != null) {
-            writeNewTextToDocument(contents)
-        } else {
-            Timber.e("contents is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-        }
     }
 
     private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
