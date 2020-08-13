@@ -244,6 +244,5 @@ class CoreModel(config: Config) {
 
             return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
         }
-
     }
 }
