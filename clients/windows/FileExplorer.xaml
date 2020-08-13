@@ -8,4 +8,12 @@
       mc:Ignorable="d"
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
+    <StackPanel>
+
+        <Windows10version1903:MenuBar>
+            <Windows10version1903:MenuBarItem Title="Debug">
+                <MenuFlyoutItem Text="Clear State" Click="ClearStateClicked" />
+            </Windows10version1903:MenuBarItem>
+        </Windows10version1903:MenuBar>
+    </StackPanel>
 </Page>
