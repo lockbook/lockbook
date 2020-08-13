@@ -20,6 +20,7 @@ import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.BACKGROUND_SYNC_PERIOD
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.LogUtil
 import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
