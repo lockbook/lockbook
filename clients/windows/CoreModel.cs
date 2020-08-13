@@ -21,13 +21,46 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace GetAccount {
+        abstract class Result { }
+
+        class Success : Result {
+            public String accountJson;
+        }
+
+        public enum PossibleErrors {
+            NoAccount
+        }
+
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
+
+    namespace ImportAccount {
+        abstract class Result { }
+
+        class Success : Result { }
+
+        public enum PossibleErrors {
+            AccountStringCorrupted,
+            AccountExistsAlready,
+            AccountDoesNotExist,
+            UsernamePKMismatch,
+            CouldNotReachServer
+        }
+
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 
-// Unexpected Error:
-// {"Err":{"UnexpectedError":"Could not connect to db, config: Config {\n    writeable_path: \"\",\n}, error: SledError(\n    Io(\n        Os {\n            code: 5,\n            kind: PermissionDenied,\n            message: \"Access is denied.\",\n        },\n    ),\n)"}}
-
-// Expected Error:
-// {"Err":"InvalidUsername"}
-
-// OK
-// {"Ok":null}

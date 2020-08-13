@@ -1,8 +1,5 @@
 ﻿using System;
-using Windows.Foundation;
-using Windows.Storage;
 using Windows.UI.Popups;
-using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
@@ -13,7 +10,7 @@ namespace lockbook {
             InitializeComponent();
         }
 
-        private void ImportAccount(object sender, RoutedEventArgs e) {
+        private async void ImportAccount(object sender, RoutedEventArgs e) {
             System.Diagnostics.Debug.WriteLine("Import");
         }
 
