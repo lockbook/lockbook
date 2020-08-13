@@ -178,17 +178,6 @@ class CoreModel(config: Config) {
         return Err(MoveFileError.UnexpectedError("moveFileConverter was unable to be called!"))
     }
 
-    fun syncAllFiles(): Result<Unit, SyncAllError> {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(config))
-
-        syncResult?.let {
-            return syncResult
-        }
-
-        return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
-    }
-
     fun calculateFileSyncWork(): Result<WorkCalculated, CalculateWorkError> {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
@@ -244,5 +233,17 @@ class CoreModel(config: Config) {
 
             return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
         }
+
+        fun syncAllFiles(config: Config): Result<Unit, SyncAllError> {
+            val syncResult: Result<Unit, SyncAllError>? =
+                Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
+
+            syncResult?.let {
+                return syncResult
+            }
+
+            return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
+        }
+
     }
 }
