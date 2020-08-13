@@ -49,9 +49,9 @@
     <string name="text_editor_text">Input</string>
     <string name="text_editor_save_button_title">Save</string>
 
-    <string name="export_account_raw">Copy account string to clipboard</string>
-    <string name="export_account_qr">Export account string (QR Code)</string>
-    <string name="protect_account_biometric">Biometric options</string>
+    <string name="settings_export_account_raw">Copy account string to clipboard</string>
+    <string name="settings_export_account_qr">Export account string (QR Code)</string>
+    <string name="settings_protect_account_biometric">Biometric options</string>
 
     <array name="settings_biometric_names">
         <item>@string/biometric_disabled</item>
@@ -84,6 +84,9 @@
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
     <string name="dialog_file_name">File name</string>
     <string name="new_file_title">New File</string>
+    
+    <string name="settings_sync_startup">Sync at startup</string>
+    <string name="settings_sync_edit">Sync after editing a file</string>
 
     <array name="settings_biometric_values">
         <item>@string/biometric_none_value</item>
