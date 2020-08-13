@@ -145,10 +145,6 @@ class ListFilesFragment : Fragment() {
         return listFilesViewModel.quitOrNot()
     }
 
-    fun onRestart() {
-        listFilesViewModel.onRestart()
-    }
-
     fun onSortPressed(id: Int) {
         listFilesViewModel.onSortPressed(id)
     }
