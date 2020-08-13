@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Core.CreateAccount;
+using System;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
+using Windows.UI.Text;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -56,7 +58,12 @@ namespace lockbook
                     // When the navigation stack isn't restored navigate to the first page,
                     // configuring the new page by passing required information as a navigation
                     // parameter
-                    rootFrame.Navigate(typeof(SignUp), e.Arguments);
+
+                    if (CoreService.AccountExists()) {
+                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
+                    } else {
+                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                    }
                 }
                 // Ensure the current window is active
                 Window.Current.Activate();

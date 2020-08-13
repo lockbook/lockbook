@@ -19,7 +19,7 @@
                 <RowDefinition />
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0"
-                        Margin="40,30,40,100">
+                        Margin="40,30,40,0">
                 <TextBlock Text="Lockbook"
                            Style="{StaticResource HeaderTextBlockStyle}" />
                 <TextBlock TextWrapping="WrapWholeWords"
@@ -39,7 +39,8 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Column="0"
-                            Spacing="50">
+                            Spacing="50"
+                            VerticalAlignment="Center">
                     <TextBlock Grid.Row="0"
                                Text="Import an existing account"
                                Style="{StaticResource SubtitleTextBlockStyle}"
@@ -70,6 +71,17 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
+                    <StackPanel HorizontalAlignment="Center"
+                                x:Name="importProgressGroup"
+                                Visibility="Collapsed">
+                        <TextBlock Text="Generating Keys..."
+                                   HorizontalAlignment="Center"
+                                   Style="{StaticResource BaseTextBlockStyle}" />
+                        <ProgressRing x:Name="ImportProgressRing"
+                                      Margin="0,20,0,0"
+                                      Width="50"
+                                      Height="50" />
+                    </StackPanel>
                 </StackPanel>
                 <Line X1="0"
                       Y1="0"
@@ -82,6 +94,7 @@
                       Margin="0,100,0,100" />
 
                 <StackPanel Grid.Column="2"
+                            VerticalAlignment="Center"
                             Spacing="50">
                     <TextBlock Grid.Row="0"
                                Text="Create a new account"
