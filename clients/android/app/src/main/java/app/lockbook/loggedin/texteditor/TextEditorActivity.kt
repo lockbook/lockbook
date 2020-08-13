@@ -106,7 +106,7 @@ class TextEditorActivity : AppCompatActivity() {
             return
         }
 
-        title = intent.getStringExtra("name")
+        title = name
         if (title.endsWith(".md")) {
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
