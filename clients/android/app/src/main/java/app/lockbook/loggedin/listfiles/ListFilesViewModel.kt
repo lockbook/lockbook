@@ -4,7 +4,6 @@ import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -209,8 +208,10 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun matchToDefaultSortOption(files: List<FileMetadata>) {
-        when (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
+        when (
+            PreferenceManager.getDefaultSharedPreferences(getApplication())
+                .getString(SORT_FILES_KEY, SORT_FILES_A_Z)
+        ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -408,10 +409,12 @@ class ListFilesViewModel(path: String, application: Application) :
                         SORT_FILES_KEY,
                         SORT_FILES_LAST_CHANGED
                     ).apply()
-                    R.id.menu_list_files_sort_a_z -> pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
-                        .apply()
-                    R.id.menu_list_files_sort_z_a -> pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
-                        .apply()
+                    R.id.menu_list_files_sort_a_z ->
+                        pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
+                            .apply()
+                    R.id.menu_list_files_sort_z_a ->
+                        pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
+                            .apply()
                     R.id.menu_list_files_sort_first_changed -> pref.putString(
                         SORT_FILES_KEY,
                         SORT_FILES_FIRST_CHANGED
@@ -492,5 +495,4 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
     }
-
 }
