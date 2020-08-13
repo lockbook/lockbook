@@ -417,14 +417,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun onRestart() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-
-            }
-        }
-    }
-
     fun onSortPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
