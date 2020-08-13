@@ -11,15 +11,63 @@ namespace lockbook {
         }
 
         private async void ImportAccount(object sender, RoutedEventArgs e) {
-            System.Diagnostics.Debug.WriteLine("Import");
+            createAccount.IsEnabled = false;
+            importAccountButton.IsEnabled = false;
+            importProgressGroup.Visibility = Visibility.Visible;
+            ImportProgressRing.Visibility = Visibility.Visible;
+            ImportProgressRing.IsActive = true;
+            importError.Visibility = Visibility.Collapsed;
+
+            Core.ImportAccount.Result importAccountResult = await CoreService.ImportAccount(accountStringTextBox.Text);
+
+            switch (importAccountResult) {
+                case Core.ImportAccount.Success:
+                    Frame.Navigate(typeof(FileExplorer));
+                    break;
+                case Core.ImportAccount.UnexpectedError ohNo:
+                    await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.ImportAccount.ExpectedError expectedError:
+                    switch (expectedError.error) {
+                        case Core.ImportAccount.PossibleErrors.AccountDoesNotExist:
+                            importError.Text = "That account does not exist on this server!";
+                            newAccountError.Visibility = Visibility.Visible;
+                            break;
+                        case Core.ImportAccount.PossibleErrors.AccountExistsAlready:
+                            importError.Text = "An account exists already, clear your app data to import another account!";
+                            newAccountError.Visibility = Visibility.Visible;
+                            break;
+                        case Core.ImportAccount.PossibleErrors.AccountStringCorrupted:
+                            importError.Text = "This account string is corrupt!";
+                            newAccountError.Visibility = Visibility.Visible;
+                            break;
+                        case Core.ImportAccount.PossibleErrors.CouldNotReachServer:
+                            importError.Text = "Could not reach the server!";
+                            newAccountError.Visibility = Visibility.Visible;
+                            break;
+                        case Core.ImportAccount.PossibleErrors.UsernamePKMismatch:
+                            importError.Text = "This username does not correspond to the public key in this account_string!";
+                            newAccountError.Visibility = Visibility.Visible;
+                            break;
+                    };
+                    break;
+            }
+
+            createAccount.IsEnabled = true;
+            importAccountButton.IsEnabled = true;
+            importProgressGroup.Visibility = Visibility.Collapsed;
+            ImportProgressRing.Visibility = Visibility.Collapsed;
+            ImportProgressRing.IsActive = false;
+            importError.Visibility = Visibility.Visible;
         }
 
         private async void CreateAccount(object sender, RoutedEventArgs e) {
             createAccount.IsEnabled = false;
+            importAccountButton.IsEnabled = false;
             progressGroup.Visibility = Visibility.Visible;
             progressRing.Visibility = Visibility.Visible;
             progressRing.IsActive = true;
-            error.Visibility = Visibility.Collapsed;
+            newAccountError.Visibility = Visibility.Collapsed;
             var createAccountResult = await CoreService.CreateAccount(username.Text);
 
             switch (createAccountResult) {
@@ -29,29 +77,30 @@ namespace lockbook {
                 case Core.CreateAccount.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
                     break;
-                case Core.CreateAccount.ExpectedError exptectedError:
-                    switch (exptectedError.error) {
+                case Core.CreateAccount.ExpectedError expectedError:
+                    switch (expectedError.error) {
                         case Core.CreateAccount.PossibleErrors.InvalidUsername:
-                            error.Text = "Invalid username!";
-                            error.Visibility = Visibility.Visible;
+                            newAccountError.Text = "Invalid username!";
+                            newAccountError.Visibility = Visibility.Visible;
                             break;
                         case Core.CreateAccount.PossibleErrors.UsernameTaken:
-                            error.Text = "Username taken!";
-                            error.Visibility = Visibility.Visible;
+                            newAccountError.Text = "Username taken!";
+                            newAccountError.Visibility = Visibility.Visible;
                             break;
                         case Core.CreateAccount.PossibleErrors.CouldNotReachServer:
-                            error.Text = "Could not reach server!";
-                            error.Visibility = Visibility.Visible;
+                            newAccountError.Text = "Could not reach server!";
+                            newAccountError.Visibility = Visibility.Visible;
                             break;
                         case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
-                            error.Text = "An account exists already!";
-                            error.Visibility = Visibility.Visible;
+                            newAccountError.Text = "An account exists already!";
+                            newAccountError.Visibility = Visibility.Visible;
                             break;
-                    };
+                    }
                     break;
             }
 
             createAccount.IsEnabled = true;
+            importAccountButton.IsEnabled = true;
             progressGroup.Visibility = Visibility.Collapsed;
             progressRing.Visibility = Visibility.Collapsed;
             progressRing.IsActive = false;

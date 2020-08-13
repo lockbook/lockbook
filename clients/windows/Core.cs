@@ -113,7 +113,7 @@ namespace lockbook {
                 errorMessage = "Contract error!"
             };
         }
-        public static async Task<Core.CreateAccount.Result> ImportAccount(String account_string) {
+        public static async Task<Core.ImportAccount.Result> ImportAccount(String account_string) {
             String result = await Task.Run(() => getStringAndRelease(import_account(path, account_string)));
 
             JObject obj = JObject.Parse(result);
@@ -123,37 +123,41 @@ namespace lockbook {
             JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
 
             if (unexpectedError != null) {
-                return new Core.CreateAccount.UnexpectedError {
+                return new Core.ImportAccount.UnexpectedError {
                     errorMessage = result
                 };
             }
 
             if (expectedError != null) {
                 switch (expectedError.ToString()) {
-                    case "InvalidUsername":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.InvalidUsername
-                        };
-                    case "UsernameTaken":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.UsernameTaken
-                        };
-                    case "CouldNotReachServer":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.CouldNotReachServer
+                    case "AccountStringCorrupted":
+                        return new Core.ImportAccount.ExpectedError {
+                            error = Core.ImportAccount.PossibleErrors.AccountStringCorrupted
                         };
                     case "AccountExistsAlready":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.AccountExistsAlready
+                        return new Core.ImportAccount.ExpectedError {
+                            error = Core.ImportAccount.PossibleErrors.AccountExistsAlready
+                        };
+                    case "AccountDoesNotExist":
+                        return new Core.ImportAccount.ExpectedError {
+                            error = Core.ImportAccount.PossibleErrors.AccountDoesNotExist
+                        };
+                    case "UsernamePKMismatch":
+                        return new Core.ImportAccount.ExpectedError {
+                            error = Core.ImportAccount.PossibleErrors.UsernamePKMismatch
+                        };
+                    case "CouldNotReachServer":
+                        return new Core.ImportAccount.ExpectedError {
+                            error = Core.ImportAccount.PossibleErrors.CouldNotReachServer
                         };
                 }
             }
 
             if (ok != null) {
-                return new Core.CreateAccount.Success { };
+                return new Core.ImportAccount.Success { };
             }
 
-            return new Core.CreateAccount.UnexpectedError {
+            return new Core.ImportAccount.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }
