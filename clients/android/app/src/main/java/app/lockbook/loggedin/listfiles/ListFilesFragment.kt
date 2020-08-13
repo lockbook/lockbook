@@ -124,7 +124,6 @@ class ListFilesFragment : Fragment() {
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
         list_files_layout.isClickable = false
-        list_files_layout.setOnClickListener(null)
         isFABOpen = false
     }
 
