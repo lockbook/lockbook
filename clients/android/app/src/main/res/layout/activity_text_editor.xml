@@ -19,7 +19,7 @@
             android:background="@null"
             android:gravity="top|start"
             android:importantForAutofill="no"
-            android:inputType="textMultiLine|textNoSuggestions" />
+            android:inputType="textMultiLine|textCapSentences" />
 
     </ScrollView>
 
