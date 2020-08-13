@@ -93,23 +93,6 @@ class CoreModel(config: Config) {
         return Err(ReadDocumentError.UnexpectedError("readDocumentConverter was unable to be called!"))
     }
 
-    fun writeContentToDocument(content: String): Result<Unit, WriteToDocumentError> {
-        val writeResult: Result<Unit, WriteToDocumentError>? =
-            Klaxon().converter(writeDocumentConverter).parse(
-                writeDocument(
-                    config,
-                    lastDocumentAccessed.id,
-                    Klaxon().toJsonString(DecryptedValue(content))
-                )
-            )
-
-        writeResult?.let {
-            return writeResult
-        }
-
-        return Err(WriteToDocumentError.UnexpectedError("writeDocument was unable to be called!"))
-    }
-
     fun createFile(
         name: String,
         fileType: String
@@ -243,6 +226,22 @@ class CoreModel(config: Config) {
             }
 
             return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
+
+        fun writeContentToDocument(config: Config, id: String, content: String): Result<Unit, WriteToDocumentError> {
+            val writeResult: Result<Unit, WriteToDocumentError>? =
+                Klaxon().converter(writeDocumentConverter).parse(
+                    writeDocument(
+                        Klaxon().toJsonString(config),
+                        id,
+                        Klaxon().toJsonString(DecryptedValue(content))
+                    )
+                )
+
+            writeResult?.let {
+                return writeResult
+            }
+
+            return Err(WriteToDocumentError.UnexpectedError("writeDocument was unable to be called!"))
         }
     }
 }

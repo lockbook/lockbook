@@ -71,5 +71,6 @@ data class Config(val writeable_path: String)
 
 data class EditableFile(
     val name: String,
+    val id: String,
     val contents: String
 )
