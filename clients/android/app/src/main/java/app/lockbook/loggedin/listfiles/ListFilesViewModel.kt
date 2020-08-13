@@ -490,7 +490,6 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                 }
             } else {
-                Timber.i("GOOD STUFF")
                 Result.success()
             }
         }
