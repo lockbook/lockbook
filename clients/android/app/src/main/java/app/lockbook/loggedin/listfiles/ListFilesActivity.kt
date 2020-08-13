@@ -86,17 +86,6 @@ class ListFilesActivity : AppCompatActivity() {
         return Err(Unit)
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        val fragment = getFragment().component1()
-        if(fragment is ListFilesFragment) {
-            fragment.onRestart()
-        } else {
-            Timber.e("Unable to retrieve ListFilesFragment.")
-            Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
-        }
-    }
-
     override fun onBackPressed() {
         when (getFragment().component1()?.onBackPressed()) {
             false -> super.onBackPressed()
