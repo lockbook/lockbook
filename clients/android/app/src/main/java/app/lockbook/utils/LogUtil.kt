@@ -1,7 +1,6 @@
 package app.lockbook.utils
 
 import java.io.BufferedReader
-import java.io.IOException
 import java.io.InputStreamReader
 
 class LogUtil {
@@ -14,7 +13,7 @@ class LogUtil {
                     Runtime.getRuntime().exec("logcat -d").inputStream
                 )
             )
-            bufferedReader.forEachLine { line -> if(line.contains(processId)) logBuilder.append("$line\n") }
+            bufferedReader.forEachLine { line -> if (line.contains(processId)) logBuilder.append("$line\n") }
 
             return logBuilder
         }
