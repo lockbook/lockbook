@@ -43,7 +43,7 @@
                             VerticalAlignment="Stretch"
                             Background="#111111"
                             Margin="30,30,15,30"
-                            Padding="0,30,0,0">
+                            Padding="30,30,30,30">
                     <TextBlock Grid.Row="0"
                                Text="Import an existing account"
                                Style="{StaticResource SubtitleTextBlockStyle}"
@@ -78,11 +78,13 @@
                     <TextBlock x:Name="importError"
                                HorizontalAlignment="Center"
                                Style="{StaticResource BaseTextBlockStyle}"
-                               Foreground="Red" />
+                               Foreground="Red"
+                               MaxWidth="300"
+                               TextWrapping="WrapWholeWords"/>
                     <StackPanel HorizontalAlignment="Center"
                                 x:Name="importProgressGroup"
                                 Visibility="Collapsed">
-                        <TextBlock Text="Generating Keys..."
+                        <TextBlock Text="Importing Account String..."
                                    HorizontalAlignment="Center"
                                    Style="{StaticResource BaseTextBlockStyle}" />
                         <ProgressRing x:Name="ImportProgressRing"
@@ -96,7 +98,7 @@
                             VerticalAlignment="Stretch"
                             Background="#111111"
                             Margin="15,30,30,30"
-                            Padding="0,30,0,0"
+                            Padding="30,30,30,30"
                             Spacing="50">
                     <TextBlock Grid.Row="0"
                                Text="Create a new account"
