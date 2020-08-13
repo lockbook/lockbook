@@ -24,23 +24,26 @@
                            Style="{StaticResource HeaderTextBlockStyle}" />
                 <TextBlock TextWrapping="WrapWholeWords"
                            Style="{StaticResource TitleTextBlockStyle}">
-                <Span xml:space="preserve"><Run>Get started with the document editing platform of the future. </Run><Hyperlink NavigateUri="https://lockbook.app">Learn more.</Hyperlink></Span>
+                <Span xml:space="preserve"><Run>Get started with the document editing platform of the future. </Run><Hyperlink UnderlineStyle="None"
+                                                                                                                               NavigateUri="https://lockbook.app">Learn more.</Hyperlink></Span>
                 </TextBlock>
             </StackPanel>
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition />
-                    <ColumnDefinition Width="auto" />
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
+                    <RowDefinition />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Column="0"
                             Spacing="50"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Stretch"
+                            Background="#111111"
+                            Margin="30,30,15,30"
+                            Padding="0,30,0,0">
                     <TextBlock Grid.Row="0"
                                Text="Import an existing account"
                                Style="{StaticResource SubtitleTextBlockStyle}"
@@ -49,6 +52,7 @@
                     <TextBox AcceptsReturn="True"
                              TextWrapping="Wrap"
                              Height="172"
+                             x:Name="accountStringTextBox"
                              Width="300"
                              Header="Account String"
                              ScrollViewer.VerticalScrollBarVisibility="Auto" />
@@ -63,7 +67,7 @@
                                            HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Click="ImportAccount">
+                        <Button Name="importAccountButton" Click="ImportAccount">
                             <StackPanel Orientation="Horizontal">
                                 <SymbolIcon Symbol="Download" />
                                 <TextBlock Text=" Import Account String"
@@ -71,6 +75,10 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
+                    <TextBlock x:Name="importError"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource BaseTextBlockStyle}"
+                               Foreground="Red" />
                     <StackPanel HorizontalAlignment="Center"
                                 x:Name="importProgressGroup"
                                 Visibility="Collapsed">
@@ -83,18 +91,12 @@
                                       Height="50" />
                     </StackPanel>
                 </StackPanel>
-                <Line X1="0"
-                      Y1="0"
-                      X2="0"
-                      Y2="1"
-                      Stretch="Fill"
-                      Stroke="#30FFFFFF"
-                      Grid.Row="0"
-                      Grid.Column="1"
-                      Margin="0,100,0,100" />
 
                 <StackPanel Grid.Column="2"
-                            VerticalAlignment="Center"
+                            VerticalAlignment="Stretch"
+                            Background="#111111"
+                            Margin="15,30,30,30"
+                            Padding="0,30,0,0"
                             Spacing="50">
                     <TextBlock Grid.Row="0"
                                Text="Create a new account"
@@ -108,13 +110,14 @@
                     <Button Click="CreateAccount"
                             x:Name="createAccount"
                             HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <SymbolIcon Symbol="Forward" />
-                            <TextBlock Text=" Create Account"
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Create Account"
                                        HorizontalAlignment="Center" />
+                            <SymbolIcon Symbol="Forward" />
+
                         </StackPanel>
                     </Button>
-                    <TextBlock x:Name="error"
+                    <TextBlock x:Name="newAccountError"
                                HorizontalAlignment="Center"
                                Style="{StaticResource BaseTextBlockStyle}"
                                Foreground="Red" />
