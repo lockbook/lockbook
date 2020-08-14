@@ -4,6 +4,7 @@ import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -77,13 +78,12 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun setUpPeriodicSync() {
-        val constraints = Constraints.Builder().build()
-        val work = PeriodicWorkRequestBuilder<SyncWork>(20, TimeUnit.MINUTES)
+        val work = PeriodicWorkRequestBuilder<SyncWork>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.NONE)
             .addTag(PERIODIC_SYNC_TAG)
-            .setConstraints(constraints)
             .build()
 
-        WorkManager.getInstance(getApplication())
+        WorkManager.getInstance(getApplication<Application>().applicationContext)
             .enqueueUniquePeriodicWork(PERIODIC_SYNC_TAG, ExistingPeriodicWorkPolicy.REPLACE, work)
     }
 
