@@ -78,13 +78,13 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun setUpPeriodicSync() {
         val constraints = Constraints.Builder().build()
-        val work = PeriodicWorkRequestBuilder<SyncWork>(15, TimeUnit.MINUTES)
+        val work = PeriodicWorkRequestBuilder<SyncWork>(20, TimeUnit.MINUTES)
+            .addTag(PERIODIC_SYNC_TAG)
             .setConstraints(constraints)
             .build()
-        WorkManager.getInstance(getApplication()).enqueueUniquePeriodicWork(
-            PERIODIC_SYNC_TAG,
-            ExistingPeriodicWorkPolicy.REPLACE, work
-        )
+
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(PERIODIC_SYNC_TAG, ExistingPeriodicWorkPolicy.REPLACE, work)
     }
 
     fun quitOrNot(): Boolean {
@@ -193,7 +193,7 @@ class ListFilesViewModel(path: String, application: Application) :
         when (
             PreferenceManager.getDefaultSharedPreferences(getApplication())
                 .getString(SORT_FILES_KEY, SORT_FILES_A_Z)
-        ) {
+            ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -440,6 +440,8 @@ class ListFilesViewModel(path: String, application: Application) :
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
+            Timber.i("PLEASE WORK")
+
             val syncAllResult =
                 CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
             return if (syncAllResult is Err) {
