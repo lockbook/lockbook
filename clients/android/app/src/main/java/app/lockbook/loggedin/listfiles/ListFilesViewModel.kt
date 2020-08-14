@@ -440,8 +440,6 @@ class ListFilesViewModel(path: String, application: Application) :
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
-            Timber.i("PLEASE WORK")
-
             val syncAllResult =
                 CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
             return if (syncAllResult is Err) {
