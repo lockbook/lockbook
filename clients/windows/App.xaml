@@ -1,7 +1,35 @@
 ﻿<Application
     x:Class="lockbook.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:lockbook">
+             xmlns:muxm="using:Microsoft.UI.Xaml.Media"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <!-- The "Default" theme dictionary is used unless a specific
+                                 light, dark, or high contrast dictionary is provided. These
+                                 resources should be tested with both the light and dark themes,
+                                 and specific light or dark resources provided as needed. -->
+                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
+                                          BackgroundSource="HostBackdrop"
+                                          TintColor="Black"
+                                          TintOpacity="0.6"
+                                          FallbackColor="Gray" />
 
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <!-- Always include a "HighContrast" dictionary when you override
+                                 theme resources. This empty dictionary ensures that the 
+                                 default high contrast resources are used when the user
+                                 turns on high contrast mode. -->
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>
