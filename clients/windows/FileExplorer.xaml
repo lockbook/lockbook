@@ -5,15 +5,77 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:Windows10version1903="http://schemas.microsoft.com/winfx/2006/xaml/presentation?IsApiContractPresent(Windows.Foundation.UniversalApiContract, 8)"
-      mc:Ignorable="d"
-      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+      xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+      mc:Ignorable="d">
+    <Page.Resources>
+        <Thickness x:Key="NavigationViewHeaderMargin">12,0</Thickness>
+    </Page.Resources>
 
-    <StackPanel>
+    <Grid>
+        <muxc:NavigationView x:Name="NavView"
+                             IsTitleBarAutoPaddingEnabled="True"
+                             IsBackEnabled="False"
+                             IsBackButtonVisible="Collapsed">
+            <muxc:NavigationView.MenuItems>
+                <muxc:NavigationViewItem Tag="home"
+                                         Icon="Home"
+                                         Content="Home" />
+                <muxc:NavigationViewItemSeparator />
+                <muxc:NavigationViewItemHeader x:Name="MainPagesHeader"
+                                               Content="Main pages" />
+                <muxc:NavigationViewItem Tag="apps"
+                                         Content="Apps">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="&#xEB3C;" />
+                    </muxc:NavigationViewItem.Icon>
+                </muxc:NavigationViewItem>
+                <muxc:NavigationViewItem Tag="games"
+                                         Content="Games">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="&#xE7FC;" />
+                    </muxc:NavigationViewItem.Icon>
+                </muxc:NavigationViewItem>
+                <muxc:NavigationViewItem Tag="music"
+                                         Icon="Audio"
+                                         Content="Music" />
+            </muxc:NavigationView.MenuItems>
 
-        <Windows10version1903:MenuBar>
-            <Windows10version1903:MenuBarItem Title="Debug">
-                <MenuFlyoutItem Text="Clear State" Click="ClearStateClicked" />
-            </Windows10version1903:MenuBarItem>
-        </Windows10version1903:MenuBar>
-    </StackPanel>
+            <muxc:NavigationView.AutoSuggestBox>
+                <!-- See AutoSuggestBox documentation for
+                 more info about how to implement search. -->
+                <AutoSuggestBox x:Name="NavViewSearchBox"
+                                QueryIcon="Find" />
+            </muxc:NavigationView.AutoSuggestBox>
+
+            <ScrollViewer>
+                <Frame x:Name="ContentFrame"
+                       Padding="12,0,12,24"
+                       IsTabStop="True" />
+            </ScrollViewer>
+        </muxc:NavigationView>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState>
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="10000" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <!-- Remove the next 3 lines for left-only navigation. -->
+                        <Setter Target="NavView.PaneDisplayMode"
+                                Value="Top" />
+                        <Setter Target="NavViewSearchBox.Width"
+                                Value="200" />
+                        <Setter Target="MainPagesHeader.Visibility"
+                                Value="Collapsed" />
+                        <!-- Leave the next line for left-only navigation. -->
+                        <Setter Target="ContentFrame.Padding"
+                                Value="24,0,24,24" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
 </Page>
