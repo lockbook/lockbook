@@ -4,7 +4,7 @@ import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.widget.Toast
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -12,22 +12,30 @@ import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.R
 import app.lockbook.utils.*
-import app.lockbook.utils.ClickInterface
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
+import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
+import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
+import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
+import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
+import app.lockbook.utils.SharedPreferences.SYNC_POST_EDIT_KEY
+import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import kotlinx.coroutines.*
 import timber.log.Timber
-import java.util.*
 import java.util.concurrent.TimeUnit
 
 class ListFilesViewModel(path: String, application: Application) :
@@ -40,9 +48,11 @@ class ListFilesViewModel(path: String, application: Application) :
     private lateinit var fileCreationType: FileType
 
     private val _files = MutableLiveData<List<FileMetadata>>()
+    private val _isProgressBarVisible = MutableLiveData<Boolean>()
+    private val _progressBarProgress = MutableLiveData<Int>()
+    private val _progressBarMax = MutableLiveData<Int>()
     private val _navigateToFileEditor = MutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
-    private val _listFilesRefreshing = MutableLiveData<Boolean>()
     private val _collapseExpandFAB = MutableLiveData<Unit>()
     private val _createFileNameDialog = MutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
@@ -50,14 +60,20 @@ class ListFilesViewModel(path: String, application: Application) :
     val files: LiveData<List<FileMetadata>>
         get() = _files
 
+    val isProgressBarVisible: LiveData<Boolean>
+        get() = _isProgressBarVisible
+
+    val progressBarProgress: LiveData<Int>
+        get() = _progressBarProgress
+
+    val progressBarMax: LiveData<Int>
+        get() = _progressBarMax
+
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
 
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
-
-    val listFilesRefreshing: LiveData<Boolean>
-        get() = _listFilesRefreshing
 
     val collapseExpandFAB: LiveData<Unit>
         get() = _collapseExpandFAB
@@ -72,19 +88,54 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 setUpPeriodicSync()
+                setUpPreferenceChangeListener()
                 startUpInRoot()
             }
         }
     }
 
-    private fun setUpPeriodicSync() {
-        val work = PeriodicWorkRequestBuilder<SyncWork>(15, TimeUnit.MINUTES)
-            .setConstraints(Constraints.NONE)
-            .addTag(PERIODIC_SYNC_TAG)
-            .build()
+    private fun setUpPreferenceChangeListener() {
+        val listener = OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                BACKGROUND_SYNC_ENABLED_KEY ->
+                    WorkManager.getInstance(getApplication())
+                        .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
+                BACKGROUND_SYNC_PERIOD_KEY -> {
+                    setUpPeriodicSync()
+                }
+                SYNC_POST_EDIT_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY -> {
+                }
+                else -> {
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    Timber.e("Unable to recognize preference key: $key")
+                }
+            }
+        }
 
-        WorkManager.getInstance(getApplication<Application>().applicationContext)
-            .enqueueUniquePeriodicWork(PERIODIC_SYNC_TAG, ExistingPeriodicWorkPolicy.REPLACE, work)
+        PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    private fun setUpPeriodicSync() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .getBoolean(BACKGROUND_SYNC_ENABLED_KEY, true)
+        ) {
+            val work = PeriodicWorkRequestBuilder<SyncWork>(
+                PreferenceManager.getDefaultSharedPreferences(getApplication())
+                    .getInt(BACKGROUND_SYNC_PERIOD_KEY, 30).toLong(),
+                TimeUnit.MINUTES
+            )
+                .setConstraints(Constraints.NONE)
+                .addTag(PERIODIC_SYNC_TAG)
+                .build()
+
+            WorkManager.getInstance(getApplication<Application>().applicationContext)
+                .enqueueUniquePeriodicWork(
+                    PERIODIC_SYNC_TAG,
+                    ExistingPeriodicWorkPolicy.REPLACE,
+                    work
+                )
+        }
     }
 
     fun quitOrNot(): Boolean {
@@ -115,6 +166,99 @@ class ListFilesViewModel(path: String, application: Application) :
             is Err -> {
                 Timber.e("Unable to get siblings of the parent: ${getSiblingsOfParentResult.error}")
                 _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            }
+        }
+    }
+
+    private fun incrementalSync() {
+        val syncErrors = hashMapOf<String, ExecuteWorkError>()
+
+        val account = when (val accountResult = coreModel.getAccount()) {
+            is Ok -> accountResult.value
+            is Err -> {
+                when (val error = accountResult.error) {
+                    is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                    is GetAccountError.UnexpectedError -> {
+                        Timber.e("Unable to get account: ${error.error}")
+                    }
+                }
+
+                return
+            }
+        }
+
+        val maxProgress = when (val syncWorkResult = getSyncWork()) {
+            is Ok -> {
+                _progressBarMax.postValue(syncWorkResult.value.work_units.size)
+                syncWorkResult.value.work_units.size
+            }
+            is Err -> return
+        }
+        var currentProgress = maxProgress
+
+        repeat(10) {
+            val syncWork = when (val syncWorkResult = getSyncWork()) {
+                is Ok -> syncWorkResult.value
+                is Err -> return
+            }
+
+            if (syncWork.work_units.isEmpty()) {
+                return if (syncErrors.isEmpty()) {
+                    val setLastSyncedResult =
+                        coreModel.setLastSynced(syncWork.most_recent_update_from_server)
+                    if (setLastSyncedResult is Err) {
+                        Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    }
+                    return
+                } else {
+                    Timber.e("Despite all work being gone, syncErrors still persist.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
+            }
+
+            for (workUnit in syncWork.work_units) {
+                when (
+                    val executeFileSyncWorkResult =
+                        coreModel.executeFileSyncWork(account, workUnit)
+                ) {
+                    is Ok -> {
+                        currentProgress--
+                        _progressBarProgress.postValue(maxProgress - currentProgress)
+                        syncErrors.remove(workUnit.content.metadata.id)
+                    }
+                    is Err ->
+                        syncErrors[workUnit.content.metadata.id] =
+                            executeFileSyncWorkResult.error
+                }
+            }
+        }
+
+        if (syncErrors.isNotEmpty()) {
+            Timber.e("Couldn't resolve all syncErrors.")
+            _errorHasOccurred.postValue("Couldn't sync all files.")
+        }
+    }
+
+    private fun getSyncWork(): Result<WorkCalculated, Unit> {
+        return when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
+            is Ok -> {
+                Timber.e(syncWorkResult::class.simpleName)
+                Ok(syncWorkResult.value)
+            }
+            is Err -> {
+                when (val error = syncWorkResult.error) {
+                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                    is CalculateWorkError.CouldNotReachServer -> Timber.e("Could not reach server.")
+                    is CalculateWorkError.UnexpectedError -> {
+                        Timber.e("Unable to calculate syncWork: ${error.error}")
+                        _errorHasOccurred.postValue(
+                            UNEXPECTED_ERROR_OCCURRED
+                        )
+                    }
+                }
+
+                Err(Unit)
             }
         }
     }
@@ -193,7 +337,7 @@ class ListFilesViewModel(path: String, application: Application) :
         when (
             PreferenceManager.getDefaultSharedPreferences(getApplication())
                 .getString(SORT_FILES_KEY, SORT_FILES_A_Z)
-            ) {
+        ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -306,15 +450,28 @@ class ListFilesViewModel(path: String, application: Application) :
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                if (data is Intent) {
-                    when (requestCode) {
-                        POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
+                when {
+                    requestCode == POP_UP_INFO_REQUEST_CODE && data is Intent -> handlePopUpInfoRequest(
+                        resultCode,
+                        data
+                    )
+                    TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
+                    resultCode == RESULT_CANCELED -> {
                     }
-                } else if (resultCode != RESULT_CANCELED) {
-                    Timber.e("Unable to recognize resultCode.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    else -> {
+                        Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    }
                 }
             }
+        }
+    }
+
+    private fun handleTextEditorRequest() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .getBoolean(SYNC_POST_EDIT_KEY, false)
+        ) {
+            incrementalSyncProgressBar()
         }
     }
 
@@ -331,7 +488,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     if (newName != null) {
                         renameRefreshFiles(id, newName)
                     } else {
-                        Timber.e("newName is null.")
+                        Timber.e("new_name is null.")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                     }
                 }
@@ -347,13 +504,19 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun syncRefresh() {
+    fun onSwipeToRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                refreshFiles()
-                _listFilesRefreshing.postValue(false)
+                incrementalSyncProgressBar()
             }
         }
+    }
+
+    private fun incrementalSyncProgressBar() {
+        _isProgressBarVisible.postValue(true)
+        incrementalSync()
+        refreshFiles()
+        _isProgressBarVisible.postValue(false)
     }
 
     fun onNewDocumentFABClicked() {
