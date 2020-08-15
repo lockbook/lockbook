@@ -28,6 +28,34 @@ class CoreModel(config: Config) {
         return Err(GetRootError.UnexpectedError("getRootConverter was unable to be called!"))
     }
 
+    fun getAccount(): Result<Account, GetAccountError> {
+        val account: Result<Account, GetAccountError>? =
+            Klaxon().converter(getAccountConverter).parse(getAccount(config))
+
+        account?.let { accountResult ->
+            return when (accountResult) {
+                is Ok -> Ok(accountResult.value)
+                is Err -> Err(accountResult.error)
+            }
+        }
+
+        return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
+    }
+
+    fun setLastSynced(lastSynced: Long): Result<Unit, SetLastSyncedError> {
+        val lastSynced: Result<Unit, SetLastSyncedError>? =
+            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSynced))
+
+        lastSynced?.let { lastSyncedResult ->
+            return when (lastSyncedResult) {
+                is Ok -> Ok(lastSyncedResult.value)
+                is Err -> Err(lastSyncedResult.error)
+            }
+        }
+
+        return Err(SetLastSyncedError.UnexpectedError("setLastSyncedConverter was unable to be called!"))
+    }
+
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
         val children: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
@@ -238,7 +266,6 @@ class CoreModel(config: Config) {
             }
 
             return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
-
         }
 
         fun writeContentToDocument(
