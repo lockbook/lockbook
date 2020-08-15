@@ -99,7 +99,6 @@ namespace lockbook {
         private void OnItemCollapsed(object sender, NavigationViewItemCollapsedEventArgs e) {
             var nvib = e.CollapsedItemContainer;
             var name = "Last collapsed: " + nvib.Content;
-            CollapsedItemLabel.Text = name;
             System.Diagnostics.Debug.WriteLine(Categories[0].Expanded);
 
 
