@@ -75,7 +75,6 @@ namespace Core {
 
         [JsonProperty("parent")]
         public String Parent { get; set; }
-
     }
 
     namespace ListFileMetadata {
@@ -84,6 +83,35 @@ namespace Core {
         class Success : Result {
             public List<FileMetadata> files;
         }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
+
+    public enum FileType {
+        Folder,
+        Document
+    }
+
+    namespace CreateFile {
+        abstract class Result { }
+
+        class Success : Result {
+            public FileMetadata NewFile { get; set; }
+        }
+
+        public enum PossibleErrors {
+            NoAccount,
+            DocumentTreatedAsFolder,
+            CouldNotFindAParent,
+            FileNameNotAvailable,
+            FileNameContainsSlash
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
 
         class UnexpectedError : Result {
             public String errorMessage;
