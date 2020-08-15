@@ -1,13 +1,14 @@
 package app.lockbook.loggedin.listfiles
 
+import android.animation.ObjectAnimator
 import android.app.Dialog
 import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
@@ -23,9 +24,7 @@ import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
-import kotlinx.android.synthetic.main.dialog_create_file_name.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import java.util.*
 
 class ListFilesFragment : Fragment() {
 
@@ -54,13 +53,35 @@ class ListFilesFragment : Fragment() {
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
-            listFilesViewModel.syncRefresh()
+            list_files_refresh.isRefreshing = false
+            listFilesViewModel.onSwipeToRefresh()
         }
 
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             Observer { files ->
                 updateRecyclerView(files, adapter)
+            }
+        )
+
+        listFilesViewModel.isProgressBarVisible.observe(
+            viewLifecycleOwner,
+            Observer { visibility ->
+                isProgressBarVisible(visibility)
+            }
+        )
+
+        listFilesViewModel.progressBarProgress.observe(
+            viewLifecycleOwner,
+            Observer { progress ->
+                setProgressBarProgress(progress)
+            }
+        )
+
+        listFilesViewModel.progressBarMax.observe(
+            viewLifecycleOwner,
+            Observer { maxProgress ->
+                setMaxProgress(maxProgress)
             }
         )
 
@@ -75,13 +96,6 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             Observer { fileMetadata ->
                 navigateToPopUpInfo(fileMetadata)
-            }
-        )
-
-        listFilesViewModel.listFilesRefreshing.observe(
-            viewLifecycleOwner,
-            Observer { isRefreshing ->
-                list_files_refresh.isRefreshing = isRefreshing
             }
         )
 
@@ -106,13 +120,34 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
-
-        }
-
         listFilesViewModel.startUpFiles()
 
         return binding.root
+    }
+
+    private fun isProgressBarVisible(visibility: Boolean) {
+        list_files_incremental_sync_progress.visibility =
+            if (visibility) View.VISIBLE else View.GONE
+    }
+
+    private fun setProgressBarProgress(progress: Int) {
+        ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", progress).start()
+    }
+
+    private fun setMaxProgress(maxProgress: Int) {
+        list_files_incremental_sync_progress.max = maxProgress
+    }
+
+    override fun onStart() {
+        super.onStart()
+        removeRefreshSpinner()
+    }
+
+    private fun removeRefreshSpinner() {
+        val field = list_files_refresh::class.java.getDeclaredField("mCircleView")
+        field.isAccessible = true
+        val image = field.get(list_files_refresh) as ImageView
+        image.alpha = 0.0f
     }
 
     private fun onFABClicked() {
@@ -165,11 +200,7 @@ class ListFilesFragment : Fragment() {
         files: List<FileMetadata>,
         adapter: FilesAdapter
     ) {
-        if (files.isEmpty()) {
-            adapter.files = listOf()
-        } else {
-            adapter.files = files
-        }
+        adapter.files = if (files.isEmpty()) listOf() else files
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {
@@ -205,6 +236,4 @@ class ListFilesFragment : Fragment() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
     }
-
-
 }

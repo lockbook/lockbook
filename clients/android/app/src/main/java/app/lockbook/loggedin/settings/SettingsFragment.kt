@@ -1,6 +1,8 @@
 package app.lockbook.loggedin.settings
 
-import android.content.*
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.PopupWindow
@@ -11,16 +13,16 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.preference.*
 import app.lockbook.R
-import app.lockbook.utils.AccountExportError
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
+import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -40,14 +42,32 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
             false
         }
 
+        setUpSyncSettings()
+
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
     }
 
+    private fun setUpSyncSettings() {
+        val seekBar = findPreference<SeekBarPreference>(BACKGROUND_SYNC_PERIOD_KEY)
+        seekBar?.min = 15
+        seekBar?.isEnabled = findPreference<SwitchPreference>(BACKGROUND_SYNC_ENABLED_KEY)?.isChecked ?: true
+    }
+
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
+            BACKGROUND_SYNC_ENABLED_KEY -> {
+                val seekBar = findPreference<SeekBarPreference>(BACKGROUND_SYNC_PERIOD_KEY)
+                when (val onOrOff = seekBar?.isEnabled) {
+                    true, false -> seekBar.isEnabled = !onOrOff
+                    null -> {
+                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY seekBar, it is null.")
+                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             else -> super.onPreferenceTreeClick(preference)
         }
 

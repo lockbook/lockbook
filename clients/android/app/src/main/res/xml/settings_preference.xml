@@ -6,35 +6,60 @@
 
     <PreferenceCategory
         android:key="biometric_category"
-        android:title="Biometrics">
+        android:title="@string/settings_preference_title_biometrics"
+        app:iconSpaceReserved="false">
         <ListPreference
             android:defaultValue="@string/biometric_none_value"
             android:entries="@array/settings_biometric_names"
             android:entryValues="@array/settings_biometric_values"
             android:key="biometric"
             android:summary="Secure your account with biometrics"
+            app:iconSpaceReserved="false"
             android:title="@string/settings_protect_account_biometric" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Export Account">
+    <PreferenceCategory android:title="@string/settings_preference_title_account"
+        app:iconSpaceReserved="false">
         <Preference
             android:key="export_account_raw"
-            android:title="@string/settings_export_account_raw" />
+            android:title="@string/settings_export_account_raw"
+            app:iconSpaceReserved="false"/>
 
         <Preference
             android:key="export_account_qr"
-            android:title="@string/settings_export_account_qr" />
+            android:title="@string/settings_export_account_qr"
+            app:iconSpaceReserved="false"/>
 
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Sync">
+    <PreferenceCategory android:title="@string/settings_preference_title_background_sync"
+        app:iconSpaceReserved="false">
+
         <SwitchPreference
-            android:key="sync_start_up"
-            android:title="@string/settings_sync_startup" />
+            android:defaultValue="true"
+            android:key="background_sync_enabled"
+            android:title="@string/settings_preference_background_title_background_sync_enabled"
+            app:iconSpaceReserved="false"/>
+
+        <SeekBarPreference
+            android:key="background_sync_period"
+            app:showSeekBarValue="true"
+            android:defaultValue="30"
+            android:max="200"
+            android:summary="@string/settings_preference_background_summary_sync_period"
+            android:title="@string/settings_preference_background_title_sync_period"
+            app:iconSpaceReserved="false"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/settings_preference_title_incremental_sync"
+        app:iconSpaceReserved="false">
 
         <SwitchPreference
             android:key="sync_post_edit"
-            android:title="@string/settings_sync_edit" />
+            android:defaultValue="false"
+            android:title="@string/settings_sync_edit"
+            app:iconSpaceReserved="false"/>
+
     </PreferenceCategory>
 
 </PreferenceScreen>
