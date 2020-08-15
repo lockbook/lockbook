@@ -196,6 +196,11 @@ pub unsafe extern "C" fn rename_file(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn list_filemetadata(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::list_filemetadata(&config_from_ptr(writeable_path)))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn move_file(
     writeable_path: *const c_char,
     id: *const c_char,
