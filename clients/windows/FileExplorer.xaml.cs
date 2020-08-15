@@ -63,6 +63,7 @@ namespace lockbook {
 
             switch (result) {
                 case Core.ListFileMetadata.Success success:
+                    Files.Clear();
                     await PopulateTree(success.files);
                     break;
                 case Core.ListFileMetadata.UnexpectedError ohNo:
@@ -74,7 +75,7 @@ namespace lockbook {
 
         private async Task PopulateTree(List<FileMetadata> coreFiles) {
             FileMetadata root = null;
-            Dictionary<String, UIFile> uiFiles = new Dictionary<string, UIFile>();
+            Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
 
             // Find our root
             foreach (var file in coreFiles) {
@@ -94,7 +95,7 @@ namespace lockbook {
 
             while (toExplore.Count != 0) {
                 var current = toExplore.Dequeue();
-                
+
                 // Find all children
                 foreach (var file in coreFiles) {
                     if (current.Id == file.Parent && file.Parent != file.Id) {
@@ -105,9 +106,51 @@ namespace lockbook {
                     }
                 }
             }
+        }
 
-            
+        private async void NewFolder(object sender, RoutedEventArgs e) {
+            String tag = (String)((MenuFlyoutItem)sender).Tag;
+            String name = await InputTextDialogAsync("Choose a folder name");
+
+            var result = await CoreService.CreateFile(name, tag, FileType.Folder);
+            switch (result) {
+                case Core.CreateFile.Success: // TODO handle this newly created folder elegantly.
+                    RefreshFiles(null, null);
+                    break;
+                case Core.CreateFile.ExpectedError error:
+                    switch (error.error) {
+                        case Core.CreateFile.PossibleErrors.FileNameNotAvailable:
+                            await new MessageDialog("A file already exists at this path!", "Name Taken!").ShowAsync();
+                            break;
+                        case Core.CreateFile.PossibleErrors.FileNameContainsSlash:
+                            await new MessageDialog("File names cannot contain slashes!", "Name Invalid!").ShowAsync();
+                            break;
+                        default:
+                            await new MessageDialog("Unhandled Error!", error.error.ToString()).ShowAsync();
+                            break;
+                    }
+                    break;
+                case Core.CreateFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+            }
+        }
+
+        // TODO replace with nicer: https://stackoverflow.com/questions/34538637/text-input-in-message-dialog-contentdialog
+        private async Task<string> InputTextDialogAsync(string title) {
+            TextBox inputTextBox = new TextBox();
+            inputTextBox.AcceptsReturn = false;
+            inputTextBox.Height = 32;
+            ContentDialog dialog = new ContentDialog();
+            dialog.Content = inputTextBox;
+            dialog.Title = title;
+            dialog.IsSecondaryButtonEnabled = true;
+            dialog.PrimaryButtonText = "Ok";
+            dialog.SecondaryButtonText = "Cancel";
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                return inputTextBox.Text;
+            else
+                return "";
         }
     }
-
 }

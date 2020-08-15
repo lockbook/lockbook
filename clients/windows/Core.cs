@@ -24,6 +24,9 @@ namespace lockbook {
         private static extern IntPtr list_filemetadata(string path);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr create_file(string path, string name, string parent, string file_type);
+
+        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         private static String getStringAndRelease(IntPtr pointer) {
@@ -194,6 +197,65 @@ namespace lockbook {
                 errorMessage = result
             };
 
+        }
+
+        public static async Task<Core.CreateFile.Result> CreateFile(String name, String parent, FileType ft) {
+            String fileType;
+
+            if (ft == FileType.Folder) {
+                fileType = "Folder";
+            } else {
+                fileType = "Document";
+            }
+
+            String result = await Task.Run(() => getStringAndRelease(create_file(path, name, parent, fileType)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.CreateFile.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.NoAccount
+                        };
+                    case "DocumentTreatedAsFolder":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder
+                        };
+                    case "CouldNotFindAParent":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.CouldNotFindAParent
+                        };
+                    case "FileNameNotAvailable":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.FileNameNotAvailable
+                        };
+                    case "FileNameContainsSlash":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.FileNameContainsSlash
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.CreateFile.Success {
+                    NewFile = JsonConvert.DeserializeObject<FileMetadata>(ok.ToString())
+                };
+            }
+
+            return new Core.CreateFile.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
         }
     }
 }
