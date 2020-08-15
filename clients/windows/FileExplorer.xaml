@@ -6,35 +6,48 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       mc:Ignorable="d">
-    <Page.Resources>
-        <DataTemplate x:Key="NavigationViewMenuItem"
-                      x:DataType="local:File">
-            <muxc:NavigationViewItem 
-                                     Content="{x:Bind Name}"
-                                     Tag="{x:Bind Id}"
-                                     IsExpanded="{x:Bind Expanded, Mode=TwoWay}"
-                                     MenuItemsSource="{x:Bind Children}" />
-        </DataTemplate>
-    </Page.Resources>
-
     <Grid>
-        <muxc:NavigationView x:Name="navview"
-                             MenuItemsSource="{x:Bind Categories, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MenuItemTemplate="{StaticResource NavigationViewMenuItem}"
-                             ItemInvoked="{x:Bind OnItemInvoked}"
-                             Expanding="OnItemExpanding"
-                             IsBackButtonVisible="Collapsed"
-                             Collapsed="OnItemCollapsed"
-                             PaneDisplayMode="Left">
-            
-            <StackPanel Margin="10,10,0,0">
-                <TextBlock Margin="0,10,0,0"
-                           x:Name="ExpandingItemLabel"
-                           Text="Last Expanding: N/A" />
-                <TextBlock x:Name="CollapsedItemLabel"
-                           Text="Last Collapsed: N/A" />
-            </StackPanel>
+        <muxc:NavigationView x:Name="NavView" IsBackButtonVisible="Collapsed">
+            <muxc:NavigationView.MenuItems>
+                <muxc:NavigationViewItem Tag="folder"
+                                         Content="Parth's Files">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="&#xEC25;" />
+                    </muxc:NavigationViewItem.Icon>
+
+                    <muxc:NavigationViewItem.MenuItems>
+                        <muxc:NavigationViewItem>
+                            <muxc:TreeView Name="DessertTree"
+                                           SelectionMode="Multiple"
+                                           ItemsSource="{x:Bind Categories}">
+                                <muxc:TreeView.ItemTemplate>
+                                    <DataTemplate x:DataType="local:File">
+                                        <muxc:TreeViewItem ItemsSource="{x:Bind Children}"
+                                                           Content="{x:Bind Name}" />
+                                    </DataTemplate>
+                                </muxc:TreeView.ItemTemplate>
+                            </muxc:TreeView>
+                        </muxc:NavigationViewItem>
+                    </muxc:NavigationViewItem.MenuItems>
+                </muxc:NavigationViewItem>
+            </muxc:NavigationView.MenuItems>
+            <muxc:NavigationView.PaneFooter>
+                <muxc:NavigationViewItem Tag="sync"
+                                         Content="Sync">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="&#xE895;" />
+                    </muxc:NavigationViewItem.Icon>
+                </muxc:NavigationViewItem>
+            </muxc:NavigationView.PaneFooter>
+            <ScrollViewer>
+                <Frame x:Name="ContentFrame"
+                       Padding="12,0,12,24"
+                       IsTabStop="True" />
+            </ScrollViewer>
         </muxc:NavigationView>
+
+       
     </Grid>
-    
 </Page>
