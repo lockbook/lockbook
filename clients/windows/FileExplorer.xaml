@@ -7,7 +7,9 @@
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       mc:Ignorable="d">
     <Grid>
-        <muxc:NavigationView x:Name="NavView" IsBackButtonVisible="Collapsed" Loaded="RefreshFiles">
+        <muxc:NavigationView x:Name="NavView"
+                             IsBackButtonVisible="Collapsed"
+                             Loaded="RefreshFiles">
             <muxc:NavigationView.MenuItems>
                 <muxc:NavigationViewItem Tag="folder"
                                          Content="Parth's Files">
@@ -23,7 +25,23 @@
                                 <muxc:TreeView.ItemTemplate>
                                     <DataTemplate x:DataType="local:UIFile">
                                         <muxc:TreeViewItem ItemsSource="{x:Bind Children}"
-                                                           Content="{x:Bind Name}" />
+                                                           Content="{x:Bind Name}"
+                                                           Tag="{x:Bind Id}">
+                                            <muxc:TreeViewItem.ContextFlyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="New Folder"
+                                                                    Click="NewFolder"
+                                                                    Tag="{x:Bind Id}" />
+                                                    <MenuFlyoutItem Text="New Document"
+                                                                    Tag="{x:Bind Id}" />
+                                                    <MenuFlyoutSeparator />
+                                                    <MenuFlyoutItem Text="Rename"
+                                                                    Tag="{x:Bind Id}" />
+                                                    <MenuFlyoutItem Text="Delete"
+                                                                    Tag="{x:Bind Id}" />
+                                                </MenuFlyout>
+                                            </muxc:TreeViewItem.ContextFlyout>
+                                        </muxc:TreeViewItem>
                                     </DataTemplate>
                                 </muxc:TreeView.ItemTemplate>
                             </muxc:TreeView>
@@ -47,6 +65,6 @@
             </ScrollViewer>
         </muxc:NavigationView>
 
-       
+
     </Grid>
 </Page>
