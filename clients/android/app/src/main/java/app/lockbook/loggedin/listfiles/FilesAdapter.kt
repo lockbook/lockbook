@@ -50,7 +50,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
                     null
                 )
             )
-            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+            holder.cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
         } else {
             holder.cardView.file_name.setTextColor(
                 ResourcesCompat.getColor(
@@ -59,7 +59,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
                     null
                 )
             )
-            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_folder_24)
+            holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
         }
     }
 
