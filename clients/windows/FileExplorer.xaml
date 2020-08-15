@@ -7,7 +7,7 @@
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       mc:Ignorable="d">
     <Grid>
-        <muxc:NavigationView x:Name="NavView" IsBackButtonVisible="Collapsed">
+        <muxc:NavigationView x:Name="NavView" IsBackButtonVisible="Collapsed" Loaded="RefreshFiles">
             <muxc:NavigationView.MenuItems>
                 <muxc:NavigationViewItem Tag="folder"
                                          Content="Parth's Files">
@@ -19,10 +19,9 @@
                     <muxc:NavigationViewItem.MenuItems>
                         <muxc:NavigationViewItem>
                             <muxc:TreeView Name="DessertTree"
-                                           SelectionMode="Multiple"
-                                           ItemsSource="{x:Bind Categories}">
+                                           ItemsSource="{x:Bind Files}">
                                 <muxc:TreeView.ItemTemplate>
-                                    <DataTemplate x:DataType="local:File">
+                                    <DataTemplate x:DataType="local:UIFile">
                                         <muxc:TreeViewItem ItemsSource="{x:Bind Children}"
                                                            Content="{x:Bind Name}" />
                                     </DataTemplate>

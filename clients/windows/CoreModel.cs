@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 
 namespace Core {
     namespace CreateAccount {
@@ -58,6 +60,31 @@ namespace Core {
         class ExpectedError : Result {
             public PossibleErrors error;
         }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
+
+    class FileMetadata {
+        [JsonProperty("id")]
+        public String Id { get; set; }
+
+        [JsonProperty("name")]
+        public String Name { get; set; }
+
+        [JsonProperty("parent")]
+        public String Parent { get; set; }
+
+    }
+
+    namespace ListFileMetadata {
+        abstract class Result { }
+
+        class Success : Result {
+            public List<FileMetadata> files;
+        }
+
         class UnexpectedError : Result {
             public String errorMessage;
         }

@@ -1,7 +1,11 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Core;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Windows.Data.Json;
 
 namespace lockbook {
     class CoreService {
@@ -17,6 +21,9 @@ namespace lockbook {
         private static extern IntPtr import_account(string path, string account_string);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr list_filemetadata(string path);
+
+        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         private static String getStringAndRelease(IntPtr pointer) {
@@ -24,6 +31,13 @@ namespace lockbook {
             String result = (String)temp_string.Clone();
             release_pointer(pointer);
             return result;
+        }
+
+        public static bool AccountExists() {
+            String result = getStringAndRelease(get_account(path));
+            JObject obj = JObject.Parse(result);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+            return ok != null;
         }
 
         public static async Task<Core.CreateAccount.Result> CreateAccount(String username) {
@@ -71,13 +85,6 @@ namespace lockbook {
             };
         }
 
-        public static bool AccountExists() {
-            String result = getStringAndRelease(get_account(path));
-            JObject obj = JObject.Parse(result);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-            return ok != null;
-        }
-
         public static async Task<Core.GetAccount.Result> GetAccount() {
             String result = await Task.Run(() => getStringAndRelease(get_account(path)));
 
@@ -113,6 +120,7 @@ namespace lockbook {
                 errorMessage = "Contract error!"
             };
         }
+
         public static async Task<Core.ImportAccount.Result> ImportAccount(String account_string) {
             String result = await Task.Run(() => getStringAndRelease(import_account(path, account_string)));
 
@@ -160,6 +168,32 @@ namespace lockbook {
             return new Core.ImportAccount.UnexpectedError {
                 errorMessage = "Contract error!"
             };
+        }
+
+        public static async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
+            String result = await Task.Run(() => getStringAndRelease(list_filemetadata(path)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.ListFileMetadata.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (ok != null) {
+                return new Core.ListFileMetadata.Success {
+                    files = JsonConvert.DeserializeObject<List<FileMetadata>>(ok.ToString())
+                };
+            }
+
+            return new Core.ListFileMetadata.UnexpectedError {
+                errorMessage = result
+            };
+
         }
     }
 }
