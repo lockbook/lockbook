@@ -11,56 +11,61 @@ import SwiftUI
 struct DebugView: View {
     @EnvironmentObject var debugger: Debugger
     @ObservedObject var coordinator: Coordinator
-
+    
+    func fail() -> Void {
+        print("Failure!")
+    }
+    
     var body: some View {
-        VStack {
+        VStack(alignment: .leading, spacing: 10) {
             Spacer()
             Button(action: {
-                print("Syncing files...")
                 self.coordinator.sync()
             }) {
                 HStack {
-                    Image(systemName: "arrow.2.circlepath")
+                    Image(systemName: "arrow.up.arrow.down.circle.fill")
                     Text("Sync")
-                    Image(systemName: "arrow.2.circlepath")
                 }
                 .foregroundColor(.green)
             }
             Button(action: {
-                if let username = try? self.debugger.lockbookApi.getAccount().get() {
-                    print("Username \(username)")
-                } else {
-                    print("Couldn't get username!")
-                }
+                self.coordinator.iterativeSync()
             }) {
                 HStack {
-                    Image(systemName: "person.circle")
-                    Text("Print Account")
-                    Image(systemName: "person.circle")
-                }
-            }
-//            Button(action: {
-//                print("Purging and syncing files in localdb...")
-//            }) {
-//                HStack {
-//                    Image(systemName: "trash")
-//                    Text("Purge Local")
-//                    Image(systemName: "trash")
-//                }
-//                .foregroundColor(.red)
-//            }
-            Button(action: {
-                let _ = self.debugger.lockbookApi.calculateWork()
-            }) {
-                HStack {
-                    Image(systemName: "person.badge.minus")
-                    Text("Calculate Work")
-                    Image(systemName: "person.badge.minus")
+                    Image(systemName: "arrow.up.and.down.circle.fill")
+                    Text("Iterative Sync")
                 }
                 .foregroundColor(.yellow)
             }
+            Button(action: {
+                self.coordinator.reloadFiles()
+            }) {
+                HStack {
+                    Image(systemName: "arrow.2.circlepath.circle.fill")
+                    Text("Reload Files")
+                }
+                .foregroundColor(.pink)
+            }
+            Button(action: {
+                if case .success(let username) = self.debugger.lockbookApi.getAccount() {
+                    print("Username \(username)")
+                } else {
+                    self.fail()
+                }
+            }) {
+                HStack {
+                    Image(systemName: "person.circle.fill")
+                    Text("Dump Account")
+                }
+                .foregroundColor(.purple)
+            }
+            Spacer()
+            Toggle(isOn: self.$coordinator.autoSync) {
+                Text("Auto-Sync")
+            }
             Spacer()
         }
+        .padding(.horizontal, 100)
         .navigationBarTitle("Debugger")
     }
 }

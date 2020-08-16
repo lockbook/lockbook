@@ -27,7 +27,7 @@ struct ImportAccountView: View {
                     if let account = self.loginManager.importAccount(accountString: self.accountString) {
                         print("Imported account: \(account)")
                         switch self.loginManager.lockbookApi.synchronize() {
-                        case .success(let b):
+                        case .success(_):
                             self.showingAlert = false
                         case .failure(let error):
                             print("Import failed with error: \(error)")
