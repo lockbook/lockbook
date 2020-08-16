@@ -1,35 +1,45 @@
 package app.lockbook.loggedin.listfiles
 
 import android.app.Activity.RESULT_CANCELED
+import android.app.Application
 import android.content.Intent
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import androidx.preference.PreferenceManager
+import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.ClickInterface
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.NEW_FILE_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
-import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
+import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
+import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
+import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
+import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
+import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
 
-class ListFilesViewModel(path: String) :
-    ViewModel(),
+class ListFilesViewModel(path: String, application: Application) :
+    AndroidViewModel(application),
     ClickInterface {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val coreModel = CoreModel(Config(path))
+    private lateinit var fileCreationType: FileType
 
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _navigateToFileEditor = MutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = MutableLiveData<FileMetadata>()
-    private val _navigateToNewFile = MutableLiveData<Unit>()
     private val _listFilesRefreshing = MutableLiveData<Boolean>()
+    private val _collapseExpandFAB = MutableLiveData<Unit>()
+    private val _createFileNameDialog = MutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
 
     val files: LiveData<List<FileMetadata>>
@@ -41,11 +51,14 @@ class ListFilesViewModel(path: String) :
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
 
-    val navigateToNewFile: LiveData<Unit>
-        get() = _navigateToNewFile
-
     val listFilesRefreshing: LiveData<Boolean>
         get() = _listFilesRefreshing
+
+    val collapseExpandFAB: LiveData<Unit>
+        get() = _collapseExpandFAB
+
+    val createFileNameDialog: LiveData<Unit>
+        get() = _createFileNameDialog
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -57,10 +70,6 @@ class ListFilesViewModel(path: String) :
                 startUpInRoot()
             }
         }
-    }
-
-    fun launchNewFileActivity() {
-        _navigateToNewFile.value = Unit
     }
 
     fun quitOrNot(): Boolean {
@@ -76,7 +85,7 @@ class ListFilesViewModel(path: String) :
         when (val getSiblingsOfParentResult = coreModel.getSiblingsOfParent()) {
             is Ok -> {
                 when (val getParentOfParentResult = coreModel.getParentOfParent()) {
-                    is Ok -> sortFiles(getSiblingsOfParentResult.value)
+                    is Ok -> matchToDefaultSortOption(getSiblingsOfParentResult.value)
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
                         is GetFileByIdError.UnexpectedError -> {
@@ -97,27 +106,12 @@ class ListFilesViewModel(path: String) :
 
     private fun refreshFiles() {
         when (val getChildrenResult = coreModel.getChildrenOfParent()) {
-            is Ok -> sortFiles(getChildrenResult.value)
+            is Ok -> {
+                matchToDefaultSortOption(getChildrenResult.value)
+            }
             is Err -> {
                 Timber.e("Unable to get children: ${getChildrenResult.error}")
                 _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-            }
-        }
-    }
-
-    private fun writeNewTextToDocument(content: String) {
-        val writeToDocumentResult = coreModel.writeContentToDocument(content)
-        if (writeToDocumentResult is Err) {
-            when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                is WriteToDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is WriteToDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is WriteToDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
             }
         }
     }
@@ -180,25 +174,81 @@ class ListFilesViewModel(path: String) :
         }
     }
 
-    private fun sortFiles(files: List<FileMetadata>) {
-        val sortedFiles = files.sortedBy { fileMetadata ->
-            fileMetadata.name
+    private fun matchToDefaultSortOption(files: List<FileMetadata>) {
+        when (PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
+            SORT_FILES_A_Z -> sortFilesAlpha(files, false)
+            SORT_FILES_Z_A -> sortFilesAlpha(files, true)
+            SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
+            SORT_FILES_FIRST_CHANGED -> sortFilesChanged(files, true)
+            SORT_FILES_TYPE -> sortFilesType(files)
         }
-        if (sortedFiles == files) {
+    }
+
+    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean) {
+        if (inReverse) {
             _files.postValue(
                 files.sortedByDescending { fileMetadata ->
                     fileMetadata.name
                 }
             )
         } else {
-            _files.postValue(sortedFiles)
+            _files.postValue(
+                files.sortedBy { fileMetadata ->
+                    fileMetadata.name
+                }
+            )
         }
+    }
+
+    private fun sortFilesChanged(files: List<FileMetadata>, inReverse: Boolean) {
+        if (inReverse) {
+            _files.postValue(
+                files.sortedByDescending { fileMetadata ->
+                    fileMetadata.metadata_version
+                }
+            )
+        } else {
+            _files.postValue(
+                files.sortedBy { fileMetadata ->
+                    fileMetadata.metadata_version
+                }
+            )
+        }
+    }
+
+    private fun sortFilesType(files: List<FileMetadata>) {
+        val tempFolders = files.filter { fileMetadata ->
+            fileMetadata.file_type.name == FileType.Folder.name
+        }
+        val tempDocuments = files.filter { fileMetadata ->
+            fileMetadata.file_type.name == FileType.Document.name
+        }
+        _files.postValue(
+            tempFolders.union(
+                tempDocuments.sortedWith(
+                    compareBy(
+                        { fileMetadata ->
+                            Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                        },
+                        { fileMetaData ->
+                            fileMetaData.name
+                        }
+                    )
+                )
+            ).toList()
+        )
     }
 
     private fun handleReadDocument(fileMetadata: FileMetadata) {
         when (val documentResult = coreModel.getDocumentContent(fileMetadata.id)) {
             is Ok -> {
-                _navigateToFileEditor.postValue(EditableFile(fileMetadata.name, documentResult.value))
+                _navigateToFileEditor.postValue(
+                    EditableFile(
+                        fileMetadata.name,
+                        fileMetadata.id,
+                        documentResult.value
+                    )
+                )
                 coreModel.lastDocumentAccessed = fileMetadata
             }
             is Err -> when (val error = documentResult.error) {
@@ -259,8 +309,6 @@ class ListFilesViewModel(path: String) :
             withContext(Dispatchers.IO) {
                 if (data is Intent) {
                     when (requestCode) {
-                        NEW_FILE_REQUEST_CODE -> handleNewFileRequest(data)
-                        TEXT_EDITOR_REQUEST_CODE -> handleTextEditorRequest(data)
                         POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
                     }
                 } else if (resultCode != RESULT_CANCELED) {
@@ -271,25 +319,8 @@ class ListFilesViewModel(path: String) :
         }
     }
 
-    private fun handleNewFileRequest(data: Intent) {
-        val name = data.getStringExtra("name")
-        val fileType = data.getStringExtra("fileType")
-        if (name != null && fileType != null) {
-            createInsertRefreshFiles(name, fileType)
-        } else {
-            Timber.e("Name or fileType is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-        }
-    }
-
-    private fun handleTextEditorRequest(data: Intent) {
-        val contents = data.getStringExtra("contents")
-        if (contents != null) {
-            writeNewTextToDocument(contents)
-        } else {
-            Timber.e("contents is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-        }
+    fun handleNewFileRequest(name: String) {
+        createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
     }
 
     private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
@@ -327,12 +358,43 @@ class ListFilesViewModel(path: String) :
         }
     }
 
-    fun onSortPressed() {
+    fun onNewDocumentFABClicked() {
+        fileCreationType = FileType.Document
+        _collapseExpandFAB.postValue(Unit)
+        _createFileNameDialog.postValue(Unit)
+    }
+
+    fun onNewFolderFABClicked() {
+        fileCreationType = FileType.Folder
+        _collapseExpandFAB.postValue(Unit)
+        _createFileNameDialog.postValue(Unit)
+    }
+
+    fun collapseFAB() {
+        _collapseExpandFAB.postValue(Unit)
+    }
+
+    fun onSortPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
+                val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
+                when (id) {
+                    R.id.menu_list_files_sort_last_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_LAST_CHANGED).apply()
+                    R.id.menu_list_files_sort_a_z -> pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z).apply()
+                    R.id.menu_list_files_sort_z_a -> pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A).apply()
+                    R.id.menu_list_files_sort_first_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_FIRST_CHANGED).apply()
+                    R.id.menu_list_files_sort_type -> pref.putString(SORT_FILES_KEY, SORT_FILES_TYPE).apply()
+                    else -> {
+                        Timber.e("Unrecognized sort item id.")
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    }
+                }
+
                 val files = _files.value
                 if (files is List<FileMetadata>) {
-                    sortFiles(files)
+                    matchToDefaultSortOption(files)
+                } else {
+                    _errorHasOccurred.postValue("Unable to retrieve files from LiveData.")
                 }
             }
         }

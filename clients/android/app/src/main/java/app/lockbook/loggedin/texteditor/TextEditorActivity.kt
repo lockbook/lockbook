@@ -1,31 +1,57 @@
 package app.lockbook.loggedin.texteditor
 
 import android.os.Bundle
+import android.os.Handler
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
+import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import java.util.*
 import java.util.concurrent.Executors
 
 class TextEditorActivity : AppCompatActivity() {
-    lateinit var textEditorViewModel: TextEditorViewModel
+    private lateinit var textEditorViewModel: TextEditorViewModel
+    private var timer: Timer = Timer()
+    private val handler = Handler()
     var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
 
+        val id = intent.getStringExtra("id")
+        val contents = intent.getStringExtra("contents")
+
+        if (id == null) {
+            errorHasOccurred("Unable to retrieve id.")
+            finish()
+            return
+        }
+        if (contents == null) {
+            errorHasOccurred("Unable to retrieve contents.")
+            finish()
+            return
+        }
+
         val textEditorViewModelFactory =
-            TextEditorViewModelFactory(intent.getStringExtra("contents") ?: "")
+            TextEditorViewModelFactory(
+                id,
+                filesDir.absolutePath,
+                contents
+            )
+
         textEditorViewModel =
             ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
 
@@ -43,32 +69,67 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
+        textEditorViewModel.errorHasOccurred.observe(
+            this,
+            Observer { errorText ->
+                errorHasOccurred(errorText)
+            }
+        )
+
         setUpView()
+        startBackgroundSave()
+    }
+
+    private fun startBackgroundSave() {
+        timer.schedule(
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
+                    }
+                }
+            },
+            1000, TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+        )
+    }
+
+    private fun errorHasOccurred(errorText: String) {
+        finish()
+        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
     }
 
     private fun setUpView() {
-        title = intent.getStringExtra("name")
-        val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
-            .punctuationSpan(
-                CustomPunctuationSpan::class.java
-            ) {
-                CustomPunctuationSpan(
-                    ResourcesCompat.getColor(
-                        resources,
-                        R.color.blue,
-                        null
-                    )
-                )
-            }
-            .build()
+        val name = intent.getStringExtra("name")
+        if(name == null) {
+            errorHasOccurred("Unable to retrieve file name.")
+            finish()
+            return
+        }
 
-        text_editor.addTextChangedListener(
-            MarkwonEditorTextWatcher.withPreRender(
-                markdownEditor,
-                Executors.newCachedThreadPool(),
-                text_editor
+        title = name
+        if (title.endsWith(".md")) {
+            val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
+                .punctuationSpan(
+                    CustomPunctuationSpan::class.java
+                ) {
+                    CustomPunctuationSpan(
+                        ResourcesCompat.getColor(
+                            resources,
+                            R.color.blue,
+                            null
+                        )
+                    )
+                }
+                .build()
+
+            text_editor.addTextChangedListener(
+                MarkwonEditorTextWatcher.withPreRender(
+                    markdownEditor,
+                    Executors.newCachedThreadPool(),
+                    text_editor
+                )
             )
-        )
+        }
 
         text_editor.setText(intent.getStringExtra("contents"))
 
@@ -79,24 +140,24 @@ class TextEditorActivity : AppCompatActivity() {
         if (text_editor_scroller.visibility == View.VISIBLE) {
             val markdown = Markwon.create(this)
             markdown.setMarkdown(markdown_viewer, text_editor.text.toString())
-
+            menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
+            menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             text_editor_scroller.visibility = View.GONE
             markdown_viewer_scroller.visibility = View.VISIBLE
         } else {
             markdown_viewer_scroller.visibility = View.GONE
             text_editor_scroller.visibility = View.VISIBLE
+            menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = true
+            menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = true
         }
-    }
-
-    private fun submitText() {
-        intent.putExtra("contents", text_editor.text.toString())
-        setResult(RESULT_OK, intent)
-        finish()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
+        if(title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+        }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
         return true
@@ -104,7 +165,6 @@ class TextEditorActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menu_text_editor_done -> submitText()
 //            R.id.menu_text_editor_search -> { }
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
@@ -130,6 +190,12 @@ class TextEditorActivity : AppCompatActivity() {
         textEditorViewModel.ignoreChange = true
         text_editor.setText(newText)
         text_editor.setSelection(selectionPosition - diff)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        timer.cancel()
+        textEditorViewModel.writeNewTextToDocument(text_editor.text.toString())
     }
 }
 
