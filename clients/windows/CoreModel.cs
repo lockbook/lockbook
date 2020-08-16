@@ -139,5 +139,25 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace ReadDocument {
+        abstract class Result { }
+
+        class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer,
+            TreatedFolderAsDocument,
+            FileDoesNotExist
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 
