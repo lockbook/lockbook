@@ -84,9 +84,9 @@
                 </muxc:NavigationViewItem>
             </muxc:NavigationView.PaneFooter>
             <RichEditBox x:Name="editor"
-                         IsEnabled="False"
-                         Background="Black"
-                         BorderBrush="Transparent">
+                         IsEnabled="True"
+                        BorderThickness="0"
+                         Background="Black">
 
             </RichEditBox>
         </muxc:NavigationView>
