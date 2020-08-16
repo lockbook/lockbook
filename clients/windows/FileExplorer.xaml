@@ -32,13 +32,20 @@
                             </muxc:NavigationViewItem.Resources>
                             <muxc:TreeView ItemInvoked="FileSelected"
                                            ItemsSource="{x:Bind Files}">
-              
+
                                 <muxc:TreeView.ItemTemplate>
                                     <DataTemplate x:DataType="local:UIFile">
                                         <muxc:TreeViewItem ItemsSource="{x:Bind Children}"
                                                            IsExpanded="True"
-                                                           Content="{x:Bind Name}"
                                                            Tag="{x:Bind Id}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <FontIcon 
+                                                          FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="15"
+                                                          Glyph="{x:Bind Icon}" />
+                                                <TextBlock Margin="5,0,0,0"
+                                                           Text="{x:Bind Name}" />
+                                            </StackPanel>
                                             <muxc:TreeViewItem.ContextFlyout>
                                                 <MenuFlyout>
                                                     <MenuFlyoutItem Text="New Folder"
@@ -46,7 +53,7 @@
                                                                     Tag="{x:Bind Id}" />
                                                     <MenuFlyoutItem Text="New Document"
                                                                     Tag="{x:Bind Id}"
-                                                                    Click="NewDocument"/>
+                                                                    Click="NewDocument" />
                                                     <MenuFlyoutSeparator />
                                                     <MenuFlyoutItem Text="Rename"
                                                                     Tag="{x:Bind Id}" />
@@ -76,11 +83,12 @@
                     </muxc:NavigationViewItem.Icon>
                 </muxc:NavigationViewItem>
             </muxc:NavigationView.PaneFooter>
-            <ScrollViewer>
-                <Frame x:Name="ContentFrame"
-                       Padding="12,0,12,24"
-                       IsTabStop="True" />
-            </ScrollViewer>
+            <RichEditBox x:Name="editor"
+                         IsEnabled="False"
+                         Background="Black"
+                         BorderBrush="Transparent">
+
+            </RichEditBox>
         </muxc:NavigationView>
 
 
