@@ -192,7 +192,20 @@ namespace lockbook {
         }
 
         private async void SyncCalled(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
-
+            sync.IsEnabled = false;
+            sync.Content = "Syncing...";
+            var result = await CoreService.SyncAll();
+            
+            switch (result) {
+                case Core.SyncAll.Success:
+                    RefreshFiles(null, null);
+                    break;
+                default:
+                    await new MessageDialog(result.ToString(), "Unhandled Error!").ShowAsync(); // TODO
+                    break;
+            }
+            sync.Content = "Sync";
+            sync.IsEnabled = true;
         }
     }
 }
