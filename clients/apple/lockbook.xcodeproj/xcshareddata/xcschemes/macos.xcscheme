@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EAF0488F247C5C700021FE6F"
-               BuildableName = "macos.app"
-               BlueprintName = "macos"
+               BuildableName = "Lockbook-macOS.app"
+               BlueprintName = "Lockbook-macOS"
                ReferencedContainer = "container:lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -65,8 +65,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EAF0488F247C5C700021FE6F"
-            BuildableName = "macos.app"
-            BlueprintName = "macos"
+            BuildableName = "Lockbook-macOS.app"
+            BlueprintName = "Lockbook-macOS"
             ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -82,8 +82,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EAF0488F247C5C700021FE6F"
-            BuildableName = "macos.app"
-            BlueprintName = "macos"
+            BuildableName = "Lockbook-macOS.app"
+            BlueprintName = "Lockbook-macOS"
             ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

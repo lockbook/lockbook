@@ -126,7 +126,7 @@
 		EAC93E722442811C00FFC629 /* FileMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileMetadata.swift; sourceTree = "<group>"; };
 		EAC93E74244284EF00FFC629 /* CoreApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreApi.swift; sourceTree = "<group>"; };
 		EAC93E7724428E6800FFC629 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
-		EAF04890247C5C700021FE6F /* macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macos.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EAF04890247C5C700021FE6F /* Lockbook-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lockbook-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EAF04892247C5C700021FE6F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EAF04894247C5C700021FE6F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		EAF04896247C5C720021FE6F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -218,7 +218,7 @@
 			isa = PBXGroup;
 			children = (
 				87BD615D23E3B9CB00945B25 /* Lockbook.app */,
-				EAF04890247C5C700021FE6F /* macos.app */,
+				EAF04890247C5C700021FE6F /* Lockbook-macOS.app */,
 				EABF8DFF24E0657B00BF0532 /* libLockbookCore.a */,
 				EABF8E1224E065CC00BF0532 /* LockbookCoreTests.xctest */,
 			);
@@ -338,9 +338,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		87BD615C23E3B9CB00945B25 /* ios */ = {
+		87BD615C23E3B9CB00945B25 /* Lockbook-iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "ios" */;
+			buildConfigurationList = 87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "Lockbook-iOS" */;
 			buildPhases = (
 				87BD615923E3B9CB00945B25 /* Sources */,
 				87BD615A23E3B9CB00945B25 /* Frameworks */,
@@ -350,7 +350,7 @@
 			);
 			dependencies = (
 			);
-			name = ios;
+			name = "Lockbook-iOS";
 			productName = ios_client;
 			productReference = 87BD615D23E3B9CB00945B25 /* Lockbook.app */;
 			productType = "com.apple.product-type.application";
@@ -390,9 +390,9 @@
 			productReference = EABF8E1224E065CC00BF0532 /* LockbookCoreTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EAF0488F247C5C700021FE6F /* macos */ = {
+		EAF0488F247C5C700021FE6F /* Lockbook-macOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EAF048B6247C5C720021FE6F /* Build configuration list for PBXNativeTarget "macos" */;
+			buildConfigurationList = EAF048B6247C5C720021FE6F /* Build configuration list for PBXNativeTarget "Lockbook-macOS" */;
 			buildPhases = (
 				EAF0488C247C5C700021FE6F /* Sources */,
 				EAF0488D247C5C700021FE6F /* Frameworks */,
@@ -402,9 +402,9 @@
 			);
 			dependencies = (
 			);
-			name = macos;
+			name = "Lockbook-macOS";
 			productName = macos;
-			productReference = EAF04890247C5C700021FE6F /* macos.app */;
+			productReference = EAF04890247C5C700021FE6F /* Lockbook-macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -444,8 +444,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				87BD615C23E3B9CB00945B25 /* ios */,
-				EAF0488F247C5C700021FE6F /* macos */,
+				87BD615C23E3B9CB00945B25 /* Lockbook-iOS */,
+				EAF0488F247C5C700021FE6F /* Lockbook-macOS */,
 				EABF8DFE24E0657B00BF0532 /* LockbookCore */,
 				EABF8E1124E065CC00BF0532 /* LockbookCoreTests */,
 			);
@@ -1083,7 +1083,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "ios" */ = {
+		87BD617123E3B9CB00945B25 /* Build configuration list for PBXNativeTarget "Lockbook-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				87BD617223E3B9CB00945B25 /* Debug */,
@@ -1113,7 +1113,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EAF048B6247C5C720021FE6F /* Build configuration list for PBXNativeTarget "macos" */ = {
+		EAF048B6247C5C720021FE6F /* Build configuration list for PBXNativeTarget "Lockbook-macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EAF048B7247C5C720021FE6F /* Debug */,
