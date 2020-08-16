@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
@@ -25,6 +26,7 @@ import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.fragment_list_files.*
+
 
 class ListFilesFragment : Fragment() {
 
@@ -131,11 +133,15 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setProgressBarProgress(progress: Int) {
-        ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", progress).start()
+        val animation: ObjectAnimator =
+            ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", list_files_incremental_sync_progress.progress, progress * 100)
+        animation.duration = 500
+        animation.interpolator = DecelerateInterpolator()
+        animation.start()
     }
 
     private fun setMaxProgress(maxProgress: Int) {
-        list_files_incremental_sync_progress.max = maxProgress
+        list_files_incremental_sync_progress.max = maxProgress * 100
     }
 
     override fun onStart() {
