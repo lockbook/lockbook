@@ -19,7 +19,7 @@ func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
     let encoder = JSONEncoder.init()
     encoder.keyEncodingStrategy = .convertToSnakeCase
     do {
-        let data = (try? encoder.encode(obj))!
+        let data = try encoder.encode(obj)
         let output = String(data: data, encoding: .utf8) ?? ""
         print("Outgoing JSON \(output)")
         return Result.success(output)
