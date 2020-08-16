@@ -67,7 +67,8 @@
                                            HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Name="importAccountButton" Click="ImportAccount">
+                        <Button Name="importAccountButton"
+                                Click="ImportAccount">
                             <StackPanel Orientation="Horizontal">
                                 <SymbolIcon Symbol="Download" />
                                 <TextBlock Text=" Import Account String"
@@ -80,7 +81,7 @@
                                Style="{StaticResource BaseTextBlockStyle}"
                                Foreground="Red"
                                MaxWidth="300"
-                               TextWrapping="WrapWholeWords"/>
+                               TextWrapping="WrapWholeWords" />
                     <StackPanel HorizontalAlignment="Center"
                                 x:Name="importProgressGroup"
                                 Visibility="Collapsed">
@@ -112,7 +113,8 @@
                     <Button Click="CreateAccount"
                             x:Name="createAccount"
                             HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="10">
                             <TextBlock Text="Create Account"
                                        HorizontalAlignment="Center" />
                             <SymbolIcon Symbol="Forward" />
