@@ -149,7 +149,7 @@ namespace lockbook {
         }
         private async void NewDocument(object sender, RoutedEventArgs e) {
             String tag = (String)((MenuFlyoutItem)sender).Tag;
-            String name = await InputTextDialogAsync("Choose a folder name");
+            String name = await InputTextDialogAsync("Choose a document name");
 
             var result = await CoreService.CreateFile(name, tag, FileType.Document);
             switch (result) {
