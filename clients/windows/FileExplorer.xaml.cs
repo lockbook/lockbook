@@ -135,6 +135,33 @@ namespace lockbook {
                     break;
             }
         }
+        private async void NewDocument(object sender, RoutedEventArgs e) {
+            String tag = (String)((MenuFlyoutItem)sender).Tag;
+            String name = await InputTextDialogAsync("Choose a folder name");
+
+            var result = await CoreService.CreateFile(name, tag, FileType.Document);
+            switch (result) {
+                case Core.CreateFile.Success: // TODO handle this newly created folder elegantly.
+                    RefreshFiles(null, null);
+                    break;
+                case Core.CreateFile.ExpectedError error:
+                    switch (error.error) {
+                        case Core.CreateFile.PossibleErrors.FileNameNotAvailable:
+                            await new MessageDialog("A file already exists at this path!", "Name Taken!").ShowAsync();
+                            break;
+                        case Core.CreateFile.PossibleErrors.FileNameContainsSlash:
+                            await new MessageDialog("File names cannot contain slashes!", "Name Invalid!").ShowAsync();
+                            break;
+                        default:
+                            await new MessageDialog("Unhandled Error!", error.error.ToString()).ShowAsync();
+                            break;
+                    }
+                    break;
+                case Core.CreateFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+            }
+        }
 
         // TODO replace with nicer: https://stackoverflow.com/questions/34538637/text-input-in-message-dialog-contentdialog
         private async Task<string> InputTextDialogAsync(string title) {
@@ -151,6 +178,21 @@ namespace lockbook {
                 return inputTextBox.Text;
             else
                 return "";
+        }
+
+        private void FileSelected(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewItemInvokedEventArgs args) {
+            System.Diagnostics.Debug.WriteLine("Clicked");
+        }
+
+        private void NavView_ItemInvoked(Microsoft.UI.Xaml.Controls.NavigationView sender, Microsoft.UI.Xaml.Controls.NavigationViewItemInvokedEventArgs args) {
+            String tag = (String)sender.Tag;
+
+            System.Diagnostics.Debug.WriteLine(tag);
+
+        }
+
+        private async void SyncCalled(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+
         }
     }
 }
