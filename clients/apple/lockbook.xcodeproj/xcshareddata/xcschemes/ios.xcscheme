@@ -16,7 +16,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
                BuildableName = "Lockbook.app"
-               BlueprintName = "ios"
+               BlueprintName = "Lockbook-iOS"
                ReferencedContainer = "container:lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -46,7 +46,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
             BuildableName = "Lockbook.app"
-            BlueprintName = "ios"
+            BlueprintName = "Lockbook-iOS"
             ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -75,7 +75,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "87BD615C23E3B9CB00945B25"
             BuildableName = "Lockbook.app"
-            BlueprintName = "ios"
+            BlueprintName = "Lockbook-iOS"
             ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
