@@ -14,6 +14,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
+
     public class UIFile : INotifyPropertyChanged {
         public String Id { get; set; }
         public String Icon { get; set; }
@@ -45,6 +46,9 @@ namespace lockbook {
 
 
     public sealed partial class FileExplorer : Page {
+
+        public string folderGlyph = "";
+        public string documentGlyph = "\uE9F9";
 
         public ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
 
@@ -86,10 +90,11 @@ namespace lockbook {
 
             if (root == null) {
                 await new MessageDialog("Root not found, file a bug report!", "Root not found!").ShowAsync();
+                return;
             }
 
             Queue<FileMetadata> toExplore = new Queue<FileMetadata>();
-            uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, Children = new ObservableCollection<UIFile>() };
+            uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, Icon = folderGlyph, Children = new ObservableCollection<UIFile>() };
             toExplore.Enqueue(root);
             Files.Add(uiFiles[root.Id]);
 
@@ -100,7 +105,14 @@ namespace lockbook {
                 foreach (var file in coreFiles) {
                     if (current.Id == file.Parent && file.Parent != file.Id) {
                         toExplore.Enqueue(file);
-                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Children = new ObservableCollection<UIFile>() };
+                        String icon;
+                        if (file.Type == "Folder") {
+                            icon = folderGlyph;
+                        } else {
+                            icon = documentGlyph;
+                        }
+
+                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon=icon, Children = new ObservableCollection<UIFile>() };
                         uiFiles[file.Id] = newUi;
                         uiFiles[current.Id].Children.Add(newUi);
                     }
