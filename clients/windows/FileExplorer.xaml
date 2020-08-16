@@ -6,25 +6,37 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       mc:Ignorable="d">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground"
+                         Color="Transparent" />
+    </Page.Resources>
+
     <Grid>
         <muxc:NavigationView x:Name="NavView"
                              IsBackButtonVisible="Collapsed"
+                             ItemInvoked="NavView_ItemInvoked"
                              Loaded="RefreshFiles">
             <muxc:NavigationView.MenuItems>
                 <muxc:NavigationViewItem Tag="folder"
-                                         Content="Parth's Files">
+                                         Content="Files">
                     <muxc:NavigationViewItem.Icon>
                         <FontIcon FontFamily="Segoe MDL2 Assets"
                                   Glyph="&#xEC25;" />
                     </muxc:NavigationViewItem.Icon>
-
                     <muxc:NavigationViewItem.MenuItems>
                         <muxc:NavigationViewItem>
-                            <muxc:TreeView Name="DessertTree"
+                            <muxc:NavigationViewItem.Resources>
+                                <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver"
+                                                 Color="Transparent" />
+                            </muxc:NavigationViewItem.Resources>
+                            <muxc:TreeView ItemInvoked="FileSelected"
                                            ItemsSource="{x:Bind Files}">
+              
                                 <muxc:TreeView.ItemTemplate>
                                     <DataTemplate x:DataType="local:UIFile">
                                         <muxc:TreeViewItem ItemsSource="{x:Bind Children}"
+                                                           IsExpanded="True"
                                                            Content="{x:Bind Name}"
                                                            Tag="{x:Bind Id}">
                                             <muxc:TreeViewItem.ContextFlyout>
@@ -33,12 +45,16 @@
                                                                     Click="NewFolder"
                                                                     Tag="{x:Bind Id}" />
                                                     <MenuFlyoutItem Text="New Document"
-                                                                    Tag="{x:Bind Id}" />
+                                                                    Tag="{x:Bind Id}"
+                                                                    Click="NewDocument"/>
                                                     <MenuFlyoutSeparator />
                                                     <MenuFlyoutItem Text="Rename"
                                                                     Tag="{x:Bind Id}" />
                                                     <MenuFlyoutItem Text="Delete"
                                                                     Tag="{x:Bind Id}" />
+                                                    <MenuFlyoutSeparator />
+                                                    <MenuFlyoutItem Text="Nuke all data"
+                                                                    Click="ClearStateClicked" />
                                                 </MenuFlyout>
                                             </muxc:TreeViewItem.ContextFlyout>
                                         </muxc:TreeViewItem>
@@ -51,6 +67,8 @@
             </muxc:NavigationView.MenuItems>
             <muxc:NavigationView.PaneFooter>
                 <muxc:NavigationViewItem Tag="sync"
+                                         Tapped="SyncCalled"
+                                         x:Name="sync"
                                          Content="Sync">
                     <muxc:NavigationViewItem.Icon>
                         <FontIcon FontFamily="Segoe MDL2 Assets"
