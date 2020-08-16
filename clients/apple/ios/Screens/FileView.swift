@@ -61,5 +61,6 @@ struct EditorView_Previews: PreviewProvider {
         NavigationView {
             FileView(coordinator: Coordinator(), metadata: FakeApi().fileMetas.first!)
         }
+        .environment(\.colorScheme, .dark)
     }
 }

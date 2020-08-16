@@ -147,7 +147,11 @@ struct FakeApi: LockbookApi {
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.success(DecryptedValue(secret: """
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mattis mattis arcu a commodo. Maecenas dapibus mollis lacinia. Nunc ut mi felis. Donec efficitur, nulla venenatis sodales sagittis, elit tellus ullamcorper leo, in fringilla turpis nisl at sapien. Morbi et sagittis dolor, auctor sollicitudin lorem. In porttitor vulputate mi quis mattis. Suspendisse potenti. In leo sem, tincidunt ut diam sed, malesuada aliquet ipsum. Mauris pretium sapien non erat pulvinar, id dapibus dui convallis. Etiam maximus tellus ac nunc hendrerit vulputate. Vestibulum placerat ligula sit amet eleifend interdum. Pellentesque dignissim ipsum lectus, vitae ultricies mi accumsan id. Morbi ullamcorper gravida justo eu maximus. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas.
+
+Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque feugiat, risus in posuere varius, metus metus cursus lorem, at sollicitudin odio libero vel elit. Vestibulum ante ipsum primis in vel.
+"""))
     }
     
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
