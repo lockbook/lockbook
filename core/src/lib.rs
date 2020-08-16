@@ -396,20 +396,6 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
 }
 
 #[derive(Debug, Serialize)]
-pub enum ListMetasError {
-    UnexpectedError(String),
-}
-
-pub fn list_filemetadata(config: &Config) -> Result<Vec<FileMetadata>, ListMetasError> {
-    let db = connect_to_db(&config).map_err(ListMetasError::UnexpectedError)?;
-
-    match DefaultFileMetadataRepo::get_all(&db) {
-        Ok(metas) => Ok(metas),
-        Err(err) => Err(ListMetasError::UnexpectedError(format!("{:#?}", err))),
-    }
-}
-
-#[derive(Debug, Serialize)]
 pub enum GetChildrenError {
     UnexpectedError(String),
 }
