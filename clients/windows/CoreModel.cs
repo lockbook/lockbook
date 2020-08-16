@@ -117,5 +117,24 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace SyncAll {
+        abstract class Result { }
+
+        class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer,
+            ExecuteWorkError
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 

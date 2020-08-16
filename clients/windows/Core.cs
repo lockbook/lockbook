@@ -27,6 +27,9 @@ namespace lockbook {
         private static extern IntPtr create_file(string path, string name, string parent, string file_type);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr sync_all(string path);
+
+        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         private static String getStringAndRelease(IntPtr pointer) {
@@ -254,6 +257,48 @@ namespace lockbook {
             }
 
             return new Core.CreateFile.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.SyncAll.Result> SyncAll() {
+
+            String result = await Task.Run(() => getStringAndRelease(sync_all(path)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.SyncAll.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.SyncAll.ExpectedError {
+                            error = Core.SyncAll.PossibleErrors.NoAccount
+                        };
+                    case "CouldNotReachServer":
+                        return new Core.SyncAll.ExpectedError {
+                            error = Core.SyncAll.PossibleErrors.CouldNotReachServer
+                        };
+                    case "ExecuteWorkError": // TODO perhaps not how this works
+                        return new Core.SyncAll.ExpectedError {
+                            error = Core.SyncAll.PossibleErrors.ExecuteWorkError
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.SyncAll.Success { };
+            }
+
+            return new Core.SyncAll.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }
