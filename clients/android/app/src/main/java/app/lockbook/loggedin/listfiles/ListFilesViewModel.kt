@@ -242,10 +242,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun getSyncWork(): Result<WorkCalculated, Unit> {
         return when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
-            is Ok -> {
-                Timber.e(syncWorkResult::class.simpleName)
-                Ok(syncWorkResult.value)
-            }
+            is Ok -> Ok(syncWorkResult.value)
             is Err -> {
                 when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
