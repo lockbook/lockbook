@@ -75,6 +75,9 @@ namespace Core {
 
         [JsonProperty("parent")]
         public String Parent { get; set; }
+
+        [JsonProperty("file_type")]
+        public String Type { get; set; }
     }
 
     namespace ListFileMetadata {
