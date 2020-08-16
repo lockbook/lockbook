@@ -133,9 +133,9 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setProgressBarProgress(progress: Int) {
-        val animation: ObjectAnimator =
+        val animation =
             ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", list_files_incremental_sync_progress.progress, progress * 100)
-        animation.duration = 500
+        animation.duration = 300
         animation.interpolator = DecelerateInterpolator()
         animation.start()
     }
@@ -144,8 +144,8 @@ class ListFilesFragment : Fragment() {
         list_files_incremental_sync_progress.max = maxProgress * 100
     }
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         removeRefreshSpinner()
     }
 
@@ -188,9 +188,9 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun createFileNameDialog() {
-        val builder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+        val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        builder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, null))
+        dialogBuilder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, null))
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
                 dialog.dismiss()
@@ -198,8 +198,9 @@ class ListFilesFragment : Fragment() {
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
             }
+            .create()
 
-        builder.show()
+        dialogBuilder.show()
     }
 
     private fun updateRecyclerView(

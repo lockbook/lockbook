@@ -522,7 +522,6 @@ val executeSyncWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        Timber.e("SMAIL: ${jv.obj?.toJsonString(prettyPrint = true)}")
         val okResult = jv.obj?.containsKey("Ok")
 
         val basicError = jv.obj?.get("Err")
