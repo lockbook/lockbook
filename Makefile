@@ -74,11 +74,11 @@ android:
 	docker build -f containers/Dockerfile.android . --tag android:$(hash)
 
 .PHONY: android_lint
-android:
+android_lint:
 	docker run android:$(hash) ./gradlew lint
 
 .PHONY: android_fmt
-android:
+android_fmt:
 	docker run android:$(hash) ./gradlew lintKotlin 
 
 # Helpers
