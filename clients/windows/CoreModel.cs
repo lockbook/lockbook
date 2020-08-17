@@ -178,5 +178,27 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace MoveFile {
+        abstract class Result { }
+
+        class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
+            FileDoesNotExist,
+            DocumentTreatedAsFolder,
+            TargetParentHasChildNamedThat,
+            TargetParentDoesNotExist,
+
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 

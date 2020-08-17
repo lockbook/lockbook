@@ -201,7 +201,7 @@ namespace lockbook {
                             await new MessageDialog("File names cannot contain slashes!", "Invalid Name!").ShowAsync();
                             break;
                         case Core.RenameFile.PossibleErrors.FileDoesNotExist:
-                            await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.f", "Unexpected Error!").ShowAsync();
+                            await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
                             break;
                     }
                     break;
@@ -233,9 +233,37 @@ namespace lockbook {
         private async void NavigationViewItem_Drop(object sender, DragEventArgs e) {
             if ((e.OriginalSource as FrameworkElement)?.Tag is String newParent) {
                 if (await (e.DataView.GetDataAsync("id")) is String oldFileId) {
-                    System.Diagnostics.Debug.WriteLine("Source: " + oldFileId);
-                    System.Diagnostics.Debug.WriteLine("target: " + newParent);
                     e.Handled = true;
+
+                    var result = await CoreService.MoveFile(oldFileId, newParent);
+
+                    switch (result) {
+                        case Core.MoveFile.Success:
+                            RefreshFiles(null, null);
+                            break;
+                        case Core.MoveFile.ExpectedError error:
+                            switch (error.error) {
+                                case Core.MoveFile.PossibleErrors.NoAccount:
+                                    await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder:
+                                    await new MessageDialog("You cannot move a file into a document", "Bad move destination!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.FileDoesNotExist:
+                                    await new MessageDialog("Could not locate the file you're trying to move! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat:
+                                    await new MessageDialog("A file with that name exists at the target location!", "Name conflict!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.TargetParentDoesNotExist:
+                                    await new MessageDialog("Could not locate the file you're trying to move to! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                    break;
+                            }
+                            break;
+                        case Core.MoveFile.UnexpectedError uhOh:
+                            await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                            break;
+                    }
                 }
             }
         }
