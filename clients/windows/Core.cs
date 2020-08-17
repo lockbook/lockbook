@@ -30,6 +30,9 @@ namespace lockbook {
         private static extern IntPtr rename_file(string path, string id, string new_name);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr move_file(string path, string id, string new_parent);
+
+        [DllImport("lockbook_core.dll")]
         private static extern IntPtr sync_all(string path);
 
         [DllImport("lockbook_core.dll")]
@@ -344,6 +347,56 @@ namespace lockbook {
             }
 
             return new Core.RenameFile.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.MoveFile.Result> MoveFile(String id, String newParent) {
+
+            String result = await Task.Run(() => getStringAndRelease(move_file(path, id, newParent)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.MoveFile.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.NoAccount
+                        };
+                    case "FileDoesNotExist":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.FileDoesNotExist
+                        };
+                    case "DocumentTreatedAsFolder":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder
+                        };
+                    case "TargetParentHasChildNamedThat":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat
+                        };
+                    case "TargetParentDoesNotExist":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.TargetParentDoesNotExist
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.MoveFile.Success { };
+            }
+
+            return new Core.MoveFile.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }
