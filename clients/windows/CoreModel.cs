@@ -159,5 +159,24 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace RenameFile {
+        abstract class Result { }
+
+        class Success : Result { }
+
+        public enum PossibleErrors {
+            FileDoesNotExist,
+            NewNameContainsSlash,
+            FileNameNotAvailable,
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 

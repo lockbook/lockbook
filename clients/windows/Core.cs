@@ -27,6 +27,9 @@ namespace lockbook {
         private static extern IntPtr create_file(string path, string name, string parent, string file_type);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr rename_file(string path, string id, string new_name);
+
+        [DllImport("lockbook_core.dll")]
         private static extern IntPtr sync_all(string path);
 
         [DllImport("lockbook_core.dll")]
@@ -299,6 +302,48 @@ namespace lockbook {
             }
 
             return new Core.SyncAll.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.RenameFile.Result> RenameFile(String id, String newName) {
+
+            String result = await Task.Run(() => getStringAndRelease(rename_file(path, id, newName)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.RenameFile.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "FileDoesNotExist":
+                        return new Core.RenameFile.ExpectedError {
+                            error = Core.RenameFile.PossibleErrors.FileDoesNotExist
+                        };
+                    case "NewNameContainsSlash":
+                        return new Core.RenameFile.ExpectedError {
+                            error = Core.RenameFile.PossibleErrors.NewNameContainsSlash
+                        };
+                    case "FileNameNotAvailable": // TODO perhaps not how this works
+                        return new Core.RenameFile.ExpectedError {
+                            error = Core.RenameFile.PossibleErrors.FileNameNotAvailable
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.RenameFile.Success { };
+            }
+
+            return new Core.RenameFile.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }
