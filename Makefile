@@ -73,6 +73,10 @@ integration_tests_run: integration_tests server
 android:
 	docker build -f containers/Dockerfile.android . --tag android:$(hash)
 
+.PHONY: android_lint
+android:
+	docker run cli:$(hash) ./gradlew lint
+
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:

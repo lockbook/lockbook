@@ -18,6 +18,14 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    lintOptions {
+        warningsAsErrors true
+        htmlReport false
+        xmlReport false
+        abortOnError true
+        lintConfig file('../lint.xml')
+    }
+
     buildTypes {
         release {
             minifyEnabled false
