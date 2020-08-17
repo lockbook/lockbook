@@ -87,6 +87,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build container
         run: make android
+      - name: Lint
+        run: make android_lint
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
         with:
