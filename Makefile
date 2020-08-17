@@ -75,7 +75,11 @@ android:
 
 .PHONY: android_lint
 android:
-	docker run cli:$(hash) ./gradlew lint
+	docker run android:$(hash) ./gradlew lint
+
+.PHONY: android_fmt
+android:
+	docker run android:$(hash) ./gradlew lintKotlin 
 
 # Helpers
 .PHONY: is_docker_running
