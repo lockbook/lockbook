@@ -4,12 +4,15 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
 
 namespace lockbook {
     class CoreService {
         static String path = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+        private static Mutex coreMutex = new Mutex();
+
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr create_account(string path, string username);
@@ -36,7 +39,15 @@ namespace lockbook {
         private static extern IntPtr sync_all(string path);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr read_document(string path, string id);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr write_document(string path, string id, string content);
+
+        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
+
+
 
         private static String getStringAndRelease(IntPtr pointer) {
             String temp_string = Marshal.PtrToStringAnsi(pointer);
@@ -397,6 +408,96 @@ namespace lockbook {
             }
 
             return new Core.MoveFile.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.ReadDocument.Result> ReadDocument(String id) {
+
+            String result = await Task.Run(() => getStringAndRelease(read_document(path, id)));
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.ReadDocument.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.ReadDocument.ExpectedError {
+                            error = Core.ReadDocument.PossibleErrors.NoAccount
+                        };
+                    case "FileDoesNotExist":
+                        return new Core.ReadDocument.ExpectedError {
+                            error = Core.ReadDocument.PossibleErrors.FileDoesNotExist
+                        };
+                    case "TreatedFolderAsDocument":
+                        return new Core.ReadDocument.ExpectedError {
+                            error = Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.ReadDocument.Success {
+                    content = JsonConvert.DeserializeObject<DecryptedValue>(ok.ToString())
+                };
+            }
+
+            return new Core.ReadDocument.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.WriteDocument.Result> WriteDocument(String id, String content) {
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne(); // Consider doing this everywhere
+                String coreResponse = getStringAndRelease(write_document(path, id, content));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.WriteDocument.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.WriteDocument.ExpectedError {
+                            error = Core.WriteDocument.PossibleErrors.NoAccount
+                        };
+                    case "FileDoesNotExist":
+                        return new Core.WriteDocument.ExpectedError {
+                            error = Core.WriteDocument.PossibleErrors.FileDoesNotExist
+                        };
+                    case "TreatedFolderAsDocument":
+                        return new Core.WriteDocument.ExpectedError {
+                            error = Core.WriteDocument.PossibleErrors.TreatedFolderAsDocument
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.WriteDocument.Success { };
+            }
+
+            return new Core.WriteDocument.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }

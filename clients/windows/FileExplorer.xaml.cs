@@ -7,6 +7,7 @@ using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.UI.Popups;
+using Windows.UI.Text;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
@@ -19,11 +20,15 @@ namespace lockbook {
 
         public String Name { get; set; }
 
+        public bool IsDocument { get; set; }
+
         public ObservableCollection<UIFile> Children { get; set; }
     }
 
 
     public sealed partial class FileExplorer : Page {
+
+        public string currentDocumentId = "";
 
         public string folderGlyph = ""; // "\uED25";
         public string documentGlyph = ""; //"\uE9F9";
@@ -75,7 +80,7 @@ namespace lockbook {
             }
 
             Queue<FileMetadata> toExplore = new Queue<FileMetadata>();
-            uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, Icon = rootGlyph, Children = new ObservableCollection<UIFile>() };
+            uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, IsDocument = false, Icon = rootGlyph, Children = new ObservableCollection<UIFile>() };
             toExplore.Enqueue(root);
             Files.Add(uiFiles[root.Id]);
 
@@ -98,7 +103,7 @@ namespace lockbook {
                             children = null;
                         }
 
-                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon = icon, Children = children };
+                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon = icon, IsDocument = file.Type == "Document", Children = children };
                         uiFiles[file.Id] = newUi;
                         uiFiles[current.Id].Children.Add(newUi);
                     }
@@ -268,10 +273,66 @@ namespace lockbook {
             }
         }
 
-        private void FileSelected(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
-            String tag = (String) (sender as FrameworkElement).Tag;
+        private async void DocumentSelected(Microsoft.UI.Xaml.Controls.NavigationView sender, Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs args) {
+            String tag = (string) args.SelectedItemContainer?.Tag;
 
-            System.Diagnostics.Debug.WriteLine(tag);
+            if (tag != null) {
+                currentDocumentId = (string)args.SelectedItemContainer.Tag;
+                var result = await CoreService.ReadDocument(currentDocumentId);
+
+                switch (result) {
+                    case Core.ReadDocument.Success content:
+                        editor.TextDocument.SetText(TextSetOptions.None, content.content.secret);
+                        break;
+                    case Core.ReadDocument.ExpectedError error:
+                        switch (error.error) {
+                            case Core.ReadDocument.PossibleErrors.NoAccount:
+                                await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                break;
+                            case Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument:
+                                await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
+                                break;
+                            case Core.ReadDocument.PossibleErrors.FileDoesNotExist:
+                                await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                break;
+                        }
+                        break;
+                    case Core.ReadDocument.UnexpectedError uhOh:
+                        await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                        break;
+                }
+            }
+        }
+
+        private async void TextChanged(object sender, RoutedEventArgs e) {
+            if (currentDocumentId != "") {
+                string text;
+                editor.TextDocument.GetText(TextGetOptions.None, out text);
+
+                var result = await CoreService.WriteDocument(currentDocumentId, text);
+
+                switch (result) {
+                    case Core.WriteDocument.Success:
+                        System.Diagnostics.Debug.WriteLine("Saved successfullly");
+                        break;
+                    case Core.WriteDocument.ExpectedError error:
+                        switch (error.error) {
+                            case Core.WriteDocument.PossibleErrors.NoAccount:
+                                await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                break;
+                            case Core.WriteDocument.PossibleErrors.TreatedFolderAsDocument:
+                                await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
+                                break;
+                            case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
+                                await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                break;
+                        }
+                        break;
+                    case Core.WriteDocument.UnexpectedError uhOh:
+                        await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                        break;
+                }
+            }
         }
     }
 }
