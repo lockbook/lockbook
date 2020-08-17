@@ -22,7 +22,6 @@ namespace lockbook {
 
             switch (importAccountResult) {
                 case Core.ImportAccount.Success:
-                    Frame.Navigate(typeof(FileExplorer));
                     break;
                 case Core.ImportAccount.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
@@ -50,6 +49,16 @@ namespace lockbook {
                             newAccountError.Visibility = Visibility.Visible;
                             break;
                     };
+                    break;
+            }
+
+            var syncResult = await CoreService.SyncAll();
+            switch (syncResult) {
+                case Core.SyncAll.Success:
+                    Frame.Navigate(typeof(FileExplorer));
+                    break;
+                default:
+                    await new MessageDialog(syncResult.ToString(), "Unhandled Error!").ShowAsync(); // TODO
                     break;
             }
 
