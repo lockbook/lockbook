@@ -17,7 +17,7 @@
                                      Drop="NavigationViewItem_Drop"
                                      DragStarting="NavigationViewItem_DragStarting"
                                      DragOver="NavigationViewItem_DragOver"
-                                     Tapped="FileSelected"
+                                     SelectsOnInvoked="{x:Bind IsDocument}"
                                      Content="{x:Bind Name}"
                                      MenuItemsSource="{x:Bind Children}">
                 <muxc:NavigationViewItem.Icon>
@@ -53,11 +53,14 @@
                          Color="Transparent" />
         <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed"
                          Color="Transparent" />
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused"
+                         Color="Transparent" />
     </Page.Resources>
     <Grid>
         <muxc:NavigationView x:Name="navview"
                              Loaded="RefreshFiles"
                              IsBackButtonVisible="Collapsed"
+                             SelectionChanged="DocumentSelected"
                              MenuItemsSource="{x:Bind Files, Mode=TwoWay}"
                              MenuItemTemplate="{StaticResource NavigationViewMenuItem}">
             <muxc:NavigationView.PaneFooter>
@@ -73,6 +76,7 @@
             </muxc:NavigationView.PaneFooter>
             <RichEditBox x:Name="editor"
                          IsEnabled="True"
+                         TextChanged="TextChanged"
                          BorderThickness="0"
                          Background="Black">
 
