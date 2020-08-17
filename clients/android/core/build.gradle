@@ -1,6 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
+apply plugin: "org.jmailen.kotlinter"
 
 android {
     compileSdkVersion 29
@@ -31,6 +32,9 @@ android {
         }
     }
 
+    kotlinter {
+        disabledRules = ["no-wildcard-imports"]
+    }
 }
 
 dependencies {

@@ -1,8 +1,9 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
-apply plugin: 'kotlin-android-extensions'
 apply plugin: 'androidx.navigation.safeargs'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: "org.jmailen.kotlinter"
 
 android {
     compileSdkVersion 29
@@ -44,6 +45,11 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    kotlinter {
+        disabledRules = ["no-wildcard-imports"]
+    }
+
     android.buildFeatures.dataBinding = true
 }
 
