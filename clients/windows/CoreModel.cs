@@ -80,6 +80,16 @@ namespace Core {
         public String Type { get; set; }
     }
 
+    class DecryptedValue {
+        [JsonProperty("secret")]
+        public String secret { get; set; }
+    }
+
+    public enum FileType {
+        Folder,
+        Document
+    }
+
     namespace ListFileMetadata {
         abstract class Result { }
 
@@ -90,11 +100,6 @@ namespace Core {
         class UnexpectedError : Result {
             public String errorMessage;
         }
-    }
-
-    public enum FileType {
-        Folder,
-        Document
     }
 
     namespace CreateFile {
@@ -143,11 +148,31 @@ namespace Core {
     namespace ReadDocument {
         abstract class Result { }
 
+        class Success : Result {
+            public DecryptedValue content;
+        }
+
+        public enum PossibleErrors {
+            NoAccount,
+            TreatedFolderAsDocument,
+            FileDoesNotExist
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
+
+    namespace WriteDocument {
+        abstract class Result { }
+
         class Success : Result { }
 
         public enum PossibleErrors {
             NoAccount,
-            CouldNotReachServer,
             TreatedFolderAsDocument,
             FileDoesNotExist
         }
