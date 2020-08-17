@@ -307,7 +307,7 @@ namespace lockbook {
         private async void TextChanged(object sender, RoutedEventArgs e) {
             if (currentDocumentId != "") {
                 string text;
-                editor.TextDocument.GetText(TextGetOptions.None, out text);
+                editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
                 var result = await CoreService.WriteDocument(currentDocumentId, text);
 
