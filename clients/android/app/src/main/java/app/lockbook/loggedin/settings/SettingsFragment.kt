@@ -56,7 +56,7 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
 
     private fun performBiometricFlow(key: String, newValue: String = "") {
         when (
-            PreferenceManager.getDefaultSharedPreferences(
+            val optionValue = PreferenceManager.getDefaultSharedPreferences(
                 requireContext()
             ).getString(
                 BIOMETRIC_OPTION_KEY,
@@ -123,6 +123,11 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                 biometricPrompt.authenticate(promptInfo)
             }
             BIOMETRIC_NONE -> matchKey(key, newValue)
+            else -> {
+                Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
+                Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    .show()
+            }
         }
     }
 
@@ -131,6 +136,11 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
             EXPORT_ACCOUNT_RAW_KEY -> exportAccountRaw()
             EXPORT_ACCOUNT_QR_KEY -> exportAccountQR()
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValue)
+            else -> {
+                Timber.e("Shared preference key not matched: $key")
+                Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    .show()
+            }
         }
     }
 
@@ -168,6 +178,11 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                    else -> {
+                        Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
+                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                            .show()
+                    }
                 }
             }
         }
@@ -196,6 +211,11 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                         UNEXPECTED_ERROR_OCCURRED,
                         Toast.LENGTH_LONG
                     ).show()
+                }
+                else -> {
+                    Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
+                    Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        .show()
                 }
             }
         }
