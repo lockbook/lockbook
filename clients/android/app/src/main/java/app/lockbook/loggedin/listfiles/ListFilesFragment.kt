@@ -190,7 +190,7 @@ class ListFilesFragment : Fragment() {
     private fun createFileNameDialog() {
         val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        dialogBuilder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, null))
+        dialogBuilder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, view as ViewGroup, false))
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
                 dialog.dismiss()

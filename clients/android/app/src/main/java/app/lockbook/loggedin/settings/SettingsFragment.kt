@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import android.view.Gravity
+import android.view.ViewGroup
 import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.biometric.BiometricConstants
@@ -168,7 +169,7 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                     400
                 )
 
-                val qrCodeView = layoutInflater.inflate(R.layout.activity_account_qr_code, null)
+                val qrCodeView = layoutInflater.inflate(R.layout.activity_account_qr_code, view as ViewGroup, false)
                 qrCodeView.qr_code.setImageBitmap(bitmap)
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
