@@ -50,6 +50,7 @@ android {
         disabledRules = ["no-wildcard-imports"]
     }
 
+    lint.enabled(false)
     android.buildFeatures.dataBinding = true
 }
 

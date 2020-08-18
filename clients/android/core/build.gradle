@@ -35,6 +35,8 @@ android {
     kotlinter {
         disabledRules = ["no-wildcard-imports"]
     }
+
+    lint.enabled(false)
 }
 
 dependencies {
