@@ -84,6 +84,9 @@
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
     <string name="dialog_file_name">File name</string>
     <string name="new_file_title">New File</string>
+    <string name="menu_list_files_sort_type">Sort by type</string>
+    <string name="qr_code_content_description">QR code</string>
+    <string name="file_image_content_description">File image</string>
 
     <array name="settings_biometric_values">
         <item>@string/biometric_none_value</item>
