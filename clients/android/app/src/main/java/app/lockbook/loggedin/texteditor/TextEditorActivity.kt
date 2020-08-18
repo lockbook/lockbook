@@ -13,7 +13,6 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -100,7 +99,7 @@ class TextEditorActivity : AppCompatActivity() {
 
     private fun setUpView() {
         val name = intent.getStringExtra("name")
-        if(name == null) {
+        if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
             finish()
             return
@@ -155,7 +154,7 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
-        if(title.endsWith(".md")) {
+        if (title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
         }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
