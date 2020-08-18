@@ -4,7 +4,6 @@ import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -109,12 +108,22 @@ class ListFilesViewModel(path: String, application: Application) :
                                 UNEXPECTED_ERROR_OCCURRED
                             )
                         }
+                        else -> {
+                            Timber.e("GetFileByIdError not matched: ${error::class.simpleName}.")
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        }
                     }
                 }
             }
-            is Err -> {
-                Timber.e("Unable to get siblings of the parent: ${getSiblingsOfParentResult.error}")
-                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            is Err -> when (val error = getSiblingsOfParentResult.error) {
+                is GetChildrenError.UnexpectedError -> {
+                    Timber.e("Unable to get siblings of the parent: ${error.error}")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
+                else -> {
+                    Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
@@ -124,9 +133,15 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> {
                 matchToDefaultSortOption(getChildrenResult.value)
             }
-            is Err -> {
-                Timber.e("Unable to get children: ${getChildrenResult.error}")
-                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            is Err -> when (val error = getChildrenResult.error) {
+                is GetChildrenError.UnexpectedError -> {
+                    Timber.e("Unable to get children: ${getChildrenResult.error}")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
+                else -> {
+                    Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
@@ -136,9 +151,18 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> {
                 val insertFileResult = coreModel.insertFile(createFileResult.value)
                 if (insertFileResult is Err) {
-                    Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    when (val error = insertFileResult.error) {
+                        is InsertFileError.UnexpectedError -> {
+                            Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        }
+                        else -> {
+                            Timber.e("InsertFileError not matched: ${error::class.simpleName}.")
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        }
+                    }
                 }
+
                 refreshFiles()
             }
             is Err -> when (val error = createFileResult.error) {
@@ -152,6 +176,10 @@ class ListFilesViewModel(path: String, application: Application) :
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
                     )
+                }
+                else -> {
+                    Timber.e("CreateFileError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
             }
         }
@@ -170,6 +198,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
+                else -> {
+                    Timber.e("RenameFileError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
@@ -185,20 +217,27 @@ class ListFilesViewModel(path: String, application: Application) :
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
+                else -> {
+                    Timber.e("DeleteFileError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
 
     private fun matchToDefaultSortOption(files: List<FileMetadata>) {
         when (
-            PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getString(SORT_FILES_KEY, SORT_FILES_A_Z)
+            val optionValue = PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)
         ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
             SORT_FILES_FIRST_CHANGED -> sortFilesChanged(files, true)
             SORT_FILES_TYPE -> sortFilesType(files)
+            else -> {
+                Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
+                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            }
         }
     }
 
@@ -279,6 +318,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
+                else -> {
+                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
@@ -299,6 +342,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
+                else -> {
+                    Timber.e("GetRootError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }
@@ -309,6 +356,9 @@ class ListFilesViewModel(path: String, application: Application) :
                 if (data is Intent) {
                     when (requestCode) {
                         POP_UP_INFO_REQUEST_CODE -> handlePopUpInfoRequest(resultCode, data)
+                        else -> {
+                            Timber.e("Request code not matched: $requestCode")
+                        }
                     }
                 } else if (resultCode != RESULT_CANCELED) {
                     Timber.e("Unable to recognize resultCode.")
@@ -337,7 +387,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
                 DELETE_RESULT_CODE -> deleteRefreshFiles(id)
                 else -> {
-                    Timber.e("Unrecognized result code.")
+                    Timber.e("Result code not matched: $resultCode")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
             }
