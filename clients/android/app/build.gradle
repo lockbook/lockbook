@@ -51,6 +51,10 @@ android {
     }
 
     lint.enabled(false)
+    lintKotlinAndroidTest.enabled(false)
+    lintKotlinAndroidTestDebug.enabled(false)
+    lintKotlinDebug.enabled(false)
+    lintKotlinMain.enabled(false)
     android.buildFeatures.dataBinding = true
 }
 
