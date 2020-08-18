@@ -193,7 +193,7 @@ class ListFilesViewModel(path: String, application: Application) :
         when (
             PreferenceManager.getDefaultSharedPreferences(getApplication())
                 .getString(SORT_FILES_KEY, SORT_FILES_A_Z)
-            ) {
+        ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
