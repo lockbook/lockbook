@@ -84,7 +84,7 @@
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
     <string name="dialog_file_name">File name</string>
     <string name="new_file_title">New File</string>
-    
+
     <string name="settings_sync_startup">Sync at startup</string>
     <string name="settings_sync_edit">Sync after editing a file</string>
     <string name="settings_preference_background_summary_sync_period">The minutes between each automatic sync</string>
@@ -94,6 +94,9 @@
     <string name="settings_preference_title_account">Export Account</string>
     <string name="settings_preference_title_background_sync">Background Sync</string>
     <string name="settings_preference_title_incremental_sync">Incremental Sync</string>
+    <string name="menu_list_files_sort_type">Sort by type</string>
+    <string name="qr_code_content_description">QR code</string>
+    <string name="file_image_content_description">File image</string>
 
     <array name="settings_biometric_values">
         <item>@string/biometric_none_value</item>
