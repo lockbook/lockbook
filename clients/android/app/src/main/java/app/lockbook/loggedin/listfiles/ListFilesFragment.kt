@@ -24,6 +24,7 @@ import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import kotlinx.android.synthetic.main.dialog_create_file_name.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import java.util.*
 
 class ListFilesFragment : Fragment() {
 
