@@ -34,4 +34,6 @@ object RequestResultCodes {
 }
 
 const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
+const val BACKGROUND_SYNC_PERIOD: Long = 1800000
+const val PERIODIC_SYNC_TAG = "periodic_sync"
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
