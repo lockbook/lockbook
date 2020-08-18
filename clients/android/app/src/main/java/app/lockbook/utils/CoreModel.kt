@@ -42,9 +42,9 @@ class CoreModel(config: Config) {
         return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun setLastSynced(lastSynced: Long): Result<Unit, SetLastSyncedError> {
+    fun setLastSynced(lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
         val lastSynced: Result<Unit, SetLastSyncedError>? =
-            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSynced))
+            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSyncedDuration))
 
         lastSynced?.let { lastSyncedResult ->
             return when (lastSyncedResult) {
