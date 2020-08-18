@@ -1,6 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
+apply plugin: "org.jmailen.kotlinter"
 
 android {
     compileSdkVersion 29
@@ -16,6 +17,14 @@ android {
         consumerProguardFiles 'consumer-rules.pro'
     }
 
+    lintOptions {
+        warningsAsErrors true
+        htmlReport false
+        xmlReport false
+        abortOnError true
+        lintConfig file('../lint.xml')
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -23,6 +32,15 @@ android {
         }
     }
 
+    kotlinter {
+        disabledRules = ["no-wildcard-imports"]
+    }
+
+    lint.enabled(false)
+    lintKotlinAndroidTest.enabled(false)
+    lintKotlinAndroidTestDebug.enabled(false)
+    lintKotlinDebug.enabled(false)
+    lintKotlinMain.enabled(false)
 }
 
 dependencies {
