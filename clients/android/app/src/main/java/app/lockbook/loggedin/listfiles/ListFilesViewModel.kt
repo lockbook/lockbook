@@ -2,12 +2,13 @@ package app.lockbook.loggedin.listfiles
 
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
+import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
+import androidx.work.*
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.ClickInterface
@@ -25,6 +26,8 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
@@ -67,10 +70,20 @@ class ListFilesViewModel(path: String, application: Application) :
     fun startUpFiles() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                sync()
+                setUpPeriodicSync()
                 startUpInRoot()
             }
         }
+    }
+
+    private fun setUpPeriodicSync() {
+        val work = PeriodicWorkRequestBuilder<SyncWork>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.NONE)
+            .addTag(PERIODIC_SYNC_TAG)
+            .build()
+
+        WorkManager.getInstance(getApplication<Application>().applicationContext)
+            .enqueueUniquePeriodicWork(PERIODIC_SYNC_TAG, ExistingPeriodicWorkPolicy.REPLACE, work)
     }
 
     fun quitOrNot(): Boolean {
@@ -102,7 +115,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                 }
             }
-            is Err -> when(val error = getSiblingsOfParentResult.error) {
+            is Err -> when (val error = getSiblingsOfParentResult.error) {
                 is GetChildrenError.UnexpectedError -> {
                     Timber.e("Unable to get siblings of the parent: ${error.error}")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -120,7 +133,7 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> {
                 matchToDefaultSortOption(getChildrenResult.value)
             }
-            is Err -> when(val error = getChildrenResult.error) {
+            is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.UnexpectedError -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -138,7 +151,7 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> {
                 val insertFileResult = coreModel.insertFile(createFileResult.value)
                 if (insertFileResult is Err) {
-                    when(val error = insertFileResult.error) {
+                    when (val error = insertFileResult.error) {
                         is InsertFileError.UnexpectedError -> {
                             Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
                             _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -213,7 +226,9 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun matchToDefaultSortOption(files: List<FileMetadata>) {
-        when (val optionValue = PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)) {
+        when (
+            val optionValue = PreferenceManager.getDefaultSharedPreferences(getApplication()).getString(SORT_FILES_KEY, SORT_FILES_A_Z)
+        ) {
             SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -316,29 +331,6 @@ class ListFilesViewModel(path: String, application: Application) :
         refreshFiles()
     }
 
-    private fun sync() {
-        val syncAllResult = coreModel.syncAllFiles()
-        if (syncAllResult is Err) {
-            when (val error = syncAllResult.error) {
-                is SyncAllError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Error! Could not reach server!")
-                is SyncAllError.ExecuteWorkError -> { // more will be done about this since it can send a wide variety of errors
-                    _errorHasOccurred.postValue("Unable to sync work.")
-                }
-                is SyncAllError.UnexpectedError -> {
-                    Timber.e("Unable to sync all files: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
-                else -> {
-                    Timber.e("SyncAllError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-                }
-            }
-        }
-    }
-
     private fun startUpInRoot() {
         when (val result = coreModel.setParentToRoot()) {
             is Ok -> refreshFiles()
@@ -408,7 +400,6 @@ class ListFilesViewModel(path: String, application: Application) :
     fun syncRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                sync()
                 refreshFiles()
                 _listFilesRefreshing.postValue(false)
             }
@@ -436,11 +427,24 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
                 when (id) {
-                    R.id.menu_list_files_sort_last_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_LAST_CHANGED).apply()
-                    R.id.menu_list_files_sort_a_z -> pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z).apply()
-                    R.id.menu_list_files_sort_z_a -> pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A).apply()
-                    R.id.menu_list_files_sort_first_changed -> pref.putString(SORT_FILES_KEY, SORT_FILES_FIRST_CHANGED).apply()
-                    R.id.menu_list_files_sort_type -> pref.putString(SORT_FILES_KEY, SORT_FILES_TYPE).apply()
+                    R.id.menu_list_files_sort_last_changed -> pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_LAST_CHANGED
+                    ).apply()
+                    R.id.menu_list_files_sort_a_z ->
+                        pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
+                            .apply()
+                    R.id.menu_list_files_sort_z_a ->
+                        pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
+                            .apply()
+                    R.id.menu_list_files_sort_first_changed -> pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_FIRST_CHANGED
+                    ).apply()
+                    R.id.menu_list_files_sort_type -> pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_TYPE
+                    ).apply()
                     else -> {
                         Timber.e("Unrecognized sort item id.")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -479,6 +483,36 @@ class ListFilesViewModel(path: String, application: Application) :
                 _files.value?.let {
                     _navigateToPopUpInfo.postValue(it[position])
                 }
+            }
+        }
+    }
+
+    class SyncWork(appContext: Context, workerParams: WorkerParameters) :
+        Worker(appContext, workerParams) {
+        override fun doWork(): Result {
+            val syncAllResult =
+                CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
+            return if (syncAllResult is Err) {
+                when (val error = syncAllResult.error) {
+                    is SyncAllError.NoAccount -> {
+                        Timber.e("No account.")
+                        Result.failure()
+                    }
+                    is SyncAllError.CouldNotReachServer -> {
+                        Timber.e("Could not reach server.")
+                        Result.retry()
+                    }
+                    is SyncAllError.ExecuteWorkError -> {
+                        Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
+                        Result.failure()
+                    }
+                    is SyncAllError.UnexpectedError -> {
+                        Timber.e("Unable to sync all files: ${error.error}")
+                        Result.failure()
+                    }
+                }
+            } else {
+                Result.success()
             }
         }
     }

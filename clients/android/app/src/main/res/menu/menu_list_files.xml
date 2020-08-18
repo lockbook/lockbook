@@ -8,7 +8,7 @@
         android:icon="@drawable/ic_baseline_sort_24"
         android:orderInCategory="2"
         android:title="@string/menu_sort"
-        app:showAsAction="always">
+        app:showAsAction="ifRoom">
         <menu>
             <group
                 android:id="@+id/sorting_options"
@@ -27,7 +27,7 @@
                     android:title="@string/menu_list_files_sort_first_changed" />
                 <item
                     android:id="@+id/menu_list_files_sort_type"
-                    android:title="Sort by type" />
+                    android:title="@string/menu_list_files_sort_type" />
             </group>
         </menu>
     </item>
