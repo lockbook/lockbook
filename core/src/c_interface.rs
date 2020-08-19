@@ -162,17 +162,6 @@ pub unsafe extern "C" fn get_file_by_path(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_file_by_id(
-    writeable_path: *const c_char,
-    uuid_str: *const c_char,
-) -> *const c_char {
-    json_c_string(crate::read_document(
-        &config_from_ptr(writeable_path),
-        uuid_from_ptr(uuid_str),
-    ))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn read_document(
     writeable_path: *const c_char,
     id: *const c_char,
