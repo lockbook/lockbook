@@ -116,7 +116,7 @@ class LockbookCoreTests: XCTestCase {
     func test04ListFiles() {
         do {
             let root = try LockbookCoreTests.core.getRoot().get()
-            let result = LockbookCoreTests.core.listFiles(dirId: root.id)
+            let result = LockbookCoreTests.core.listFiles()
             
             switch result {
             case .success(let files):
