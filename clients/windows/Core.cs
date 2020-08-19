@@ -45,6 +45,9 @@ namespace lockbook {
         private static extern IntPtr write_document(string path, string id, string content);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr calculate_work(string path);
+
+        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
 
@@ -57,14 +60,21 @@ namespace lockbook {
         }
 
         public static bool AccountExists() {
+            coreMutex.WaitOne();
             String result = getStringAndRelease(get_account(path));
+            coreMutex.ReleaseMutex();
             JObject obj = JObject.Parse(result);
             JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
             return ok != null;
         }
 
         public static async Task<Core.CreateAccount.Result> CreateAccount(String username) {
-            String result = await Task.Run(() => getStringAndRelease(create_account(path, username)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(create_account(path, username));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -109,7 +119,12 @@ namespace lockbook {
         }
 
         public static async Task<Core.GetAccount.Result> GetAccount() {
-            String result = await Task.Run(() => getStringAndRelease(get_account(path)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreRespose = getStringAndRelease(get_account(path));
+                coreMutex.ReleaseMutex();
+                return coreRespose;
+            });
 
 
             JObject obj = JObject.Parse(result);
@@ -145,7 +160,12 @@ namespace lockbook {
         }
 
         public static async Task<Core.ImportAccount.Result> ImportAccount(String account_string) {
-            String result = await Task.Run(() => getStringAndRelease(import_account(path, account_string)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(import_account(path, account_string));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -194,7 +214,12 @@ namespace lockbook {
         }
 
         public static async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
-            String result = await Task.Run(() => getStringAndRelease(list_filemetadata(path)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResult = getStringAndRelease(list_filemetadata(path));
+                coreMutex.ReleaseMutex();
+                return coreResult;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -228,7 +253,12 @@ namespace lockbook {
                 fileType = "Document";
             }
 
-            String result = await Task.Run(() => getStringAndRelease(create_file(path, name, parent, fileType)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(create_file(path, name, parent, fileType));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -279,8 +309,12 @@ namespace lockbook {
         }
 
         public static async Task<Core.SyncAll.Result> SyncAll() {
-
-            String result = await Task.Run(() => getStringAndRelease(sync_all(path)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(sync_all(path));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -322,7 +356,12 @@ namespace lockbook {
 
         public static async Task<Core.RenameFile.Result> RenameFile(String id, String newName) {
 
-            String result = await Task.Run(() => getStringAndRelease(rename_file(path, id, newName)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(rename_file(path, id, newName));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -364,7 +403,12 @@ namespace lockbook {
 
         public static async Task<Core.MoveFile.Result> MoveFile(String id, String newParent) {
 
-            String result = await Task.Run(() => getStringAndRelease(move_file(path, id, newParent)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(move_file(path, id, newParent));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -414,7 +458,12 @@ namespace lockbook {
 
         public static async Task<Core.ReadDocument.Result> ReadDocument(String id) {
 
-            String result = await Task.Run(() => getStringAndRelease(read_document(path, id)));
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(read_document(path, id));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
 
             JObject obj = JObject.Parse(result);
 
@@ -458,7 +507,7 @@ namespace lockbook {
 
         public static async Task<Core.WriteDocument.Result> WriteDocument(String id, String content) {
             String result = await Task.Run(() => {
-                coreMutex.WaitOne(); // Consider doing this everywhere
+                coreMutex.WaitOne();
                 String coreResponse = getStringAndRelease(write_document(path, id, content));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
@@ -498,6 +547,51 @@ namespace lockbook {
             }
 
             return new Core.WriteDocument.UnexpectedError {
+                errorMessage = "Contract error!"
+            };
+        }
+
+        public static async Task<Core.CalculateWork.Result> CalculateWork() {
+
+            String result = await Task.Run(() => {
+                coreMutex.WaitOne();
+                String coreResponse = getStringAndRelease(calculate_work(path));
+                coreMutex.ReleaseMutex();
+                return coreResponse;
+            });
+
+            JObject obj = JObject.Parse(result);
+
+            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
+            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
+            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+
+            if (unexpectedError != null) {
+                return new Core.CalculateWork.UnexpectedError {
+                    errorMessage = result
+                };
+            }
+
+            if (expectedError != null) {
+                switch (expectedError.ToString()) {
+                    case "NoAccount":
+                        return new Core.CalculateWork.ExpectedError {
+                            error = Core.CalculateWork.PossibleErrors.NoAccount
+                        };
+                    case "CouldNotReachServer":
+                        return new Core.CalculateWork.ExpectedError {
+                            error = Core.CalculateWork.PossibleErrors.CouldNotReachServer
+                        };
+                }
+            }
+
+            if (ok != null) {
+                return new Core.CalculateWork.Success {
+                    workCalculated = JsonConvert.DeserializeObject<Core.CalculateWork.WorkCalculated>(ok.ToString())
+                };
+            }
+
+            return new Core.CalculateWork.UnexpectedError {
                 errorMessage = "Contract error!"
             };
         }
