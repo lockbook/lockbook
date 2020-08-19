@@ -46,6 +46,8 @@
                 </muxc:NavigationViewItem.ContextFlyout>
             </muxc:NavigationViewItem>
         </DataTemplate>
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused"
+                         Color="Transparent" />
     </Page.Resources>
     <Grid>
         <muxc:NavigationView x:Name="navview"
