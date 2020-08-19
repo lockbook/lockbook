@@ -49,7 +49,7 @@
     </Page.Resources>
     <Grid>
         <muxc:NavigationView x:Name="navview"
-                             Loaded="RefreshFiles"
+                             Loaded="NavigationViewLoaded"
                              IsBackButtonVisible="Collapsed"
                              SelectionChanged="DocumentSelected"
                              MenuItemsSource="{x:Bind Files, Mode=TwoWay}"
@@ -60,7 +60,8 @@
                                          x:Name="sync"
                                          Content="Sync">
                     <muxc:NavigationViewItem.Icon>
-                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                        <FontIcon x:Name="syncIcon"
+                                  FontFamily="Segoe MDL2 Assets"
                                   Glyph="&#xE895;" />
                     </muxc:NavigationViewItem.Icon>
                 </muxc:NavigationViewItem>
