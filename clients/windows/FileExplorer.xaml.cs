@@ -33,6 +33,9 @@ namespace lockbook {
         public string folderGlyph = ""; // "\uED25";
         public string documentGlyph = ""; //"\uE9F9";
         public string rootGlyph = "\uEC25";
+        public string checkGlyph = "\uE73E";
+        public string syncGlyph = "\uE895";
+        public string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
         Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
@@ -47,7 +50,55 @@ namespace lockbook {
             CoreApplication.Exit();
         }
 
-        private async void RefreshFiles(object sender, RoutedEventArgs e) {
+        private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
+            await RefreshFiles();
+            CheckForWorkLoop();
+        }
+
+        private async void CheckForWorkLoop() {
+            while (true) {
+                var result = await CoreService.CalculateWork();
+
+                switch (result) {
+                    case Core.CalculateWork.Success success:
+                        int work = success.workCalculated.WorkUnits.Count;
+                        if (sync.IsEnabled) {
+                            if (work == 0) {
+                                syncIcon.Glyph = checkGlyph;
+                                sync.Content = "Up to date!";
+                            } else {
+                                syncIcon.Glyph = syncGlyph;
+                                if (work == 1)
+                                    sync.Content = work + " item need to be synced.";
+                                else
+                                    sync.Content = work + " items need to be synced.";
+                            }
+                        }
+                        break;
+                    case Core.CalculateWork.ExpectedError error:
+                        switch (error.error) {
+                            case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
+                                if (sync.IsEnabled) {
+                                    syncIcon.Glyph = offlineGlyph;
+                                    sync.Content = "Offline";
+                                }
+                                break;
+                            default:
+                                System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + error.error);
+                                break;
+
+                        }
+                        break;
+                    case Core.CalculateWork.UnexpectedError uhOh:
+                        System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.errorMessage);
+                        break;
+                }
+
+                await Task.Delay(2000);
+            }
+        }
+
+        private async Task RefreshFiles() {
             var result = await CoreService.ListFileMetadata();
 
             switch (result) {
@@ -128,7 +179,7 @@ namespace lockbook {
             var result = await CoreService.CreateFile(name, parent, type);
             switch (result) {
                 case Core.CreateFile.Success: // TODO handle this newly created folder elegantly.
-                    RefreshFiles(null, null);
+                    await RefreshFiles();
                     break;
                 case Core.CreateFile.ExpectedError error:
                     switch (error.error) {
@@ -171,17 +222,19 @@ namespace lockbook {
         private async void SyncCalled(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             sync.IsEnabled = false;
             sync.Content = "Syncing...";
+
             var result = await CoreService.SyncAll();
 
             switch (result) {
                 case Core.SyncAll.Success:
-                    RefreshFiles(null, null);
+                    await RefreshFiles();
                     break;
                 default:
                     await new MessageDialog(result.ToString(), "Unhandled Error!").ShowAsync(); // TODO
                     break;
             }
-            sync.Content = "Sync";
+            syncIcon.Glyph = checkGlyph;
+            sync.Content = "Upto date!";
             sync.IsEnabled = true;
         }
 
@@ -195,7 +248,7 @@ namespace lockbook {
 
             switch (result) {
                 case Core.RenameFile.Success:
-                    RefreshFiles(null, null);
+                    await RefreshFiles();
                     break;
                 case Core.RenameFile.ExpectedError error:
                     switch (error.error) {
@@ -244,7 +297,7 @@ namespace lockbook {
 
                     switch (result) {
                         case Core.MoveFile.Success:
-                            RefreshFiles(null, null);
+                            await RefreshFiles();
                             break;
                         case Core.MoveFile.ExpectedError error:
                             switch (error.error) {
@@ -274,7 +327,7 @@ namespace lockbook {
         }
 
         private async void DocumentSelected(Microsoft.UI.Xaml.Controls.NavigationView sender, Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs args) {
-            String tag = (string) args.SelectedItemContainer?.Tag;
+            String tag = (string)args.SelectedItemContainer?.Tag;
 
             if (tag != null) {
                 currentDocumentId = (string)args.SelectedItemContainer.Tag;
