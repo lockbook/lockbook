@@ -65,10 +65,13 @@ namespace lockbook {
                         if (sync.IsEnabled) {
                             if (work == 0) {
                                 syncIcon.Glyph = checkGlyph;
-                                sync.Content = "Upto date!";
+                                sync.Content = "Up to date!";
                             } else {
                                 syncIcon.Glyph = syncGlyph;
-                                sync.Content = work + " Items need to be synced.";
+                                if (work == 1)
+                                    sync.Content = work + " item need to be synced.";
+                                else
+                                    sync.Content = work + " items need to be synced.";
                             }
                         }
                         break;
