@@ -1,15 +1,14 @@
 package app.lockbook.loggedin.listfiles
 
-import android.animation.ObjectAnimator
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
-import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
@@ -25,6 +24,9 @@ import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import com.google.android.material.snackbar.Snackbar
+import com.tingyik90.snackprogressbar.SnackProgressBar
+import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
 
 
@@ -32,6 +34,7 @@ class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel
     private var isFABOpen = false
+    private val snackProgressBarManager by lazy { SnackProgressBarManager(requireView(), lifecycleOwner = this) }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -55,7 +58,6 @@ class ListFilesFragment : Fragment() {
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
-            list_files_refresh.isRefreshing = false
             listFilesViewModel.onSwipeToRefresh()
         }
 
@@ -66,24 +68,38 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.isProgressBarVisible.observe(
+        listFilesViewModel.stopProgressSpinner.observe(
             viewLifecycleOwner,
-            Observer { visibility ->
-                isProgressBarVisible(visibility)
+            Observer {
+                list_files_refresh.isRefreshing = false
             }
         )
 
-        listFilesViewModel.progressBarProgress.observe(
-            viewLifecycleOwner,
-            Observer { progress ->
-                setProgressBarProgress(progress)
-            }
-        )
-
-        listFilesViewModel.progressBarMax.observe(
+        listFilesViewModel.showProgressSnackBar.observe(
             viewLifecycleOwner,
             Observer { maxProgress ->
-                setMaxProgress(maxProgress)
+                showProgressSnackBar(maxProgress)
+            }
+        )
+
+        listFilesViewModel.showPreSyncSnackBar.observe(
+            viewLifecycleOwner,
+            Observer { amountToSync ->
+                showOnlineSnackBar(amountToSync)
+            }
+        )
+
+        listFilesViewModel.showOfflineSnackBar.observe(
+            viewLifecycleOwner,
+            Observer {
+                showOfflineSnackBar()
+            }
+        )
+
+        listFilesViewModel.updateProgressSnackBar.observe(
+            viewLifecycleOwner,
+            Observer { progress ->
+                updateProgressSnackBar(progress)
             }
         )
 
@@ -127,33 +143,58 @@ class ListFilesFragment : Fragment() {
         return binding.root
     }
 
-    private fun isProgressBarVisible(visibility: Boolean) {
-        list_files_incremental_sync_progress.visibility =
-            if (visibility) View.VISIBLE else View.GONE
+//    private fun isProgressBarVisible(visibility: Boolean) {
+//        list_files_incremental_sync_progress.visibility =
+//            if (visibility) View.VISIBLE else View.GONE
+//    }
+//
+//    private fun setProgressBarProgress(progress: Int) {
+//        val animation =
+//            ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", list_files_incremental_sync_progress.progress, progress * 100)
+//        animation.duration = 300
+//        animation.interpolator = DecelerateInterpolator()
+//        animation.start()
+//    }
+//
+//    private fun setMaxProgress(maxProgress: Int) {
+//        list_files_incremental_sync_progress.max = maxProgress * 100
+//    }
+
+    private fun updateProgressSnackBar(progress: Int) {
+
     }
 
-    private fun setProgressBarProgress(progress: Int) {
-        val animation =
-            ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", list_files_incremental_sync_progress.progress, progress * 100)
-        animation.duration = 300
-        animation.interpolator = DecelerateInterpolator()
-        animation.start()
+    private fun showProgressSnackBar(maxProgress: Int) {
+        snackProgressBarManager.dismiss()
+
+        val syncSnackProgressBar =
+            SnackProgressBar(SnackProgressBar.TYPE_HORIZONTAL, "Syncing...")
+                .setIsIndeterminate(false)
+                .setProgressMax(maxProgress)
+                .setSwipeToDismiss(false)
+                .setAllowUserInput(true)
+
+        snackProgressBarManager.show(syncSnackProgressBar, SnackProgressBarManager.LENGTH_INDEFINITE)
     }
 
-    private fun setMaxProgress(maxProgress: Int) {
-        list_files_incremental_sync_progress.max = maxProgress * 100
+    private fun showOnlineSnackBar(amountToSync: Int) {
+        snackProgressBarManager.dismiss()
+
+        val preSyncSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "$amountToSync items to sync")
+            .setSwipeToDismiss(true)
+            .setAllowUserInput(true)
+
+        snackProgressBarManager.show(preSyncSnackBar, SnackProgressBarManager.LENGTH_INDEFINITE)
     }
 
-    override fun onResume() {
-        super.onResume()
-        removeRefreshSpinner()
-    }
+    private fun showOfflineSnackBar() {
+        snackProgressBarManager.dismiss()
 
-    private fun removeRefreshSpinner() {
-        val field = list_files_refresh::class.java.getDeclaredField("mCircleView")
-        field.isAccessible = true
-        val image = field.get(list_files_refresh) as ImageView
-        image.alpha = 0.0f
+        val offlineSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "You are offline")
+            .setSwipeToDismiss(false)
+            .setAllowUserInput(true)
+
+        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_INDEFINITE)
     }
 
     private fun onFABClicked() {

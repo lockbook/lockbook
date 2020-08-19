@@ -11,12 +11,14 @@ import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
 import kotlinx.coroutines.*
+import timber.log.Timber
 
 class ImportAccountActivity : AppCompatActivity() {
     private var job = Job()
@@ -61,7 +63,7 @@ class ImportAccountActivity : AppCompatActivity() {
                     startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
-                is Err -> when (importAccountResult.error) {
+                is Err -> when (val error = importAccountResult.error) {
                     is ImportError.AccountStringCorrupted -> Toast.makeText(
                         applicationContext,
                         "Invalid account string!",
@@ -87,11 +89,22 @@ class ImportAccountActivity : AppCompatActivity() {
                         "Could not access server to ensure this !",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.UnexpectedError -> Toast.makeText(
-                        applicationContext,
-                        "Unexpected error occurred, please create a bug report (activity_settings)",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    is ImportError.UnexpectedError -> {
+                        Timber.e("Unable to import an account.")
+                        Toast.makeText(
+                            applicationContext,
+                            UNEXPECTED_ERROR_OCCURRED,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    else -> {
+                        Timber.e("ImportError not matched: ${error::class.simpleName}.")
+                        Toast.makeText(
+                            applicationContext,
+                            UNEXPECTED_ERROR_OCCURRED,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
