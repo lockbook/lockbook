@@ -145,6 +145,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Core - Copy.cs" />
     <Compile Include="CoreModel.cs" />
     <Compile Include="Core.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
