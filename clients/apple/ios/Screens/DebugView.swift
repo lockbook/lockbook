@@ -60,11 +60,6 @@ struct DebugView: View {
                 .foregroundColor(.purple)
             }
             Spacer()
-            Button(action: {
-                self.$coordiantor.autoSync = true
-            }) {
-                
-            }
             Toggle(isOn: self.$coordinator.autoSync) {
                 Text("Auto-Sync")
             }
