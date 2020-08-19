@@ -97,6 +97,10 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
+                else -> {
+                    Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
             }
         }
     }

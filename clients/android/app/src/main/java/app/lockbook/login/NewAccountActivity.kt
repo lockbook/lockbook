@@ -11,10 +11,12 @@ import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.coroutines.*
+import timber.log.Timber
 
 class NewAccountActivity : AppCompatActivity() {
 
@@ -52,7 +54,7 @@ class NewAccountActivity : AppCompatActivity() {
                     finishAffinity()
                 }
                 is Err -> {
-                    when (createAccountResult.error) {
+                    when (val error = createAccountResult.error) {
                         is CreateAccountError.UsernameTaken ->
                             new_account_username.error =
                                 "Username taken!"
@@ -69,11 +71,22 @@ class NewAccountActivity : AppCompatActivity() {
                             "Account already exists!",
                             Toast.LENGTH_LONG
                         ).show()
-                        is CreateAccountError.UnexpectedError -> Toast.makeText(
-                            applicationContext,
-                            "Unexpected error occurred, please create a bug report (activity_settings)",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        is CreateAccountError.UnexpectedError -> {
+                            Timber.e("Unable to create account.")
+                            Toast.makeText(
+                                applicationContext,
+                                UNEXPECTED_ERROR_OCCURRED,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        else -> {
+                            Timber.e("CreateAccountError not matched: ${error::class.simpleName}.")
+                            Toast.makeText(
+                                applicationContext,
+                                UNEXPECTED_ERROR_OCCURRED,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
                 }
             }

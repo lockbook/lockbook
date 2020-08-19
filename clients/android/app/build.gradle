@@ -101,6 +101,7 @@ dependencies {
     implementation "io.noties.markwon:editor:$markdown_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
+    implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
 
     implementation project(':core')
 }

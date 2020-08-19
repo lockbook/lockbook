@@ -225,5 +225,34 @@ namespace Core {
             public String errorMessage;
         }
     }
+
+    namespace CalculateWork {
+        class WorkCalculated {
+            [JsonProperty("work_units")]
+            public List<dynamic> WorkUnits { get; set; }
+
+            [JsonProperty("most_recent_update_from_server")]
+            public UInt64 MostRecentUpdateFromServer { get; set; }
+        }
+
+        abstract class Result { }
+
+        class Success : Result {
+            public WorkCalculated workCalculated;
+        }
+
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer
+
+        }
+        class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        class UnexpectedError : Result {
+            public String errorMessage;
+        }
+    }
 }
 
