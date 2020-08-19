@@ -17,7 +17,8 @@ final class Coordinator: ObservableObject {
     @Published var files: [FileMetadata]
     @Published var currentView: PushedItem?
     @Published var progress: Optional<(Float, String)>
-    var autoSync = false
+    var autoSync = true
+    var iterativeAutoSync = true
 
     init() {
         self.syncTimer = Timer()
@@ -40,7 +41,11 @@ final class Coordinator: ObservableObject {
         self.progress = Optional.none
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             if (self.autoSync) {
-                self.sync()
+                if (self.iterativeAutoSync) {
+                    self.iterativeSync()
+                } else {
+                    self.sync()
+                }
             } else {
                 print("Auto-sync Disabled")
             }
