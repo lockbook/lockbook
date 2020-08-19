@@ -72,6 +72,7 @@
                          IsEnabled="True"
                          TextChanged="TextChanged"
                          BorderThickness="0"
+                         DisabledFormattingAccelerators="All"
                          Background="Black">
 
             </RichEditBox>

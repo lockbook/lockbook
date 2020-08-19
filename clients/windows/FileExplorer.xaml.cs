@@ -2,10 +2,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
+using Windows.UI.Core.Preview;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -39,11 +41,11 @@ namespace lockbook {
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
         Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
+        Dictionary<string, int> keyStrokeCount = new Dictionary<string, int>();
 
         public FileExplorer() {
             InitializeComponent();
         }
-
 
         private async void ClearStateClicked(object sender, RoutedEventArgs e) {
             await ApplicationData.Current.ClearAsync();
@@ -130,6 +132,7 @@ namespace lockbook {
                 return;
             }
 
+            // Explore and find children
             Queue<FileMetadata> toExplore = new Queue<FileMetadata>();
             uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, IsDocument = false, Icon = rootGlyph, Children = new ObservableCollection<UIFile>() };
             toExplore.Enqueue(root);
@@ -168,6 +171,7 @@ namespace lockbook {
 
             await AddFile(FileType.Folder, name, parent);
         }
+      
         private async void NewDocument(object sender, RoutedEventArgs e) {
             String parent = (String)((MenuFlyoutItem)sender).Tag;
             String name = await InputTextDialogAsync("Choose a document name");
@@ -238,8 +242,6 @@ namespace lockbook {
             sync.IsEnabled = true;
         }
 
-
-
         private async void RenameFile(object sender, RoutedEventArgs e) {
             String id = (String)((MenuFlyoutItem)sender).Tag;
             String newName = await InputTextDialogAsync("Choose a new name");
@@ -283,7 +285,7 @@ namespace lockbook {
             }
 
         }
-        // how to do this good: https://stackoverflow.com/a/48176944/1060955
+        
         private void NavigationViewItem_DragOver(object sender, DragEventArgs e) {
             e.AcceptedOperation = DataPackageOperation.Move;
         }
@@ -336,6 +338,8 @@ namespace lockbook {
                 switch (result) {
                     case Core.ReadDocument.Success content:
                         editor.TextDocument.SetText(TextSetOptions.None, content.content.secret);
+                        editor.TextDocument.ClearUndoRedoHistory();
+                        keyStrokeCount[tag] = 0;
                         break;
                     case Core.ReadDocument.ExpectedError error:
                         switch (error.error) {
@@ -359,14 +363,22 @@ namespace lockbook {
 
         private async void TextChanged(object sender, RoutedEventArgs e) {
             if (currentDocumentId != "") {
+                string docID = currentDocumentId;
                 string text;
                 editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
-                var result = await CoreService.WriteDocument(currentDocumentId, text);
+                // Only save the document if no keystrokes have happened in the last 1 second
+                keyStrokeCount[docID]++;
+                var current = keyStrokeCount[docID];
+                await Task.Delay(750);
+                if (current != keyStrokeCount[docID]) {
+                    return;
+                }
+
+                var result = await CoreService.WriteDocument(docID, text);
 
                 switch (result) {
                     case Core.WriteDocument.Success:
-                        System.Diagnostics.Debug.WriteLine("Saved successfullly");
                         break;
                     case Core.WriteDocument.ExpectedError error:
                         switch (error.error) {
