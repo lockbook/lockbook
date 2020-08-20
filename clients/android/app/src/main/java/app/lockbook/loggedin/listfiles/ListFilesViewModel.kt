@@ -1,6 +1,7 @@
 package app.lockbook.loggedin.listfiles
 
 import android.app.Activity.RESULT_CANCELED
+import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -36,7 +37,6 @@ import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
@@ -100,8 +100,8 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 killPeriodicSync()
                 setUpPreferenceChangeListener()
-                showCurrentSnackBar()
                 startUpInRoot()
+                showCurrentSnackBar()
             }
         }
     }
@@ -114,7 +114,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
             override fun onAvailable(network: Network) {
                 when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
-                    is Ok -> _showPreSyncSnackBar.postValue(syncWorkResult.value.work_units.size)
+                    is Ok -> if (syncWorkResult.value.work_units.isNotEmpty()) {
+                        incrementalSyncProgressSnackBar()
+                    }
                     is Err -> when (val error = syncWorkResult.error) {
                         is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                         is CalculateWorkError.CouldNotReachServer -> {
@@ -249,6 +251,12 @@ class ListFilesViewModel(path: String, application: Application) :
                     is GetAccountError.UnexpectedError -> {
                         Timber.e("Unable to get account: ${error.error}")
                     }
+                    else -> {
+                        Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
+                        _errorHasOccurred.postValue(
+                            UNEXPECTED_ERROR_OCCURRED
+                        )
+                    }
                 }
 
                 return
@@ -257,7 +265,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
         val maxProgress = when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
             is Ok -> {
-//                _progressBarMax.postValue(syncWorkResult.value.work_units.size)
+                _showProgressSnackBar.postValue(syncWorkResult.value.work_units.size)
                 syncWorkResult.value.work_units.size
             }
             is Err -> {
@@ -269,6 +277,12 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                     is CalculateWorkError.UnexpectedError -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
+                        _errorHasOccurred.postValue(
+                            UNEXPECTED_ERROR_OCCURRED
+                        )
+                    }
+                    else -> {
+                        Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                         _errorHasOccurred.postValue(
                             UNEXPECTED_ERROR_OCCURRED
                         )
@@ -293,6 +307,12 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                         is CalculateWorkError.UnexpectedError -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
+                            _errorHasOccurred.postValue(
+                                UNEXPECTED_ERROR_OCCURRED
+                            )
+                        }
+                        else -> {
+                            Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                             _errorHasOccurred.postValue(
                                 UNEXPECTED_ERROR_OCCURRED
                             )
@@ -325,7 +345,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     ) {
                     is Ok -> {
                         currentProgress--
-//                        _progressBarProgress.postValue(maxProgress - currentProgress)
+                        _updateProgressSnackBar.postValue(maxProgress - currentProgress)
                         syncErrors.remove(workUnit.content.metadata.id)
                     }
                     is Err ->
@@ -588,13 +608,34 @@ class ListFilesViewModel(path: String, application: Application) :
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
                 .getBoolean(SYNC_POST_EDIT_KEY, false)
         ) {
-            incrementalSyncProgressBar()
+            incrementalSyncProgressSnackBar()
         }
     }
 
     fun handleNewFileRequest(name: String) {
         createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
+        when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
+            is Ok -> if (syncWorkResult.value.work_units.isNotEmpty()) {
+                _showPreSyncSnackBar.postValue(syncWorkResult.value.work_units.size)
+            }
+            is Err -> when (val error = syncWorkResult.error) {
+                is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CalculateWorkError.CouldNotReachServer -> {
+                    Timber.e("Could not reach server despite being online.")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
+                is CalculateWorkError.UnexpectedError -> {
+                    Timber.e("Unable to calculate syncWork: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
+            }
+        }
     }
+
 
     private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
         val id = data.getStringExtra("id")
@@ -624,12 +665,13 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onSwipeToRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                incrementalSyncProgressBar()
+                incrementalSyncProgressSnackBar()
+                _stopProgressSpinner.postValue(Unit)
             }
         }
     }
 
-    private fun incrementalSyncProgressBar() {
+    fun incrementalSyncProgressSnackBar() {
         incrementalSync()
         refreshFiles()
     }
