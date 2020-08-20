@@ -44,6 +44,11 @@ Download the android ndk through android studio or directly online from the andr
 
 Standard iOS development toolchain (XCode).
 
+The header maker (turns your rust code into c stubs):
+```zsh
+cargo install cbindgen
+```
+
 The fat-library builder:
 ```zsh
 cargo install cargo-lipo
