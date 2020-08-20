@@ -70,21 +70,7 @@ func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T,
     let resultString = String(cString: result)
     release_pointer(UnsafeMutablePointer(mutating: result))
     
-//    let result: Result<T, ApplicationError> = deserializeResult(jsonResultStr: resultString)
     return deserializeResult(jsonResultStr: resultString)
-//    switch result {
-//        case .success(let value):
-//            if let valueString = value {
-//                let result: Result<T, Error> = deserialize(jsonStr: valueString)
-//                return result.mapError { (err) -> ApplicationError in
-//                    return ApplicationError.General(err)
-//                }
-//            } else {
-//                return Result.failure(ApplicationError.Serialization("Ok value missing! Was this a unit?"))
-//            }
-//        case .failure(let err):
-//            return Result.failure(err)
-//    }
 }
 
 struct Empty: Decodable {
