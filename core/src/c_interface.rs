@@ -262,3 +262,10 @@ pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *cons
         writeable_path: str_from_ptr(writeable_path),
     }))
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::sync_all(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    }))
+}
