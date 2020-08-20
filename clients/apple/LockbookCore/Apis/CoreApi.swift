@@ -32,6 +32,9 @@ protocol LockbookApi {
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
     func updateFile(id: UUID, content: String) -> CoreResult<Bool>
     func markFileForDeletion(id: UUID) -> CoreResult<Bool>
+    
+    // Diagnostic
+    func getApiLocation() -> String
 }
 
 struct CoreApi: LockbookApi {
@@ -102,6 +105,13 @@ struct CoreApi: LockbookApi {
     func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
+    
+    func getApiLocation() -> String {
+        let result = get_api_loc()
+        let resultString = String(cString: result!)
+        release_pointer(UnsafeMutablePointer(mutating: result))
+        return resultString
+    }
 }
 
 
@@ -165,6 +175,10 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
     
     func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    }
+    
+    func getApiLocation() -> String {
+        "fake://fake.lockbook.fake"
     }
     
     let username: Account.Username = "tester"

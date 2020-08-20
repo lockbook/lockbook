@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct DebugView: View {
+struct SettingsView: View {
     @EnvironmentObject var debugger: Debugger
     @ObservedObject var coordinator: Coordinator
     
@@ -19,8 +19,8 @@ struct DebugView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             Spacer()
-            Text("Actions")
             Group {
+                Text("Actions")
                 Button(action: {
                     self.coordinator.sync()
                 }) {
@@ -48,6 +48,10 @@ struct DebugView: View {
                     }
                     .foregroundColor(.pink)
                 }
+            }
+            Divider()
+            Group {
+                Text("Debugger")
                 Button(action: {
                     if case .success(let username) = self.debugger.lockbookApi.getAccount() {
                         print("Username \(username)")
@@ -63,8 +67,8 @@ struct DebugView: View {
                 }
             }
             Divider()
-            Text("Toggles")
             Group {
+                Text("Toggles")
                 Button(action: {
                     self.coordinator.toggleAutoSync()
                 }) {
@@ -84,11 +88,18 @@ struct DebugView: View {
                     .foregroundColor(self.coordinator.iterativeAutoSync ? .blue : .secondary)
                 }
             }
-            Spacer()
+            Divider()
+            Group {
+                Text("Info")
+                HStack {
+                    Image(systemName: "globe")
+                    Text(self.debugger.lockbookApi.getApiLocation())
+                }
+            }
             Spacer()
         }
-        .padding(.horizontal, 80)
-        .navigationBarTitle("Debugger")
+        .padding(.horizontal, 50)
+        .navigationBarTitle("Settings")
     }
 }
 
@@ -96,11 +107,12 @@ struct DebugView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             NavigationView {
-                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
+                SettingsView(coordinator: Coordinator()).environmentObject(Debugger())
             }.preferredColorScheme(.dark)
-            NavigationView {
-                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
-            }
+            /// Don't forget to checkout the light theme :D
+//            NavigationView {
+//                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
+//            }
         }
     }
 }
