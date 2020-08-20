@@ -33,7 +33,8 @@ struct TextEditor: UIViewRepresentable {
         
         // Styling -- Begin
         let attributes: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key.foregroundColor: UIColor.label
+            NSAttributedString.Key.foregroundColor: UIColor.label,
+            NSAttributedString.Key.font: UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         ]
         // Styling -- End
         
