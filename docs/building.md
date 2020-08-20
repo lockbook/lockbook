@@ -40,7 +40,23 @@ Download the android ndk through android studio or directly online from the andr
 
 `make android` in the `core` folder.
 
-## iOS, iPadOS, and macOS
+## iOS (iPhone and iPad)
+
+Standard iOS development toolchain (XCode).
+
+The fat-library builder:
+```zsh
+cargo install cargo-lipo
+```
+
+iOS Simulator and Device targets for rust:
+```zsh
+rustup target add aarch64-apple-ios x86_64-apple-ios
+```
+
+`make apple` in the `core` folder.
+
+## macOS
 
 ### Hardware Requirements
 + An Apple-blessed computer
