@@ -18,6 +18,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import timber.log.Timber
 import java.util.*
 import java.util.concurrent.Executors
 
@@ -100,7 +101,7 @@ class TextEditorActivity : AppCompatActivity() {
 
     private fun setUpView() {
         val name = intent.getStringExtra("name")
-        if(name == null) {
+        if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
             finish()
             return
@@ -155,7 +156,7 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
-        if(title.endsWith(".md")) {
+        if (title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
         }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
@@ -169,6 +170,10 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
             R.id.menu_text_editor_undo -> handleTextUndo()
+            else -> {
+                Timber.e("Menu item not matched: ${item.itemId}")
+                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+            }
         }
 
         return true

@@ -61,7 +61,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun performBiometricFlow(pref: SharedPreferences) {
         when (
-            pref.getString(
+            val optionValue = pref.getString(
                 BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
             )
         ) {
@@ -122,6 +122,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 biometricPrompt.authenticate(promptInfo)
             }
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> launchListFilesActivity()
+            else -> {
+                Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
+                Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    .show()
+            }
         }
     }
 }
