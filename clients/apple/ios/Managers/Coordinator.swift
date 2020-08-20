@@ -17,8 +17,9 @@ final class Coordinator: ObservableObject {
     @Published var files: [FileMetadata]
     @Published var currentView: PushedItem?
     @Published var progress: Optional<(Float, String)>
-    var autoSync = true
-    var iterativeAutoSync = true
+    let defaults = UserDefaults.standard
+    @Published var autoSync: Bool
+    @Published var iterativeAutoSync: Bool
 
     init() {
         self.syncTimer = Timer()
@@ -29,6 +30,8 @@ final class Coordinator: ObservableObject {
         self.account = Account(username: "tester")
         self.files = (try? api.listFiles().get())!
         self.progress = Optional.some((0.0, "Something"))
+        self.autoSync = true
+        self.iterativeAutoSync = true
     }
     
     init(lockbookApi: LockbookApi, account: Account) throws {
@@ -39,6 +42,8 @@ final class Coordinator: ObservableObject {
         self.account = account
         self.files = try self.lockbookApi.listFiles().get()
         self.progress = Optional.none
+        self.autoSync = self.defaults.bool(forKey: "AutoSync")
+        self.iterativeAutoSync = self.defaults.bool(forKey: "IterativeAutoSync")
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             if (self.autoSync) {
                 if (self.iterativeAutoSync) {
@@ -124,7 +129,7 @@ final class Coordinator: ObservableObject {
     func createFile(name: String, isFolder: Bool) -> Bool {
         switch self.lockbookApi.createFile(name: name, dirId: currentId, isFolder: isFolder) {
         case .success(_):
-//            self.sync()
+            self.reloadFiles()
             return true
         case .failure(let err):
             print("Create file failed with error: \(err)")
@@ -155,6 +160,17 @@ final class Coordinator: ObservableObject {
     func markFileForDeletion(id: UUID) -> Void {
         let _ = self.lockbookApi.markFileForDeletion(id: id)
     }
+    
+    func toggleAutoSync() -> Void {
+        self.autoSync = !self.autoSync
+        self.defaults.set(self.autoSync, forKey: "AutoSync")
+    }
+    
+    func toggleIterativeAutoSync() -> Void {
+        self.iterativeAutoSync = !self.iterativeAutoSync
+        self.defaults.set(self.iterativeAutoSync, forKey: "IterativeAutoSync")
+    }
+    
     
     enum PushedItem {
         case welcomeView
