@@ -21,6 +21,7 @@ final class Coordinator: ObservableObject {
     @Published var autoSync: Bool
     @Published var iterativeAutoSync: Bool
 
+    /// Fake coordinator, for use in previews!
     init() {
         self.syncTimer = Timer()
         let api = FakeApi()
@@ -31,7 +32,7 @@ final class Coordinator: ObservableObject {
         self.files = (try? api.listFiles().get())!
         self.progress = Optional.some((0.0, "Something"))
         self.autoSync = true
-        self.iterativeAutoSync = true
+        self.iterativeAutoSync = false
     }
     
     init(lockbookApi: LockbookApi, account: Account) throws {

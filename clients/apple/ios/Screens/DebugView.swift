@@ -72,7 +72,7 @@ struct DebugView: View {
                         Image(systemName: "goforward.30")
                         Text("Auto-Syncing")
                     }
-                    .foregroundColor(self.coordinator.autoSync ? .blue : .black)
+                    .foregroundColor(self.coordinator.autoSync ? .blue : .secondary)
                 }
                 Button(action: {
                     self.coordinator.toggleIterativeAutoSync()
@@ -81,7 +81,7 @@ struct DebugView: View {
                         Image(systemName: "rays")
                         Text("Iterative-Syncing")
                     }
-                    .foregroundColor(self.coordinator.iterativeAutoSync ? .blue : .black)
+                    .foregroundColor(self.coordinator.iterativeAutoSync ? .blue : .secondary)
                 }
             }
             Spacer()
@@ -94,8 +94,13 @@ struct DebugView: View {
 
 struct DebugView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
-            DebugView(coordinator: Coordinator()).environmentObject(Debugger())
+        Group {
+            NavigationView {
+                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
+            }.preferredColorScheme(.dark)
+            NavigationView {
+                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
+            }
         }
     }
 }
