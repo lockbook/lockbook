@@ -1,14 +1,14 @@
 package app.lockbook.loggedin.listfiles
 
+import android.app.ActivityManager
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.TextView
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
@@ -24,17 +24,36 @@ import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
-import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
+import com.tingyik90.snackprogressbar.SnackProgressBarLayout
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 
 
 class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel
     private var isFABOpen = false
-    private val snackProgressBarManager by lazy { SnackProgressBarManager(requireView(), lifecycleOwner = this) }
+    private var maxProgress = 0
+    private val snackProgressBarManager by lazy {
+        SnackProgressBarManager(
+            requireView(),
+            lifecycleOwner = this
+        )
+    }
+    private val offlineSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "You are offline")
+        .setSwipeToDismiss(false)
+        .setAllowUserInput(true)
+    private val preSyncSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "n to sync...")
+        .setSwipeToDismiss(true)
+        .setAllowUserInput(true)
+    private val syncSnackProgressBar =
+        SnackProgressBar(SnackProgressBar.TYPE_HORIZONTAL, "Syncing n items...")
+            .setIsIndeterminate(false)
+            .setSwipeToDismiss(false)
+            .setAllowUserInput(true)
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -85,7 +104,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.showPreSyncSnackBar.observe(
             viewLifecycleOwner,
             Observer { amountToSync ->
-                showOnlineSnackBar(amountToSync)
+                showPreSyncSnackBar(amountToSync)
             }
         )
 
@@ -160,41 +179,62 @@ class ListFilesFragment : Fragment() {
 //        list_files_incremental_sync_progress.max = maxProgress * 100
 //    }
 
-    private fun updateProgressSnackBar(progress: Int) {
+    override fun onResume() {
+        super.onResume()
+        snackProgressBarManager.setOnDisplayListener(object :
+            SnackProgressBarManager.OnDisplayListener {
+            override fun onLayoutInflated(
+                snackProgressBarLayout: SnackProgressBarLayout,
+                overlayLayout: FrameLayout,
+                snackProgressBar: SnackProgressBar,
+                onDisplayId: Int
+            ) {
+                list_files_layout.animate().translationYBy(-200f).setDuration(300).start()
+            }
 
+            override fun onDismissed(snackProgressBar: SnackProgressBar, onDisplayId: Int) {
+                list_files_layout.animate().translationYBy(200f).setDuration(300).start()
+            }
+        })
+    }
+
+
+    private fun updateProgressSnackBar(progress: Int) {
+        snackProgressBarManager.setProgress(progress * 100)
+        syncSnackProgressBar.setMessage("Syncing $progress items...")
+
+        if (progress == maxProgress) {
+            snackProgressBarManager.dismiss()
+        }
     }
 
     private fun showProgressSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
-
-        val syncSnackProgressBar =
-            SnackProgressBar(SnackProgressBar.TYPE_HORIZONTAL, "Syncing...")
-                .setIsIndeterminate(false)
-                .setProgressMax(maxProgress)
-                .setSwipeToDismiss(false)
-                .setAllowUserInput(true)
-
-        snackProgressBarManager.show(syncSnackProgressBar, SnackProgressBarManager.LENGTH_INDEFINITE)
+        if(maxProgress <= 0) {
+            Toast.makeText(context, "Nothing to sync.", Toast.LENGTH_LONG).show()
+        } else {
+            syncSnackProgressBar.setProgressMax(maxProgress * 100)
+            syncSnackProgressBar.setMessage("Syncing $maxProgress items...")
+            this.maxProgress = maxProgress
+            snackProgressBarManager.show(
+                syncSnackProgressBar,
+                SnackProgressBarManager.LENGTH_INDEFINITE
+            )
+        }
     }
 
-    private fun showOnlineSnackBar(amountToSync: Int) {
+    private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
 
-        val preSyncSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "$amountToSync items to sync")
-            .setSwipeToDismiss(true)
-            .setAllowUserInput(true)
-
-        snackProgressBarManager.show(preSyncSnackBar, SnackProgressBarManager.LENGTH_INDEFINITE)
+        snackProgressBarManager.show(
+            preSyncSnackBar.setMessage("$amountToSync items to sync"),
+            SnackProgressBarManager.LENGTH_SHORT
+        )
     }
 
     private fun showOfflineSnackBar() {
         snackProgressBarManager.dismiss()
-
-        val offlineSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "You are offline")
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-
-        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_INDEFINITE)
+        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
     }
 
     private fun onFABClicked() {
@@ -231,7 +271,13 @@ class ListFilesFragment : Fragment() {
     private fun createFileNameDialog() {
         val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        dialogBuilder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, view as ViewGroup, false))
+        dialogBuilder.setView(
+            layoutInflater.inflate(
+                R.layout.dialog_create_file_name,
+                view as ViewGroup,
+                false
+            )
+        )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
                 dialog.dismiss()
