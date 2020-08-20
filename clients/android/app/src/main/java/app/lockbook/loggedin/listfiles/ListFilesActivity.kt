@@ -39,7 +39,7 @@ class ListFilesActivity : AppCompatActivity() {
 
     private fun matchToDefaultSortOption() {
         when (
-            PreferenceManager.getDefaultSharedPreferences(application).getString(
+            val optionValue = PreferenceManager.getDefaultSharedPreferences(application).getString(
                 SORT_FILES_KEY,
                 SORT_FILES_A_Z
             )
@@ -53,6 +53,11 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
                     true
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
+            else -> {
+                Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
+                Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    .show()
+            }
         }
     }
 
@@ -94,6 +99,7 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onBackPressed() {
         when (getFragment().component1()?.onBackPressed()) {
             false -> super.onBackPressed()
+            true -> {}
             null -> {
                 Timber.e("Unable to get result of back press.")
                 Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
