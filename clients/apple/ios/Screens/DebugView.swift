@@ -17,58 +17,77 @@ struct DebugView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 15) {
             Spacer()
-            Button(action: {
-                self.coordinator.sync()
-            }) {
-                HStack {
-                    Image(systemName: "arrow.up.arrow.down.circle.fill")
-                    Text("Sync")
+            Text("Actions")
+            Group {
+                Button(action: {
+                    self.coordinator.sync()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.up.arrow.down.circle.fill")
+                        Text("Sync")
+                    }
+                    .foregroundColor(.green)
                 }
-                .foregroundColor(.green)
+                Button(action: {
+                    self.coordinator.iterativeSync()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.up.and.down.circle.fill")
+                        Text("Iterative Sync")
+                    }
+                    .foregroundColor(.yellow)
+                }
+                Button(action: {
+                    self.coordinator.reloadFiles()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.2.circlepath.circle.fill")
+                        Text("Reload Files")
+                    }
+                    .foregroundColor(.pink)
+                }
+                Button(action: {
+                    if case .success(let username) = self.debugger.lockbookApi.getAccount() {
+                        print("Username \(username)")
+                    } else {
+                        self.fail()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                        Text("Dump Account")
+                    }
+                    .foregroundColor(.purple)
+                }
             }
-            Button(action: {
-                self.coordinator.iterativeSync()
-            }) {
-                HStack {
-                    Image(systemName: "arrow.up.and.down.circle.fill")
-                    Text("Iterative Sync")
+            Divider()
+            Text("Toggles")
+            Group {
+                Button(action: {
+                    self.coordinator.toggleAutoSync()
+                }) {
+                    HStack {
+                        Image(systemName: "goforward.30")
+                        Text("Auto-Syncing")
+                    }
+                    .foregroundColor(self.coordinator.autoSync ? .blue : .black)
                 }
-                .foregroundColor(.yellow)
-            }
-            Button(action: {
-                self.coordinator.reloadFiles()
-            }) {
-                HStack {
-                    Image(systemName: "arrow.2.circlepath.circle.fill")
-                    Text("Reload Files")
+                Button(action: {
+                    self.coordinator.toggleIterativeAutoSync()
+                }) {
+                    HStack {
+                        Image(systemName: "rays")
+                        Text("Iterative-Syncing")
+                    }
+                    .foregroundColor(self.coordinator.iterativeAutoSync ? .blue : .black)
                 }
-                .foregroundColor(.pink)
-            }
-            Button(action: {
-                if case .success(let username) = self.debugger.lockbookApi.getAccount() {
-                    print("Username \(username)")
-                } else {
-                    self.fail()
-                }
-            }) {
-                HStack {
-                    Image(systemName: "person.circle.fill")
-                    Text("Dump Account")
-                }
-                .foregroundColor(.purple)
             }
             Spacer()
-            Toggle(isOn: self.$coordinator.autoSync) {
-                Text("Auto-Sync")
-            }
-            Toggle(isOn: self.$coordinator.iterativeAutoSync) {
-                Text("Iterative")
-            }
             Spacer()
         }
-        .padding(.horizontal, 100)
+        .padding(.horizontal, 80)
         .navigationBarTitle("Debugger")
     }
 }
