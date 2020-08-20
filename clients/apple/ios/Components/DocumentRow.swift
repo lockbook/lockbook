@@ -58,7 +58,7 @@ struct DocumentRow: View {
                 self.image = Image(systemName: "trash")
             case (_, _, _, _):
                 self.color = Color.primary
-                self.image = Image(systemName: "arrow.2.circlepath")
+                self.image = Image(systemName: "doc")
         }
     }
     
