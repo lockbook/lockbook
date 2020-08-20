@@ -20,9 +20,10 @@ android:
 	@cp target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
 	@cp target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
 
-.PHONY: ios
-ios:
-	@echo "@Raayan implement me 😭"
+.PHONY: apple
+apple:
+	@./build_for_xcode.sh
+
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
