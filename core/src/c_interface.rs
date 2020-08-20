@@ -49,10 +49,6 @@ unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
     serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> WorkUnit")
 }
 
-unsafe fn account_from_ptr(s: *const c_char) -> Account {
-    serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> Account")
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn get_api_loc() -> *const c_char {
     CString::new(API_URL.to_string())
