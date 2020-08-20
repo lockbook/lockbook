@@ -30,7 +30,8 @@ class CoreModel(config: Config) {
 
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
         val children: Result<List<FileMetadata>, GetChildrenError>? =
-            Klaxon().converter(getChildrenConverter).parse(getChildren(config, parentFileMetadata.id))
+            Klaxon().converter(getChildrenConverter)
+                .parse(getChildren(config, parentFileMetadata.id))
 
         children?.let { childrenResult ->
             return when (childrenResult) {
@@ -98,7 +99,8 @@ class CoreModel(config: Config) {
         fileType: String
     ): Result<FileMetadata, CreateFileError> {
         val createFileResult: Result<FileMetadata, CreateFileError>? =
-            Klaxon().converter(createFileConverter).parse(createFile(config, name, parentFileMetadata.id, fileType))
+            Klaxon().converter(createFileConverter)
+                .parse(createFile(config, name, parentFileMetadata.id, fileType))
 
         createFileResult?.let {
             return createFileResult
@@ -111,7 +113,8 @@ class CoreModel(config: Config) {
         fileMetadata: FileMetadata
     ): Result<Unit, InsertFileError> {
         val insertResult: Result<Unit, InsertFileError>? =
-            Klaxon().converter(insertFileConverter).parse(insertFile(config, Klaxon().toJsonString(fileMetadata)))
+            Klaxon().converter(insertFileConverter)
+                .parse(insertFile(config, Klaxon().toJsonString(fileMetadata)))
 
         insertResult?.let {
             return insertResult
@@ -161,17 +164,6 @@ class CoreModel(config: Config) {
         return Err(MoveFileError.UnexpectedError("moveFileConverter was unable to be called!"))
     }
 
-    fun syncAllFiles(): Result<Unit, SyncAllError> {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(config))
-
-        syncResult?.let {
-            return syncResult
-        }
-
-        return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
-    }
-
     fun calculateFileSyncWork(): Result<WorkCalculated, CalculateWorkError> {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
@@ -185,7 +177,13 @@ class CoreModel(config: Config) {
 
     fun executeFileSyncWork(account: Account, workUnit: WorkUnit): Result<Unit, ExecuteWorkError> {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork(config, Klaxon().toJsonString(account), Klaxon().toJsonString(workUnit)))
+            Klaxon().converter(executeSyncWorkConverter).parse(
+                executeSyncWork(
+                    config,
+                    Klaxon().toJsonString(account),
+                    Klaxon().toJsonString(workUnit)
+                )
+            )
 
         executeSyncWorkResult?.let {
             return executeSyncWorkResult
@@ -197,7 +195,8 @@ class CoreModel(config: Config) {
     companion object {
         fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
             val createResult: Result<Unit, CreateAccountError>? =
-                Klaxon().converter(createAccountConverter).parse(createAccount(Klaxon().toJsonString(config), account))
+                Klaxon().converter(createAccountConverter)
+                    .parse(createAccount(Klaxon().toJsonString(config), account))
 
             createResult?.let {
                 return createResult
@@ -208,7 +207,8 @@ class CoreModel(config: Config) {
 
         fun importAccount(config: Config, account: String): Result<Unit, ImportError> {
             val importResult: Result<Unit, ImportError>? =
-                Klaxon().converter(importAccountConverter).parse(importAccount(Klaxon().toJsonString(config), account))
+                Klaxon().converter(importAccountConverter)
+                    .parse(importAccount(Klaxon().toJsonString(config), account))
 
             importResult?.let {
                 return importResult
@@ -219,7 +219,8 @@ class CoreModel(config: Config) {
 
         fun exportAccount(config: Config): Result<String, AccountExportError> {
             val exportResult: Result<String, AccountExportError>? =
-                Klaxon().converter(exportAccountConverter).parse(exportAccount(Klaxon().toJsonString(config)))
+                Klaxon().converter(exportAccountConverter)
+                    .parse(exportAccount(Klaxon().toJsonString(config)))
 
             exportResult?.let {
                 return exportResult
@@ -228,7 +229,22 @@ class CoreModel(config: Config) {
             return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
         }
 
-        fun writeContentToDocument(config: Config, id: String, content: String): Result<Unit, WriteToDocumentError> {
+        fun syncAllFiles(config: Config): Result<Unit, SyncAllError> {
+            val syncResult: Result<Unit, SyncAllError>? =
+                Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
+
+            syncResult?.let {
+                return syncResult
+            }
+
+            return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
+        }
+
+        fun writeContentToDocument(
+            config: Config,
+            id: String,
+            content: String
+        ): Result<Unit, WriteToDocumentError> {
             val writeResult: Result<Unit, WriteToDocumentError>? =
                 Klaxon().converter(writeDocumentConverter).parse(
                     writeDocument(
