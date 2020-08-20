@@ -1,8 +1,9 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
-apply plugin: 'kotlin-android-extensions'
 apply plugin: 'androidx.navigation.safeargs'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: "org.jmailen.kotlinter"
 
 android {
     compileSdkVersion 29
@@ -16,6 +17,14 @@ android {
         versionName "0.1.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    lintOptions {
+        warningsAsErrors true
+        htmlReport false
+        xmlReport false
+        abortOnError true
+        lintConfig file('../lint.xml')
     }
 
     buildTypes {
@@ -36,6 +45,16 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    kotlinter {
+        disabledRules = ["no-wildcard-imports"]
+    }
+
+    lint.enabled(false)
+    lintKotlinAndroidTest.enabled(false)
+    lintKotlinAndroidTestDebug.enabled(false)
+    lintKotlinDebug.enabled(false)
+    lintKotlinMain.enabled(false)
     android.buildFeatures.dataBinding = true
 }
 
@@ -81,6 +100,7 @@ dependencies {
     implementation "androidx.biometric:biometric:$fingerprint_version"
     implementation "io.noties.markwon:editor:$markdown_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
+    implementation "androidx.work:work-runtime-ktx:$work_version"
 
     implementation project(':core')
 }
