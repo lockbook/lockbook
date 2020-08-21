@@ -18,7 +18,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Setup some settings defaults
         UserDefaults.standard.register(defaults: [
             "AutoSync" : true,
-            "IterativeAutoSync" : false,
+            "IncrementalAutoSync" : false,
         ])
         return true
     }

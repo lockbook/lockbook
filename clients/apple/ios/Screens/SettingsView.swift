@@ -31,11 +31,11 @@ struct SettingsView: View {
                     .foregroundColor(.green)
                 }
                 Button(action: {
-                    self.coordinator.iterativeSync()
+                    self.coordinator.incrementalSync()
                 }) {
                     HStack {
                         Image(systemName: "arrow.up.and.down.circle.fill")
-                        Text("Iterative Sync")
+                        Text("Incremental Sync")
                     }
                     .foregroundColor(.yellow)
                 }
@@ -79,13 +79,13 @@ struct SettingsView: View {
                     .foregroundColor(self.coordinator.autoSync ? .blue : .secondary)
                 }
                 Button(action: {
-                    self.coordinator.toggleIterativeAutoSync()
+                    self.coordinator.toggleIncrementalAutoSync()
                 }) {
                     HStack {
                         Image(systemName: "rays")
-                        Text("Iterative-Syncing")
+                        Text("Incremental-Syncing")
                     }
-                    .foregroundColor(self.coordinator.iterativeAutoSync ? .blue : .secondary)
+                    .foregroundColor(self.coordinator.incrementalAutoSync ? .blue : .secondary)
                 }
             }
             Divider()
