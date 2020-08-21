@@ -19,7 +19,7 @@ final class Coordinator: ObservableObject {
     @Published var progress: Optional<(Float, String)>
     let defaults = UserDefaults.standard
     @Published var autoSync: Bool
-    @Published var iterativeAutoSync: Bool
+    @Published var incrementalAutoSync: Bool
 
     /// Fake coordinator, for use in previews!
     init() {
@@ -32,7 +32,7 @@ final class Coordinator: ObservableObject {
         self.files = (try? api.listFiles().get())!
         self.progress = Optional.some((0.0, "Something"))
         self.autoSync = true
-        self.iterativeAutoSync = false
+        self.incrementalAutoSync = false
     }
     
     init(lockbookApi: LockbookApi, account: Account) throws {
@@ -44,11 +44,11 @@ final class Coordinator: ObservableObject {
         self.files = try self.lockbookApi.listFiles().get()
         self.progress = Optional.none
         self.autoSync = self.defaults.bool(forKey: "AutoSync")
-        self.iterativeAutoSync = self.defaults.bool(forKey: "IterativeAutoSync")
+        self.incrementalAutoSync = self.defaults.bool(forKey: "IncrementalAutoSync")
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             if (self.autoSync) {
-                if (self.iterativeAutoSync) {
-                    self.iterativeSync()
+                if (self.incrementalAutoSync) {
+                    self.incrementalSync()
                 } else {
                     self.sync()
                 }
@@ -76,7 +76,7 @@ final class Coordinator: ObservableObject {
     }
     
     /// Calculates work and executes the first work unit
-    func iterativeSync() -> Void  {
+    func incrementalSync() -> Void  {
         if case .success(let workMeta) = self.lockbookApi.calculateWork() {
             print("\(workMeta.workUnits.count) work units to process")
             if let wu = workMeta.workUnits.first {
@@ -92,7 +92,7 @@ final class Coordinator: ObservableObject {
     }
     
     /// Calculates work and executes every work unit (great to plug a hook for a progress bar or something)
-    func fullIterativeSync() -> Void {
+    func fullIncrementalSync() -> Void {
         if case .success(let workMeta) = self.lockbookApi.calculateWork() {
             for wu in workMeta.workUnits {
                 switch self.lockbookApi.executeWork(work: wu) {
@@ -167,9 +167,9 @@ final class Coordinator: ObservableObject {
         self.defaults.set(self.autoSync, forKey: "AutoSync")
     }
     
-    func toggleIterativeAutoSync() -> Void {
-        self.iterativeAutoSync = !self.iterativeAutoSync
-        self.defaults.set(self.iterativeAutoSync, forKey: "IterativeAutoSync")
+    func toggleIncrementalAutoSync() -> Void {
+        self.incrementalAutoSync = !self.incrementalAutoSync
+        self.defaults.set(self.incrementalAutoSync, forKey: "IncrementalAutoSync")
     }
     
     
