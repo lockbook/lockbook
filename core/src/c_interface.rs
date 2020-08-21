@@ -5,7 +5,6 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::model::account::Account;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
