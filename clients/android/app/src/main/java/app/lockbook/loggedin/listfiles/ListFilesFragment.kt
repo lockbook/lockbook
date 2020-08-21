@@ -1,14 +1,14 @@
 package app.lockbook.loggedin.listfiles
 
-import android.app.ActivityManager
 import android.app.Dialog
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
@@ -25,23 +25,17 @@ import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
-import com.tingyik90.snackprogressbar.SnackProgressBarLayout
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 
 class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel
-    private var isFABOpen = false
-    private var maxProgress = 0
-    private val snackProgressBarManager by lazy {
-        SnackProgressBarManager(
-            requireView(),
-            lifecycleOwner = this
-        )
-    }
+    private val snackProgressBarManager by lazy { SnackProgressBarManager(
+        requireView(),
+        lifecycleOwner = this
+    ).setViewToMove(list_files_layout) }
     private val offlineSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "You are offline")
         .setSwipeToDismiss(false)
         .setAllowUserInput(true)
@@ -53,7 +47,8 @@ class ListFilesFragment : Fragment() {
             .setIsIndeterminate(false)
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
-
+    private val syncFinishedSnackBar = SnackProgressBar(SnackProgressBar.TYPE_NORMAL, "Up to date")
+        .setAllowUserInput(true)
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -80,7 +75,7 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onSwipeToRefresh()
         }
 
-        listFilesViewModel.files.observe(
+        listFilesViewModel.fileModel.files.observe(
             viewLifecycleOwner,
             Observer { files ->
                 updateRecyclerView(files, adapter)
@@ -150,6 +145,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.fileModel.errorHasOccurred.observe(
+            viewLifecycleOwner,
+            Observer { errorText ->
+                errorHasOccurred(errorText)
+            }
+        )
+
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
             Observer { errorText ->
@@ -162,60 +164,21 @@ class ListFilesFragment : Fragment() {
         return binding.root
     }
 
-//    private fun isProgressBarVisible(visibility: Boolean) {
-//        list_files_incremental_sync_progress.visibility =
-//            if (visibility) View.VISIBLE else View.GONE
-//    }
-//
-//    private fun setProgressBarProgress(progress: Int) {
-//        val animation =
-//            ObjectAnimator.ofInt(list_files_incremental_sync_progress, "progress", list_files_incremental_sync_progress.progress, progress * 100)
-//        animation.duration = 300
-//        animation.interpolator = DecelerateInterpolator()
-//        animation.start()
-//    }
-//
-//    private fun setMaxProgress(maxProgress: Int) {
-//        list_files_incremental_sync_progress.max = maxProgress * 100
-//    }
-
-    override fun onResume() {
-        super.onResume()
-        snackProgressBarManager.setOnDisplayListener(object :
-            SnackProgressBarManager.OnDisplayListener {
-            override fun onLayoutInflated(
-                snackProgressBarLayout: SnackProgressBarLayout,
-                overlayLayout: FrameLayout,
-                snackProgressBar: SnackProgressBar,
-                onDisplayId: Int
-            ) {
-                list_files_layout.animate().translationYBy(-200f).setDuration(300).start()
-            }
-
-            override fun onDismissed(snackProgressBar: SnackProgressBar, onDisplayId: Int) {
-                list_files_layout.animate().translationYBy(200f).setDuration(300).start()
-            }
-        })
-    }
-
-
     private fun updateProgressSnackBar(progress: Int) {
-        snackProgressBarManager.setProgress(progress * 100)
+        snackProgressBarManager.setProgress(progress)
         syncSnackProgressBar.setMessage("Syncing $progress items...")
 
-        if (progress == maxProgress) {
+        if (progress == listFilesViewModel.maxProgress) {
             snackProgressBarManager.dismiss()
+            snackProgressBarManager.show(syncFinishedSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         }
     }
 
     private fun showProgressSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
-        if(maxProgress <= 0) {
-            Toast.makeText(context, "Nothing to sync.", Toast.LENGTH_LONG).show()
-        } else {
-            syncSnackProgressBar.setProgressMax(maxProgress * 100)
+        if(maxProgress != 0) {
+            syncSnackProgressBar.setProgressMax(maxProgress)
             syncSnackProgressBar.setMessage("Syncing $maxProgress items...")
-            this.maxProgress = maxProgress
             snackProgressBarManager.show(
                 syncSnackProgressBar,
                 SnackProgressBarManager.LENGTH_INDEFINITE
@@ -238,7 +201,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun onFABClicked() {
-        if (!isFABOpen) {
+        if (!listFilesViewModel.isFABOpen) {
             showFABMenu()
         } else {
             closeFABMenu()
@@ -252,7 +215,7 @@ class ListFilesFragment : Fragment() {
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
         list_files_layout.isClickable = false
-        isFABOpen = false
+        listFilesViewModel.isFABOpen = false
     }
 
     private fun showFABMenu() {
@@ -265,7 +228,7 @@ class ListFilesFragment : Fragment() {
         list_files_layout.setOnClickListener {
             closeFABMenu()
         }
-        isFABOpen = true
+        listFilesViewModel.isFABOpen = true
     }
 
     private fun createFileNameDialog() {

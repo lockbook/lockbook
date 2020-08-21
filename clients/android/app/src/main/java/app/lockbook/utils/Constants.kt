@@ -21,14 +21,14 @@ object SharedPreferences {
 
     const val BACKGROUND_SYNC_PERIOD_KEY = "background_sync_period"
     const val BACKGROUND_SYNC_ENABLED_KEY = "background_sync_enabled"
-    const val SYNC_POST_EDIT_KEY = "sync_post_edit"
+    const val SYNC_AUTOMATICALLY_KEY = "sync_automatically_in_app"
+    const val SYNC_SNACKBAR_KEY = "sync_snackbar"
 }
 
 object RequestResultCodes {
-    const val FAILED_RESULT_CODE: Int = 2
-
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
+
 
     const val RENAME_RESULT_CODE: Int = 201
     const val DELETE_RESULT_CODE: Int = 202

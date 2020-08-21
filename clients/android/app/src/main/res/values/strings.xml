@@ -86,7 +86,7 @@
     <string name="new_file_title">New File</string>
 
     <string name="settings_sync_startup">Sync at startup</string>
-    <string name="settings_sync_edit">Sync after editing a file</string>
+    <string name="settings_sync_edit">Sync automatically in app</string>
     <string name="settings_preference_background_summary_sync_period">The minutes between each automatic sync</string>
     <string name="settings_preference_background_title_sync_period">Background sync period</string>
     <string name="settings_preference_background_title_background_sync_enabled">Background sync enabled</string>

@@ -41,24 +41,31 @@
             android:title="@string/settings_preference_background_title_background_sync_enabled"
             app:iconSpaceReserved="false"/>
 
-        <SeekBarPreference
+        <EditTextPreference
             android:key="background_sync_period"
-            app:showSeekBarValue="true"
             android:defaultValue="30"
-            android:max="200"
+            android:inputType="number"
             android:summary="@string/settings_preference_background_summary_sync_period"
             android:title="@string/settings_preference_background_title_sync_period"
             app:iconSpaceReserved="false"/>
+
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_preference_title_incremental_sync"
         app:iconSpaceReserved="false">
 
         <SwitchPreference
-            android:key="sync_post_edit"
+            android:key="sync_automatically_in_app"
             android:defaultValue="false"
             android:title="@string/settings_sync_edit"
             app:iconSpaceReserved="false"/>
+
+        <SwitchPreference
+            android:key="sync_snackbar"
+            android:defaultValue="true"
+            android:title="Sync snackbar"
+            android:summary="Display the number of items that need to sync on startup and internet connection"
+            app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
 
