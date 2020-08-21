@@ -43,28 +43,20 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
             false
         }
 
-        setUpSyncSettings()
-
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
-    }
-
-    private fun setUpSyncSettings() {
-        val seekBar = findPreference<SeekBarPreference>(BACKGROUND_SYNC_PERIOD_KEY)
-        seekBar?.min = 15
-        seekBar?.isEnabled = findPreference<SwitchPreference>(BACKGROUND_SYNC_ENABLED_KEY)?.isChecked ?: true
     }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
             BACKGROUND_SYNC_ENABLED_KEY -> {
-                val seekBar = findPreference<SeekBarPreference>(BACKGROUND_SYNC_PERIOD_KEY)
-                when (val onOrOff = seekBar?.isEnabled) {
-                    true, false -> seekBar.isEnabled = !onOrOff
+                val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)
+                when (val onOrOff = editText?.isEnabled) {
+                    true, false -> editText.isEnabled = !onOrOff
                     null -> {
-                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY seekBar, it is null.")
+                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY editext, it is null.")
                         Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
                     }
                 }
