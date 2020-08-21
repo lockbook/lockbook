@@ -86,7 +86,7 @@ struct CoreApi: LockbookApi {
     }
     
     func listFiles() -> CoreResult<[FileMetadata]> {
-        fromPrimitiveResult(result: list_files(documentsDirectory))
+        fromPrimitiveResult(result: list_metadatas(documentsDirectory))
     }
     
     func getFile(id: UUID) -> CoreResult<DecryptedValue> {
