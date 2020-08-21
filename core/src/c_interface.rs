@@ -5,12 +5,12 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::model::account::Account;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
+use crate::{ExecuteWorkError, API_URL};
 use serde::Serialize;
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -48,8 +48,11 @@ unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
     serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> WorkUnit")
 }
 
-unsafe fn account_from_ptr(s: *const c_char) -> Account {
-    serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> Account")
+#[no_mangle]
+pub unsafe extern "C" fn get_api_loc() -> *const c_char {
+    CString::new(API_URL.to_string())
+        .expect("Could not API_LOC String -> C String")
+        .into_raw()
 }
 
 #[no_mangle]
@@ -196,8 +199,8 @@ pub unsafe extern "C" fn rename_file(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_filemetadata(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::list_filemetadata(&config_from_ptr(writeable_path)))
+pub unsafe extern "C" fn list_metadatas(writeable_path: *const c_char) -> *const c_char {
+    json_c_string(crate::list_metadatas(&config_from_ptr(writeable_path)))
 }
 
 #[no_mangle]
@@ -223,14 +226,20 @@ pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const
 #[no_mangle]
 pub unsafe extern "C" fn execute_work(
     writeable_path: *const c_char,
-    account: *const c_char,
     work_unit: *const c_char,
 ) -> *const c_char {
-    json_c_string(crate::execute_work(
-        &config_from_ptr(writeable_path),
-        &account_from_ptr(account),
-        work_unit_from_ptr(work_unit),
-    ))
+    let config = &config_from_ptr(writeable_path);
+    json_c_string(
+        crate::get_account(config) // FIXME: @raayan Temporary to avoid passing key through FFI
+            .map_err(ExecuteWorkError::BadAccount)
+            .and_then(|acc| crate::execute_work(config, &acc, work_unit_from_ptr(work_unit))),
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
+    let config = &config_from_ptr(writeable_path);
+    json_c_string(crate::sync_all(config))
 }
 
 #[no_mangle]
@@ -247,13 +256,6 @@ pub unsafe extern "C" fn set_last_synced(
 #[no_mangle]
 pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *const c_char {
     json_c_string(crate::get_last_synced(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::sync_all(&Config {
         writeable_path: str_from_ptr(writeable_path),
     }))
 }
