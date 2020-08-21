@@ -31,8 +31,8 @@ struct CreateFileView: View {
                 .onTapGesture {
                     if !self.fileName.contains("/") {
                         if self.coordinator.createFile(name: self.fileName, isFolder: self.isFolder) {
-                            self.coordinator.sync()
                             self.presentationMode.wrappedValue.dismiss()
+                            let _ = self.coordinator.navigateAndListFiles(dirId: self.coordinator.currentId)
                         } else {
                             self.errorMessage = "Could not create file!"
                             self.alerting = true
