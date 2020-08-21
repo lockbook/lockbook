@@ -12,8 +12,11 @@ import XCTest
 class LockbookCoreTests: XCTestCase {
     static let fileMan = FileManager.init()
     static let tempDir = NSTemporaryDirectory().appending(UUID.init().uuidString)
+    
+    /// The following can be used to interface Swift code with a local lockbook instance! Useful for testing
+    
+    // CoreApi(documentsDirectory: "~/.lockbook")
     static let core = CoreApi(documentsDirectory: LockbookCoreTests.tempDir)
-//    let core = CoreApi(documentsDirectory: "/Users/raayanpillai/.lockbook")
     
     override class func setUp() {
         // Start logger
