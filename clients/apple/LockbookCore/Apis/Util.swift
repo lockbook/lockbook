@@ -21,7 +21,7 @@ func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
     do {
         let data = try encoder.encode(obj)
         let output = String(data: data, encoding: .utf8) ?? ""
-        print("Outgoing JSON \(output)")
+//        print("Outgoing JSON \(output)")
         return Result.success(output)
     } catch let error {
         return Result.failure(error)
@@ -41,7 +41,7 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
 }
 
 func deserializeResult<T: Decodable>(jsonResultStr: String) -> Result<T, ApplicationError> {
-    print("Incoming JSON \(jsonResultStr)")
+//    print("Incoming JSON \(jsonResultStr)")
     guard let dict = try? JSONSerialization.jsonObject(with: Data(jsonResultStr.utf8), options: []) as? [String: Any] else {
         return Result.failure(ApplicationError.Serialization("Couldn't deserialize dict!"))
     }
