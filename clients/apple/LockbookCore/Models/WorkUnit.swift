@@ -11,6 +11,15 @@ import Foundation
 enum WorkUnit {
     case Local(Content)
     case Server(Content)
+    
+    func metadataVersion() -> UInt64 {
+        switch self {
+        case .Local(let c):
+            return UInt64(c.metadata.contentVersion)
+        case .Server(let c):
+            return UInt64(c.metadata.contentVersion)
+        }
+    }
 }
 
 extension WorkUnit: Codable {

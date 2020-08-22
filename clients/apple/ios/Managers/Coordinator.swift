@@ -30,7 +30,7 @@ final class Coordinator: ObservableObject {
         self.currentId = self.root.id
         self.account = Account(username: "tester")
         self.files = (try? api.listFiles().get())!
-        self.progress = Optional.some((0.0, "Something"))
+        self.progress = Optional.some((0.5, "Something"))
         self.autoSync = true
         self.incrementalAutoSync = false
     }
@@ -48,7 +48,7 @@ final class Coordinator: ObservableObject {
         self.syncTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true, block: { (Timer) in
             if (self.autoSync) {
                 if (self.incrementalAutoSync) {
-                    self.incrementalSync()
+                    self.fullIncrementalSync()
                 } else {
                     self.sync()
                 }
@@ -84,6 +84,7 @@ final class Coordinator: ObservableObject {
                 switch self.lockbookApi.executeWork(work: wu) {
                 case .success(_):
                     print("Processed!")
+                    self.reloadFiles()
                 case .failure(let err):
                     print(err)
                 }
@@ -94,15 +95,33 @@ final class Coordinator: ObservableObject {
     /// Calculates work and executes every work unit (great to plug a hook for a progress bar or something)
     func fullIncrementalSync() -> Void {
         if case .success(let workMeta) = self.lockbookApi.calculateWork() {
-            for wu in workMeta.workUnits {
-                switch self.lockbookApi.executeWork(work: wu) {
-                case .success(_):
-                    print("Processed!")
-                case .failure(let err):
-                    print(err)
+            if (workMeta.workUnits.count > 0) {
+                self.progress = Optional.some((Float(0.0), "Syncing"))
+            }
+            for (index, wu) in workMeta.workUnits.enumerated() {
+                let count = Double(index) + 1.0
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(count)) {
+                    print("Progress: ", (Float(count) / Float(workMeta.workUnits.count)), count, workMeta.workUnits.count)
+                    switch wu {
+                    case .Local(let c):
+                        self.progress = Optional.some((Float(count) / Float(workMeta.workUnits.count), "Local Change \(c.metadata.name)"))
+                    case .Server(let c):
+                        self.progress = Optional.some((Float(count) / Float(workMeta.workUnits.count), "Server Change \(c.metadata.name)"))
+                    }
+                    switch self.lockbookApi.executeWork(work: wu) {
+                    case .success(_):
+                        let _ = self.lockbookApi.setLastSynced(lastSync: wu.metadataVersion())
+                        print("Processed!")
+                    case .failure(let err):
+                        print(err)
+                    }
+
+                    self.reloadFiles()
                 }
             }
-            self.reloadFiles()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(workMeta.workUnits.count+1)) {
+                self.progress = Optional.none
+            }
         }
     }
     
