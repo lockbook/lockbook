@@ -28,6 +28,6 @@ struct ControllerView: View {
 
 struct ControllerView_Previews: PreviewProvider {
     static var previews: some View {
-        ControllerView(loginManager: LoginManager())
+        ControllerView(loginManager: LoginManager(lockbookApi: FakeApi()))
     }
 }
