@@ -103,4 +103,9 @@
         <item>@string/biometric_recommended_value</item>
         <item>@string/biometric_strict_value</item>
     </array>
+
+    <string name="list_files_offline_snackbar">You are offline</string>
+    <string name="list_files_presync_snackbar">%s items to sync</string>
+    <string name="list_files_sync_snackbar">Syncing %s items…</string>
+    <string name="list_files_sync_finished_snackbar">Up to date</string>
 </resources>

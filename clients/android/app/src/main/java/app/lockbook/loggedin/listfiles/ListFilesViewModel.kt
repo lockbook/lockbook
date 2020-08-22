@@ -54,10 +54,11 @@ class ListFilesViewModel(path: String, application: Application) :
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     val fileModel = FileModel(path)
     var isFABOpen = false
-    var maxProgress = 0
+    var syncMaxProgress = 0
 
+    private val _earlyStopSyncSnackBar = MutableLiveData<Unit>()
     private val _stopProgressSpinner = MutableLiveData<Unit>()
-    private val _showProgressSnackBar = MutableLiveData<Int>()
+    private val _showSyncSnackBar = MutableLiveData<Int>()
     private val _showPreSyncSnackBar = MutableLiveData<Int>()
     private val _showOfflineSnackBar = MutableLiveData<Unit>()
     private val _updateProgressSnackBar = MutableLiveData<Int>()
@@ -67,11 +68,14 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _createFileNameDialog = MutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
 
+    val earlyStopSyncSnackBar: LiveData<Unit>
+        get() = _earlyStopSyncSnackBar
+
     val stopProgressSpinner: LiveData<Unit>
         get() = _stopProgressSpinner
 
-    val showProgressSnackBar: LiveData<Int>
-        get() = _showProgressSnackBar
+    val showSyncSnackBar: LiveData<Int>
+        get() = _showSyncSnackBar
 
     val showPreSyncSnackBar: LiveData<Int>
         get() = _showPreSyncSnackBar
@@ -112,8 +116,12 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> {
                 when {
                     PreferenceManager.getDefaultSharedPreferences(getApplication()).getBoolean(
-                        SYNC_AUTOMATICALLY_KEY, false) -> incrementalSync()
-                    PreferenceManager.getDefaultSharedPreferences(getApplication()).getBoolean(SYNC_SNACKBAR_KEY, true) -> _showPreSyncSnackBar.postValue(syncWorkResult.value)
+                        SYNC_AUTOMATICALLY_KEY, false
+                    ) -> incrementalSync()
+                    PreferenceManager.getDefaultSharedPreferences(getApplication())
+                        .getBoolean(SYNC_SNACKBAR_KEY, true) -> _showPreSyncSnackBar.postValue(
+                        syncWorkResult.value
+                    )
                 }
             }
 
@@ -158,9 +166,11 @@ class ListFilesViewModel(path: String, application: Application) :
             NetworkRequest.Builder().build(),
             networkCallback
         )
-        val wifiManager = App.instance.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val simManager = App.instance.applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        if(wifiManager.connectionInfo.supplicantState != SupplicantState.COMPLETED && simManager.dataState != TelephonyManager.DATA_CONNECTED) {
+        val wifiManager =
+            App.instance.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val simManager =
+            App.instance.applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        if (wifiManager.connectionInfo.supplicantState != SupplicantState.COMPLETED && simManager.dataState != TelephonyManager.DATA_CONNECTED) {
             _showOfflineSnackBar.postValue(Unit)
         }
 
@@ -205,7 +215,8 @@ class ListFilesViewModel(path: String, application: Application) :
                         data
                     )
                     TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
-                    resultCode == RESULT_CANCELED -> {}
+                    resultCode == RESULT_CANCELED -> {
+                    }
                     else -> {
                         Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -367,47 +378,40 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
 
-        maxProgress = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
-            is Ok -> {
-                maxProgress = syncWorkResult.value.work_units.size
-                _showProgressSnackBar.postValue(maxProgress)
-                syncWorkResult.value.work_units.size
-            }
-            is Err -> {
-                when (val error = syncWorkResult.error) {
-                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> {
-                        Timber.e("Could not reach server.")
-                        _errorHasOccurred.postValue("Could not reach server.")
-                    }
-                    is CalculateWorkError.UnexpectedError -> {
-                        Timber.e("Unable to calculate syncWork: ${error.error}")
-                        _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
-                        )
-                    }
-                    else -> {
-                        Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
-                        _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
-                        )
-                    }
+        syncMaxProgress = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
+            is Ok -> syncWorkResult.value.work_units.size
+            is Err -> return when (val error = syncWorkResult.error) {
+                is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CalculateWorkError.CouldNotReachServer -> {}
+                is CalculateWorkError.UnexpectedError -> {
+                    Timber.e("Unable to calculate syncWork: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
                 }
-
-                return
+                else -> {
+                    Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
+
         }
 
-        var currentProgress = maxProgress
+        _showSyncSnackBar.postValue(syncMaxProgress)
+        var currentProgress = syncMaxProgress
 
         repeat(10) {
             val syncWork = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
                 is Ok -> syncWorkResult.value
                 is Err -> {
                     when (val error = syncWorkResult.error) {
-                        is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                        is CalculateWorkError.NoAccount -> {
+                            _errorHasOccurred.postValue("Error! No account!")
+                            _earlyStopSyncSnackBar.postValue(Unit)
+                        }
                         is CalculateWorkError.CouldNotReachServer -> {
-                            Timber.e("Could not reach server.")
                             _errorHasOccurred.postValue("Could not reach server.")
                         }
                         is CalculateWorkError.UnexpectedError -> {
@@ -415,32 +419,40 @@ class ListFilesViewModel(path: String, application: Application) :
                             _errorHasOccurred.postValue(
                                 UNEXPECTED_ERROR_OCCURRED
                             )
+                            _earlyStopSyncSnackBar.postValue(Unit)
                         }
                         else -> {
                             Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                             _errorHasOccurred.postValue(
                                 UNEXPECTED_ERROR_OCCURRED
                             )
+                            _earlyStopSyncSnackBar.postValue(Unit)
                         }
                     }
 
+
+                    syncMaxProgress = 0
                     return
                 }
             }
 
             if (syncWork.work_units.isEmpty()) {
-                return if (syncErrors.isEmpty()) {
+                if (syncErrors.isEmpty()) {
                     val setLastSyncedResult =
                         fileModel.coreModel.setLastSynced(syncWork.most_recent_update_from_server)
                     if (setLastSyncedResult is Err) {
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                     }
-                    return
+
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
+
+                _earlyStopSyncSnackBar.postValue(Unit)
+                syncMaxProgress = 0
+                return
             }
 
             for (workUnit in syncWork.work_units) {
@@ -450,7 +462,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     ) {
                     is Ok -> {
                         currentProgress--
-                        _updateProgressSnackBar.postValue(maxProgress - currentProgress)
+                        _updateProgressSnackBar.postValue(syncMaxProgress - currentProgress)
                         syncErrors.remove(workUnit.content.metadata.id)
                     }
                     is Err ->
@@ -463,9 +475,8 @@ class ListFilesViewModel(path: String, application: Application) :
         if (syncErrors.isNotEmpty()) {
             Timber.e("Couldn't resolve all syncErrors.")
             _errorHasOccurred.postValue("Couldn't sync all files.")
+            _earlyStopSyncSnackBar.postValue(Unit)
         }
-
-        maxProgress = 0
     }
 
     override fun onItemClick(position: Int) {
