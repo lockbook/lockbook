@@ -11,7 +11,7 @@ import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
