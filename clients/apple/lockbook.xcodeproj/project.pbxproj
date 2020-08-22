@@ -234,7 +234,6 @@
 				8733C23B23F0D300000681E0 /* Components */,
 				87BD616023E3B9CB00945B25 /* AppDelegate.swift */,
 				87BD616223E3B9CB00945B25 /* SceneDelegate.swift */,
-				EA6CEBEC244D0E7B0017A402 /* Debugger.swift */,
 				87BD616623E3B9CB00945B25 /* Assets.xcassets */,
 				87BD616B23E3B9CB00945B25 /* LaunchScreen.storyboard */,
 				87BD616E23E3B9CB00945B25 /* Info.plist */,
@@ -265,6 +264,7 @@
 				EA6A0D7124437FD30072E2B3 /* ControllerView.swift */,
 				EA6CEBE8244CFB2C0017A402 /* Coordinator.swift */,
 				EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */,
+				EA6CEBEC244D0E7B0017A402 /* Debugger.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -716,7 +716,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "ios/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
@@ -751,7 +751,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "ios/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
@@ -847,7 +847,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "ios/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
