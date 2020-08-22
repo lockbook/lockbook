@@ -396,20 +396,6 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, GetRootError> {
 }
 
 #[derive(Debug, Serialize)]
-pub enum ListMetasError {
-    UnexpectedError(String),
-}
-
-pub fn list_filemetadata(config: &Config) -> Result<Vec<FileMetadata>, ListMetasError> {
-    let db = connect_to_db(&config).map_err(ListMetasError::UnexpectedError)?;
-
-    match DefaultFileMetadataRepo::get_all(&db) {
-        Ok(metas) => Ok(metas),
-        Err(err) => Err(ListMetasError::UnexpectedError(format!("{:#?}", err))),
-    }
-}
-
-#[derive(Debug, Serialize)]
 pub enum GetChildrenError {
     UnexpectedError(String),
 }
@@ -540,6 +526,20 @@ pub fn list_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>
     match DefaultFileMetadataRepo::get_all_paths(&db, filter) {
         Ok(paths) => Ok(paths),
         Err(err) => Err(ListPathsError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum ListMetadatasError {
+    UnexpectedError(String),
+}
+
+pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, ListMetadatasError> {
+    let db = connect_to_db(&config).map_err(ListMetadatasError::UnexpectedError)?;
+
+    match DefaultFileMetadataRepo::get_all(&db) {
+        Ok(metas) => Ok(metas),
+        Err(err) => Err(ListMetadatasError::UnexpectedError(format!("{:#?}", err))),
     }
 }
 
@@ -808,6 +808,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkEr
 pub enum ExecuteWorkError {
     CouldNotReachServer,
     UnexpectedError(String),
+    BadAccount(GetAccountError), // FIXME: @raayan Temporary to avoid passing key through FFI
 }
 
 pub fn execute_work(
