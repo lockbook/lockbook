@@ -26,7 +26,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         print("TESTING... Not loading API")
         #else
         // Initialize env_logger
-        init_logger()
+        init_logger_safely()
         // Create the Lockbook Core Api with the path all our business happens
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
         let loginManager = LoginManager(lockbookApi: lockbookApi)
