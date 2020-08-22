@@ -15,6 +15,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // Setup some settings defaults
+        UserDefaults.standard.register(defaults: [
+            "AutoSync" : true,
+            "IncrementalAutoSync" : false,
+        ])
         return true
     }
 
