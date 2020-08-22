@@ -65,6 +65,15 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.purple)
                 }
+                Button(action: {
+                    self.debugger.createFiles(count: 5)
+                }) {
+                    HStack {
+                        Image(systemName: "plus.square.fill")
+                        Text("Create 5 Files")
+                    }
+                    .foregroundColor(.green)
+                }
             }
             Divider()
             Group {

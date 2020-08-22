@@ -12,12 +12,20 @@ enum WorkUnit {
     case Local(Content)
     case Server(Content)
     
-    func metadataVersion() -> UInt64 {
+    func type() -> String {
+        switch self {
+        case .Local(_):
+            return "Local"
+        case .Server(_):
+            return "Server"
+        }
+    }
+    func get() -> FileMetadata {
         switch self {
         case .Local(let c):
-            return UInt64(c.metadata.contentVersion)
+            return c.metadata
         case .Server(let c):
-            return UInt64(c.metadata.contentVersion)
+            return c.metadata
         }
     }
 }
