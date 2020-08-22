@@ -51,21 +51,27 @@ data class DecryptedValue(
 
 data class Account(
     val username: String,
-    val keys: String
+    val keys: RSAPrivateKey
+)
+
+data class RSAPrivateKey(
+    val n: List<Int>,
+    val e: List<Int>,
+    val d: List<Int>,
+    val primes: List<String>
 )
 
 data class WorkCalculated(
     val work_units: List<WorkUnit>,
-    val most_recent_update_from_server: Int
+    val most_recent_update_from_server: Long
 )
 
 data class WorkUnit(
-    val LocalChange: LocalChange,
-    val ServerChange: ServerChange
+    val tag: String,
+    val content: WorkUnitMetadata
 )
 
-data class LocalChange(val metadata: FileMetadata)
-data class ServerChange(val metadata: FileMetadata)
+data class WorkUnitMetadata(val metadata: FileMetadata)
 
 data class Config(val writeable_path: String)
 
