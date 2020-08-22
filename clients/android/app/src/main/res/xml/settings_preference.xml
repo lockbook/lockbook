@@ -44,7 +44,8 @@
         <EditTextPreference
             android:key="background_sync_period"
             android:defaultValue="30"
-            android:inputType="number"
+            android:inputType="numberDecimal"
+            android:digits="0123456789"
             android:summary="@string/settings_preference_background_summary_sync_period"
             android:title="@string/settings_preference_background_title_sync_period"
             app:iconSpaceReserved="false"/>
