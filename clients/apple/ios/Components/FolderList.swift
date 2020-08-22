@@ -33,10 +33,12 @@ struct FolderList: View {
         }
         .navigationBarTitle(dirName)
         .navigationBarItems(
-            trailing: HStack {
-                NavigationLink(destination: DebugView(coordinator: self.coordinator)) {
-                    Image(systemName: "circle.grid.hex")
+            leading: HStack {
+              NavigationLink(destination: SettingsView(coordinator: self.coordinator)) {
+                    Image(systemName: "dial")
                 }
+            },
+            trailing: HStack {
                 NavigationLink(destination: CreateFileView(coordinator: self.coordinator)) {
                     Image(systemName: "plus")
                 }
@@ -46,8 +48,14 @@ struct FolderList: View {
 }
 
 struct FolderView_Previews: PreviewProvider {
+    
     static var previews: some View {
-        FolderList(coordinator: Coordinator(), dirId: UUID.init(), dirName: "root")
+        let coord = Coordinator()
+        
+        return NavigationView {
+            FolderList(coordinator: coord, dirId: coord.root.id, dirName: "root")
             .previewLayout(.sizeThatFits)
+            .preferredColorScheme(.dark)
+        }
     }
 }
