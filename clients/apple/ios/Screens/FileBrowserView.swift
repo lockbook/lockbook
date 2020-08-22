@@ -13,7 +13,7 @@ struct FileBrowserView: View {
     
     var body: some View {
         NavigationView {
-            FolderList(coordinator: self.coordinator, dirId: self.coordinator.root.id, dirName: "root")
+            FolderList(coordinator: self.coordinator, dirId: self.coordinator.root.id, dirName: "\(self.coordinator.account.username)'s Files")
         }
     }
 }
