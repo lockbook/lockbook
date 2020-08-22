@@ -24,17 +24,16 @@ buildscript {
         refresh_version = '1.1.0'
         markdown_version = '4.4.0'
         logger_version = '4.7.1'
-        work_version = "2.3.4"
+        work_version = "2.4.0"
         kotlinter_version = '2.4.1'
+        snackprogressbar_version = '6.4.2'
     }
 
     repositories {
         google()
         jcenter()
         mavenCentral()
-        maven {
-            url "https://plugins.gradle.org/m2/"
-        }
+        maven { url "https://plugins.gradle.org/m2/" }
     }
 
     dependencies {
@@ -53,7 +52,7 @@ allprojects {
     repositories {
         google()
         jcenter()
-        
+        maven { url "https://jitpack.io" }
     }
 }
 
