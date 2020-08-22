@@ -19,17 +19,22 @@ struct ProgressWidget: View {
                     ZStack(alignment: .leading) {
                         Rectangle()
                             .frame(width: geometry.size.width, height: self.height)
-                            .foregroundColor(.blue)
                             .opacity(0.2)
                         Rectangle()
                             .frame(width: min(geometry.size.width * CGFloat(prog.0), geometry.size.width), height: self.height)
-                            .foregroundColor(.blue)
                             .animation(.linear)
                     }.cornerRadius(10)
-                    Text(prog.1)
-                        .foregroundColor(.blue)
-                        .opacity(0.2)
+                    HStack {
+                        if (prog.0 == 0) {
+                            Image(systemName: "checkmark.circle")
+                        } else {
+                            Image(systemName: "arrow.up.arrow.down.circle")
+                        }
+                        Text(prog.1)
+                    }
+                    .animation(.easeIn)
                 }
+                .foregroundColor(prog.2)
             }
         }
         
