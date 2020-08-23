@@ -196,6 +196,9 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun updateProgressSnackBar(progress: Int) {
+        if(progress > listFilesViewModel.syncMaxProgress) {
+            snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
+        }
         snackProgressBarManager.setProgress(progress)
 
         if (progress == listFilesViewModel.syncMaxProgress) {
