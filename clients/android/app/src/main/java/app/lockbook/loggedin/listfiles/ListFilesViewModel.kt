@@ -16,7 +16,6 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
@@ -225,7 +224,9 @@ class ListFilesViewModel(path: String, application: Application) :
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
                 .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
-            incrementalSyncProgressSnackBar()
+            if (syncMaxProgress == 0) {
+                incrementalSync()
+            }
         }
     }
 
