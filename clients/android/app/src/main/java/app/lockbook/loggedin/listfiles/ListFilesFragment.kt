@@ -26,7 +26,6 @@ import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
 
-
 class ListFilesFragment : Fragment() {
 
     private lateinit var listFilesViewModel: ListFilesViewModel

@@ -29,7 +29,6 @@ object RequestResultCodes {
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
 
-
     const val RENAME_RESULT_CODE: Int = 201
     const val DELETE_RESULT_CODE: Int = 202
 }
