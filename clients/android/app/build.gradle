@@ -14,7 +14,7 @@ android {
         minSdkVersion 22
         targetSdkVersion 29
         versionCode 1
-        versionName "0.1.1"
+        versionName "0.1.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -90,6 +90,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
 
     // Miscellaneous
     implementation "com.beust:klaxon:$json_parser_version"
@@ -101,6 +102,7 @@ dependencies {
     implementation "io.noties.markwon:editor:$markdown_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
+    implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
 
     implementation project(':core')
 }
