@@ -11,7 +11,7 @@ import SwiftUI
 
 final class Coordinator: ObservableObject {
     private var syncTimer: Timer
-    private var lockbookApi: LockbookApi
+    var lockbookApi: LockbookApi // be weary of using this outside this class
     var root: FileMetadata
     var account: Account
     var currentId: UUID
