@@ -9,7 +9,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var debugger: Debugger
     @ObservedObject var coordinator: Coordinator
     
     func fail() -> Void {
@@ -48,12 +47,8 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.pink)
                 }
-            }
-            Divider()
-            Group {
-                Text("Debugger")
                 Button(action: {
-                    if case .success(let username) = self.debugger.lockbookApi.getAccount() {
+                    if case .success(let username) = self.coordinator.lockbookApi.getAccount() {
                         print("Username \(username)")
                     } else {
                         self.fail()
@@ -64,15 +59,6 @@ struct SettingsView: View {
                         Text("Dump Account")
                     }
                     .foregroundColor(.purple)
-                }
-                Button(action: {
-                    self.debugger.createFiles(count: 5)
-                }) {
-                    HStack {
-                        Image(systemName: "plus.square.fill")
-                        Text("Create 5 Files")
-                    }
-                    .foregroundColor(.green)
                 }
             }
             Divider()
@@ -102,7 +88,7 @@ struct SettingsView: View {
                 Text("Info")
                 HStack {
                     Image(systemName: "globe")
-                    Text(self.debugger.lockbookApi.getApiLocation())
+                    Text(self.coordinator.lockbookApi.getApiLocation())
                 }
             }
             Spacer()
@@ -116,12 +102,12 @@ struct DebugView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             NavigationView {
-                SettingsView(coordinator: Coordinator()).environmentObject(Debugger())
+                SettingsView(coordinator: Coordinator())
             }.preferredColorScheme(.dark)
             /// Don't forget to checkout the light theme :D
-//            NavigationView {
-//                DebugView(coordinator: Coordinator()).environmentObject(Debugger())
-//            }
+            NavigationView {
+                SettingsView(coordinator: Coordinator())
+            }
         }
     }
 }
