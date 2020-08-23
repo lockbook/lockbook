@@ -59,6 +59,7 @@ pub enum CreateDocumentError {
     UserNotFound,
     FileIdTaken,
     DocumentPathTaken,
+    ParentNotFound,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
