@@ -115,7 +115,9 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> if (PreferenceManager.getDefaultSharedPreferences(getApplication())
                     .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
             ) {
-                incrementalSync()
+                if (syncMaxProgress == 0) {
+                    incrementalSync()
+                }
             } else {
                 _showPreSyncSnackBar.postValue(syncWorkResult.value)
             }
@@ -234,7 +236,9 @@ class ListFilesViewModel(path: String, application: Application) :
                 if (PreferenceManager.getDefaultSharedPreferences(getApplication())
                         .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
                 ) {
-                    incrementalSyncProgressSnackBar()
+                    if (syncMaxProgress == 0) {
+                        incrementalSync()
+                    }
                 }
             }
         }
@@ -353,21 +357,17 @@ class ListFilesViewModel(path: String, application: Application) :
 
         val account = when (val accountResult = fileModel.coreModel.getAccount()) {
             is Ok -> accountResult.value
-            is Err -> {
-                when (val error = accountResult.error) {
-                    is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is GetAccountError.UnexpectedError -> {
-                        Timber.e("Unable to get account: ${error.error}")
-                    }
-                    else -> {
-                        Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
-                        _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
-                        )
-                    }
+            is Err -> return when (val error = accountResult.error) {
+                is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is GetAccountError.UnexpectedError -> {
+                    Timber.e("Unable to get account: ${error.error}")
                 }
-
-                return
+                else -> {
+                    Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
             }
         }
 
@@ -394,7 +394,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
 
         _showSyncSnackBar.postValue(syncMaxProgress)
-        var currentProgress = syncMaxProgress
+        var currentProgress = 0
 
         repeat(10) {
             val syncWork = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
@@ -454,8 +454,8 @@ class ListFilesViewModel(path: String, application: Application) :
                         fileModel.coreModel.executeFileSyncWork(account, workUnit)
                     ) {
                     is Ok -> {
-                        currentProgress--
-                        _updateProgressSnackBar.postValue(syncMaxProgress - currentProgress)
+                        currentProgress++
+                        _updateProgressSnackBar.postValue(currentProgress)
                         syncErrors.remove(workUnit.content.metadata.id)
                     }
                     is Err ->
