@@ -5,6 +5,7 @@ import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import timber.log.Timber
 
 class CoreModel(config: Config) {
     private val config = Klaxon().toJsonString(config)
@@ -26,6 +27,34 @@ class CoreModel(config: Config) {
         }
 
         return Err(GetRootError.UnexpectedError("getRootConverter was unable to be called!"))
+    }
+
+    fun getAccount(): Result<Account, GetAccountError> {
+        val account: Result<Account, GetAccountError>? =
+            Klaxon().converter(getAccountConverter).parse(getAccount(config))
+
+        account?.let { accountResult ->
+            return when (accountResult) {
+                is Ok -> Ok(accountResult.value)
+                is Err -> Err(accountResult.error)
+            }
+        }
+
+        return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
+    }
+
+    fun setLastSynced(lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
+        val lastSynced: Result<Unit, SetLastSyncedError>? =
+            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSyncedDuration))
+
+        lastSynced?.let { lastSyncedResult ->
+            return when (lastSyncedResult) {
+                is Ok -> Ok(lastSyncedResult.value)
+                is Err -> Err(lastSyncedResult.error)
+            }
+        }
+
+        return Err(SetLastSyncedError.UnexpectedError("setLastSyncedConverter was unable to be called!"))
     }
 
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
