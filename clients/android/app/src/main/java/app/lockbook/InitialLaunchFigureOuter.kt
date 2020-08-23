@@ -13,12 +13,12 @@ import androidx.preference.PreferenceManager
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import timber.log.Timber
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
