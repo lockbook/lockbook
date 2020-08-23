@@ -114,6 +114,8 @@ pub async fn create_document(
     let new_version = index_result.map_err(|e| match e {
         index_db::FileError::IdTaken => CreateDocumentError::FileIdTaken,
         index_db::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
+        index_db::FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
+        index_db::FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
         _ => {
             error!(
                 "Internal server error! Cannot create document in Postgres: {:?}",
