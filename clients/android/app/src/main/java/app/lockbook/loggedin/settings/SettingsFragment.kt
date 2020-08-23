@@ -1,7 +1,12 @@
 package app.lockbook.loggedin.settings
 
-import android.content.*
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
+import android.text.Spanned
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
@@ -10,18 +15,21 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.text.isDigitsOnly
 import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
+import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -29,16 +37,38 @@ import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import timber.log.Timber
 
+
 class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
 
+        setUpPreferences()
+    }
+
+    private fun setUpPreferences() {
         findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { preference, newValue ->
             if (newValue is String) {
                 performBiometricFlow(preference.key, newValue)
             }
 
             false
+        }
+
+        findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
+            editText.inputType = InputType.TYPE_CLASS_NUMBER
+            editText.filters = arrayOf(object : InputFilter {
+                override fun filter(
+                    source: CharSequence?,
+                    start: Int,
+                    end: Int,
+                    dest: Spanned?,
+                    dstart: Int,
+                    dend: Int
+                ): CharSequence? {
+                    val input = (dest.toString() + source.toString()).toIntOrNull()
+                    return if ((0..Int.MAX_VALUE).contains(input)) null else ""
+                }
+            })
         }
 
         if (!isBiometricsOptionsAvailable()) {
@@ -49,6 +79,16 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
+            BACKGROUND_SYNC_ENABLED_KEY -> {
+                val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)
+                when (val onOrOff = editText?.isEnabled) {
+                    true, false -> editText.isEnabled = !onOrOff
+                    null -> {
+                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY editext, it is null.")
+                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             else -> super.onPreferenceTreeClick(preference)
         }
 
@@ -66,7 +106,7 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
         ) {
             BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(
@@ -159,7 +199,11 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                     400
                 )
 
-                val qrCodeView = layoutInflater.inflate(R.layout.activity_account_qr_code, view as ViewGroup, false)
+                val qrCodeView = layoutInflater.inflate(
+                    R.layout.activity_account_qr_code,
+                    view as ViewGroup,
+                    false
+                )
                 qrCodeView.qr_code.setImageBitmap(bitmap)
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)

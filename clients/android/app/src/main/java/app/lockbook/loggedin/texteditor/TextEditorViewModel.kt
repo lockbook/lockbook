@@ -7,7 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import timber.log.Timber
@@ -15,7 +15,7 @@ import timber.log.Timber
 class TextEditorViewModel(private val id: String, path: String, initialContents: String) :
     ViewModel(), TextWatcher {
     private val config = Config(path)
-    private var history: MutableList<String> = mutableListOf()
+    private var history = mutableListOf<String>()
     private var historyIndex = 0
     var ignoreChange = false
     private val _canUndo = MutableLiveData<Boolean>()
@@ -67,7 +67,6 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
     }
 
     private fun canUndo() {
-        Timber.i("Index: $historyIndex")
         _canUndo.value = historyIndex != 0
     }
 
