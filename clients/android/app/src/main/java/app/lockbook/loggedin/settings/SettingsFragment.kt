@@ -15,7 +15,6 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
-import androidx.core.text.isDigitsOnly
 import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.utils.AccountExportError
@@ -36,7 +35,6 @@ import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import timber.log.Timber
-
 
 class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -106,7 +104,7 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
         ) {
             BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(
