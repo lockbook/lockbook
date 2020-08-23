@@ -15,6 +15,9 @@ namespace lockbook {
 
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_api_loc();
+
+        [DllImport("lockbook_core.dll")]
         private static extern IntPtr create_account(string path, string username);
 
         [DllImport("lockbook_core.dll")]
@@ -24,7 +27,7 @@ namespace lockbook {
         private static extern IntPtr import_account(string path, string account_string);
 
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr list_filemetadata(string path);
+        private static extern IntPtr list_metadatas(string path);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr create_file(string path, string name, string parent, string file_type);
@@ -216,7 +219,7 @@ namespace lockbook {
         public static async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
             String result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResult = getStringAndRelease(list_filemetadata(path));
+                String coreResult = getStringAndRelease(list_metadatas(path));
                 coreMutex.ReleaseMutex();
                 return coreResult;
             });
