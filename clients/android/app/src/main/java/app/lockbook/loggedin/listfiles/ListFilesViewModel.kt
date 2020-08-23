@@ -113,19 +113,15 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun syncSnackBar() {
         when (val syncWorkResult = fileModel.determineSizeOfSyncWork()) {
-            is Ok -> {
-                when {
-                    PreferenceManager.getDefaultSharedPreferences(getApplication()).getBoolean(
-                        SYNC_AUTOMATICALLY_KEY, false
-                    ) -> incrementalSync()
-                    PreferenceManager.getDefaultSharedPreferences(getApplication())
-                        .getBoolean(SYNC_SNACKBAR_KEY, true) -> _showPreSyncSnackBar.postValue(
-                        syncWorkResult.value
-                    )
-                }
+            is Ok -> when {
+                PreferenceManager.getDefaultSharedPreferences(getApplication()).getBoolean(
+                    SYNC_AUTOMATICALLY_KEY, false
+                ) -> incrementalSync()
+                PreferenceManager.getDefaultSharedPreferences(getApplication())
+                    .getBoolean(SYNC_SNACKBAR_KEY, true) -> _showPreSyncSnackBar.postValue(
+                    syncWorkResult.value
+                )
             }
-
-
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is CalculateWorkError.CouldNotReachServer -> {
@@ -146,7 +142,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun setUpInternetListeners() {
         val connectivityManager =
-            App.instance.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
@@ -167,9 +163,9 @@ class ListFilesViewModel(path: String, application: Application) :
             networkCallback
         )
         val wifiManager =
-            App.instance.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            getApplication<Application>().applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val simManager =
-            App.instance.applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            getApplication<Application>().applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
         if (wifiManager.connectionInfo.supplicantState != SupplicantState.COMPLETED && simManager.dataState != TelephonyManager.DATA_CONNECTED) {
             _showOfflineSnackBar.postValue(Unit)
         }
@@ -382,7 +378,8 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> syncWorkResult.value.work_units.size
             is Err -> return when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> {}
+                is CalculateWorkError.CouldNotReachServer -> {
+                }
                 is CalculateWorkError.UnexpectedError -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _errorHasOccurred.postValue(
@@ -411,9 +408,7 @@ class ListFilesViewModel(path: String, application: Application) :
                             _errorHasOccurred.postValue("Error! No account!")
                             _earlyStopSyncSnackBar.postValue(Unit)
                         }
-                        is CalculateWorkError.CouldNotReachServer -> {
-                            _errorHasOccurred.postValue("Could not reach server.")
-                        }
+                        is CalculateWorkError.CouldNotReachServer -> {}
                         is CalculateWorkError.UnexpectedError -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _errorHasOccurred.postValue(
@@ -448,9 +443,9 @@ class ListFilesViewModel(path: String, application: Application) :
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _earlyStopSyncSnackBar.postValue(Unit)
                 }
 
-                _earlyStopSyncSnackBar.postValue(Unit)
                 syncMaxProgress = 0
                 return
             }
@@ -477,6 +472,8 @@ class ListFilesViewModel(path: String, application: Application) :
             _errorHasOccurred.postValue("Couldn't sync all files.")
             _earlyStopSyncSnackBar.postValue(Unit)
         }
+
+        syncMaxProgress = 0
     }
 
     override fun onItemClick(position: Int) {
