@@ -29,7 +29,6 @@ import timber.log.Timber
 
 
 class ListFilesFragment : Fragment() {
-
     private lateinit var listFilesViewModel: ListFilesViewModel
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
