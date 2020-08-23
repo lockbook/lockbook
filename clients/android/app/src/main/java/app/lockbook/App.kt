@@ -36,7 +36,7 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onMoveToForeground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(LOGGED_IN_KEY, false)
+            .getBoolean(LOGGED_IN_KEY, false)
         ) {
             WorkManager.getInstance(App.instance)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
@@ -46,7 +46,7 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onMoveToBackground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
+            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
                 App.instance
             )
                 .getBoolean(BACKGROUND_SYNC_ENABLED_KEY, true)

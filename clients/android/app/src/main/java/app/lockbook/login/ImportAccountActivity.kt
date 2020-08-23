@@ -10,8 +10,8 @@ import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
-import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -28,7 +28,7 @@ class ImportAccountActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_import_account)
 
-        welcome_import_lockbook.setOnClickListener {
+        import_lockbook.setOnClickListener {
             onClickImportAccount()
         }
         qr_import_button.setOnClickListener {

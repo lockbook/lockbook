@@ -45,7 +45,6 @@ import kotlinx.coroutines.*
 import timber.log.Timber
 import kotlin.collections.set
 
-
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
     ClickInterface {
@@ -125,7 +124,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
 
-
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is CalculateWorkError.CouldNotReachServer -> {
@@ -173,7 +171,6 @@ class ListFilesViewModel(path: String, application: Application) :
         if (wifiManager.connectionInfo.supplicantState != SupplicantState.COMPLETED && simManager.dataState != TelephonyManager.DATA_CONNECTED) {
             _showOfflineSnackBar.postValue(Unit)
         }
-
     }
 
     private fun setUpPreferenceChangeListener() {
@@ -228,7 +225,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun handleTextEditorRequest() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
             incrementalSyncProgressSnackBar()
         }
@@ -239,14 +236,13 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 fileModel.createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
                 if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                        .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+                    .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
                 ) {
                     incrementalSyncProgressSnackBar()
                 }
             }
         }
     }
-
 
     private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
         val id = data.getStringExtra("id")
@@ -354,7 +350,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-
     private fun incrementalSync() {
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
 
@@ -396,7 +391,6 @@ class ListFilesViewModel(path: String, application: Application) :
                     )
                 }
             }
-
         }
 
         _showSyncSnackBar.postValue(syncMaxProgress)
@@ -430,7 +424,6 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
 
-
                     syncMaxProgress = 0
                     return
                 }
@@ -444,7 +437,6 @@ class ListFilesViewModel(path: String, application: Application) :
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                     }
-
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
                     _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -459,7 +451,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 when (
                     val executeFileSyncWorkResult =
                         fileModel.coreModel.executeFileSyncWork(account, workUnit)
-                    ) {
+                ) {
                     is Ok -> {
                         currentProgress--
                         _updateProgressSnackBar.postValue(syncMaxProgress - currentProgress)
