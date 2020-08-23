@@ -19,12 +19,28 @@ class LockbookCoreTests: XCTestCase {
     static let core = CoreApi(documentsDirectory: LockbookCoreTests.tempDir)
     
     override class func setUp() {
+        super.setUp()
+        
         // Start logger
         init_logger_safely()
+        
+        print(LockbookCoreTests.core.documentsDirectory)
     }
     
     override func setUp() {
-        print(LockbookCoreTests.core.documentsDirectory)
+        super.setUp()
+        
+        continueAfterFailure = false
+        
+        XCTAssertTrue(LockbookCoreTests.core.getApiLocation().contains("qa."))
+    }
+    
+    func test00WhatEnvAmIUsing() {
+        let apiLocation = LockbookCoreTests.core.getApiLocation()
+        
+        print(apiLocation)
+        
+        XCTAssertTrue(apiLocation.contains("qa."))
     }
     
     func test01CreateExportImportAccount() {
@@ -108,17 +124,17 @@ class LockbookCoreTests: XCTestCase {
     func test03Sync() {
         let result = LockbookCoreTests.core.synchronize()
         
-//        switch result {
-//        case .success(let b):
-//            XCTAssert(b)
-//        case .failure(let err):
-//            XCTFail(err.message())
-//        }
+        switch result {
+        case .success(_):
+            return
+        case .failure(let err):
+            return XCTFail(err.message())
+        }
     }
     
     func test04ListFiles() {
         do {
-            let root = try LockbookCoreTests.core.getRoot().get()
+            let _ = try LockbookCoreTests.core.getRoot().get()
             let result = LockbookCoreTests.core.listFiles()
             
             switch result {
@@ -161,6 +177,30 @@ class LockbookCoreTests: XCTestCase {
             XCTAssertEqual(workMeta.workUnits.count, 1)
         case .failure(let err):
             XCTFail(err.message())
+        }
+    }
+    
+    func test10FfiPerformance() {
+        self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
+            let apiLocation = LockbookCoreTests.core.getApiLocation()
+            
+            XCTAssertTrue(apiLocation.contains("qa"))
+            
+            let accountResult = LockbookCoreTests.core.getAccount()
+            if case .failure(_) = accountResult {
+                let newAccountResult = LockbookCoreTests.core.createAccount(username: "swiftperformance\(UUID.init().uuidString.prefix(5))")
+                if case .failure(let err) = newAccountResult {
+                    return XCTFail("Could not create account! \(err)")
+                }
+            }
+            
+            startMeasuring()
+            let result = LockbookCoreTests.core.calculateWork()
+            stopMeasuring()
+            
+            if case .failure(let err) = result {
+                return XCTFail("Didn't calculate any work! \(err)")
+            }
         }
     }
 }
