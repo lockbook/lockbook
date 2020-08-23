@@ -22,6 +22,15 @@ sealed class AccountExportError {
     data class UnexpectedError(val error: String) : AccountExportError()
 }
 
+sealed class GetAccountError {
+    object NoAccount : GetAccountError()
+    data class UnexpectedError(val error: String) : GetAccountError()
+}
+
+sealed class SetLastSyncedError {
+    data class UnexpectedError(val error: String) : SetLastSyncedError()
+}
+
 sealed class WriteToDocumentError {
     object NoAccount : WriteToDocumentError()
     object FileDoesNotExist : WriteToDocumentError()

@@ -9,13 +9,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
-import app.lockbook.utils.UNEXPECTED_ERROR_OCCURRED
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
