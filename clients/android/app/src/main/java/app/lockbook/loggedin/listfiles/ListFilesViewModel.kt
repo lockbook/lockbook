@@ -36,7 +36,6 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.utils.SharedPreferences.SYNC_AUTOMATICALLY_KEY
-import app.lockbook.utils.SharedPreferences.SYNC_SNACKBAR_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -113,14 +112,12 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun syncSnackBar() {
         when (val syncWorkResult = fileModel.determineSizeOfSyncWork()) {
-            is Ok -> when {
-                PreferenceManager.getDefaultSharedPreferences(getApplication()).getBoolean(
-                    SYNC_AUTOMATICALLY_KEY, false
-                ) -> incrementalSync()
-                PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(SYNC_SNACKBAR_KEY, true) -> _showPreSyncSnackBar.postValue(
-                    syncWorkResult.value
-                )
+            is Ok -> if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+                    .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+            ) {
+                incrementalSync()
+            } else {
+                _showPreSyncSnackBar.postValue(syncWorkResult.value)
             }
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
@@ -408,7 +405,8 @@ class ListFilesViewModel(path: String, application: Application) :
                             _errorHasOccurred.postValue("Error! No account!")
                             _earlyStopSyncSnackBar.postValue(Unit)
                         }
-                        is CalculateWorkError.CouldNotReachServer -> {}
+                        is CalculateWorkError.CouldNotReachServer -> {
+                        }
                         is CalculateWorkError.UnexpectedError -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _errorHasOccurred.postValue(
