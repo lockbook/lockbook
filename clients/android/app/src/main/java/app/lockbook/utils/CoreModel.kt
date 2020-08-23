@@ -5,7 +5,6 @@ import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 class CoreModel(config: Config) {
     private val config = Klaxon().toJsonString(config)
