@@ -1,7 +1,7 @@
+use crate::model::state::Config;
 use crate::LOG_FILE;
 use fern::colors::{Color, ColoredLevelConfig};
 use std::io;
-use std::path::Path;
 
 #[derive(Debug)]
 pub enum LoggersError {
@@ -9,7 +9,7 @@ pub enum LoggersError {
     Set(log::SetLoggerError),
 }
 
-pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
+pub fn init(config: &Config, std_debug: bool, std_colors: bool) -> Result<(), LoggersError> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
@@ -25,19 +25,29 @@ pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
 
     let stdout_logger = fern::Dispatch::new()
         .format(move |out, message, record| {
-            out.finish(format_args!(
-                "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
-                timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                target = record.target(),
-                level = colors_level.color(record.level()),
-                message = message.clone(),
-            ))
+            if std_colors {
+                out.finish(format_args!(
+                    "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
+                    timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    target = record.target(),
+                    level = colors_level.color(record.level()),
+                    message = message.clone(),
+                ))
+            } else {
+                out.finish(format_args!(
+                    "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
+                    timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    target = record.target(),
+                    level = record.level(),
+                    message = message.clone(),
+                ))
+            }
         })
         .chain(std::io::stdout())
         .level(log::LevelFilter::Off)
         .level_for("lockbook_core", stdout_lb_level);
 
-    let log_file = fern::log_file(log_location.join(LOG_FILE)).map_err(LoggersError::File)?;
+    let log_file = fern::log_file(config.path().join(LOG_FILE)).map_err(LoggersError::File)?;
 
     let file_logger = fern::Dispatch::new()
         .format(move |out, message, record| {

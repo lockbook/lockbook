@@ -45,7 +45,6 @@ use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
 use std::env;
-use std::path::Path;
 use uuid::Uuid;
 
 pub mod c_interface;
@@ -102,9 +101,13 @@ pub enum InitLoggerError {
     Unexpected(String),
 }
 
-pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok())
-        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
+pub fn init_logger(config: &Config) -> Result<(), InitLoggerError> {
+    loggers::init(
+        config,
+        env::var("LOCKBOOK_DEBUG").is_ok(),
+        env::var("LOCKBOOK_NO_COLOR").is_err(),
+    )
+    .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
