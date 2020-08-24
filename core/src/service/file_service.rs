@@ -450,7 +450,7 @@ mod unit_tests {
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::{
-        init_logger_safely, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
+        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
     };
     use uuid::Uuid;
@@ -694,7 +694,7 @@ mod unit_tests {
 
     #[test]
     fn test_arbitrary_path_file_creation() {
-        init_logger_safely();
+        init_logger(dummy_config().path());
         let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {

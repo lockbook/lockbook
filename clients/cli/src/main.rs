@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::init_logger_safely;
+use crate::utils::init_logger_or_print;
 use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod copy;
@@ -81,7 +81,8 @@ enum Lockbook {
 }
 
 fn main() {
-    init_logger_safely();
+    init_logger_or_print();
+
     let args: Lockbook = Lockbook::from_args();
     match args {
         Lockbook::Copy { file } => copy::copy(file),
