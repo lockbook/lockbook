@@ -1,6 +1,7 @@
 package app.lockbook.utils
 
 import com.beust.klaxon.Converter
+import com.beust.klaxon.JsonArray
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -27,14 +28,16 @@ val createAccountConverter = object : Converter {
                 CreateAccountError.InvalidUsername
             )
             CreateAccountError.UsernameTaken::class.simpleName -> return Err(CreateAccountError.UsernameTaken)
-            CreateAccountError.AccountExistsAlready::class.simpleName -> return Err(CreateAccountError.AccountExistsAlready)
+            CreateAccountError.AccountExistsAlready::class.simpleName -> return Err(
+                CreateAccountError.AccountExistsAlready
+            )
         }
 
         if (unexpectedError is String) {
             return Err(CreateAccountError.UnexpectedError(unexpectedError))
         }
 
-        return Err(CreateAccountError.UnexpectedError("Unable to parse CreateAccountResult!"))
+        return Err(CreateAccountError.UnexpectedError("Unable to parse CreateAccountResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -65,7 +68,7 @@ val importAccountConverter = object : Converter {
             return Err(ImportError.UnexpectedError(unexpectedError))
         }
 
-        return Err(ImportError.UnexpectedError("Unable to parse ImportAccountResult!"))
+        return Err(ImportError.UnexpectedError("Unable to parse ImportAccountResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -92,7 +95,56 @@ val exportAccountConverter = object : Converter {
             return Err(AccountExportError.UnexpectedError(unexpectedError))
         }
 
-        return Err(AccountExportError.UnexpectedError("Unable to parse AccountExportResult!"))
+        return Err(AccountExportError.UnexpectedError("Unable to parse AccountExportResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val getAccountConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.obj("Ok")
+
+        val basicError = jv.obj?.get("Err")
+        val unexpectedError = jv.obj?.get("UnexpectedError")
+
+        okResult?.let { jsonObject ->
+            return Ok(Klaxon().parseFromJsonObject<Account>(jsonObject))
+        }
+
+        if (basicError == GetAccountError.NoAccount::class.simpleName) {
+            return Err(GetAccountError.NoAccount)
+        }
+
+        if (unexpectedError is String) {
+            return Err(GetAccountError.UnexpectedError(unexpectedError))
+        }
+
+        return Err(GetAccountError.UnexpectedError("Unable to parse GetAccountResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val setLastSyncedConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.containsKey("Ok")
+
+        val unexpectedError = jv.obj?.get("UnexpectedError")
+
+        if (okResult == true) {
+            return Ok(Unit)
+        }
+
+        if (unexpectedError is String) {
+            return Err(SetLastSyncedError.UnexpectedError(unexpectedError))
+        }
+
+        return Err(SetLastSyncedError.UnexpectedError("Unable to parse SetLastSyncedResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -119,7 +171,7 @@ val getRootConverter = object : Converter {
             return Err(GetRootError.UnexpectedError(unexpectedError))
         }
 
-        return Err(GetRootError.UnexpectedError("Unable to parse GetRootResult!"))
+        return Err(GetRootError.UnexpectedError("Unable to parse GetRootResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -141,7 +193,7 @@ val getChildrenConverter = object : Converter {
             return Err(GetChildrenError.UnexpectedError(unexpectedError))
         }
 
-        return Err(GetChildrenError.UnexpectedError("Unable to parse GetChildrenResult!"))
+        return Err(GetChildrenError.UnexpectedError("Unable to parse GetChildrenResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -168,7 +220,7 @@ val getFileByIdConverter = object : Converter {
             return Err(GetFileByIdError.UnexpectedError(unexpectedError))
         }
 
-        return Err(GetFileByIdError.UnexpectedError("Unable to parse GetFileByIdResult!"))
+        return Err(GetFileByIdError.UnexpectedError("Unable to parse GetFileByIdResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -190,7 +242,7 @@ val insertFileConverter = object : Converter {
             return Err(InsertFileError.UnexpectedError(unexpectedError))
         }
 
-        return Err(InsertFileError.UnexpectedError("Unable to parse InsertFileResult!"))
+        return Err(InsertFileError.UnexpectedError("Unable to parse InsertFileResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -223,7 +275,7 @@ val renameFileConverter = object : Converter {
             return Err(RenameFileError.UnexpectedError(unexpectedError))
         }
 
-        return Err(RenameFileError.UnexpectedError("Unable to parse RenameFileResult!"))
+        return Err(RenameFileError.UnexpectedError("Unable to parse RenameFileResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -254,7 +306,7 @@ val createFileConverter = object : Converter {
             return Err(CreateFileError.UnexpectedError(unexpectedError))
         }
 
-        return Err(CreateFileError.UnexpectedError("Unable to parse CreateFileResult!"))
+        return Err(CreateFileError.UnexpectedError("Unable to parse CreateFileResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -281,7 +333,7 @@ val deleteFileConverter = object : Converter {
             return Err(DeleteFileError.UnexpectedError(unexpectedError))
         }
 
-        return Err(DeleteFileError.UnexpectedError("Unable to parse DeleteFileResult!"))
+        return Err(DeleteFileError.UnexpectedError("Unable to parse DeleteFileResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -312,7 +364,7 @@ val readDocumentConverter = object : Converter {
             return Err(ReadDocumentError.UnexpectedError(unexpectedError))
         }
 
-        return Err(ReadDocumentError.UnexpectedError("Unable to parse ReadDocumentResult!"))
+        return Err(ReadDocumentError.UnexpectedError("Unable to parse ReadDocumentResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -345,7 +397,7 @@ val writeDocumentConverter = object : Converter {
             return Err(WriteToDocumentError.UnexpectedError(unexpectedError))
         }
 
-        return Err(WriteToDocumentError.UnexpectedError("Unable to parse WriteToDocumentResult!"))
+        return Err(WriteToDocumentError.UnexpectedError("Unable to parse WriteToDocumentResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -386,7 +438,7 @@ val moveFileConverter = object : Converter {
             return Err(MoveFileError.UnexpectedError(unexpectedError))
         }
 
-        return MoveFileError.UnexpectedError("Unable to parse MoveFileResult!")
+        return MoveFileError.UnexpectedError("Unable to parse MoveFileResult: ${jv.obj?.toJsonString()}")
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -399,6 +451,7 @@ val syncAllConverter = object : Converter {
         val okResult = jv.obj?.containsKey("Ok")
 
         val basicError = jv.obj?.get("Err")
+        val executeWorkError = jv.obj?.array<FileMetadata>("ExecuteWorkError")
         val unexpectedError = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
@@ -412,20 +465,17 @@ val syncAllConverter = object : Converter {
             SyncAllError.CouldNotReachServer::class.simpleName -> return Err(
                 SyncAllError.CouldNotReachServer
             )
-            SyncAllError.ExecuteWorkError::class.simpleName -> {
-                val jsonArray = jv.obj?.array<ExecuteWorkError>("Err")
-                jsonArray?.let {
-                    return Err(Klaxon().parseFromJsonArray<ExecuteWorkError>(jsonArray))
-                }
-                return Err(SyncAllError.UnexpectedError("Unable to retrieve WorkExecutionError from SyncAll!"))
-            }
+        }
+
+        executeWorkError?.let { jsonArray ->
+            return Err(Klaxon().parseFromJsonArray<ExecuteWorkError>(jsonArray))
         }
 
         if (unexpectedError is String) {
             return Err(SyncAllError.UnexpectedError(unexpectedError))
         }
 
-        return Err(SyncAllError.UnexpectedError("Unable to parse SyncAllResult!"))
+        return Err(SyncAllError.UnexpectedError("Unable to parse SyncAllResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -435,13 +485,17 @@ val calculateSyncWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.obj("Ok")
+        val okWorkUnits = jv.obj?.obj("Ok")?.array<WorkUnit>("work_units")
+        val okMostRecentUpdate = jv.obj?.obj("Ok")?.long("most_recent_update_from_server")
 
         val basicError = jv.obj?.get("Err")
         val unexpectedError = jv.obj?.get("UnexpectedError")
 
-        okResult?.let { jsonObject ->
-            return Ok(Klaxon().parseFromJsonObject<WorkCalculated>(jsonObject))
+        if (okWorkUnits is JsonArray<WorkUnit> && okMostRecentUpdate is Long) {
+            val workUnitResult = Klaxon().parseFromJsonArray<WorkUnit>(okWorkUnits)
+            if (workUnitResult is List<WorkUnit>) {
+                return Ok(WorkCalculated(workUnitResult, okMostRecentUpdate))
+            }
         }
 
         when (basicError) {
@@ -457,7 +511,7 @@ val calculateSyncWorkConverter = object : Converter {
             return Err(CalculateWorkError.UnexpectedError(unexpectedError))
         }
 
-        return Err(CalculateWorkError.UnexpectedError("Unable to parse CalculateSyncWorkResult!"))
+        return Err(CalculateWorkError.UnexpectedError("Unable to parse CalculateSyncWorkResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -484,7 +538,7 @@ val executeSyncWorkConverter = object : Converter {
             return Err(ExecuteWorkError.UnexpectedError(unexpectedError))
         }
 
-        return ExecuteWorkError.UnexpectedError("Unable to parse ExecuteSyncWorkResult!")
+        return Err(ExecuteWorkError.UnexpectedError("Unable to parse ExecuteSyncWorkResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
