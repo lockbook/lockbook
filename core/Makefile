@@ -20,6 +20,16 @@ android:
 	@cp target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
 	@cp target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
 
+.PHONY: macos_jni
+macos_jni:
+	cargo build
+	
+	@echo "Cleaning up old macos .so if they exist"
+	rm -rf $(jniLibs)/macos
+
+	@echo "Moving 
+
+
 .PHONY: apple
 apple:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }

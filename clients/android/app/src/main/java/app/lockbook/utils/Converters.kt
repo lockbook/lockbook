@@ -14,8 +14,8 @@ val createAccountConverter = object : Converter {
         val okResult = jv.obj?.containsKey("Ok")
 
         val basicError = jv.obj?.get("Err")
-        val unexpectedError = jv.obj?.get("UnexpectedError")
-
+        val unexpectedError = jv.obj?.obj("Err")?.string("UnexpectedError")
+        throw Throwable(Klaxon().toJsonString(unexpectedError))
         if (okResult == true) {
             return Ok(Unit)
         }
