@@ -64,8 +64,10 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init_logger_safely() {
-    crate::init_logger_safely();
+pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
+    if crate::init_logger(config_from_ptr(writeable_path).path()).is_ok() {
+        debug!("Logger initialized!");
+    }
 }
 
 #[no_mangle]

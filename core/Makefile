@@ -42,6 +42,10 @@ apple:
 	@cp target/universal/release/liblockbook_core.a ${libs_apple}
 
 
+.PHONY: qa
+qa:
+	API_URL="http://qa.lockbook.app:8000" cargo build
+
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
 libName = 'liblockbook_core.so'

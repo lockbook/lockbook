@@ -45,6 +45,7 @@ use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
+use std::path::Path;
 
 pub mod c_interface;
 pub mod client;
@@ -52,10 +53,11 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-mod java_interface;
+mod loggers;
 
 static API_URL: &str = env!("API_URL");
 static DB_NAME: &str = "lockbook.sled";
+static LOG_FILE: &str = "output.log";
 
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
@@ -94,10 +96,13 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
-pub fn init_logger_safely() {
-    if env_logger::try_init().is_ok() {
-        info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
-    }
+#[derive(Debug, Serialize)]
+pub enum InitLoggerError {
+    Unexpected(String)
+}
+
+pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
+    loggers::init(log_path).map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
