@@ -44,9 +44,9 @@ use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePK
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
-use uuid::Uuid;
-use std::path::Path;
 use std::env;
+use std::path::Path;
+use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -99,11 +99,12 @@ pub type DefaultFileService = FileServiceImpl<
 
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {
-    Unexpected(String)
+    Unexpected(String),
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok()).map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
+    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok())
+        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {

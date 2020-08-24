@@ -1,12 +1,12 @@
-use fern::colors::{ColoredLevelConfig, Color};
+use crate::LOG_FILE;
+use fern::colors::{Color, ColoredLevelConfig};
 use std::io;
 use std::path::Path;
-use crate::LOG_FILE;
 
 #[derive(Debug)]
 pub enum LoggersError {
     File(io::Error),
-    Set(log::SetLoggerError)
+    Set(log::SetLoggerError),
 }
 
 pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
@@ -24,7 +24,7 @@ pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
     };
 
     let stdout_logger = fern::Dispatch::new()
-        .format(move |out, message, record|
+        .format(move |out, message, record| {
             out.finish(format_args!(
                 "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
                 timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
@@ -32,7 +32,7 @@ pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
                 level = colors_level.color(record.level()),
                 message = message.clone(),
             ))
-        )
+        })
         .chain(std::io::stdout())
         .level(log::LevelFilter::Off)
         .level_for("lockbook_core", stdout_lb_level);
