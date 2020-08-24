@@ -9,13 +9,19 @@ pub enum LoggersError {
     Set(log::SetLoggerError)
 }
 
-pub fn init(log_location: &Path) -> Result<(), LoggersError> {
+pub fn init(log_location: &Path, std_debug: bool) -> Result<(), LoggersError> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
         .info(Color::Green)
         .debug(Color::Blue)
         .trace(Color::Black);
+
+    let stdout_lb_level = if std_debug {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
 
     let stdout_logger = fern::Dispatch::new()
         .format(move |out, message, record|
@@ -29,7 +35,7 @@ pub fn init(log_location: &Path) -> Result<(), LoggersError> {
         )
         .chain(std::io::stdout())
         .level(log::LevelFilter::Off)
-        .level_for("lockbook_core", log::LevelFilter::Debug);
+        .level_for("lockbook_core", stdout_lb_level);
 
     let log_file = fern::log_file(log_location.join(LOG_FILE)).map_err(LoggersError::File)?;
 
