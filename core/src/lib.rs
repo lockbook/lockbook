@@ -46,6 +46,7 @@ use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
 use std::path::Path;
+use std::env;
 
 pub mod c_interface;
 pub mod client;
@@ -102,7 +103,7 @@ pub enum InitLoggerError {
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    loggers::init(log_path).map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
+    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok()).map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
