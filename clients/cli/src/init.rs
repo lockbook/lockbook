@@ -17,6 +17,7 @@ pub fn init() {
     io::stdin()
         .read_line(&mut username)
         .expect("Failed to read from stdin");
+    username.retain(|c| c != '\n');
 
     match create_account(&get_config(), &username) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
