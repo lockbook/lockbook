@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use crate::utils::init_logger_or_print;
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod copy;
 mod edit;
