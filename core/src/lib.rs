@@ -1,8 +1,11 @@
+mod java_interface;
+
 #[macro_use]
 extern crate log;
 extern crate reqwest;
 
 use crate::client::{ClientImpl, Error};
+use crate::loggers::LoggersError;
 use crate::model::account::Account;
 use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedValue;
@@ -45,6 +48,7 @@ use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
 use std::env;
+use std::fs::create_dir_all;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -99,12 +103,22 @@ pub type DefaultFileService = FileServiceImpl<
 
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {
+    OnTouch(String),
     Unexpected(String),
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok())
-        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
+    let print_debug = env::var("LOCKBOOK_DEBUG").is_ok();
+    let print_colors = env::var("LOCKBOOK_NO_COLOR").is_err();
+    match loggers::init(log_path, print_debug, print_colors) {
+        Ok(_) => Ok(()),
+        Err(LoggersError::File(_)) => match create_dir_all(log_path) {
+            Ok(_) => loggers::init(log_path, print_debug, print_colors)
+                .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err))),
+            Err(err) => Err(InitLoggerError::OnTouch(format!("{:#?}", err))),
+        },
+        Err(err) => Err(InitLoggerError::Unexpected(format!("{:#?}", err))),
+    }
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
