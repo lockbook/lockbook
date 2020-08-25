@@ -4,19 +4,30 @@ import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
+import org.junit.After
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 
 
 class ImportAccountTest {
 
-    @Before
-    fun loadLib() {
-        loadLockbookCore()
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun loadLib() {
+            loadLockbookCore()
+            Runtime.getRuntime().exec("mkdir $path")
+        }
+    }
+
+    @After
+    fun resetDirectory() {
+        Runtime.getRuntime().exec("rm -rf $path/*")
     }
 
     @Test
-    fun importAccount() {
+    fun importAccountOk() {
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         val exportAccountString = CoreModel.exportAccount(Config(path)).component1()!!
         CoreModel.importAccount(Config(path), exportAccountString).component1()!!
