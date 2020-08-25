@@ -28,6 +28,7 @@ fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
         .into_inner()
 }
 
+#[derive(Debug, Serialize)]
 enum GetConfigError {
     Jni,
     Json(serde_json::Error),
