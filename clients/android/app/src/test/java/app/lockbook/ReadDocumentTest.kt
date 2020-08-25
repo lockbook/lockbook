@@ -7,24 +7,28 @@ import app.lockbook.utils.FileType
 import app.lockbook.utils.ReadDocumentError
 import com.beust.klaxon.Klaxon
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 
 class ReadDocumentTest {
 
     private val coreModel = CoreModel(Config(path))
 
-    @Before
-    fun loadLib() {
-        loadLockbookCore()
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun loadLib() {
+            loadLockbookCore()
+        }
+    }
+
+    @Test
+    fun readDocumentOk() {
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
-    }
-
-    @Test
-    fun readDocument() {
         val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
         coreModel.insertFile(document).component1()!!
         coreModel.getDocumentContent(document.id).component1()!!
@@ -32,6 +36,11 @@ class ReadDocumentTest {
 
     @Test
     fun readFolder() {
+        CoreModel.generateAccount(
+            Config(path),
+            generateAlphaString()
+        ).component1()!!
+        coreModel.setParentToRoot().component1()!!
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val readDocumentError = coreModel.getDocumentContent(folder.id).component2()!!
@@ -40,7 +49,18 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentDoesNotExist() {
+        CoreModel.generateAccount(
+            Config(path),
+            generateAlphaString()
+        ).component1()!!
+        coreModel.setParentToRoot().component1()!!
         val readDocumentError = coreModel.getDocumentContent(generateAlphaString()).component2()!!
         require(readDocumentError is ReadDocumentError.FileDoesNotExist)
+    }
+
+    @Test
+    fun readDocumentNoAccount() {
+        val readDocumentError = coreModel.getDocumentContent(generateAlphaString()).component2()!!
+        require(readDocumentError is ReadDocumentError.NoAccount)
     }
 }
