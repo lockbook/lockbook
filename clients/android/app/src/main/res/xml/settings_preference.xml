@@ -61,13 +61,6 @@
             android:title="@string/settings_sync_edit"
             app:iconSpaceReserved="false"/>
 
-        <SwitchPreference
-            android:key="sync_snackbar"
-            android:defaultValue="true"
-            android:title="Sync snackbar"
-            android:summary="Display the number of items that need to sync on startup and internet connection"
-            app:iconSpaceReserved="false" />
-
     </PreferenceCategory>
 
 </PreferenceScreen>

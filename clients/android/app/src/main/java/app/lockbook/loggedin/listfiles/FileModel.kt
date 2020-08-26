@@ -29,9 +29,7 @@ class FileModel(path: String) {
 
     fun syncWorkAvailable(): Boolean {
         when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
-            is Ok -> if (syncWorkResult.value.work_units.isNotEmpty()) {
-                return true
-            }
+            is Ok -> return true
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> {
                     Timber.e("No account.")

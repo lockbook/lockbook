@@ -615,29 +615,16 @@ impl<
     }
 
     fn sync(db: &Db) -> Result<(), SyncError> {
+        let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
+
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
+
+        let mut work_calculated =
+            Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
 
         for _ in 0..10 {
             // Retry sync n times
             info!("Syncing");
-            let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
-            let work_calculated =
-                Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
-
-            if work_calculated.work_units.is_empty() {
-                info!("Done syncing");
-                return if sync_errors.is_empty() {
-                    FileMetadataDb::set_last_synced(
-                        &db,
-                        work_calculated.most_recent_update_from_server,
-                    )
-                    .map_err(SyncError::MetadataUpdateError)?;
-                    Ok(())
-                } else {
-                    error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
-                    Err(SyncError::WorkExecutionError(sync_errors))
-                };
-            }
 
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
@@ -651,11 +638,17 @@ impl<
                     }
                 }
             }
+
+            work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
         }
 
         if sync_errors.is_empty() {
+            FileMetadataDb::set_last_synced(&db, work_calculated.most_recent_update_from_server)
+                .map_err(SyncError::MetadataUpdateError)?;
+
             Ok(())
         } else {
+            error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
             Err(SyncError::WorkExecutionError(sync_errors))
         }
     }
