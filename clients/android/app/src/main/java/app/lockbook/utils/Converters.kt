@@ -3,6 +3,7 @@ package app.lockbook.utils
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import timber.log.Timber
 
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
@@ -415,7 +416,6 @@ val moveFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-
         val errorResult = jv.obj?.get("Err")
 
         if (okResult == true) {

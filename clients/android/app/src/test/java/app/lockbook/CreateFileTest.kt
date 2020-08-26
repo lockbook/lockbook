@@ -19,13 +19,18 @@ class CreateFileTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("mkdir $path")
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
     }
 
     @After
     fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path/*")
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test
@@ -67,6 +72,11 @@ class CreateFileTest {
 
     @Test
     fun createFileNoAccount() {
+        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
+        coreModel.setParentToRoot().component1()!!
+        Runtime.getRuntime().exec("rm -rf $path")
+        Runtime.getRuntime().exec("mkdir $path")
+
         val createFileError = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component2()!!
         require(createFileError is CreateFileError.NoAccount)
     }

@@ -25,7 +25,7 @@ android:
 .PHONY: macos_jni
 macos_jni:
 	@touch src/lib.rs
-	@cargo build --lib --release
+	@cargo build --lib
 	
 	@echo "Cleaning up old .dylib if they exist"
 	@rm -rf $(jniLibs)/macos
@@ -33,7 +33,7 @@ macos_jni:
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/macos	
 
-	@mv target/release/$(macosLibName) $(jniLibs)/macos/$(macosLibName)
+	@cp target/debug/$(macosLibName) $(jniLibs)/macos/$(macosLibName)
 
 
 .PHONY: apple
@@ -55,7 +55,7 @@ apple:
 	@cp lockbook_core.h ${inc_apple}
 
 	@echo "Copying fat library"
-	@cp target/universal/release/liblockbook_core.a ${libs_apple}
+	@mv target/universal/release/liblockbook_core.a ${libs_apple}
 
 
 MIN_VER = 22

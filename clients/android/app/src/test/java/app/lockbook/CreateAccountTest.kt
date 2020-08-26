@@ -9,6 +9,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
+import kotlin.test.fail
 
 
 class CreateAccountTest {
@@ -17,13 +18,18 @@ class CreateAccountTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("mkdir $path")
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
     }
 
     @After
     fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path/*")
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test
@@ -39,11 +45,9 @@ class CreateAccountTest {
         val username = generateAlphaString()
         CoreModel.generateAccount(Config(path), username).component1()!!
         Runtime.getRuntime().exec("rm -rf $path")
+        Runtime.getRuntime().exec("mkdir $path")
 
-        val secondAccountError = CoreModel.generateAccount(
-            Config(path),
-            username
-        ).component2()!!
+        val secondAccountError = CoreModel.generateAccount(Config(path), username).component2()!!
         require(secondAccountError is CreateAccountError.UsernameTaken)
     }
 
@@ -73,14 +77,10 @@ class CreateAccountTest {
 
     @Test
     fun createAccountExistsAlready() {
-        throw Throwable(
-            Klaxon().toJsonString(
-                CoreModel.generateAccount(
-                    Config(path),
-                    generateAlphaString()
-                )
-            )
-        )
+        CoreModel.generateAccount(
+            Config(path),
+            generateAlphaString()
+        ).component1()!!
         val createAccountError =
             CoreModel.generateAccount(Config(path), generateAlphaString()).component2()!!
         require(createAccountError is CreateAccountError.AccountExistsAlready)

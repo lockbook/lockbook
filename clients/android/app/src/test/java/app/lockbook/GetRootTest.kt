@@ -4,6 +4,7 @@ import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
@@ -16,13 +17,18 @@ class GetRootTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("mkdir $path")
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
     }
 
     @After
     fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path/*")
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test

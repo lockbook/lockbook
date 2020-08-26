@@ -6,6 +6,7 @@ import app.lockbook.utils.CoreModel
 import app.lockbook.utils.FileType
 import app.lockbook.utils.ReadDocumentError
 import com.beust.klaxon.Klaxon
+import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
@@ -19,7 +20,18 @@ class ReadDocumentTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
+    }
+
+    @After
+    fun resetDirectory() {
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test
@@ -54,13 +66,7 @@ class ReadDocumentTest {
             generateAlphaString()
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
-        val readDocumentError = coreModel.getDocumentContent(generateAlphaString()).component2()!!
+        val readDocumentError = coreModel.getDocumentContent(generateId()).component2()!!
         require(readDocumentError is ReadDocumentError.FileDoesNotExist)
-    }
-
-    @Test
-    fun readDocumentNoAccount() {
-        val readDocumentError = coreModel.getDocumentContent(generateAlphaString()).component2()!!
-        require(readDocumentError is ReadDocumentError.NoAccount)
     }
 }

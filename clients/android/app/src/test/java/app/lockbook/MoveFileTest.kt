@@ -7,8 +7,10 @@ import app.lockbook.utils.FileType
 import app.lockbook.utils.MoveFileError
 import com.beust.klaxon.Klaxon
 import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
+import java.util.*
 
 class MoveFileTest {
     private val coreModel = CoreModel(Config(path))
@@ -18,13 +20,18 @@ class MoveFileTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("mkdir $path")
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
     }
 
     @After
     fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path/*")
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test
@@ -42,12 +49,6 @@ class MoveFileTest {
     }
 
     @Test
-    fun moveFileNoAccount() {
-        val moveFileError = coreModel.moveFile(generateAlphaString(), generateAlphaString()).component2()!!
-        require(moveFileError is MoveFileError.NoAccount)
-    }
-
-    @Test
     fun moveFileDoesNotExist() {
         CoreModel.generateAccount(
             Config(path),
@@ -56,7 +57,7 @@ class MoveFileTest {
         coreModel.setParentToRoot().component1()!!
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
-        val moveFileError = coreModel.moveFile(generateAlphaString(), folder.id).component2()!!
+        val moveFileError = coreModel.moveFile(generateId(), folder.id).component2()!!
         require(moveFileError is MoveFileError.FileDoesNotExist)
     }
 
@@ -84,7 +85,7 @@ class MoveFileTest {
         coreModel.setParentToRoot().component1()!!
         val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
         coreModel.insertFile(document).component1()!!
-        val moveFileError = coreModel.moveFile(document.id, generateAlphaString()).component2()!!
+        val moveFileError = coreModel.moveFile(document.id, generateId()).component2()!!
         require(moveFileError is MoveFileError.TargetParentDoesNotExist)
     }
 
@@ -104,7 +105,7 @@ class MoveFileTest {
         coreModel.setParentToRoot()
         val secondDocument = coreModel.createFile(documentName, Klaxon().toJsonString(FileType.Document)).component1()!!
         coreModel.insertFile(secondDocument).component1()!!
-        coreModel.moveFile(secondDocument.id, folder.id)
-        coreModel.moveFile(firstDocument.id, folder.id).component1()!!
+        val moveFileError = coreModel.moveFile(secondDocument.id, folder.id).component2()!!
+        require(moveFileError is MoveFileError.TargetParentHasChildNamedThat)
     }
 }
