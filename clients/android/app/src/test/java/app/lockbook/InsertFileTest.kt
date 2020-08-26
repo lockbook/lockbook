@@ -1,10 +1,10 @@
 package app.lockbook
 
+import app.lockbook.core.insertFile
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -43,5 +43,14 @@ class InsertFileTest {
         coreModel.insertFile(document).component1()!!
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
+    }
+
+    @Test
+    fun insertFileError() {
+        val insertResult: Result<Unit, InsertFileError>? =
+            Klaxon().converter(insertFileConverter)
+                .parse(insertFile("", ""))
+        val insertError = insertResult!!.component2()!!
+        require(insertError is InsertFileError.UnexpectedError)
     }
 }
