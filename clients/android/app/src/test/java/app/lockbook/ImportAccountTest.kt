@@ -3,6 +3,7 @@ package app.lockbook
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.CreateAccountError
 import app.lockbook.utils.ImportError
 import org.junit.After
 import org.junit.Before
@@ -17,26 +18,51 @@ class ImportAccountTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("mkdir $path")
+            Runtime.getRuntime().exec("rm -rf $path")
         }
+    }
+
+    @Before
+    fun createDirectory() {
+        Runtime.getRuntime().exec("mkdir $path")
     }
 
     @After
     fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path/*")
+        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @Test
     fun importAccountOk() {
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         val exportAccountString = CoreModel.exportAccount(Config(path)).component1()!!
+        Runtime.getRuntime().exec("rm -rf $path")
+        Runtime.getRuntime().exec("mkdir $path")
+
         CoreModel.importAccount(Config(path), exportAccountString).component1()!!
     }
 
     @Test
     fun importAccountStringCorrupted() {
-        val importAccountError =
-            CoreModel.importAccount(Config(path), "!@#$%^&*()").component2()!!
-        require(importAccountError is ImportError.AccountStringCorrupted)
+        val firstImportAccountError = CoreModel.importAccount(
+            Config(path),
+            "!@#$%^&*()"
+        ).component2()!!
+        require(firstImportAccountError is ImportError.AccountStringCorrupted)
+        val secondImportAccountError = CoreModel.importAccount(
+            Config(path),
+            "œ∑´´†¥¨ˆˆπåß∂ƒ"
+        ).component2()!!
+        require(secondImportAccountError is ImportError.AccountStringCorrupted)
+        val thirdImportAccountError = CoreModel.importAccount(
+            Config(path),
+            "Ω≈ç√∫˜˜¬˚∆˙©"
+        ).component2()!!
+        require(thirdImportAccountError is ImportError.AccountStringCorrupted)
+        val fourthImportAccountError = CoreModel.importAccount(
+            Config(path),
+            "☺️☠️✋☝️✊"
+        ).component2()!!
+        require(fourthImportAccountError is ImportError.AccountStringCorrupted)
     }
 }
