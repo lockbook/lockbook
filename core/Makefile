@@ -48,6 +48,19 @@ windows_jni:
 
 	@cp target/debug/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
+.PHONY: linux_jni
+linux_jni:
+	@touch src/lib.rs
+	@cargo build --lib --release
+	
+	@echo "Cleaning up old .so if they exist"
+	@rm -rf $(jniLibs)/desktop
+	
+	@echo "Moving new .so over"
+	@mkdir -p $(jniLibs)/desktop
+
+	@cp target/debug/$(libName) $(jniLibs)/desktop/$(libName)
+
 .PHONY: apple
 apple:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
