@@ -1,11 +1,10 @@
 package app.lockbook
 
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
-import app.lockbook.utils.ReadDocumentError
+import app.lockbook.core.readDocument
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -68,5 +67,13 @@ class ReadDocumentTest {
         coreModel.setParentToRoot().component1()!!
         val readDocumentError = coreModel.getDocumentContent(generateId()).component2()!!
         require(readDocumentError is ReadDocumentError.FileDoesNotExist)
+    }
+
+    @Test
+    fun readDocumentUnexpectedError() {
+        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
+            Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
+        val getDocumentError = getDocumentResult!!.component2()!!
+        require(getDocumentError is ReadDocumentError.UnexpectedError)
     }
 }
