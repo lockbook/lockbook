@@ -1,19 +1,16 @@
 package app.lockbook
 
+import app.lockbook.core.createFile
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateFileError
-import app.lockbook.utils.FileType
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateFileTest {
-    private val coreModel = CoreModel(Config(path))
-
     companion object {
         @BeforeClass
         @JvmStatic
@@ -35,6 +32,7 @@ class CreateFileTest {
 
     @Test
     fun createFileOk() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -45,6 +43,7 @@ class CreateFileTest {
 
     @Test
     fun createFileContainsSlash() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -58,6 +57,7 @@ class CreateFileTest {
 
     @Test
     fun createFileNotAvailable() {
+        val coreModel = CoreModel(Config(path))
         val fileName = generateAlphaString()
         CoreModel.generateAccount(
             Config(path),
@@ -72,6 +72,7 @@ class CreateFileTest {
 
     @Test
     fun createFileNoAccount() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         coreModel.setParentToRoot().component1()!!
         Runtime.getRuntime().exec("rm -rf $path")
@@ -79,5 +80,14 @@ class CreateFileTest {
 
         val createFileError = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component2()!!
         require(createFileError is CreateFileError.NoAccount)
+    }
+
+    @Test
+    fun createFileUnexpectedError() {
+        val createFileResult: Result<FileMetadata, CreateFileError>? =
+            Klaxon().converter(createFileConverter)
+                .parse(createFile("", "", "", ""))
+        val createFileError = createFileResult!!.component2()!!
+        require(createFileError is CreateFileError.UnexpectedError)
     }
 }

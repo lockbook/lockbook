@@ -1,17 +1,16 @@
 package app.lockbook
 
+import app.lockbook.core.getAccount
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.GetAccountError
+import app.lockbook.utils.*
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class GetAccountTest {
-
-    private val coreModel = CoreModel(Config(path))
 
     companion object {
         @BeforeClass
@@ -34,6 +33,7 @@ class GetAccountTest {
 
     @Test
     fun getAccountOk() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -43,7 +43,16 @@ class GetAccountTest {
 
     @Test
     fun getAccountNoAccount() {
+        val coreModel = CoreModel(Config(path))
         val getAccountError = coreModel.getAccount().component2()!!
         require(getAccountError is GetAccountError.NoAccount)
+    }
+
+    @Test
+    fun getAccountUnexpectedError() {
+        val getAccountResult: Result<Account, GetAccountError>? =
+            Klaxon().converter(getAccountConverter).parse(getAccount(""))
+        val getAccountError = getAccountResult!!.component2()!!
+        require(getAccountError is GetAccountError.UnexpectedError)
     }
 }

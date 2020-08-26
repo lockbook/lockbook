@@ -1,11 +1,10 @@
 package app.lockbook
 
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
-import app.lockbook.utils.SyncAllError
+import app.lockbook.core.syncAll
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -52,5 +51,13 @@ class SyncAllTest {
     fun syncAllNoAccount() {
         val syncAllError = CoreModel.syncAllFiles(Config(path)).component2()!!
         require(syncAllError is SyncAllError.NoAccount)
+    }
+
+    @Test
+    fun syncAllUnexpectedError() {
+        val syncResult: Result<Unit, SyncAllError>? =
+            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
+        val syncError = syncResult!!.component2()!!
+        require(syncError is SyncAllError.UnexpectedError)
     }
 }

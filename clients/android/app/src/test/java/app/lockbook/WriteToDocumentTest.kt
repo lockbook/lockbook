@@ -1,11 +1,10 @@
 package app.lockbook
 
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
-import app.lockbook.utils.WriteToDocumentError
+import app.lockbook.core.writeDocument
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -69,5 +68,13 @@ class WriteToDocumentTest {
         coreModel.insertFile(folder).component1()!!
         val writeToDocumentError = CoreModel.writeContentToDocument(Config(path), folder.id, "").component2()!!
         require(writeToDocumentError is WriteToDocumentError.FolderTreatedAsDocument)
+    }
+
+    @Test
+    fun writeToDocumentUnexpectedError() {
+        val writeResult: Result<Unit, WriteToDocumentError>? =
+            Klaxon().converter(writeDocumentConverter).parse(writeDocument("", "", ""))
+        val writeError = writeResult!!.component2()!!
+        require(writeError is WriteToDocumentError.UnexpectedError)
     }
 }

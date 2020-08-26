@@ -1,16 +1,16 @@
 package app.lockbook
 
+import app.lockbook.core.deleteFile
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
-class DeleteFileError {
+class DeleteFileTest {
 
     private val coreModel = CoreModel(Config(path))
 
@@ -56,5 +56,13 @@ class DeleteFileError {
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
         coreModel.deleteFile(generateAlphaString()).component1()!!
+    }
+
+    @Test
+    fun deleteFileUnexpectedError() {
+        val deleteFile: Result<Unit, DeleteFileError>? =
+            Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
+        val deleteFileError = deleteFile!!.component2()!!
+        require(deleteFileError is DeleteFileError.UnexpectedError)
     }
 }

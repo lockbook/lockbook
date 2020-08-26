@@ -1,9 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.createAccount
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
+import app.lockbook.utils.createAccountConverter
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -81,5 +85,14 @@ class CreateAccountTest {
         val createAccountError =
             CoreModel.generateAccount(Config(path), generateAlphaString()).component2()!!
         require(createAccountError is CreateAccountError.AccountExistsAlready)
+    }
+
+    @Test
+    fun createAccountUnexpectedError() {
+        val createAccountResult: Result<Unit, CreateAccountError>? =
+            Klaxon().converter(createAccountConverter)
+                .parse(createAccount("", ""))
+        val createAccountError = createAccountResult!!.component2()!!
+        require(createAccountError is CreateAccountError.UnexpectedError)
     }
 }

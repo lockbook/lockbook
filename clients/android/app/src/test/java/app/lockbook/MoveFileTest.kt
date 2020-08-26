@@ -1,11 +1,10 @@
 package app.lockbook
 
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
-import app.lockbook.utils.MoveFileError
+import app.lockbook.core.moveFile
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -107,5 +106,13 @@ class MoveFileTest {
         coreModel.insertFile(secondDocument).component1()!!
         val moveFileError = coreModel.moveFile(secondDocument.id, folder.id).component2()!!
         require(moveFileError is MoveFileError.TargetParentHasChildNamedThat)
+    }
+
+    @Test
+    fun moveFileUnexpectedError() {
+        val moveResult: Result<Unit, MoveFileError>? =
+            Klaxon().converter(moveFileConverter).parse(moveFile("", "", ""))
+        val moveError = moveResult!!.component2()!!
+        require(moveError is MoveFileError.UnexpectedError)
     }
 }

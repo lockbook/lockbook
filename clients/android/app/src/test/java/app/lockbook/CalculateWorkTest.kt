@@ -1,17 +1,16 @@
 package app.lockbook
 
+import app.lockbook.core.calculateSyncWork
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.CalculateWorkError
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
+import app.lockbook.utils.*
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CalculateWorkTest {
-    private val coreModel = CoreModel(Config(path))
-
     companion object {
         @BeforeClass
         @JvmStatic
@@ -33,6 +32,7 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkOk() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -42,7 +42,9 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkNoAccount() {
-        val calculateWorkError = coreModel.calculateFileSyncWork().component2()!!
-        require(calculateWorkError is CalculateWorkError.NoAccount)
+        val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
+            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
+        val calculateWorkError = calculateSyncWorkResult!!.component2()!!
+        require(calculateWorkError is CalculateWorkError.UnexpectedError)
     }
 }

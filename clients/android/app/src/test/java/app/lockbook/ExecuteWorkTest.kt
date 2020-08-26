@@ -1,10 +1,10 @@
 package app.lockbook
 
+import app.lockbook.core.executeSyncWork
 import app.lockbook.core.loadLockbookCore
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -39,13 +39,26 @@ class ExecuteWorkTest {
             generateAlphaString()
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
+        val document =
+            coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document))
+                .component1()!!
         coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
+        val folder =
+            coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder))
+                .component1()!!
         coreModel.insertFile(folder).component1()!!
         val syncWork = coreModel.calculateFileSyncWork().component1()!!
         for (workUnit in syncWork.work_units) {
-            coreModel.executeFileSyncWork(coreModel.getAccount().component1()!!, workUnit).component1()!!
+            coreModel.executeFileSyncWork(coreModel.getAccount().component1()!!, workUnit)
+                .component1()!!
         }
+    }
+
+    @Test
+    fun executeWorkUnexpectedError() {
+        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
+            Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
+        val executeSyncWorkError = executeSyncWorkResult!!.component2()!!
+        require(executeSyncWorkError is ExecuteWorkError.UnexpectedError)
     }
 }
