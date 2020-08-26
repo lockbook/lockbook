@@ -25,9 +25,9 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
-
     private lateinit var listFilesViewModel: ListFilesViewModel
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
@@ -60,11 +60,12 @@ class ListFilesFragment : Fragment() {
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-    private val syncFinishedSnackBar by lazy {
+    private val syncUpToDateSnackBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_NORMAL,
             resources.getString(R.string.list_files_sync_finished_snackbar)
         )
+            .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
 
@@ -194,17 +195,13 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun updateProgressSnackBar(progress: Int) {
+        if(progress > listFilesViewModel.syncMaxProgress) {
+            snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
+        }
         snackProgressBarManager.setProgress(progress)
-        syncSnackProgressBar.setMessage(
-            resources.getString(
-                R.string.list_files_sync_snackbar,
-                progress.toString()
-            )
-        )
 
         if (progress == listFilesViewModel.syncMaxProgress) {
-            snackProgressBarManager.dismiss()
-            snackProgressBarManager.show(syncFinishedSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
         }
     }
 
@@ -222,21 +219,26 @@ class ListFilesFragment : Fragment() {
                 syncSnackProgressBar,
                 SnackProgressBarManager.LENGTH_INDEFINITE
             )
+        } else {
+            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
         }
     }
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
-
-        snackProgressBarManager.show(
-            preSyncSnackBar.setMessage(
-                resources.getString(
-                    R.string.list_files_presync_snackbar,
-                    amountToSync.toString()
-                )
-            ),
-            SnackProgressBarManager.LENGTH_SHORT
-        )
+        if(amountToSync == 0) {
+            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+        } else {
+            snackProgressBarManager.show(
+                preSyncSnackBar.setMessage(
+                    resources.getString(
+                        R.string.list_files_presync_snackbar,
+                        amountToSync.toString()
+                    )
+                ),
+                SnackProgressBarManager.LENGTH_SHORT
+            )
+        }
     }
 
     private fun showOfflineSnackBar() {

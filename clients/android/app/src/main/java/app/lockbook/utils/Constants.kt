@@ -22,7 +22,6 @@ object SharedPreferences {
     const val BACKGROUND_SYNC_PERIOD_KEY = "background_sync_period"
     const val BACKGROUND_SYNC_ENABLED_KEY = "background_sync_enabled"
     const val SYNC_AUTOMATICALLY_KEY = "sync_automatically_in_app"
-    const val SYNC_SNACKBAR_KEY = "sync_snackbar"
 }
 
 object RequestResultCodes {
