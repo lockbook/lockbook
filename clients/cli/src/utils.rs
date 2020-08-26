@@ -3,19 +3,28 @@ use std::env;
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
+use lockbook_core::init_logger;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{get_last_synced, DefaultClock};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::NO_ACCOUNT;
+use crate::{NO_ACCOUNT, NO_CLI_LOCATION};
 use std::process::exit;
 
+pub fn init_logger_or_print() {
+    if let Err(err) = init_logger(&get_config().path()) {
+        eprintln!("Logger failed to initialize! {:#?}", err)
+    }
+}
+
 pub fn get_config() -> Config {
-    let path = env::var("LOCKBOOK_CLI_LOCATION")
-        .unwrap_or(format!("{}/.lockbook", env::var("HOME")
-            .expect("Could not read env var LOCKBOOK_CLI_LOCATION or HOME, don't know where to place your .lockbook folder"))
-        );
+    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
+        (Ok(s), _, _) => s,
+        (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
+        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
+        _ => exit_with("Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder", NO_CLI_LOCATION)
+    };
 
     Config {
         writeable_path: path,
