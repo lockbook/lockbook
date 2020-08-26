@@ -44,7 +44,7 @@ class ExecuteWorkTest {
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val syncWork = coreModel.calculateFileSyncWork().component1()!!
-        for(workUnit in syncWork.work_units) {
+        for (workUnit in syncWork.work_units) {
             coreModel.executeFileSyncWork(coreModel.getAccount().component1()!!, workUnit).component1()!!
         }
     }

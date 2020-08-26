@@ -25,16 +25,28 @@ android:
 .PHONY: macos_jni
 macos_jni:
 	@touch src/lib.rs
-	@cargo build --lib
+	@cargo build --lib --release
 	
 	@echo "Cleaning up old .dylib if they exist"
-	@rm -rf $(jniLibs)/macos
+	@rm -rf $(jniLibs)/desktop
 	
 	@echo "Moving new .dylib over"
-	@mkdir -p $(jniLibs)/macos	
+	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/debug/$(macosLibName) $(jniLibs)/macos/$(macosLibName)
+	@cp target/debug/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
 
+.PHONY: windows_jni
+windows_jni:
+	@touch src/lib.rs
+	@cargo build --lib --release
+	
+	@echo "Cleaning up old .dll if they exist"
+	@rm -rf $(jniLibs)/desktop
+	
+	@echo "Moving new .dll over"
+	@mkdir -p $(jniLibs)/desktop
+
+	@cp target/debug/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
 .PHONY: apple
 apple:
@@ -62,6 +74,7 @@ MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
 libName = 'liblockbook_core.so'
 macosLibName = 'liblockbook_core.dylib'
+windowsLibName = 'liblockbook_core.dll'
 
 # Apple Library Location
 inc_apple := ../clients/apple/include/

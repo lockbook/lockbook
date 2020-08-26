@@ -4,13 +4,10 @@ import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
-import com.beust.klaxon.Klaxon
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
-import kotlin.test.fail
-
 
 class CreateAccountTest {
     companion object {

@@ -3,13 +3,11 @@ package app.lockbook
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateAccountError
 import app.lockbook.utils.ImportError
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
-
 
 class ImportAccountTest {
 
