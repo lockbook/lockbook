@@ -2,12 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.UI.Core.Preview;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
