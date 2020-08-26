@@ -25,7 +25,6 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -195,7 +194,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun updateProgressSnackBar(progress: Int) {
-        if(progress > listFilesViewModel.syncMaxProgress) {
+        if (progress > listFilesViewModel.syncMaxProgress) {
             snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
         }
         snackProgressBarManager.setProgress(progress)
@@ -226,7 +225,7 @@ class ListFilesFragment : Fragment() {
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
-        if(amountToSync == 0) {
+        if (amountToSync == 0) {
             snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
         } else {
             snackProgressBarManager.show(

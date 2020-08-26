@@ -4,8 +4,6 @@ import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.CalculateWorkError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.FileType
-import com.beust.klaxon.Klaxon
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass

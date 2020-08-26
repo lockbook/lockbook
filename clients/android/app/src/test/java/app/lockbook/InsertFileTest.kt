@@ -3,7 +3,6 @@ package app.lockbook
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateFileError
 import app.lockbook.utils.FileType
 import com.beust.klaxon.Klaxon
 import org.junit.After
