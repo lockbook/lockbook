@@ -1,8 +1,13 @@
 package app.lockbook
 
 import app.lockbook.core.loadLockbookCore
+import app.lockbook.core.setLastSynced
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.SetLastSyncedError
+import app.lockbook.utils.setLastSyncedConverter
+import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -38,5 +43,12 @@ class SetLastSyncedTest {
             generateAlphaString()
         ).component1()!!
         coreModel.setLastSynced(1)
+    }
+
+    @Test
+    fun setLastSyncedUnexpectedError() {
+        val lastSyncedResult: Result<Unit, SetLastSyncedError>? =
+            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced("", 0))
+        val lastSyncedError = lastSyncedResult!!.component2()!!
     }
 }

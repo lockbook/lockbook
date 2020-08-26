@@ -9,7 +9,6 @@ val createAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-
         val errorResult = jv.obj?.get("Err")
 
         if (okResult == true) {
@@ -323,7 +322,6 @@ val deleteFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-
         val errorResult = jv.obj?.get("Err")
 
         if (okResult == true) {
@@ -445,7 +443,7 @@ val moveFileConverter = object : Converter {
             }
         }
 
-        return MoveFileError.UnexpectedError("Unable to parse MoveFileResult: ${jv.obj?.toJsonString()}")
+        return Err(MoveFileError.UnexpectedError("Unable to parse MoveFileResult: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
