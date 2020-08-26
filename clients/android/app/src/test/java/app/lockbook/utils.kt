@@ -1,7 +1,7 @@
 package app.lockbook
 
 import java.util.*
-// You have to build the macos jni from core first to be able to run the tests.
+// You have to build the jni from core first to be able to run the tests.
 // Next you have to add a vm option that helps java find the library:
 // -ea -Djava.library.path="<path to lockbook>/lockbook/clients/android/core/src/main/jniLibs/desktop/"
 
