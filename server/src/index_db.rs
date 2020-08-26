@@ -17,7 +17,6 @@ use tokio_postgres::Transaction;
 use uuid::Uuid;
 
 // TODO:
-// * update parent metadata
 // * check ownership
 // * better serialization
 
@@ -58,6 +57,8 @@ pub enum FileError {
     DoesNotExist,
     IdTaken,
     IncorrectOldVersion,
+    OwnerDoesNotExist,
+    ParentDoesNotExist,
     PathTaken,
     Postgres(PostgresError),
     Serialize(serde_json::Error),
@@ -84,17 +85,13 @@ impl From<PostgresError> for FileError {
                 if error_code == &SqlState::FOREIGN_KEY_VIOLATION
                     && error_string.contains("fk_files_parent_files_id") =>
             {
-                FileError::Unknown(String::from(
-                    "cannot create a file with a parent that doesn't exist",
-                )) // todo: make this a real error variant
+                FileError::ParentDoesNotExist
             }
             (Some(error_code), error_string)
                 if error_code == &SqlState::FOREIGN_KEY_VIOLATION
                     && error_string.contains("fk_files_owner_accounts_name") =>
             {
-                FileError::Unknown(String::from(
-                    "cannot create a file with an owner that doesn't exist",
-                )) // todo: make this a real error variant
+                FileError::OwnerDoesNotExist
             }
             _ => FileError::Postgres(e),
         }
