@@ -33,7 +33,7 @@ macos_jni:
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/debug/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
+	@cp target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
 
 .PHONY: windows_jni
 windows_jni:
@@ -46,20 +46,20 @@ windows_jni:
 	@echo "Moving new .dll over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/debug/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
+	@cp target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
 .PHONY: linux_jni
 linux_jni:
 	@touch src/lib.rs
 	@cargo build --lib --release
 	
-	@echo "Cleaning up old .a if they exist"
+	@echo "Cleaning up old .so if they exist"
 	@rm -rf $(jniLibs)/desktop
 	
-	@echo "Moving new .a over"
+	@echo "Moving new .so over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/debug/$(libName) $(jniLibs)/desktop/$(libName)
+	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
 .PHONY: apple
 apple:
@@ -85,7 +85,7 @@ apple:
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
-libName = 'liblockbook_core.a'
+libName = 'liblockbook_core.so'
 macosLibName = 'liblockbook_core.dylib'
 windowsLibName = 'liblockbook_core.dll'
 
