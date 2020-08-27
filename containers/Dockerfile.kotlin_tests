@@ -8,8 +8,6 @@ RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 # Install rust things
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN cargo install cargo-ndk
-RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
@@ -35,4 +33,4 @@ RUN make android
 
 # Build android
 WORKDIR ../clients/android
-RUN ./gradlew assemble
+RUN ./gradlew build

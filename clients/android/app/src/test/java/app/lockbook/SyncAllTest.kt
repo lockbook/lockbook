@@ -13,7 +13,6 @@ import org.junit.Test
 class SyncAllTest {
 
     private val coreModel = CoreModel(Config(path))
-
     companion object {
         @BeforeClass
         @JvmStatic
