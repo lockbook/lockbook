@@ -5,11 +5,9 @@ import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
-import org.junit.After
-import org.junit.Before
-import org.junit.BeforeClass
-import org.junit.Test
+import org.junit.*
 
+@Ignore
 class DeleteFileTest {
 
     private val coreModel = CoreModel(Config(path))
@@ -55,7 +53,8 @@ class DeleteFileTest {
             generateAlphaString()
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
-        coreModel.deleteFile(generateAlphaString()).component1()!!
+        val deleteFileError = coreModel.deleteFile(generateId()).component2()!!
+        require(deleteFileError is DeleteFileError.NoFileWithThatId)
     }
 
     @Test
