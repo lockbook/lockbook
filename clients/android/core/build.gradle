@@ -36,7 +36,6 @@ android {
         disabledRules = ["no-wildcard-imports"]
     }
 
-    lintKotlinTest.enabled(false)
 }
 
 dependencies {
