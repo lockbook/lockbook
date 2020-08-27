@@ -53,10 +53,10 @@ linux_jni:
 	@touch src/lib.rs
 	@cargo build --lib --release
 	
-	@echo "Cleaning up old .so if they exist"
+	@echo "Cleaning up old .a if they exist"
 	@rm -rf $(jniLibs)/desktop
 	
-	@echo "Moving new .so over"
+	@echo "Moving new .a over"
 	@mkdir -p $(jniLibs)/desktop
 
 	@cp target/debug/$(libName) $(jniLibs)/desktop/$(libName)
@@ -85,7 +85,7 @@ apple:
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
-libName = 'liblockbook_core.so'
+libName = 'liblockbook_core.a'
 macosLibName = 'liblockbook_core.dylib'
 windowsLibName = 'liblockbook_core.dll'
 
