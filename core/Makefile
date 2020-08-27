@@ -13,9 +13,9 @@ android:
 
 	@echo "Moving new .so's over"
 	@mkdir -p $(jniLibs)/arm64-v8a
-	@mkdir -p $(jniLibs)/armeabi-v7a
-	@mkdir -p $(jniLibs)/x86
-	@mkdir -p $(jniLibs)/x86_64
+	@mkdir $(jniLibs)/armeabi-v7a
+	@mkdir $(jniLibs)/x86
+	@mkdir $(jniLibs)/x86_64
 	
 	@cp target/aarch64-linux-android/release/$(libName) $(jniLibs)/arm64-v8a/$(libName)
 	@cp target/armv7-linux-androideabi/release/$(libName) $(jniLibs)/armeabi-v7a/$(libName)
