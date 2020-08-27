@@ -25,6 +25,7 @@ COPY core core
 
 # Build Core
 WORKDIR core
+RUN cargo build && mv target/release/liblockbook_core.so ../clients/android/core/src/main/jniLibs/
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
 
