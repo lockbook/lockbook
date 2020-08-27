@@ -66,8 +66,8 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose down
-	HASH=$(hash) docker-compose up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose -f docker-compose/docker-compose-integration-tests.yml down
+	HASH=$(hash) docker-compose -f docker-compose/docker-compose-integration-tests.yml up --exit-code-from=integration_tests
 
 .PHONY: android
 android:
@@ -80,6 +80,15 @@ android_lint:
 .PHONY: android_fmt
 android_fmt:
 	docker run android:$(hash) ./gradlew lintKotlin 
+
+.PHONY: kotlin_tests
+kotlin_tests:
+	docker build -f containers/Dockerfile.kotlin_tests . --tag kotlin_tests:$(hash)
+
+.PHONY: kotlin_tests_run
+kotlin_tests_run:
+	HASH=$(hash) docker-compose -f docker-compose/docker-compose-kotlin_tests.yml down
+	HASH=$(hash) docker-compose -f docker-compose/docker-compose-kotlin_tests.yml up --exit-code-from=integration_tests
 
 # Helpers
 .PHONY: is_docker_running

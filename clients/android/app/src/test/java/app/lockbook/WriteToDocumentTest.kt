@@ -20,7 +20,6 @@ class WriteToDocumentTest {
         fun loadLib() {
             loadLockbookCore()
             Runtime.getRuntime().exec("rm -rf $path")
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
