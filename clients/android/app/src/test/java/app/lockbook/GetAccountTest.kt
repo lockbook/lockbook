@@ -17,13 +17,13 @@ class GetAccountTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
+            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
     @Before
     fun createDirectory() {
         Runtime.getRuntime().exec("mkdir $path")
-        Runtime.getRuntime().exec("rm -rf $path")
     }
 
     @After
@@ -34,10 +34,7 @@ class GetAccountTest {
     @Test
     fun getAccountOk() {
         val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
+        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         coreModel.getAccount().component1()!!
     }
 
