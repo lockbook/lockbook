@@ -33,7 +33,7 @@ macos_jni:
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
+	@mv target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
 
 .PHONY: windows_jni
 windows_jni:
@@ -46,7 +46,7 @@ windows_jni:
 	@echo "Moving new .dll over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
+	@mv target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
 .PHONY: linux_jni
 linux_jni:
@@ -59,7 +59,7 @@ linux_jni:
 	@echo "Moving new .so over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
+	@mv target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
 .PHONY: apple
 apple:

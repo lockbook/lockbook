@@ -52,8 +52,7 @@ android {
 
     testOptions {
         unitTests.all {
-            jvmArgs '-Djava.library.path=../core/src/main/jniLibs/desktop/'
-
+            jvmArgs '-Djava.library.path="../core/src/main/jniLibs/desktop/"'
         }
     }
 

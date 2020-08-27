@@ -21,7 +21,6 @@ external fun calculateSyncWork(config: String): String
 external fun executeSyncWork(config: String, account: String, workUnit: String): String
 
 fun loadLockbookCore() {
-//    System.load("/Users/smailbarkouch/Coding/company-repos/lockbook/clients/android/core/src/main/jniLibs/liblockbook_core.dylib")
     System.loadLibrary("lockbook_core")
     initLogger()
 }
