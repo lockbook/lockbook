@@ -29,10 +29,10 @@ class CoreModel(config: Config) {
     }
 
     fun getAccount(): Result<Account, GetAccountError> {
-        val accountResult: Result<Account, GetAccountError>? =
+        val getAccountResult: Result<Account, GetAccountError>? =
             Klaxon().converter(getAccountConverter).parse(getAccount(config))
 
-        accountResult?.let { accountResult ->
+        getAccountResult?.let { accountResult ->
             return when (accountResult) {
                 is Ok -> Ok(accountResult.value)
                 is Err -> Err(accountResult.error)
@@ -43,10 +43,10 @@ class CoreModel(config: Config) {
     }
 
     fun setLastSynced(lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
-        val lastSyncedResult: Result<Unit, SetLastSyncedError>? =
+        val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSyncedDuration))
 
-        lastSyncedResult?.let { lastSyncedResult ->
+        setLastSyncedResult?.let { lastSyncedResult ->
             return when (lastSyncedResult) {
                 is Ok -> Ok(lastSyncedResult.value)
                 is Err -> Err(lastSyncedResult.error)
