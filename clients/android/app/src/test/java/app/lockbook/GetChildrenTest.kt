@@ -1,7 +1,6 @@
 package app.lockbook
 
 import app.lockbook.core.getChildren
-import app.lockbook.core.getFileById
 import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
