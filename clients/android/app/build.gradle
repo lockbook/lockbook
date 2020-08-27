@@ -50,13 +50,13 @@ android {
         disabledRules = ["no-wildcard-imports"]
     }
 
-    lint.enabled(false)
-    lintKotlinAndroidTest.enabled(false)
-    lintKotlinAndroidTestDebug.enabled(false)
-    lintKotlinDebug.enabled(false)
-    lintKotlinMain.enabled(false)
-    lintKotlinRelease.enabled(false)
-    lintKotlinTest.enabled(false)
+    testOptions {
+        unitTests.all {
+            jvmArgs '-Djava.library.path=../core/src/main/jniLibs/desktop/'
+
+        }
+    }
+
     android.buildFeatures.dataBinding = true
 }
 
