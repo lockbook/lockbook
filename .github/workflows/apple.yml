@@ -18,6 +18,9 @@ jobs:
       run: sudo xcode-select -switch /Applications/Xcode_11.6.app
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          override: true
     - name: Swift Integration Smoke Tests
       run: |
         cd core
