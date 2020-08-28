@@ -1,6 +1,6 @@
 package app.lockbook.core
 
-external fun initLogger(config: String)
+external fun initLogger()
 external fun createAccount(config: String, username: String): String
 external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
@@ -22,6 +22,5 @@ external fun executeSyncWork(config: String, account: String, workUnit: String):
 
 fun loadLockbookCore() {
     System.loadLibrary("lockbook_core")
-    // TODO: @smail put the real config here
-    initLogger("JUNK_CONFIG")
+    initLogger()
 }

@@ -1,5 +1,3 @@
-mod java_interface;
-
 #[macro_use]
 extern crate log;
 extern crate reqwest;
