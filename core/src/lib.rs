@@ -3,7 +3,6 @@ extern crate log;
 extern crate reqwest;
 
 use crate::client::{ClientImpl, Error};
-use crate::loggers::LoggersError;
 use crate::model::account::Account;
 use crate::model::api::{GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedValue;
@@ -46,7 +45,6 @@ use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
 use std::env;
-use std::fs::create_dir_all;
 use std::path::Path;
 use uuid::Uuid;
 
