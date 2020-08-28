@@ -6,7 +6,6 @@ import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
-import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 import java.util.*
