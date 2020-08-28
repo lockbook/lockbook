@@ -1,7 +1,6 @@
 package app.lockbook
 
 import app.lockbook.core.getRoot
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
@@ -17,7 +16,7 @@ class GetRootTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 
