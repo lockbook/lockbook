@@ -11,23 +11,19 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateFileTest {
+    var path = createRandomPath()
+
     companion object {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
     @Before
     fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
-    @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+        path = createRandomPath()
     }
 
     @Test
@@ -75,8 +71,7 @@ class CreateFileTest {
         val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         coreModel.setParentToRoot().component1()!!
-        Runtime.getRuntime().exec("rm -rf $path")
-        Runtime.getRuntime().exec("mkdir $path")
+        path = createRandomPath()
 
         val createFileError = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component2()!!
         require(createFileError is CreateFileError.NoAccount)

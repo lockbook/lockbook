@@ -11,6 +11,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class InsertFileTest {
+    var path = createRandomPath()
 
     private val coreModel = CoreModel(Config(path))
     companion object {
@@ -18,18 +19,12 @@ class InsertFileTest {
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
-    @Before
-    fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
     @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+    fun createDirectory() {
+        path = createRandomPath()
     }
 
     @Test

@@ -1,0 +1,21 @@
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ANDROID_HOME /opt/android-sdk-linux
+RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
+
+# Install rust things
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Copy android and core in
+COPY clients/android clients/android
+COPY core core
+
+# Build Core
+WORKDIR core
+ENV API_URL=unused
+RUN make linux_jni
+
+# Build android
+WORKDIR ../clients/android
+RUN ./gradlew assemble
