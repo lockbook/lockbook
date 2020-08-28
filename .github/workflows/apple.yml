@@ -1,0 +1,32 @@
+name: Apple 
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  iOS:
+    runs-on: macOS-latest 
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Force XCode 11.6
+      run: sudo xcode-select -switch /Applications/Xcode_11.6.app
+    - name: Swift Integration Smoke Tests
+      run: exec ./clients/apple/integration_tests.sh
+#    - name: Build container
+#      run: make core
+#    - name: Compile and run tests
+#      run: make core_test
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: Build Core - ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
