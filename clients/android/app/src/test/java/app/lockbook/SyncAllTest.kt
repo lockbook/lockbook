@@ -12,28 +12,23 @@ import org.junit.Test
 
 class SyncAllTest {
 
-    private val coreModel = CoreModel(Config(path))
+    var path = createRandomPath()
     companion object {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
-    @Before
-    fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
     @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+    fun createDirectory() {
+        path = createRandomPath()
     }
 
     @Test
     fun syncAllOk() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()

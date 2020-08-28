@@ -55,9 +55,9 @@ services:
         sleep 5 && \
         RUST_LOG=lockbook_server=debug cargo run \
       '
-  kotlin_tests:
-    image: kotlin_tests:$HASH
-    container_name: kotlin_tests-$HASH
+  kotlin_interface_tests:
+    image: kotlin_interface_tests:$HASH
+    container_name: kotlin_interface_tests-$HASH
     env_file:
       - ../containers/test.env
     depends_on:

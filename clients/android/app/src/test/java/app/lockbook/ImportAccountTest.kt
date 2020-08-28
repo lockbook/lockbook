@@ -14,32 +14,26 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class ImportAccountTest {
+    var path = createRandomPath()
 
     companion object {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
-    @Before
-    fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
     @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+    fun createDirectory() {
+        path = createRandomPath()
     }
 
     @Test
     fun importAccountOk() {
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         val exportAccountString = CoreModel.exportAccount(Config(path)).component1()!!
-        Runtime.getRuntime().exec("rm -rf $path")
-        Runtime.getRuntime().exec("mkdir $path")
+        path = createRandomPath()
 
         CoreModel.importAccount(Config(path), exportAccountString).component1()!!
     }
@@ -51,21 +45,6 @@ class ImportAccountTest {
             "!@#$%^&*()"
         ).component2()!!
         require(firstImportAccountError is ImportError.AccountStringCorrupted)
-        val secondImportAccountError = CoreModel.importAccount(
-            Config(path),
-            "œ∑´´†¥¨ˆˆπåß∂ƒ"
-        ).component2()!!
-        require(secondImportAccountError is ImportError.AccountStringCorrupted)
-        val thirdImportAccountError = CoreModel.importAccount(
-            Config(path),
-            "Ω≈ç√∫˜˜¬˚∆˙©"
-        ).component2()!!
-        require(thirdImportAccountError is ImportError.AccountStringCorrupted)
-        val fourthImportAccountError = CoreModel.importAccount(
-            Config(path),
-            "☺️☠️✋☝️✊"
-        ).component2()!!
-        require(fourthImportAccountError is ImportError.AccountStringCorrupted)
     }
 
     @Test

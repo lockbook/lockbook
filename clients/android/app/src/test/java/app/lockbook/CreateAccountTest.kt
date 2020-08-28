@@ -14,23 +14,19 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateAccountTest {
+    var path = createRandomPath()
+
     companion object {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
-    @Before
-    fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
     @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+    fun createDirectory() {
+        path = createRandomPath()
     }
 
     @Test
@@ -45,8 +41,7 @@ class CreateAccountTest {
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
         CoreModel.generateAccount(Config(path), username).component1()!!
-        Runtime.getRuntime().exec("rm -rf $path")
-        Runtime.getRuntime().exec("mkdir $path")
+        path = createRandomPath()
 
         val secondAccountError = CoreModel.generateAccount(Config(path), username).component2()!!
         require(secondAccountError is CreateAccountError.UsernameTaken)
@@ -59,21 +54,6 @@ class CreateAccountTest {
             "!@#$%^&*()"
         ).component2()!!
         require(firstCreateAccountError is CreateAccountError.InvalidUsername)
-        val secondCreateAccountError = CoreModel.generateAccount(
-            Config(path),
-            "œ∑´´†¥¨ˆˆπåß∂ƒ"
-        ).component2()!!
-        require(secondCreateAccountError is CreateAccountError.InvalidUsername)
-        val thirdCreateAccountError = CoreModel.generateAccount(
-            Config(path),
-            "Ω≈ç√∫˜˜¬˚∆˙©"
-        ).component2()!!
-        require(thirdCreateAccountError is CreateAccountError.InvalidUsername)
-        val fourthCreateAccountError = CoreModel.generateAccount(
-            Config(path),
-            "☺️☠️✋☝️✊"
-        ).component2()!!
-        require(fourthCreateAccountError is CreateAccountError.InvalidUsername)
     }
 
     @Test

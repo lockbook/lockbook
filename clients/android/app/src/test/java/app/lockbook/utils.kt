@@ -10,4 +10,9 @@ fun generateAlphaString(): String =
 
 fun generateId(): String = UUID.randomUUID().toString()
 
-const val path = "/tmp/lockbook/"
+fun createRandomPath(): String {
+    val path = "/tmp/${generateAlphaString()}"
+    Runtime.getRuntime().exec("mkdir $path")
+    return path
+}
+
