@@ -6,10 +6,7 @@ android:
 	cargo ndk --target x86_64-linux-android --android-platform $(MIN_VER) -- build --release
 
 	@echo "Cleaning up old .so's if they exist"
-	@rm -rf $(jniLibs)/arm64-v8a
-	@rm -rf $(jniLibs)/armebi-v7a
-	@rm -rf $(jniLibs)/x86
-	@rm -rf $(jniLibs)/x86_64
+	@rm -rf $(jniLibs)/*
 
 	@echo "Moving new .so's over"
 	@mkdir -p $(jniLibs)/arm64-v8a
