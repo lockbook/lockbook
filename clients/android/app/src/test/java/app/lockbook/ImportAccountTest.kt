@@ -9,7 +9,6 @@ import app.lockbook.utils.importAccountConverter
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
-import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
