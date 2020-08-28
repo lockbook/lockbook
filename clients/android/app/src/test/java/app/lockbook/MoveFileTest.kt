@@ -12,29 +12,24 @@ import org.junit.Test
 import java.util.*
 
 class MoveFileTest {
-    private val coreModel = CoreModel(Config(path))
+    var path = createRandomPath()
 
     companion object {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
             loadLockbookCore()
-            Runtime.getRuntime().exec("rm -rf $path")
         }
     }
 
-    @Before
-    fun createDirectory() {
-        Runtime.getRuntime().exec("mkdir $path")
-    }
-
     @After
-    fun resetDirectory() {
-        Runtime.getRuntime().exec("rm -rf $path")
+    fun createDirectory() {
+        path = createRandomPath()
     }
 
     @Test
     fun moveFileOk() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -49,6 +44,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileDoesNotExist() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -62,6 +58,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileDocumentTreatedAsFolder() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -77,6 +74,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileTargetParentDoesNotExist() {
+        val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
@@ -90,6 +88,7 @@ class MoveFileTest {
 
     @Test
     fun moveFIleTargetParentHasChildNamedThat() {
+        val coreModel = CoreModel(Config(path))
         val documentName = generateAlphaString()
         CoreModel.generateAccount(
             Config(path),
