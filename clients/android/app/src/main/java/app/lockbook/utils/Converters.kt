@@ -4,6 +4,30 @@ import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 
+val initLoggerConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.containsKey("Ok")
+        val errorResult = jv.obj?.get("Err")
+
+        if (okResult == true) {
+            return Ok(Unit)
+        }
+
+        if (errorResult is JsonObject) {
+            val unexpectedError = errorResult.string("UnexpectedError")
+            if (unexpectedError is String) {
+                return Err(InitLoggerError.Unexpected(unexpectedError))
+            }
+        }
+
+        return Err(InitLoggerError.Unexpected("Unable to parse InitLoggerError: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

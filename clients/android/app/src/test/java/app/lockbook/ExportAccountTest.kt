@@ -1,7 +1,6 @@
 package app.lockbook
 
 import app.lockbook.core.exportAccount
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
@@ -20,7 +19,7 @@ class ExportAccountTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 

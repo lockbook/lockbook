@@ -1,5 +1,9 @@
 package app.lockbook.utils
 
+sealed class InitLoggerError {
+    data class Unexpected(val error: String) : InitLoggerError()
+}
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()

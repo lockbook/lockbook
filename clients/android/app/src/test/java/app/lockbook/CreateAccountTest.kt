@@ -1,7 +1,6 @@
 package app.lockbook
 
 import app.lockbook.core.createAccount
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
@@ -19,7 +18,7 @@ class CreateAccountTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 

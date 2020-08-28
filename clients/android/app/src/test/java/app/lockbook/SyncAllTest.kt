@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.core.syncAll
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
@@ -16,7 +15,7 @@ class SyncAllTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 

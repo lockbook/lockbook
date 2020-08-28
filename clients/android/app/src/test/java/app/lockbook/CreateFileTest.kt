@@ -1,7 +1,6 @@
 package app.lockbook
 
 import app.lockbook.core.createFile
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
@@ -16,7 +15,7 @@ class CreateFileTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 
@@ -70,7 +69,8 @@ class CreateFileTest {
         val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
         coreModel.setParentToRoot().component1()!!
-        path = createRandomPath()
+        Runtime.getRuntime().exec("rm -rf $path")
+        Runtime.getRuntime().exec("mkdir $path")
 
         val createFileError = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component2()!!
         require(createFileError is CreateFileError.NoAccount)

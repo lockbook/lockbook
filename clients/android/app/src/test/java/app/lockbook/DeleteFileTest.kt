@@ -1,13 +1,12 @@
 package app.lockbook
 
 import app.lockbook.core.deleteFile
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.*
 
-@Ignore
+@Ignore("Delete endpoint doesn't work yet")
 class DeleteFileTest {
     var path = createRandomPath()
 
@@ -15,7 +14,7 @@ class DeleteFileTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 
