@@ -9,7 +9,7 @@ pub enum LoggersError {
     Set(log::SetLoggerError),
 }
 
-pub fn init(log_path: &Path, std_debug: bool, std_colors: bool) -> Result<(), LoggersError> {
+pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), LoggersError> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
@@ -17,10 +17,10 @@ pub fn init(log_path: &Path, std_debug: bool, std_colors: bool) -> Result<(), Lo
         .debug(Color::Blue)
         .trace(Color::Black);
 
-    let stdout_lb_level = if std_debug {
+    let stdout_lb_level = if std_enabled {
         log::LevelFilter::Debug
     } else {
-        log::LevelFilter::Info
+        log::LevelFilter::Off
     };
 
     let stdout_logger = fern::Dispatch::new()
