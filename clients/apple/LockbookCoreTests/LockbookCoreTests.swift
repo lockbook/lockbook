@@ -22,7 +22,7 @@ class LockbookCoreTests: XCTestCase {
         super.setUp()
         
         // Start logger
-        init_logger_safely()
+        init_logger_safely(LockbookCoreTests.core.documentsDirectory)
         
         print(LockbookCoreTests.core.documentsDirectory)
     }
