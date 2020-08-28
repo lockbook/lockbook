@@ -16,8 +16,17 @@ jobs:
     - uses: actions/checkout@v2
     - name: Force XCode 11.6
       run: sudo xcode-select -switch /Applications/Xcode_11.6.app
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
     - name: Swift Integration Smoke Tests
-      run: exec ./clients/apple/integration_tests.sh
+      run: |
+        cd core
+        cargo install cargo-lipo
+        rustup target add aarch64-apple-ios x86_64-apple-ios
+        make apple
+        cd ..
+        make ios_test
+#        xcodebuild -project ios_client.xcodeproj -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO
 #    - name: Build container
 #      run: make core
 #    - name: Compile and run tests
