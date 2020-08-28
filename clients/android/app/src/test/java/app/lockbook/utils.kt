@@ -15,4 +15,3 @@ fun createRandomPath(): String {
     Runtime.getRuntime().exec("mkdir $path")
     return path
 }
-
