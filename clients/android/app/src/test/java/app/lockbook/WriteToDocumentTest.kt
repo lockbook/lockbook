@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.core.writeDocument
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
@@ -17,7 +16,7 @@ class WriteToDocumentTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            loadLockbookCore()
+            System.loadLibrary("lockbook_core")
         }
     }
 
