@@ -12,6 +12,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
+      API_URL: http://qa.lockbook.app:8000
     steps:
     - uses: actions/checkout@v2
     - name: Force XCode 11.6
