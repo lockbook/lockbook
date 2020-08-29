@@ -694,7 +694,7 @@ mod unit_tests {
 
     #[test]
     fn test_arbitrary_path_file_creation() {
-        init_logger(dummy_config().path());
+        init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
         let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
