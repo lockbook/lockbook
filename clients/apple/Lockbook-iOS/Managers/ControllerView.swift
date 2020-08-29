@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftLockbookCore
 
 struct ControllerView: View {
     @ObservedObject var loginManager: LoginManager

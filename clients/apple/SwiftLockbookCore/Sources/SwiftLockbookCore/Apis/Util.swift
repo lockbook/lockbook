@@ -9,7 +9,7 @@
 import Foundation
 import CLockbookCore
 
-func intEpochToString(epoch: Int) -> String {
+public func intEpochToString(epoch: Int) -> String {
     let date = Date(timeIntervalSince1970: TimeInterval(epoch/1000))
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy/MM/dd hh:mm a"
@@ -74,6 +74,6 @@ func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T,
     return deserializeResult(jsonResultStr: resultString)
 }
 
-struct Empty: Decodable {
+public struct Empty: Decodable {
     
 }

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SwiftLockbookCore
 
 class LoginManager: ObservableObject {
     var lockbookApi: LockbookApi

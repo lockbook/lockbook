@@ -8,6 +8,7 @@
 
 import UIKit
 import SwiftUI
+import SwiftLockbookCore
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
@@ -25,10 +26,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         #if TESTING
         print("TESTING... Not loading API")
         #else
-        // Initialize env_logger
-        init_logger_safely(documentsDirectory)
         // Create the Lockbook Core Api with the path all our business happens
         let lockbookApi = CoreApi(documentsDirectory: documentsDirectory)
+        // Initialize library logger
+        lockbookApi.initializeLogger()
         let loginManager = LoginManager(lockbookApi: lockbookApi)
         // Use a UIHostingController as window root view controller.
         let controllerView = ControllerView(loginManager: loginManager)

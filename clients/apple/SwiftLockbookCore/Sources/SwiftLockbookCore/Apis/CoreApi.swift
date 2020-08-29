@@ -9,9 +9,9 @@
 import Foundation
 import CLockbookCore
 
-typealias CoreResult<T> = Result<T, ApplicationError>
+public typealias CoreResult<T> = Result<T, ApplicationError>
 
-protocol LockbookApi {
+public protocol LockbookApi {
     // Account
     func getAccount() -> CoreResult<Account>
     func createAccount(username: String) -> CoreResult<Account>
@@ -38,43 +38,47 @@ protocol LockbookApi {
     func getApiLocation() -> String
 }
 
-struct CoreApi: LockbookApi {
+public struct CoreApi: LockbookApi {
     var documentsDirectory: String
     
+    public init(documentsDirectory: String) {
+        self.documentsDirectory = documentsDirectory
+    }
+    
     /// If this isn't called, the rust logger will not start!
-    func initializeLogger() -> Void {
+    public func initializeLogger() -> Void {
         init_logger_safely(documentsDirectory)
     }
     
-    func getAccount() -> CoreResult<Account> {
+    public func getAccount() -> CoreResult<Account> {
         fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
-    func createAccount(username: String) -> CoreResult<Account> {
+    public func createAccount(username: String) -> CoreResult<Account> {
         let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username))
         
         return result.flatMap { print($0 as Any); return getAccount() }
     }
     
-    func importAccount(accountString: String) -> CoreResult<Account> {
+    public func importAccount(accountString: String) -> CoreResult<Account> {
         let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
         
         return result.flatMap { print($0 as Any); return getAccount() }
     }
     
-    func exportAccount() -> CoreResult<String> {
+    public func exportAccount() -> CoreResult<String> {
         fromPrimitiveResult(result: export_account(documentsDirectory))
     }
     
-    func synchronize() -> CoreResult<Empty> {
+    public func synchronize() -> CoreResult<Empty> {
         fromPrimitiveResult(result: sync_all(documentsDirectory))
     }
     
-    func calculateWork() -> CoreResult<WorkMetadata> {
+    public func calculateWork() -> CoreResult<WorkMetadata> {
         fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    func executeWork(work: WorkUnit) -> CoreResult<Empty> {
+    public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
         switch serialize(obj: work) {
         case .success(let workUnitStr):
             return fromPrimitiveResult(result: execute_work(documentsDirectory, workUnitStr))
@@ -83,36 +87,36 @@ struct CoreApi: LockbookApi {
         }
     }
     
-    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
+    public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
         fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
     }
     
-    func getRoot() -> CoreResult<FileMetadata> {
+    public func getRoot() -> CoreResult<FileMetadata> {
         fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
-    func listFiles() -> CoreResult<[FileMetadata]> {
+    public func listFiles() -> CoreResult<[FileMetadata]> {
         fromPrimitiveResult(result: list_metadatas(documentsDirectory))
     }
     
-    func getFile(id: UUID) -> CoreResult<DecryptedValue> {
+    public func getFile(id: UUID) -> CoreResult<DecryptedValue> {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     
-    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
+    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let fileType = isFolder ? "Folder" : "Document"
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }
     
-    func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
         fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
-    func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
+    public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func getApiLocation() -> String {
+    public func getApiLocation() -> String {
         let result = get_api_loc()
         let resultString = String(cString: result!)
         release_pointer(UnsafeMutablePointer(mutating: result))
@@ -121,48 +125,52 @@ struct CoreApi: LockbookApi {
 }
 
 
-struct FakeApi: LockbookApi {
-    func getAccount() -> CoreResult<Account> {
+public struct FakeApi: LockbookApi {
+    public init() {
+        
+    }
+    
+    public func getAccount() -> CoreResult<Account> {
         CoreResult.success(Account(username: username))
     }
     
-    func createAccount(username: String) -> CoreResult<Account> {
+    public func createAccount(username: String) -> CoreResult<Account> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func importAccount(accountString: String) -> CoreResult<Account> {
+    public func importAccount(accountString: String) -> CoreResult<Account> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func exportAccount() -> CoreResult<String> {
+    public func exportAccount() -> CoreResult<String> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func synchronize() -> CoreResult<Empty> {
+    public func synchronize() -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func calculateWork() -> CoreResult<WorkMetadata> {
+    public func calculateWork() -> CoreResult<WorkMetadata> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func executeWork(work: WorkUnit) -> CoreResult<Empty> {
+    public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
+    public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func getRoot() -> CoreResult<FileMetadata> {
+    public func getRoot() -> CoreResult<FileMetadata> {
         return CoreResult.success(FileMetadata(fileType: .Folder, id: rootUuid, parent: rootUuid, name: "first_file.md", owner: "root", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false))
     }
     
-    func listFiles() -> CoreResult<[FileMetadata]> {
+    public func listFiles() -> CoreResult<[FileMetadata]> {
         return Result.success(fileMetas)
     }
     
-    func getFile(id: UUID) -> CoreResult<DecryptedValue> {
+    public func getFile(id: UUID) -> CoreResult<DecryptedValue> {
         CoreResult.success(DecryptedValue(secret: """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mattis mattis arcu a commodo. Maecenas dapibus mollis lacinia. Nunc ut mi felis. Donec efficitur, nulla venenatis sodales sagittis, elit tellus ullamcorper leo, in fringilla turpis nisl at sapien. Morbi et sagittis dolor, auctor sollicitudin lorem. In porttitor vulputate mi quis mattis. Suspendisse potenti. In leo sem, tincidunt ut diam sed, malesuada aliquet ipsum. Mauris pretium sapien non erat pulvinar, id dapibus dui convallis. Etiam maximus tellus ac nunc hendrerit vulputate. Vestibulum placerat ligula sit amet eleifend interdum. Pellentesque dignissim ipsum lectus, vitae ultricies mi accumsan id. Morbi ullamcorper gravida justo eu maximus. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas.
 
@@ -170,26 +178,26 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
 """))
     }
     
-    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
+    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let now = Date().timeIntervalSince1970
         return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: Int(now), metadataVersion: Int(now), deleted: false))
     }
     
-    func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
+    public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
-    func getApiLocation() -> String {
+    public func getApiLocation() -> String {
         "fake://fake.lockbook.fake"
     }
     
-    let username: Account.Username = "tester"
-    let rootUuid = UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
-    let fileMetas = [
+    public let username: Account.Username = "tester"
+    public let rootUuid = UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
+    public let fileMetas = [
         FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),

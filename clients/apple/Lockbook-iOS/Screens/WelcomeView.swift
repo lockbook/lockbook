@@ -6,6 +6,7 @@
 //  Copyright © 2020 Lockbook. All rights reserved.
 
 import SwiftUI
+import SwiftLockbookCore
 
 struct WelcomeView: View {
     @State public var navigationBarHidden = true
