@@ -86,7 +86,7 @@ kotlin_interface_tests: is_docker_running
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: kotlin_interface_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml up --exit-code-from=kotlin_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
 
 # Helpers
 .PHONY: is_docker_running
