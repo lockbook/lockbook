@@ -66,7 +66,7 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml up --exit-code-from=integration_tests -p integration-tests-$(hash)
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
 
 .PHONY: android
 android: is_docker_running
