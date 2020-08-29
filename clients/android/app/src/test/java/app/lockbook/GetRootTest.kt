@@ -40,6 +40,8 @@ class GetRootTest {
         val getRootResult: Result<FileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(""))
         val getRootError = getRootResult!!.component2()!!
-        require(getRootError is GetRootError.UnexpectedError)
+        require(getRootError is GetRootError.UnexpectedError) {
+            "${Klaxon().toJsonString(getRootError)} != ${GetRootError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
