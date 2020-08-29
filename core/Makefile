@@ -79,6 +79,14 @@ apple:
 	@echo "Copying fat library"
 	@cp target/universal/release/liblockbook_core.a ${libs_apple}
 
+.PHONY: swift
+swift:
+	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	mkdir -p ${swift_inc}
+	cp lockbook_core.h ${swift_inc}
+	cargo lipo --release
+	mkdir -p ${swift_lib}
+	cp target/universal/release/liblockbook_core.a ${swift_lib}
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
@@ -89,3 +97,7 @@ windowsLibName = 'liblockbook_core.dll'
 # Apple Library Location
 inc_apple := ../clients/apple/include/
 libs_apple := ../clients/apple/libs/
+
+# Swift Library Location
+swift_inc := ../clients/swift/CLockbookCore/Sources/CLockbookCore/include/
+swift_lib := ../clients/swift/CLockbookCore/Sources/CLockbookCore/lib/
