@@ -44,7 +44,7 @@ services:
       '
   lockbook_server:
     image: server:$HASH
-    container_name: server-kotlin-$HASH
+    container_name: server-swift-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
