@@ -27,12 +27,10 @@ class CalculateWorkTest {
     @Test
     fun calculateWorkOk() {
         val coreModel = CoreModel(Config(path))
-        val generateAccountResult = CoreModel.generateAccount(
+        CoreModel.generateAccount(
             Config(path),
             generateAlphaString()
-        )
-        print("SMAILBARKOUCH123: ${Klaxon().toJsonString(generateAccountResult)}")
-        generateAccountResult.component1()!!
+        ).component1()!!
         coreModel.calculateFileSyncWork().component1()!!
     }
 
