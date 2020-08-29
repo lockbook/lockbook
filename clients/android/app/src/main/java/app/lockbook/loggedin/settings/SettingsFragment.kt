@@ -20,7 +20,6 @@ import androidx.preference.*
 import app.lockbook.BuildConfig
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
-import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
