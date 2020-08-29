@@ -41,6 +41,11 @@ protocol LockbookApi {
 struct CoreApi: LockbookApi {
     var documentsDirectory: String
     
+    /// If this isn't called, the rust logger will not start!
+    func initializeLogger() -> Void {
+        init_logger_safely(documentsDirectory)
+    }
+    
     func getAccount() -> CoreResult<Account> {
         fromPrimitiveResult(result: get_account(documentsDirectory))
     }

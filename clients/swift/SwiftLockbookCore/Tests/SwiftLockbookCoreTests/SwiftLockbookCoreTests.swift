@@ -12,10 +12,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
     override class func setUp() {
         super.setUp()
         
-        // Start logger
-        init_logger_safely(SwiftLockbookCoreTests.core.documentsDirectory)
-        
-        print(SwiftLockbookCoreTests.core.documentsDirectory)
+        print("Lockbook Dir", SwiftLockbookCoreTests.core.documentsDirectory)
     }
     
     override func setUp() {
@@ -197,6 +194,6 @@ final class SwiftLockbookCoreTests: XCTestCase {
 
 
     static var allTests = [
-        ("testExample", testExample),
+        ("test00WhatEnvAmIUsing", test00WhatEnvAmIUsing),
     ]
 }
