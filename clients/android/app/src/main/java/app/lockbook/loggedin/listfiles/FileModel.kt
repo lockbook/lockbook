@@ -294,7 +294,7 @@ class FileModel(path: String) {
         when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
-            ) {
+        ) {
             SharedPreferences.SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SharedPreferences.SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SharedPreferences.SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)

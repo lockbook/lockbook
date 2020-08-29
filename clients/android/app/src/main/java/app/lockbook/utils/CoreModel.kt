@@ -5,7 +5,6 @@ import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 class CoreModel(config: Config) {
     private val config = Klaxon().toJsonString(config)
@@ -13,16 +12,16 @@ class CoreModel(config: Config) {
     lateinit var lastDocumentAccessed: FileMetadata
 
     fun setParentToRoot(): Result<Unit, GetRootError> {
-        val root: Result<FileMetadata, GetRootError>? =
+        val getRootResult: Result<FileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(config))
 
-        root?.let { rootResult ->
-            return when (rootResult) {
+        getRootResult?.let {
+            return when (getRootResult) {
                 is Ok -> {
-                    parentFileMetadata = rootResult.value
+                    parentFileMetadata = getRootResult.value
                     Ok(Unit)
                 }
-                is Err -> Err(rootResult.error)
+                is Err -> Err(getRootResult.error)
             }
         }
 
@@ -30,13 +29,13 @@ class CoreModel(config: Config) {
     }
 
     fun getAccount(): Result<Account, GetAccountError> {
-        val account: Result<Account, GetAccountError>? =
+        val getAccountResult: Result<Account, GetAccountError>? =
             Klaxon().converter(getAccountConverter).parse(getAccount(config))
 
-        account?.let { accountResult ->
-            return when (accountResult) {
-                is Ok -> Ok(accountResult.value)
-                is Err -> Err(accountResult.error)
+        getAccountResult?.let {
+            return when (getAccountResult) {
+                is Ok -> Ok(getAccountResult.value)
+                is Err -> Err(getAccountResult.error)
             }
         }
 
@@ -44,13 +43,13 @@ class CoreModel(config: Config) {
     }
 
     fun setLastSynced(lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
-        val lastSynced: Result<Unit, SetLastSyncedError>? =
+        val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSyncedDuration))
 
-        lastSynced?.let { lastSyncedResult ->
-            return when (lastSyncedResult) {
-                is Ok -> Ok(lastSyncedResult.value)
-                is Err -> Err(lastSyncedResult.error)
+        setLastSyncedResult?.let {
+            return when (setLastSyncedResult) {
+                is Ok -> Ok(setLastSyncedResult.value)
+                is Err -> Err(setLastSyncedResult.error)
             }
         }
 
@@ -58,14 +57,14 @@ class CoreModel(config: Config) {
     }
 
     fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
-        val children: Result<List<FileMetadata>, GetChildrenError>? =
+        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren(config, parentFileMetadata.id))
 
-        children?.let { childrenResult ->
-            return when (childrenResult) {
-                is Ok -> Ok(childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
-                is Err -> Err(childrenResult.error)
+        getChildrenResult?.let {
+            return when (getChildrenResult) {
+                is Ok -> Ok(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                is Err -> Err(getChildrenResult.error)
             }
         }
 
@@ -73,18 +72,18 @@ class CoreModel(config: Config) {
     }
 
     fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> {
-        val children: Result<List<FileMetadata>, GetChildrenError>? =
+        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren(config, parentFileMetadata.parent))
 
-        children?.let { childrenResult ->
-            return when (childrenResult) {
+        getChildrenResult?.let {
+            return when (getChildrenResult) {
                 is Ok -> {
                     val editedChildren =
-                        childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted }
+                        getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted }
                     Ok(editedChildren)
                 }
-                is Err -> Err(childrenResult.error)
+                is Err -> Err(getChildrenResult.error)
             }
         }
 
@@ -92,31 +91,31 @@ class CoreModel(config: Config) {
     }
 
     fun getParentOfParent(): Result<Unit, GetFileByIdError> {
-        val parent: Result<FileMetadata, GetFileByIdError>? =
+        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
             ).parse(getFileById(config, parentFileMetadata.parent))
 
-        parent?.let { parentResult ->
-            return when (parentResult) {
+        getFileByIdResult?.let {
+            return when (getFileByIdResult) {
                 is Ok -> {
-                    parentFileMetadata = parentResult.value
+                    parentFileMetadata = getFileByIdResult.value
                     Ok(Unit)
                 }
-                is Err -> Err(parentResult.error)
+                is Err -> Err(getFileByIdResult.error)
             }
         }
         return Err(GetFileByIdError.UnexpectedError("getFileByIdConverter was unable to be called!"))
     }
 
     fun getDocumentContent(fileUuid: String): Result<String, ReadDocumentError> { // return result instead
-        val document: Result<DecryptedValue, ReadDocumentError>? =
+        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument(config, fileUuid))
 
-        document?.let { documentResult ->
-            return when (documentResult) {
-                is Ok -> Ok(documentResult.value.secret)
-                is Err -> Err(documentResult.error)
+        getDocumentResult?.let {
+            return when (getDocumentResult) {
+                is Ok -> Ok(getDocumentResult.value.secret)
+                is Err -> Err(getDocumentResult.error)
             }
         }
 
@@ -222,13 +221,24 @@ class CoreModel(config: Config) {
     }
 
     companion object {
+        fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
+            val initLoggerResult: Result<Unit, InitLoggerError>? = Klaxon().converter(initLoggerConverter)
+                .parse(initLogger(path))
+
+            initLoggerResult?.let {
+                return initLoggerResult
+            }
+
+            return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
+        }
+
         fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
-            val createResult: Result<Unit, CreateAccountError>? =
+            val createAccountResult: Result<Unit, CreateAccountError>? =
                 Klaxon().converter(createAccountConverter)
                     .parse(createAccount(Klaxon().toJsonString(config), account))
 
-            createResult?.let {
-                return createResult
+            createAccountResult?.let {
+                return createAccountResult
             }
 
             return Err(CreateAccountError.UnexpectedError("createAccountConverter was unable to be called!"))

@@ -10,7 +10,6 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
@@ -25,7 +24,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.splash_screen)
-        loadLockbookCore()
         Timber.plant(Timber.DebugTree())
 
         val pref = PreferenceManager.getDefaultSharedPreferences(this)

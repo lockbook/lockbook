@@ -50,6 +50,7 @@ use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
+pub mod java_interface;
 pub mod model;
 pub mod repo;
 pub mod service;

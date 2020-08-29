@@ -6,11 +6,10 @@ android:
 	cargo ndk --target x86_64-linux-android --android-platform $(MIN_VER) -- build --release
 
 	@echo "Cleaning up old .so's if they exist"
-	@rm -rf $(jniLibs)
+	@rm -rf $(jniLibs)/*
 
 	@echo "Moving new .so's over"
-	@mkdir $(jniLibs)
-	@mkdir $(jniLibs)/arm64-v8a
+	@mkdir -p $(jniLibs)/arm64-v8a
 	@mkdir $(jniLibs)/armeabi-v7a
 	@mkdir $(jniLibs)/x86
 	@mkdir $(jniLibs)/x86_64
@@ -19,6 +18,45 @@ android:
 	@cp target/armv7-linux-androideabi/release/$(libName) $(jniLibs)/armeabi-v7a/$(libName)
 	@cp target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
 	@cp target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
+
+.PHONY: macos_jni
+macos_jni:
+	@touch src/lib.rs
+	@cargo build --lib --release
+	
+	@echo "Cleaning up old .dylib if they exist"
+	@rm -rf $(jniLibs)/desktop
+	
+	@echo "Moving new .dylib over"
+	@mkdir -p $(jniLibs)/desktop
+
+	@cp target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
+
+.PHONY: windows_jni
+windows_jni:
+	@touch src/lib.rs
+	@cargo build --lib --release
+	
+	@echo "Cleaning up old .dll if they exist"
+	@rm -rf $(jniLibs)/desktop
+	
+	@echo "Moving new .dll over"
+	@mkdir -p $(jniLibs)/desktop
+
+	@cp target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
+
+.PHONY: linux_jni
+linux_jni:
+	@touch src/lib.rs
+	@cargo build --lib --release
+	
+	@echo "Cleaning up old .so if they exist"
+	@rm -rf $(jniLibs)/desktop
+	
+	@echo "Moving new .so over"
+	@mkdir -p $(jniLibs)/desktop
+
+	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
 .PHONY: apple
 apple:
@@ -45,6 +83,8 @@ apple:
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
 libName = 'liblockbook_core.so'
+macosLibName = 'liblockbook_core.dylib'
+windowsLibName = 'liblockbook_core.dll'
 
 # Apple Library Location
 inc_apple := ../clients/apple/include/
