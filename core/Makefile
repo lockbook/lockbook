@@ -30,7 +30,7 @@ macos_jni:
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@mv target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
+	@cp target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
 
 .PHONY: windows_jni
 windows_jni:
@@ -43,7 +43,7 @@ windows_jni:
 	@echo "Moving new .dll over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@mv target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
+	@cp target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
 .PHONY: linux_jni
 linux_jni:
@@ -77,7 +77,7 @@ apple:
 	@cp lockbook_core.h ${inc_apple}
 
 	@echo "Copying fat library"
-	@mv target/universal/release/liblockbook_core.a ${libs_apple}
+	@cp target/universal/release/liblockbook_core.a ${libs_apple}
 
 
 MIN_VER = 22

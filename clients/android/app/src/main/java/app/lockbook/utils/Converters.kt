@@ -35,6 +35,8 @@ val createAccountConverter = object : Converter {
         val okResult = jv.obj?.containsKey("Ok")
         val errorResult = jv.obj?.get("Err")
 
+        print("SMAILBARKOUCH123: ${jv.obj?.toJsonString(prettyPrint = true)}")
+
         if (okResult == true) {
             return Ok(Unit)
         }
