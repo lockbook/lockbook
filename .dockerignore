@@ -16,3 +16,6 @@ clients/android/.idea/assetWizardSettings.xml
 .DS_Store
 clients/android/captures/**
 clients/android/core/src/main/jniLibs
+**/.build/*
+clients/apple/CLockbookCore/Sources/CLockbookCore/include/lockbook_core.h
+clients/apple/CLockbookCore/Sources/CLockbookCore/lib/liblockbook_core.a
