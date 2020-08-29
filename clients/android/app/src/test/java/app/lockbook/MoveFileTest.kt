@@ -51,7 +51,9 @@ class MoveFileTest {
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val moveFileError = coreModel.moveFile(generateId(), folder.id).component2()!!
-        require(moveFileError is MoveFileError.FileDoesNotExist)
+        require(moveFileError is MoveFileError.FileDoesNotExist) {
+            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.FileDoesNotExist::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -67,7 +69,9 @@ class MoveFileTest {
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val moveFileError = coreModel.moveFile(folder.id, document.id).component2()!!
-        require(moveFileError is MoveFileError.DocumentTreatedAsFolder)
+        require(moveFileError is MoveFileError.DocumentTreatedAsFolder) {
+            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.DocumentTreatedAsFolder::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -81,7 +85,9 @@ class MoveFileTest {
         val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
         coreModel.insertFile(document).component1()!!
         val moveFileError = coreModel.moveFile(document.id, generateId()).component2()!!
-        require(moveFileError is MoveFileError.TargetParentDoesNotExist)
+        require(moveFileError is MoveFileError.TargetParentDoesNotExist) {
+            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.TargetParentDoesNotExist::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -102,7 +108,9 @@ class MoveFileTest {
         val secondDocument = coreModel.createFile(documentName, Klaxon().toJsonString(FileType.Document)).component1()!!
         coreModel.insertFile(secondDocument).component1()!!
         val moveFileError = coreModel.moveFile(secondDocument.id, folder.id).component2()!!
-        require(moveFileError is MoveFileError.TargetParentHasChildNamedThat)
+        require(moveFileError is MoveFileError.TargetParentHasChildNamedThat) {
+            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.TargetParentHasChildNamedThat::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -110,6 +118,8 @@ class MoveFileTest {
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter).parse(moveFile("", "", ""))
         val moveError = moveResult!!.component2()!!
-        require(moveError is MoveFileError.UnexpectedError)
+        require(moveError is MoveFileError.UnexpectedError) {
+            "${Klaxon().toJsonString(moveError)} != ${MoveFileError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
