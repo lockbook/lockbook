@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CLockbookCore
 
 func intEpochToString(epoch: Int) -> String {
     let date = Date(timeIntervalSince1970: TimeInterval(epoch/1000))
