@@ -56,7 +56,7 @@ linux_jni:
 	@echo "Moving new .so over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@mv target/release/$(libName) $(jniLibs)/desktop/$(libName)
+	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
 .PHONY: apple
 apple:
