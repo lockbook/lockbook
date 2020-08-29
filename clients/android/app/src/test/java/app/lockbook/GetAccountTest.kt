@@ -35,7 +35,9 @@ class GetAccountTest {
     fun getAccountNoAccount() {
         val coreModel = CoreModel(Config(path))
         val getAccountError = coreModel.getAccount().component2()!!
-        require(getAccountError is GetAccountError.NoAccount)
+        require(getAccountError is GetAccountError.NoAccount) {
+            "${Klaxon().toJsonString(getAccountError)} != ${GetAccountError.NoAccount::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -43,6 +45,8 @@ class GetAccountTest {
         val getAccountResult: Result<Account, GetAccountError>? =
             Klaxon().converter(getAccountConverter).parse(getAccount(""))
         val getAccountError = getAccountResult!!.component2()!!
-        require(getAccountError is GetAccountError.UnexpectedError)
+        require(getAccountError is GetAccountError.UnexpectedError) {
+            "${Klaxon().toJsonString(getAccountError)} != ${GetAccountError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

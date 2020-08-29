@@ -42,7 +42,9 @@ class SyncAllTest {
     @Test
     fun syncAllNoAccount() {
         val syncAllError = CoreModel.syncAllFiles(Config(path)).component2()!!
-        require(syncAllError is SyncAllError.NoAccount)
+        require(syncAllError is SyncAllError.NoAccount) {
+            "${Klaxon().toJsonString(syncAllError)} != ${SyncAllError.NoAccount::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -50,6 +52,8 @@ class SyncAllTest {
         val syncResult: Result<Unit, SyncAllError>? =
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
         val syncError = syncResult!!.component2()!!
-        require(syncError is SyncAllError.UnexpectedError)
+        require(syncError is SyncAllError.UnexpectedError) {
+            "${Klaxon().toJsonString(syncError)} != ${SyncAllError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

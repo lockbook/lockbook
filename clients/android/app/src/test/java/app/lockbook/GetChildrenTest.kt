@@ -43,6 +43,8 @@ class GetChildrenTest {
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren("", ""))
         val getChildrenError = getChildrenResult!!.component2()!!
-        require(getChildrenError is GetChildrenError.UnexpectedError)
+        require(getChildrenError is GetChildrenError.UnexpectedError) {
+            "${Klaxon().toJsonString(getChildrenError)} != ${GetChildrenError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

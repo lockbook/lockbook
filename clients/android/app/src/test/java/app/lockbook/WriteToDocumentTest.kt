@@ -47,7 +47,9 @@ class WriteToDocumentTest {
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
         val writeToDocumentError = CoreModel.writeContentToDocument(Config(path), generateId(), "").component2()!!
-        require(writeToDocumentError is WriteToDocumentError.FileDoesNotExist)
+        require(writeToDocumentError is WriteToDocumentError.FileDoesNotExist) {
+            "${Klaxon().toJsonString(writeToDocumentError)} != ${WriteToDocumentError.FileDoesNotExist::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -61,7 +63,9 @@ class WriteToDocumentTest {
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val writeToDocumentError = CoreModel.writeContentToDocument(Config(path), folder.id, "").component2()!!
-        require(writeToDocumentError is WriteToDocumentError.FolderTreatedAsDocument)
+        require(writeToDocumentError is WriteToDocumentError.FolderTreatedAsDocument) {
+            "${Klaxon().toJsonString(writeToDocumentError)} != ${WriteToDocumentError.FolderTreatedAsDocument::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -69,6 +73,8 @@ class WriteToDocumentTest {
         val writeResult: Result<Unit, WriteToDocumentError>? =
             Klaxon().converter(writeDocumentConverter).parse(writeDocument("", "", ""))
         val writeError = writeResult!!.component2()!!
-        require(writeError is WriteToDocumentError.UnexpectedError)
+        require(writeError is WriteToDocumentError.UnexpectedError) {
+            "${Klaxon().toJsonString(writeError)} != ${WriteToDocumentError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

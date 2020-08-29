@@ -52,6 +52,8 @@ class ExecuteWorkTest {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
         val executeSyncWorkError = executeSyncWorkResult!!.component2()!!
-        require(executeSyncWorkError is ExecuteWorkError.UnexpectedError)
+        require(executeSyncWorkError is ExecuteWorkError.UnexpectedError) {
+            "${Klaxon().toJsonString(executeSyncWorkError)} != ${ExecuteWorkError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
