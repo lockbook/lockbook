@@ -8,11 +8,11 @@
 
 import Foundation
 
-enum WorkUnit {
+public enum WorkUnit {
     case Local(Content)
     case Server(Content)
     
-    func type() -> String {
+    public func type() -> String {
         switch self {
         case .Local(_):
             return "Local"
@@ -20,7 +20,7 @@ enum WorkUnit {
             return "Server"
         }
     }
-    func get() -> FileMetadata {
+    public func get() -> FileMetadata {
         switch self {
         case .Local(let c):
             return c.metadata
@@ -31,7 +31,7 @@ enum WorkUnit {
 }
 
 extension WorkUnit: Codable {
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         switch self {
@@ -49,7 +49,7 @@ extension WorkUnit: Codable {
         case tag
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let tag = try container.decode(WorkType.self, forKey: .tag)
         let content = try container.decode(Content.self, forKey: .content)
@@ -63,16 +63,16 @@ extension WorkUnit: Codable {
     }
 }
 
-struct WorkMetadata: Decodable {
-    var mostRecentUpdateFromServer: Date
-    var workUnits: [WorkUnit]
+public struct WorkMetadata: Decodable {
+    public var mostRecentUpdateFromServer: Date
+    public var workUnits: [WorkUnit]
 }
 
-struct Content: Codable {
-    var metadata: FileMetadata
+public struct Content: Codable {
+    public var metadata: FileMetadata
 }
 
-enum WorkType: String, Codable {
+public enum WorkType: String, Codable {
     case LocalChange
     case ServerChange
 }
