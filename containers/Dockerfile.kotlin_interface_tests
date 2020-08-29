@@ -25,6 +25,7 @@ RUN make linux_jni
 # Copy android and core in
 WORKDIR ..
 COPY clients/android clients/android
+RUN mkdir android/core/src/main/jniLibs/desktop
 RUN mv core/target/release/$(libName) android/core/src/main/jniLibs/desktop/$(libName)
 
 # Build android
