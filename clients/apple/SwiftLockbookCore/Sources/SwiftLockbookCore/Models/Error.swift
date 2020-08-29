@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum ApplicationError: Error {
+public enum ApplicationError: Error {
     case Lockbook(CoreError)
     case Serialization(String)
     case State(String)
@@ -28,7 +28,7 @@ enum ApplicationError: Error {
     }
 }
 
-struct CoreError: Error {
+public struct CoreError: Error {
     var message: String
     var type: ErrorType
     
@@ -37,7 +37,7 @@ struct CoreError: Error {
     }
 }
 
-enum ErrorType {
+public enum ErrorType {
     case Network
     case Database
     case Unhandled
