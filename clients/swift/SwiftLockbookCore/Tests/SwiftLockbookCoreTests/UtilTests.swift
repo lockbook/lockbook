@@ -7,7 +7,7 @@
 //
 
 import XCTest
-@testable import LockbookCore
+@testable import SwiftLockbookCore
 
 class UtilTests: XCTestCase {
     func test01WorkUnitDecoding() {
