@@ -1,10 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.createAccount
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateAccountError
-import app.lockbook.utils.createAccountConverter
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -42,7 +39,9 @@ class CreateAccountTest {
         path = createRandomPath()
 
         val secondAccountError = CoreModel.generateAccount(Config(path), username).component2()!!
-        require(secondAccountError is CreateAccountError.UsernameTaken)
+        require(secondAccountError is CreateAccountError.UsernameTaken) {
+            "${Klaxon().toJsonString(secondAccountError)} != ${CreateAccountError.UsernameTaken::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -51,7 +50,9 @@ class CreateAccountTest {
             Config(path),
             "!@#$%^&*()"
         ).component2()!!
-        require(firstCreateAccountError is CreateAccountError.InvalidUsername)
+        require(firstCreateAccountError is CreateAccountError.InvalidUsername) {
+            "${Klaxon().toJsonString(firstCreateAccountError)} != ${CreateAccountError.InvalidUsername::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -62,7 +63,9 @@ class CreateAccountTest {
         ).component1()!!
         val createAccountError =
             CoreModel.generateAccount(Config(path), generateAlphaString()).component2()!!
-        require(createAccountError is CreateAccountError.AccountExistsAlready)
+        require(createAccountError is CreateAccountError.AccountExistsAlready) {
+            "${Klaxon().toJsonString(createAccountError)} != ${CreateAccountError.AccountExistsAlready::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -71,6 +74,8 @@ class CreateAccountTest {
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount("", ""))
         val createAccountError = createAccountResult!!.component2()!!
-        require(createAccountError is CreateAccountError.UnexpectedError)
+        require(createAccountError is CreateAccountError.UnexpectedError) {
+            "${Klaxon().toJsonString(createAccountError)} != ${CreateAccountError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

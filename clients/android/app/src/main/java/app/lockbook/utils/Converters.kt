@@ -16,7 +16,6 @@ val initLoggerConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(InitLoggerError.Unexpected(unexpectedResult))
         }
 
@@ -52,7 +51,6 @@ val createAccountConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(CreateAccountError.UnexpectedError(unexpectedResult))
         }
 
@@ -83,7 +81,6 @@ val importAccountConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(ImportError.UnexpectedError(unexpectedResult))
         }
 
@@ -110,7 +107,6 @@ val exportAccountConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(AccountExportError.UnexpectedError(unexpectedResult))
         }
 
@@ -137,7 +133,6 @@ val getAccountConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(GetAccountError.UnexpectedError(unexpectedResult))
         }
 
@@ -185,7 +180,6 @@ val getRootConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(GetRootError.UnexpectedError(unexpectedResult))
         }
 
@@ -207,7 +201,6 @@ val getChildrenConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(GetChildrenError.UnexpectedError(unexpectedResult))
         }
 
@@ -234,7 +227,6 @@ val getFileByIdConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(GetFileByIdError.UnexpectedError(unexpectedResult))
         }
 
@@ -256,7 +248,6 @@ val insertFileConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(InsertFileError.UnexpectedError(unexpectedResult))
         }
 
@@ -289,7 +280,6 @@ val renameFileConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(RenameFileError.UnexpectedError(unexpectedResult))
         }
 
@@ -320,7 +310,6 @@ val createFileConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(CreateFileError.UnexpectedError(unexpectedResult))
         }
 
@@ -347,7 +336,6 @@ val deleteFileConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(SetLastSyncedError.UnexpectedError(unexpectedResult))
         }
 
@@ -378,7 +366,6 @@ val readDocumentConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(ReadDocumentError.UnexpectedError(unexpectedResult))
         }
 
@@ -411,7 +398,6 @@ val writeDocumentConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(WriteToDocumentError.UnexpectedError(unexpectedResult))
         }
 
@@ -452,7 +438,6 @@ val moveFileConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(MoveFileError.UnexpectedError(unexpectedResult))
         }
 
@@ -487,13 +472,8 @@ val syncAllConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(SyncAllError.UnexpectedError(unexpectedResult))
         }
-//
-//        executeWorkError?.let { jsonArray ->
-//            return Err(Klaxon().parseFromJsonArray<ExecuteWorkError>(jsonArray))
-//        }
 
         return Err(SyncAllError.UnexpectedError("Unable to parse SyncAllResult: ${jv.obj?.toJsonString()}"))
     }
@@ -527,7 +507,6 @@ val calculateSyncWorkConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(CalculateWorkError.UnexpectedError(unexpectedResult))
         }
 
@@ -554,7 +533,6 @@ val executeSyncWorkConverter = object : Converter {
         }
 
         if (unexpectedResult is String) {
-            print(unexpectedResult)
             return Err(ExecuteWorkError.UnexpectedError(unexpectedResult))
         }
 

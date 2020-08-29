@@ -1,10 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.importAccount
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.ImportError
-import app.lockbook.utils.importAccountConverter
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -42,7 +39,9 @@ class ImportAccountTest {
             Config(path),
             "!@#$%^&*()"
         ).component2()!!
-        require(firstImportAccountError is ImportError.AccountStringCorrupted)
+        require(firstImportAccountError is ImportError.AccountStringCorrupted) {
+            "${Klaxon().toJsonString(firstImportAccountError)} != ${ImportError.AccountStringCorrupted::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -51,6 +50,8 @@ class ImportAccountTest {
             Klaxon().converter(importAccountConverter)
                 .parse(importAccount("", ""))
         val importError = importResult!!.component2()!!
-        require(importError is ImportError.UnexpectedError)
+        require(importError is ImportError.UnexpectedError) {
+            "${Klaxon().toJsonString(importError)} != ${ImportError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

@@ -44,6 +44,8 @@ class InsertFileTest {
             Klaxon().converter(insertFileConverter)
                 .parse(insertFile("", ""))
         val insertError = insertResult!!.component2()!!
-        require(insertError is InsertFileError.UnexpectedError)
+        require(insertError is InsertFileError.UnexpectedError) {
+            "${Klaxon().toJsonString(insertError)} != ${InsertFileError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
