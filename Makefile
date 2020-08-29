@@ -66,20 +66,29 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose down
-	HASH=$(hash) docker-compose up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
 
 .PHONY: android
-android:
+android: is_docker_running
 	docker build -f containers/Dockerfile.android . --tag android:$(hash)
 
 .PHONY: android_lint
-android_lint:
+android_lint: android
 	docker run android:$(hash) ./gradlew lint
 
 .PHONY: android_fmt
-android_fmt:
+android_fmt: android
 	docker run android:$(hash) ./gradlew lintKotlin 
+
+.PHONY: kotlin_interface_tests
+kotlin_interface_tests: is_docker_running
+	docker build -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
+
+.PHONY: kotlin_interface_tests_run
+kotlin_interface_tests_run: kotlin_interface_tests server
+	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
 
 # Helpers
 .PHONY: is_docker_running
