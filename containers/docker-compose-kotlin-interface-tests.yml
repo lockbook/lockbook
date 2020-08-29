@@ -55,6 +55,7 @@ services:
         sleep 5 && \
         RUST_LOG=lockbook_server=debug cargo run \
       '
+
   kotlin_interface_tests:
     image: kotlin_interface_tests:$HASH
     container_name: kotlin_interface_tests-$HASH
@@ -65,5 +66,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        ./gradlew test
+        ./gradlew test -i \
       '
