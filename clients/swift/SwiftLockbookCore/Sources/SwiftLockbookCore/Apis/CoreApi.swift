@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CLockbookCore
 
 typealias CoreResult<T> = Result<T, ApplicationError>
 
