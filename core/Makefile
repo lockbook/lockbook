@@ -58,8 +58,8 @@ linux_jni:
 
 	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
-.PHONY: lib_c_ios
-lib_c_ios:
+.PHONY: lib_c_for_swift_ios
+lib_c_for_swift_ios:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || true
@@ -72,8 +72,8 @@ lib_c_ios:
 	@mkdir -p ${swift_lib}
 	cp target/universal/release/liblockbook_core.a ${swift_lib}
 
-.PHONY: swift
-swift:
+.PHONY: lib_c_for_swift
+lib_c_for_swift:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || true
@@ -85,11 +85,6 @@ swift:
 	cargo build
 	@mkdir -p ${swift_lib}
 	cp target/debug/liblockbook_core.a ${swift_lib}
-
-.PHONY: swift_clean
-swift_clean:
-	@rm ${swift_lib}liblockbook_core.a || true
-	@rm ${swift_inc}lockbook_core.h || true
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
