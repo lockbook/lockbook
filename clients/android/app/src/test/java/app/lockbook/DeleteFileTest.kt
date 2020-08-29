@@ -48,7 +48,9 @@ class DeleteFileTest {
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
         val deleteFileError = coreModel.deleteFile(generateId()).component2()!!
-        require(deleteFileError is DeleteFileError.NoFileWithThatId)
+        require(deleteFileError is DeleteFileError.NoFileWithThatId) {
+            "${Klaxon().toJsonString(deleteFileError)} != ${DeleteFileError.NoFileWithThatId::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -56,6 +58,8 @@ class DeleteFileTest {
         val deleteFile: Result<Unit, DeleteFileError>? =
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
         val deleteFileError = deleteFile!!.component2()!!
-        require(deleteFileError is DeleteFileError.UnexpectedError)
+        require(deleteFileError is DeleteFileError.UnexpectedError) {
+            "${Klaxon().toJsonString(deleteFileError)} != ${DeleteFileError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
