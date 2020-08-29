@@ -48,7 +48,9 @@ class ReadDocumentTest {
         val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
         coreModel.insertFile(folder).component1()!!
         val readDocumentError = coreModel.getDocumentContent(folder.id).component2()!!
-        require(readDocumentError is ReadDocumentError.TreatedFolderAsDocument)
+        require(readDocumentError is ReadDocumentError.TreatedFolderAsDocument) {
+            "${Klaxon().toJsonString(readDocumentError)} != ${ReadDocumentError.TreatedFolderAsDocument::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -60,7 +62,9 @@ class ReadDocumentTest {
         ).component1()!!
         coreModel.setParentToRoot().component1()!!
         val readDocumentError = coreModel.getDocumentContent(generateId()).component2()!!
-        require(readDocumentError is ReadDocumentError.FileDoesNotExist)
+        require(readDocumentError is ReadDocumentError.FileDoesNotExist) {
+            "${Klaxon().toJsonString(readDocumentError)} != ${ReadDocumentError.FileDoesNotExist::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -68,6 +72,8 @@ class ReadDocumentTest {
         val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
         val getDocumentError = getDocumentResult!!.component2()!!
-        require(getDocumentError is ReadDocumentError.UnexpectedError)
+        require(getDocumentError is ReadDocumentError.UnexpectedError) {
+            "${Klaxon().toJsonString(getDocumentError)} != ${ReadDocumentError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
