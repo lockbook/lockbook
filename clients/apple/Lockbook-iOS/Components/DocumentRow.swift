@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftLockbookCore
 
 struct DocumentRow: View {
     @ObservedObject var coordinator: Coordinator

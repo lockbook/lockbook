@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import SwiftLockbookCore
 
 final class Coordinator: ObservableObject {
     private var syncTimer: Timer

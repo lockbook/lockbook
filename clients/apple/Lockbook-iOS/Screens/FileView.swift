@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftLockbookCore
 
 struct FileView: View {
     @ObservedObject var coordinator: Coordinator
