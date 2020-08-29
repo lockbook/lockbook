@@ -55,6 +55,7 @@ services:
         sleep 5 && \
         RUST_LOG=lockbook_server=debug cargo run \
       '
+
   integration_tests:
     image: integration_tests:$HASH
     container_name: integration_tests-integration-$HASH
@@ -65,5 +66,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUSTLOG=lockbook_core=debug cargo test -- --nocapture \
+        LOCKBOOK_DEBUG=1 cargo test -- --nocapture \
       '

@@ -13,7 +13,7 @@ use crate::{NO_ACCOUNT, NO_CLI_LOCATION};
 use std::process::exit;
 
 pub fn init_logger_or_print() {
-    if let Err(err) = init_logger(&get_config()) {
+    if let Err(err) = init_logger(&get_config().path()) {
         eprintln!("Logger failed to initialize! {:#?}", err)
     }
 }
