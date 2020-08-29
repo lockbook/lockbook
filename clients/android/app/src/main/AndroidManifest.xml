@@ -60,6 +60,9 @@
         <activity
             android:name=".loggedin.texteditor.TextEditorActivity"
             android:screenOrientation="portrait" />
+        <activity
+            android:name=".loggedin.logs.LogActivity"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>
