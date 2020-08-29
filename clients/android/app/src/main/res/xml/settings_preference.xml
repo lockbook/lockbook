@@ -5,6 +5,7 @@
     android:layout_height="match_parent">
 
     <PreferenceCategory
+        android:key="view_logs_title"
         android:title="Debug"
         app:iconSpaceReserved="false">
         <Preference
