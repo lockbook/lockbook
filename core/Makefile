@@ -58,8 +58,8 @@ linux_jni:
 
 	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
-.PHONY: swift
-swift:
+.PHONY: lib_c_ios
+lib_c_ios:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || true
@@ -72,8 +72,8 @@ swift:
 	@mkdir -p ${swift_lib}
 	cp target/universal/release/liblockbook_core.a ${swift_lib}
 
-.PHONY: swift-linux
-swift-linux:
+.PHONY: swift
+swift:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || true
@@ -86,8 +86,8 @@ swift-linux:
 	@mkdir -p ${swift_lib}
 	cp target/debug/liblockbook_core.a ${swift_lib}
 
-.PHONY: swift-clean
-swift-clean:
+.PHONY: swift_clean
+swift_clean:
 	@rm ${swift_lib}liblockbook_core.a || true
 	@rm ${swift_inc}lockbook_core.h || true
 
