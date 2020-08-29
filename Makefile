@@ -66,8 +66,7 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml down
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml up --exit-code-from=integration_tests integration-tests-$(hash)
 
 .PHONY: android
 android: is_docker_running
@@ -87,7 +86,6 @@ kotlin_interface_tests: is_docker_running
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: kotlin_interface_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml down
 	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml up --exit-code-from=kotlin_interface_tests
 
 # Helpers
