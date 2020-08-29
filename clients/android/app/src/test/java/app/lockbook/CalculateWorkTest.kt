@@ -26,6 +26,7 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkOk() {
+
         val coreModel = CoreModel(Config(path))
         CoreModel.generateAccount(
             Config(path),
@@ -39,6 +40,8 @@ class CalculateWorkTest {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
         val calculateWorkError = calculateSyncWorkResult!!.component2()!!
-        require(calculateWorkError is CalculateWorkError.UnexpectedError)
+        require(calculateWorkError is CalculateWorkError.UnexpectedError) {
+            "${Klaxon().toJsonString(calculateWorkError)} != ${CalculateWorkError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }

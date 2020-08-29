@@ -1,10 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.exportAccount
-import app.lockbook.utils.AccountExportError
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.exportAccountConverter
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -40,7 +37,9 @@ class ExportAccountTest {
     @Test
     fun exportAccountNoAccount() {
         val exportAccountError = CoreModel.exportAccount(Config(path)).component2()!!
-        require(exportAccountError is AccountExportError.NoAccount)
+        require(exportAccountError is AccountExportError.NoAccount) {
+            "${Klaxon().toJsonString(exportAccountError)} != ${AccountExportError.NoAccount::class.qualifiedName}"
+        }
     }
 
     @Test
@@ -49,6 +48,8 @@ class ExportAccountTest {
             Klaxon().converter(exportAccountConverter)
                 .parse(exportAccount(""))
         val exportAccountError = exportAccountResult!!.component2()!!
-        require(exportAccountError is AccountExportError.UnexpectedError)
+        require(exportAccountError is AccountExportError.UnexpectedError) {
+            "${Klaxon().toJsonString(exportAccountError)} != ${AccountExportError.UnexpectedError::class.qualifiedName}"
+        }
     }
 }
