@@ -27,7 +27,7 @@ jobs:
         cd core
         cargo install cargo-lipo
         rustup target add aarch64-apple-ios x86_64-apple-ios
-        make swift
+        make swift_ios
         cd ..
         make ios_test
 #        xcodebuild -project ios_client.xcodeproj -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO

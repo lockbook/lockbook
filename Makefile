@@ -1,5 +1,5 @@
 .PHONY: all
-all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli_lint cli_test integration_tests_fmt integration_tests_lint integration_tests_run android
+all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli_lint cli_test integration_tests_run kotlin_interface_tests_run android
 	echo "Done!"
 
 .PHONY: clean
@@ -95,7 +95,7 @@ apple:
 	docker build -f containers/Dockerfile.apple . --tag apple:$(hash)
 
 .PHONY: apple_test
-apple_test:
+apple_test: apple
 	docker run apple:$(hash) swift test
 
 # Helpers
