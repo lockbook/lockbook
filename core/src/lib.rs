@@ -104,7 +104,9 @@ pub enum InitLoggerError {
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    loggers::init(log_path, env::var("LOCKBOOK_DEBUG").is_ok())
+    let print_debug = env::var("LOCKBOOK_DEBUG").is_ok();
+    let print_colors = env::var("LOCKBOOK_NO_COLOR").is_err();
+    loggers::init(log_path, print_debug, print_colors)
         .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
 }
 
