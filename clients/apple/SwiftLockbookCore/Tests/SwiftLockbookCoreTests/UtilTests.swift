@@ -12,7 +12,8 @@ import XCTest
 class UtilTests: XCTestCase {
     func test01WorkUnitDecoding() {
         let bundle = Bundle(for: type(of: self))
-        guard let url = bundle.url(forResource: "workUnits", withExtension: "json"), let data = try? Data(contentsOf: url) else {
+        print(bundle.)
+        guard let url = bundle.url(forResource: "Resources/workUnits", withExtension: "json"), let data = try? Data(contentsOf: url) else {
             return XCTFail("Could not load JSON")
         }
         
@@ -25,7 +26,7 @@ class UtilTests: XCTestCase {
     
     func test02CalculateWorkDecode() {
         let bundle = Bundle(for: type(of: self))
-        guard let url = bundle.url(forResource: "workResult", withExtension: "json"), let data = try? Data(contentsOf: url) else {
+        guard let url = bundle.url(forResource: "Resources/workResult", withExtension: "json"), let data = try? Data(contentsOf: url) else {
             return XCTFail("Could not load JSON")
         }
         
@@ -38,4 +39,10 @@ class UtilTests: XCTestCase {
             XCTFail(err.message())
         }
     }
+    
+    static var allTests = [
+        ("test01WorkUnitDecoding", test01WorkUnitDecoding),
+        ("test02CalculateWorkDecode", test02CalculateWorkDecode),
+    ]
+
 }

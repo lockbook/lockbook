@@ -90,6 +90,14 @@ kotlin_interface_tests_run: kotlin_interface_tests server
 	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
 
+.PHONY: apple
+apple:
+	docker build -f containers/Dockerfile.apple . --tag apple:$(hash)
+
+.PHONY: apple_test
+apple_test:
+	docker run apple:$(hash) swift test
+
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:
