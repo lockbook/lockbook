@@ -13,7 +13,7 @@ COPY core core
 WORKDIR core
 # This will cause problems for you during tests
 ENV API_URL="http://qa.lockbook.app:8000"
-RUN make swift-linux
+RUN make swift_linux
 
 # Build Swift Package
 COPY clients/apple ../clients/apple
