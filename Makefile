@@ -81,9 +81,13 @@ android_lint:
 android_fmt:
 	docker run android:$(hash) ./gradlew lintKotlin 
 
-.PHONY: ios_test
-ios_test:
-	xcodebuild -project clients/apple/lockbook.xcodeproj -scheme LockbookCore -destination platform=iOS\ Simulator,OS=13.6,name=iPhone\ 11 clean test
+.PHONY: apple
+apple:
+	docker build -f containers/Dockerfile.apple . --tag apple:$(hash)
+
+.PHONY: apple_test
+apple_test:
+	docker run apple:$(hash) swift test
 
 # Helpers
 .PHONY: is_docker_running

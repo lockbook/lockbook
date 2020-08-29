@@ -195,5 +195,12 @@ final class SwiftLockbookCoreTests: XCTestCase {
 
     static var allTests = [
         ("test00WhatEnvAmIUsing", test00WhatEnvAmIUsing),
+        ("test01CreateExportImportAccount", test01CreateExportImportAccount),
+        ("test02CreateFile", test02CreateFile),
+        ("test03Sync", test03Sync),
+        ("test04ListFiles", test04ListFiles),
+        ("test05CreateFile", test05CreateFile),
+        ("test06CalculateWork", test06CalculateWork),
+        ("test10FfiPerformance", test10FfiPerformance)
     ]
 }
