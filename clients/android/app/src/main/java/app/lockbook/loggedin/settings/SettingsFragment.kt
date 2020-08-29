@@ -3,6 +3,7 @@ package app.lockbook.loggedin.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.text.InputFilter
 import android.text.InputType
@@ -16,7 +17,10 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.preference.*
+import app.lockbook.BuildConfig
 import app.lockbook.R
+import app.lockbook.loggedin.logs.LogActivity
+import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
@@ -29,6 +33,8 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
+import app.lockbook.utils.SharedPreferences.VIEW_LOGS_KEY
+import app.lockbook.utils.SharedPreferences.VIEW_LOGS_TITLE_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -51,6 +57,9 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
 
             false
         }
+
+        findPreference<Preference>(VIEW_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
+        findPreference<Preference>(VIEW_LOGS_TITLE_KEY)?.isVisible = BuildConfig.DEBUG
 
         findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
             editText.inputType = InputType.TYPE_CLASS_NUMBER
@@ -77,6 +86,9 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
+            VIEW_LOGS_KEY -> {
+                startActivity(Intent(context, LogActivity::class.java))
+            }
             BACKGROUND_SYNC_ENABLED_KEY -> {
                 val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)
                 when (val onOrOff = editText?.isEnabled) {
