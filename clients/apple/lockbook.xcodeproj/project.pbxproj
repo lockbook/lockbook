@@ -20,6 +20,7 @@
 		EA04FD5124B26EF1003CB6BF /* TextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA04FD5024B26EF1003CB6BF /* TextEditor.swift */; };
 		EA32D1B824FABA1F0018E8F4 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA32D1B724FABA1F0018E8F4 /* SwiftLockbookCore */; };
 		EA4B8AEB24B4004200DE4F3D /* LoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4B8AEA24B4004200DE4F3D /* LoginManager.swift */; };
+		EA5F6FC524FACAF000625B13 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA5F6FC424FACAF000625B13 /* SwiftLockbookCore */; };
 		EA6A0D702443652A0072E2B3 /* DocumentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D6F2443652A0072E2B3 /* DocumentRow.swift */; };
 		EA6A0D7224437FD30072E2B3 /* ControllerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6A0D7124437FD30072E2B3 /* ControllerView.swift */; };
 		EA6CEBE7244CD6940017A402 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6CEBE6244CD6940017A402 /* ImportAccountView.swift */; };
@@ -93,6 +94,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA5F6FC524FACAF000625B13 /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -250,6 +252,9 @@
 			dependencies = (
 			);
 			name = "Lockbook-macOS";
+			packageProductDependencies = (
+				EA5F6FC424FACAF000625B13 /* SwiftLockbookCore */,
+			);
 			productName = macos;
 			productReference = EAF04890247C5C700021FE6F /* Lockbook-macOS.app */;
 			productType = "com.apple.product-type.application";
@@ -282,7 +287,6 @@
 			);
 			mainGroup = 87BD615423E3B9CB00945B25;
 			packageReferences = (
-				EA32D1B924FABB830018E8F4 /* XCRemoteSwiftPackageReference "SwiftLockbookCore" */,
 			);
 			productRefGroup = 87BD615E23E3B9CB00945B25 /* Products */;
 			projectDirPath = "";
@@ -669,7 +673,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				INFOPLIST_FILE = macos/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/Lockbook-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -695,7 +699,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				INFOPLIST_FILE = macos/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/Lockbook-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -721,7 +725,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				INFOPLIST_FILE = macos/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/Lockbook-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -770,15 +774,12 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		EA32D1B924FABB830018E8F4 /* XCRemoteSwiftPackageReference "SwiftLockbookCore" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "file://../../apple/SwiftLockbookCore";
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		EA32D1B724FABA1F0018E8F4 /* SwiftLockbookCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftLockbookCore;
+		};
+		EA5F6FC424FACAF000625B13 /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
 		};
