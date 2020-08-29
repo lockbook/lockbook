@@ -59,7 +59,7 @@ iOS Simulator and Device targets for rust:
 rustup target add aarch64-apple-ios x86_64-apple-ios
 ```
 
-`make apple` in the `core` folder.
+`make swift` in the `core` folder.
 
 ## macOS
 
