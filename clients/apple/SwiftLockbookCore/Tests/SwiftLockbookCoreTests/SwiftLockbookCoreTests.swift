@@ -12,7 +12,8 @@ final class SwiftLockbookCoreTests: XCTestCase {
     override class func setUp() {
         super.setUp()
         
-        print("Lockbook Dir", SwiftLockbookCoreTests.core.documentsDirectory)
+        print("LOCKBOOK DIR", SwiftLockbookCoreTests.core.documentsDirectory)
+        print("API LOCATION", SwiftLockbookCoreTests.core.getApiLocation())
     }
     
     override func setUp() {
@@ -20,7 +21,10 @@ final class SwiftLockbookCoreTests: XCTestCase {
         
         continueAfterFailure = false
         
-        XCTAssertTrue(SwiftLockbookCoreTests.core.getApiLocation().contains("qa."))
+        let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
+        if (apiLocation.contains("://api.")) {
+            XCTFail("API Location looks like prod: \"\(apiLocation)\". Stopping tests...")
+        }
     }
     
     func test00WhatEnvAmIUsing() {
