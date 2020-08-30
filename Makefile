@@ -86,7 +86,7 @@ kotlin_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
 
 .PHONY: kotlin_interface_tests_run
-kotlin_interface_tests_run: kotlin_interface_tests server
+kotlin_interface_tests_run: server kotlin_interface_tests server
 	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
 
@@ -95,7 +95,7 @@ swift_interface: is_docker_running
 	docker build -f containers/Dockerfile.swift_interface . --tag swift_interface:$(hash)
 
 .PHONY: swift_interface_tests
-swift_interface_tests: swift_interface
+swift_interface_tests: server swift_interface
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) up --exit-code-from=swift_interface_tests
 

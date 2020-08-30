@@ -12,7 +12,7 @@ RUN rustup target add aarch64-apple-ios x86_64-apple-ios
 COPY core core
 WORKDIR core
 # This will cause problems for you during tests
-ENV API_URL="http://qa.lockbook.app:8000"
+ENV API_URL="http://localhost:8000"
 RUN make lib_c_for_swift
 
 # Build Swift Package
