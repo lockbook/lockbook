@@ -3,14 +3,13 @@ package app.lockbook
 import app.lockbook.core.createFile
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import org.junit.Before
+import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateFileTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -20,68 +19,123 @@ class CreateFileTest {
         }
     }
 
-    @Before
+    @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun createFileOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
+        assertType<Unit>(
+            this::createFileOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::createFileOk.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<FileMetadata>(
+            this::createFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<FileMetadata>(
+            this::createFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
     }
 
     @Test
     fun createFileContainsSlash() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile("/", Klaxon().toJsonString(FileType.Document)).component2()!!
-        val folder = coreModel.createFile("/", Klaxon().toJsonString(FileType.Folder)).component2()!!
-        require(document is CreateFileError.FileNameContainsSlash) {
-            "${Klaxon().toJsonString(document)} != ${CreateFileError.FileNameContainsSlash::class.qualifiedName}"
-        }
-        require(folder is CreateFileError.FileNameContainsSlash) {
-            "${Klaxon().toJsonString(folder)} != ${CreateFileError.FileNameContainsSlash::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::createFileContainsSlash.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::createFileContainsSlash.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<CreateFileError.FileNameContainsSlash>(
+            this::createFileContainsSlash.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                "/",
+                Klaxon().toJsonString(FileType.Document)
+            ).component2()
+        )
+
+        assertType<CreateFileError.FileNameContainsSlash>(
+            this::createFileContainsSlash.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                "/",
+                Klaxon().toJsonString(FileType.Folder)
+            ).component2()
+        )
     }
 
     @Test
     fun createFileNotAvailable() {
-        val coreModel = CoreModel(Config(path))
         val fileName = generateAlphaString()
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(fileName, Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(fileName, Klaxon().toJsonString(FileType.Folder)).component2()!!
-        require(folder is CreateFileError.FileNameNotAvailable) {
-            "${Klaxon().toJsonString(folder)} != ${CreateFileError.FileNameNotAvailable::class.qualifiedName}"
-        }
+
+        assertType<Unit>(
+            this::createFileNotAvailable.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::createFileNotAvailable.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<FileMetadata>(
+            this::createFileNotAvailable.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                fileName,
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<CreateFileError.FileNameNotAvailable>(
+            this::createFileNotAvailable.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                fileName,
+                Klaxon().toJsonString(FileType.Folder)
+            ).component2()
+        )
     }
 
     @Test
     fun createFileNoAccount() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        createRandomPath()
-
-        val createFileError = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component2()!!
-        require(createFileError is CreateFileError.NoAccount) {
-            "${Klaxon().toJsonString(createFileError)} != ${CreateFileError.NoAccount::class.qualifiedName}"
-        }
+        assertType<CreateFileError.NoAccount>(
+            this::createFileNoAccount.name,
+            CoreModel.createFile(
+                config,
+                generateId(),
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component2()
+        )
     }
 
     @Test
@@ -89,9 +143,10 @@ class CreateFileTest {
         val createFileResult: Result<FileMetadata, CreateFileError>? =
             Klaxon().converter(createFileConverter)
                 .parse(createFile("", "", "", ""))
-        val createFileError = createFileResult!!.component2()!!
-        require(createFileError is CreateFileError.UnexpectedError) {
-            "${Klaxon().toJsonString(createFileError)} != ${CreateFileError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<CreateFileError.UnexpectedError>(
+            this::createFileUnexpectedError.name,
+            createFileResult?.component2()
+        )
     }
 }
