@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class ExportAccountTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,24 +21,28 @@ class ExportAccountTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun exportAccountOk() {
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        CoreModel.exportAccount(Config(path)).component1()!!
+        assertType<Unit>(
+            this::exportAccountOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<String>(
+            this::exportAccountOk.name,
+            CoreModel.exportAccount(config).component1()
+        )
     }
 
     @Test
     fun exportAccountNoAccount() {
-        val exportAccountError = CoreModel.exportAccount(Config(path)).component2()!!
-        require(exportAccountError is AccountExportError.NoAccount) {
-            "${Klaxon().toJsonString(exportAccountError)} != ${AccountExportError.NoAccount::class.qualifiedName}"
-        }
+        assertType<AccountExportError.NoAccount>(
+            this::exportAccountOk.name,
+            CoreModel.exportAccount(config).component2()
+        )
     }
 
     @Test
@@ -47,9 +50,10 @@ class ExportAccountTest {
         val exportAccountResult: Result<String, AccountExportError>? =
             Klaxon().converter(exportAccountConverter)
                 .parse(exportAccount(""))
-        val exportAccountError = exportAccountResult!!.component2()!!
-        require(exportAccountError is AccountExportError.UnexpectedError) {
-            "${Klaxon().toJsonString(exportAccountError)} != ${AccountExportError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<AccountExportError.UnexpectedError>(
+            this::exportAccountUnexpectedError.name,
+            exportAccountResult?.component2()
+        )
     }
 }

@@ -8,7 +8,7 @@ import org.junit.*
 
 @Ignore("Delete endpoint doesn't work yet")
 class DeleteFileTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -20,46 +20,83 @@ class DeleteFileTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun deleteFileOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        coreModel.deleteFile(document.id).component1()!!
-        coreModel.deleteFile(folder.id).component1()!!
+        assertType<Unit>(
+            this::deleteFileOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::deleteFileOk.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            this::deleteFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::deleteFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::deleteFileOk.name,
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            this::deleteFileOk.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<Unit>(
+            this::deleteFileOk.name,
+            CoreModel.deleteFile(config, document.id).component1()
+        )
+
+        assertType<Unit>(
+            this::deleteFileOk.name,
+            CoreModel.deleteFile(config, folder.id).component1()
+        )
     }
 
     @Test
     fun deleteFileNoFileWithThatId() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val deleteFileError = coreModel.deleteFile(generateId()).component2()!!
-        require(deleteFileError is DeleteFileError.NoFileWithThatId) {
-            "${Klaxon().toJsonString(deleteFileError)} != ${DeleteFileError.NoFileWithThatId::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::deleteFileNoFileWithThatId.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<DeleteFileError.NoFileWithThatId>(
+            this::deleteFileNoFileWithThatId.name,
+            CoreModel.deleteFile(config, generateId()).component2()
+        )
     }
 
     @Test
     fun deleteFileUnexpectedError() {
         val deleteFile: Result<Unit, DeleteFileError>? =
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
-        val deleteFileError = deleteFile!!.component2()!!
-        require(deleteFileError is DeleteFileError.UnexpectedError) {
-            "${Klaxon().toJsonString(deleteFileError)} != ${DeleteFileError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<DeleteFileError.UnexpectedError>(
+            this::deleteFileUnexpectedError.name,
+            deleteFile?.component2()
+        )
     }
 }

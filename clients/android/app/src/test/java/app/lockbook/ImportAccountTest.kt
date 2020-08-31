@@ -9,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class ImportAccountTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,27 +21,35 @@ class ImportAccountTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun importAccountOk() {
-        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
-        val exportAccountString = CoreModel.exportAccount(Config(path)).component1()!!
-        path = createRandomPath()
+        assertType<Unit>(
+            this::importAccountOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
 
-        CoreModel.importAccount(Config(path), exportAccountString).component1()!!
+        val exportAccountString = assertTypeReturn<String>(
+            this::importAccountOk.name,
+            CoreModel.exportAccount(config).component1()
+        )
+
+        config = Config(createRandomPath())
+
+        assertType<Unit>(
+            this::importAccountOk.name,
+            CoreModel.importAccount(config, exportAccountString).component1()
+        )
     }
 
     @Test
     fun importAccountStringCorrupted() {
-        val firstImportAccountError = CoreModel.importAccount(
-            Config(path),
-            "!@#$%^&*()"
-        ).component2()!!
-        require(firstImportAccountError is ImportError.AccountStringCorrupted) {
-            "${Klaxon().toJsonString(firstImportAccountError)} != ${ImportError.AccountStringCorrupted::class.qualifiedName}"
-        }
+        assertType<ImportError.AccountStringCorrupted>(
+            this::importAccountStringCorrupted.name,
+            CoreModel.importAccount(config, "!@#$%^&*()").component2()
+        )
     }
 
     @Test
@@ -49,9 +57,10 @@ class ImportAccountTest {
         val importResult: Result<Unit, ImportError>? =
             Klaxon().converter(importAccountConverter)
                 .parse(importAccount("", ""))
-        val importError = importResult!!.component2()!!
-        require(importError is ImportError.UnexpectedError) {
-            "${Klaxon().toJsonString(importError)} != ${ImportError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<ImportError.UnexpectedError>(
+            this::importAccountUnexpectedError.name,
+            importResult?.component2()
+        )
     }
 }
