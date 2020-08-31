@@ -7,10 +7,9 @@ import com.github.michaelbull.result.Result
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
-import java.util.*
 
 class MoveFileTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,104 +21,244 @@ class MoveFileTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun moveFileOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        coreModel.moveFile(document.id, folder.id).component1()!!
+        assertType<Unit>(
+            this::moveFileOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::moveFileOk.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            this::moveFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::moveFileOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileOk.name,
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileOk.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileOk.name,
+            CoreModel.moveFile(config, document.id, folder.id).component1()
+        )
     }
 
     @Test
     fun moveFileDoesNotExist() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        val moveFileError = coreModel.moveFile(generateId(), folder.id).component2()!!
-        require(moveFileError is MoveFileError.FileDoesNotExist) {
-            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.FileDoesNotExist::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::moveFileDoesNotExist.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::moveFileDoesNotExist.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::moveFileDoesNotExist.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileDoesNotExist.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<MoveFileError.FileDoesNotExist>(
+            this::moveFileDoesNotExist.name,
+            CoreModel.moveFile(config, generateId(), folder.id).component2()
+        )
     }
 
     @Test
     fun moveFileDocumentTreatedAsFolder() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        val moveFileError = coreModel.moveFile(folder.id, document.id).component2()!!
-        require(moveFileError is MoveFileError.DocumentTreatedAsFolder) {
-            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.DocumentTreatedAsFolder::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<MoveFileError.DocumentTreatedAsFolder>(
+            this::moveFileDocumentTreatedAsFolder.name,
+            CoreModel.moveFile(config, folder.id, document.id).component2()
+        )
     }
 
     @Test
     fun moveFileTargetParentDoesNotExist() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val moveFileError = coreModel.moveFile(document.id, generateId()).component2()!!
-        require(moveFileError is MoveFileError.TargetParentDoesNotExist) {
-            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.TargetParentDoesNotExist::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::moveFileTargetParentDoesNotExist.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentDoesNotExist.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentDoesNotExist.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileTargetParentDoesNotExist.name,
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<MoveFileError.TargetParentDoesNotExist>(
+            this::moveFileTargetParentDoesNotExist.name,
+            CoreModel.moveFile(config, document.id, generateId()).component2()
+        )
     }
 
     @Test
-    fun moveFIleTargetParentHasChildNamedThat() {
-        val coreModel = CoreModel(Config(path))
+    fun moveFileTargetParentHasChildNamedThat() {
         val documentName = generateAlphaString()
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        coreModel.parentFileMetadata = folder
-        val firstDocument = coreModel.createFile(documentName, Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(firstDocument).component1()!!
-        coreModel.setParentToRoot()
-        val secondDocument = coreModel.createFile(documentName, Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(secondDocument).component1()!!
-        val moveFileError = coreModel.moveFile(secondDocument.id, folder.id).component2()!!
-        require(moveFileError is MoveFileError.TargetParentHasChildNamedThat) {
-            "${Klaxon().toJsonString(moveFileError)} != ${MoveFileError.TargetParentHasChildNamedThat::class.qualifiedName}"
-        }
+
+        assertType<Unit>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        val firstDocument = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                documentName,
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val secondDocument = assertTypeReturn<FileMetadata>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.createFile(
+                config,
+                folder.id,
+                documentName,
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.insertFile(config, firstDocument).component1()
+        )
+
+        assertType<Unit>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.insertFile(config, secondDocument).component1()
+        )
+
+        assertType<MoveFileError.TargetParentHasChildNamedThat>(
+            this::moveFileTargetParentHasChildNamedThat.name,
+            CoreModel.moveFile(config, firstDocument.id, folder.id).component2()
+        )
     }
 
     @Test
     fun moveFileUnexpectedError() {
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter).parse(moveFile("", "", ""))
-        val moveError = moveResult!!.component2()!!
-        require(moveError is MoveFileError.UnexpectedError) {
-            "${Klaxon().toJsonString(moveError)} != ${MoveFileError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<MoveFileError.UnexpectedError>(
+            this::moveFileUnexpectedError.name,
+            moveResult?.component2()
+        )
     }
 }
