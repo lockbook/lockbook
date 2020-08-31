@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class GetChildrenTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,19 +21,25 @@ class GetChildrenTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun getChildrenOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        coreModel.getChildrenOfParent().component1()!!
-        coreModel.getParentOfParent().component1()!!
+        assertType<Unit>(
+            this::getChildrenOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::getChildrenOk.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<List<FileMetadata>>(
+            this::getChildrenOk.name,
+            CoreModel.getChildren(config, rootFileMetadata.id).component1()
+        )
     }
 
     @Test
@@ -42,9 +47,10 @@ class GetChildrenTest {
         val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren("", ""))
-        val getChildrenError = getChildrenResult!!.component2()!!
-        require(getChildrenError is GetChildrenError.UnexpectedError) {
-            "${Klaxon().toJsonString(getChildrenError)} != ${GetChildrenError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<GetChildrenError.UnexpectedError>(
+            this::getChildrenUnexpectedError.name,
+            getChildrenResult?.component2()
+        )
     }
 }
