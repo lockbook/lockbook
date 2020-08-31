@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.core.moveFile
 import app.lockbook.core.renameFile
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon

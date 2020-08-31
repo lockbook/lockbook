@@ -3,7 +3,6 @@ package app.lockbook.utils
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 
 val initLoggerConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
@@ -354,7 +353,7 @@ val readDocumentConverter = object : Converter {
         val errorResult = jv.obj?.get("Err")
         val unexpectedResult = jv.obj?.get("UnexpectedError")
 
-        if(okResult is JsonObject) {
+        if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<DecryptedValue>(okResult))
         }
 
@@ -468,10 +467,10 @@ val syncAllConverter = object : Converter {
                 SyncAllError.CouldNotReachServer
             )
             is JsonObject -> {
-                val innerJsonArray = errorResult?.array<ExecuteWorkError>("ExecuteWorkError")
-                if(innerJsonArray is JsonArray<ExecuteWorkError>) {
+                val innerJsonArray = errorResult.array<ExecuteWorkError>("ExecuteWorkError")
+                if (innerJsonArray is JsonArray<ExecuteWorkError>) {
                     val executeWorkError = Klaxon().converter(executeSyncWorkErrorsConverter).parseFromJsonArray<ExecuteWorkError>(innerJsonArray)
-                    if(executeWorkError != null) {
+                    if (executeWorkError != null) {
                         return Err(SyncAllError.ExecuteWorkError(executeWorkError))
                     }
                 }
@@ -536,7 +535,7 @@ val executeSyncWorkConverter = object : Converter {
         }
 
         if (errorResult == ExecuteWorkError.CouldNotReachServer::class.simpleName) {
-             return Err(ExecuteWorkError.CouldNotReachServer)
+            return Err(ExecuteWorkError.CouldNotReachServer)
         }
 
         if (unexpectedResult is String) {

@@ -75,10 +75,12 @@ class ExecuteWorkTest {
             assertType<Unit>(
                 this::executeWorkOk.name,
                 CoreModel.executeFileSyncWork(
-                    config, assertTypeReturn(
+                    config,
+                    assertTypeReturn(
                         this::executeWorkOk.name,
                         CoreModel.getAccount(config).component1()
-                    ), workUnit
+                    ),
+                    workUnit
                 ).component1()
             )
         }

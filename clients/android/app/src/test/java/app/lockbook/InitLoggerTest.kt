@@ -3,11 +3,9 @@ package app.lockbook
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.InitLoggerError
-import app.lockbook.utils.LOG_FILE_NAME
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
-import java.io.File
 
 class InitLoggerTest {
     var config = Config(createRandomPath())
