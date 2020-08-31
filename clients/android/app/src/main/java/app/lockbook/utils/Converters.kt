@@ -9,7 +9,7 @@ val initLoggerConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val unexpectedResult = jv.obj?.get("Unexpected")
+        val unexpectedResult = jv.obj?.obj("Err")?.get("Unexpected")
 
         if (okResult == true) {
             return Ok(Unit)
