@@ -35,7 +35,7 @@ class App : Application() {
             private set
     }
 
-    fun loadLockbookCore() {
+    private fun loadLockbookCore() {
         System.loadLibrary("lockbook_core")
         val initLoggerResult = CoreModel.setUpInitLogger(filesDir.absolutePath)
         if (initLoggerResult is Err) {
