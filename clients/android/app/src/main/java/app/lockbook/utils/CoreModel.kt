@@ -135,14 +135,14 @@ object CoreModel {
         return Err(GetChildrenError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun getParentOfParent(
+    fun getFileById(
         config: Config,
-        parentOfParentId: String
+        fileId: String
     ): Result<FileMetadata, GetFileByIdError> {
         val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
-            ).parse(getFileById(Klaxon().toJsonString(config), parentOfParentId))
+            ).parse(getFileById(Klaxon().toJsonString(config), fileId))
 
         if (getFileByIdResult != null) {
             return getFileByIdResult
