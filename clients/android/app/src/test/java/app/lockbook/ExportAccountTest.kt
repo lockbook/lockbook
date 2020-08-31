@@ -47,7 +47,6 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountUnexpectedError() {
-
         val exportAccountResult: Result<String, AccountExportError>? =
             Klaxon().converter(exportAccountConverter)
                 .parse(exportAccount(""))
