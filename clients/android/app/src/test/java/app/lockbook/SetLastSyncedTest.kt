@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class SetLastSyncedTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,26 +21,30 @@ class SetLastSyncedTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun setLastSyncedOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setLastSynced(1).component1()!!
+        assertType<Unit>(
+            this::setLastSyncedOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<Unit>(
+            this::setLastSyncedOk.name,
+            CoreModel.setLastSynced(config, 1).component1()
+        )
     }
 
     @Test
     fun setLastSyncedUnexpectedError() {
         val lastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced("", 0))
-        val lastSyncedError = lastSyncedResult!!.component2()!!
-        require(lastSyncedError is SetLastSyncedError.UnexpectedError) {
-            "${Klaxon().toJsonString(lastSyncedError)} != ${SetLastSyncedError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<SetLastSyncedError.UnexpectedError>(
+            this::setLastSyncedUnexpectedError.name,
+            lastSyncedResult?.component2()
+        )
     }
 }
