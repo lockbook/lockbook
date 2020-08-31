@@ -65,7 +65,6 @@ class InsertFileTest {
             this::insertFileOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
-
     }
 
     @Test
