@@ -218,7 +218,7 @@ object CoreModel {
         return Err(DeleteFileError.UnexpectedError("deleteFileConverter was unable to be called!"))
     }
 
-    fun renameFile( // forgot to test for this
+    fun renameFile(
         config: Config,
         id: String,
         name: String
