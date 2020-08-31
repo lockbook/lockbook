@@ -59,7 +59,7 @@ class FileModel(path: String) {
     fun upADirectory() {
         when (val getSiblingsOfParentResult = CoreModel.getChildren(config, parentFileMetadata.parent)) {
             is Ok -> {
-                when (val getParentOfParentResult = CoreModel.getParentOfParent(config, parentFileMetadata.parent)) {
+                when (val getParentOfParentResult = CoreModel.getFileById(config, parentFileMetadata.parent)) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
