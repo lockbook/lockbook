@@ -224,7 +224,7 @@ val getFileByIdConverter = object : Converter {
         }
 
         if (errorResult == GetFileByIdError.NoFileWithThatId::class.simpleName) {
-            Err(GetFileByIdError.NoFileWithThatId)
+            return Err(GetFileByIdError.NoFileWithThatId)
         }
 
         if (unexpectedResult is String) {
