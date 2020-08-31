@@ -1,6 +1,5 @@
 package app.lockbook
 
-import com.beust.klaxon.Klaxon
 import java.util.*
 
 // You have to build the jni from core first to be able to run the tests.
@@ -20,15 +19,14 @@ fun createRandomPath(): String {
 
 inline fun <reified T> assertType(methodName: String, comparableValue: Any?) {
     require(comparableValue is T) {
-        "$methodName: ${if(comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+        "$methodName: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 }
 
 inline fun <reified T> assertTypeReturn(methodName: String, comparableValue: Any?): T {
     require(comparableValue is T) {
-        "$methodName: ${if(comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+        "$methodName: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 
     return comparableValue
 }
-
