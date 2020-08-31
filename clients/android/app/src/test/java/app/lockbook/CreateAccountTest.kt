@@ -9,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateAccountTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,61 +21,61 @@ class CreateAccountTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun createAccountOk() {
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
+        assertType<Unit>(
+            this::createAccountOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
     }
 
     @Test
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
-        CoreModel.generateAccount(Config(path), username).component1()!!
-        path = createRandomPath()
+        assertType<Unit>(
+            this::createAccountUsernameTaken.name,
+            CoreModel.generateAccount(config, username).component1()
+        )
+        config = Config(createRandomPath())
 
-        val secondAccountError = CoreModel.generateAccount(Config(path), username).component2()!!
-        require(secondAccountError is CreateAccountError.UsernameTaken) {
-            "${Klaxon().toJsonString(secondAccountError)} != ${CreateAccountError.UsernameTaken::class.qualifiedName}"
-        }
+        assertType<CreateAccountError.UsernameTaken>(
+            this::createAccountUsernameTaken.name,
+            CoreModel.generateAccount(config, username).component2()
+        )
     }
 
     @Test
     fun createAccountInvalidUsername() {
-        val firstCreateAccountError = CoreModel.generateAccount(
-            Config(path),
-            "!@#$%^&*()"
-        ).component2()!!
-        require(firstCreateAccountError is CreateAccountError.InvalidUsername) {
-            "${Klaxon().toJsonString(firstCreateAccountError)} != ${CreateAccountError.InvalidUsername::class.qualifiedName}"
-        }
+        assertType<CreateAccountError.InvalidUsername>(
+            this::createAccountInvalidUsername.name,
+            CoreModel.generateAccount(config, "!@#$%^&*()").component2()
+        )
     }
 
     @Test
     fun createAccountExistsAlready() {
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        val createAccountError =
-            CoreModel.generateAccount(Config(path), generateAlphaString()).component2()!!
-        require(createAccountError is CreateAccountError.AccountExistsAlready) {
-            "${Klaxon().toJsonString(createAccountError)} != ${CreateAccountError.AccountExistsAlready::class.qualifiedName}"
-        }
+        assertType<Unit>(
+            this::createAccountExistsAlready.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+        assertType<CreateAccountError.AccountExistsAlready>(
+            this::createAccountExistsAlready.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component2()
+        )
     }
 
     @Test
     fun createAccountUnexpectedError() {
-        val createAccountResult: Result<Unit, CreateAccountError>? =
+        val createAccountOk: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount("", ""))
-        val createAccountError = createAccountResult!!.component2()!!
-        require(createAccountError is CreateAccountError.UnexpectedError) {
-            "${Klaxon().toJsonString(createAccountError)} != ${CreateAccountError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<CreateAccountError.UnexpectedError>(
+            this::createAccountUnexpectedError.name,
+            createAccountOk?.component2()
+        )
     }
 }

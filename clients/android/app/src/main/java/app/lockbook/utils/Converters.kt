@@ -3,6 +3,7 @@ package app.lockbook.utils
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import timber.log.Timber
 
 val initLoggerConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
@@ -466,8 +467,14 @@ val syncAllConverter = object : Converter {
             SyncAllError.CouldNotReachServer::class.simpleName -> return Err(
                 SyncAllError.CouldNotReachServer
             )
-            is JsonArray<*> -> {
-                return Err(Klaxon().parseFromJsonArray<ExecuteWorkError>(errorResult))
+            is JsonObject -> {
+                val innerJsonArray = errorResult?.array<ExecuteWorkError>("ExecuteWorkError")
+                if(innerJsonArray is JsonArray<ExecuteWorkError>) {
+                    val executeWorkError = Klaxon().converter(executeSyncWorkErrorsConverter).parseFromJsonArray<ExecuteWorkError>(innerJsonArray)
+                    if(executeWorkError != null) {
+                        return Err(SyncAllError.ExecuteWorkError(executeWorkError))
+                    }
+                }
             }
         }
 
@@ -537,6 +544,27 @@ val executeSyncWorkConverter = object : Converter {
         }
 
         return Err(ExecuteWorkError.UnexpectedError("Unable to parse ExecuteSyncWorkResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val executeSyncWorkErrorsConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val errorResult = jv.string
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
+
+        if (errorResult is String) {
+            return ExecuteWorkError.CouldNotReachServer
+        }
+
+        if (unexpectedResult is String) {
+            return ExecuteWorkError.UnexpectedError(unexpectedResult)
+        }
+
+        return ExecuteWorkError.UnexpectedError("Unable to parse SyncAll.ExecuteSyncWorkErrors: ${jv.obj?.toJsonString()}")
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
