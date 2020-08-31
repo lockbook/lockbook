@@ -9,8 +9,8 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class SyncAllTest {
+    var config = Config(createRandomPath())
 
-    var path = createRandomPath()
     companion object {
         @BeforeClass
         @JvmStatic
@@ -21,39 +21,73 @@ class SyncAllTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun syncAllOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        CoreModel.syncAllFiles(Config(path)).component1()!!
+        assertType<Unit>(
+            this::syncAllOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            this::syncAllOk.name,
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            this::syncAllOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            this::syncAllOk.name,
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            this::syncAllOk.name,
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            this::syncAllOk.name,
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<Unit>(
+            this::syncAllOk.name,
+            CoreModel.syncAllFiles(config).component1()
+        )
     }
 
     @Test
     fun syncAllNoAccount() {
-        val syncAllError = CoreModel.syncAllFiles(Config(path)).component2()!!
-        require(syncAllError is SyncAllError.NoAccount) {
-            "${Klaxon().toJsonString(syncAllError)} != ${SyncAllError.NoAccount::class.qualifiedName}"
-        }
+        assertType<SyncAllError.NoAccount>(
+            this::syncAllNoAccount.name,
+            CoreModel.syncAllFiles(config).component2()
+        )
     }
 
     @Test
     fun syncAllUnexpectedError() {
         val syncResult: Result<Unit, SyncAllError>? =
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
-        val syncError = syncResult!!.component2()!!
-        require(syncError is SyncAllError.UnexpectedError) {
-            "${Klaxon().toJsonString(syncError)} != ${SyncAllError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<SyncAllError.UnexpectedError>(
+            this::syncAllUnexpectedError.name,
+            syncResult?.component2()
+        )
     }
 }
