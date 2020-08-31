@@ -9,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class CalculateWorkTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,27 +21,29 @@ class CalculateWorkTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun calculateWorkOk() {
-
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.calculateFileSyncWork().component1()!!
+        assertType<Unit>(
+            this::calculateWorkOk.name,
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+        assertType<WorkCalculated>(
+            this::calculateWorkOk.name,
+            CoreModel.calculateFileSyncWork(config).component1()
+        )
     }
 
     @Test
-    fun calculateWorkNoAccount() {
+    fun calculateWorkUnexpectedError() {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
-        val calculateWorkError = calculateSyncWorkResult!!.component2()!!
-        require(calculateWorkError is CalculateWorkError.UnexpectedError) {
-            "${Klaxon().toJsonString(calculateWorkError)} != ${CalculateWorkError.UnexpectedError::class.qualifiedName}"
-        }
+
+        assertType<CalculateWorkError.UnexpectedError>(
+            this::calculateWorkUnexpectedError.name,
+            calculateSyncWorkResult?.component2()
+        )
     }
 }
