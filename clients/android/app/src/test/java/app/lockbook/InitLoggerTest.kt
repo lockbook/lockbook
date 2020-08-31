@@ -33,14 +33,9 @@ class InitLoggerTest {
 
     @Test
     fun initLoggerUnexpected() {
-        assertType<Unit>(
-            this::initLoggerUnexpected.name,
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
-
         assertType<InitLoggerError.Unexpected>(
             this::initLoggerUnexpected.name,
-            CoreModel.setUpInitLogger("${config.writeable_path}/lockbook.sled").component2()
+            CoreModel.setUpInitLogger("${config.writeable_path}/${generateAlphaString()}.txt").component2()
         )
     }
 }
