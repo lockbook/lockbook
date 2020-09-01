@@ -37,7 +37,7 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: String,
+    val public_key: RSAPublicKey,
     val access_key: EncryptedValue
 )
 
@@ -59,6 +59,11 @@ data class RSAPrivateKey(
     val e: List<Int>,
     val d: List<Int>,
     val primes: List<String>
+)
+
+data class RSAPublicKey(
+    val n: List<Int>,
+    val e: List<Int>
 )
 
 data class WorkCalculated(
