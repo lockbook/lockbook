@@ -3,17 +3,19 @@ package app.lockbook.utils
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import timber.log.Timber
 
 val initLoggerConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val unexpectedResult = jv.obj?.obj("Err")?.get("Unexpected")
 
         if (okResult == true) {
             return Ok(Unit)
         }
+
+        val unexpectedResult = jv.obj?.obj("Err")?.get("Unexpected")
 
         if (unexpectedResult is String) {
             return Err(InitLoggerError.Unexpected(unexpectedResult))
@@ -30,14 +32,12 @@ val createAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             CreateAccountError.CouldNotReachServer::class.simpleName -> return Err(
                 CreateAccountError.CouldNotReachServer
             )
@@ -49,6 +49,8 @@ val createAccountConverter = object : Converter {
                 CreateAccountError.AccountExistsAlready
             )
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(CreateAccountError.UnexpectedError(unexpectedResult))
@@ -65,20 +67,20 @@ val importAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             ImportError.AccountStringCorrupted::class.simpleName -> return Err(ImportError.AccountStringCorrupted)
             ImportError.AccountExistsAlready::class.simpleName -> return Err(ImportError.AccountExistsAlready)
             ImportError.AccountDoesNotExist::class.simpleName -> return Err(ImportError.AccountDoesNotExist)
             ImportError.UsernamePKMismatch::class.simpleName -> return Err(ImportError.UsernamePKMismatch)
             ImportError.CouldNotReachServer::class.simpleName -> return Err(ImportError.CouldNotReachServer)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(ImportError.UnexpectedError(unexpectedResult))
@@ -95,16 +97,18 @@ val exportAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.string("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is String) {
             return Ok(okResult)
         }
 
+        val errorResult = jv.obj?.get("Err")
+
         if (errorResult == AccountExportError.NoAccount::class.simpleName) {
             return Err(AccountExportError.NoAccount)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(AccountExportError.UnexpectedError(unexpectedResult))
@@ -121,16 +125,18 @@ val getAccountConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.obj("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<Account>(okResult))
         }
 
+        val errorResult = jv.obj?.get("Err")
+
         if (errorResult == GetAccountError.NoAccount::class.simpleName) {
             return Err(GetAccountError.NoAccount)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(GetAccountError.UnexpectedError(unexpectedResult))
@@ -147,11 +153,12 @@ val setLastSyncedConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(SetLastSyncedError.UnexpectedError(unexpectedResult))
@@ -168,16 +175,18 @@ val getRootConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.obj("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<FileMetadata>(okResult))
         }
 
+        val errorResult = jv.obj?.get("Err")
+
         if (errorResult == GetRootError.NoRoot::class.simpleName) {
             return Err(GetRootError.NoRoot)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(GetRootError.UnexpectedError(unexpectedResult))
@@ -194,11 +203,13 @@ val getChildrenConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.array<FileMetadata>("Ok")
+
+        if (okResult != null) {
+            return Ok(Klaxon().parseFromJsonArray<FileMetadata>(okResult))
+        }
+
         val unexpectedResult = jv.obj?.get("UnexpectedError")
 
-        okResult?.let { jsonArray ->
-            return Ok(Klaxon().parseFromJsonArray<FileMetadata>(jsonArray))
-        }
 
         if (unexpectedResult is String) {
             return Err(GetChildrenError.UnexpectedError(unexpectedResult))
@@ -215,16 +226,16 @@ val getFileByIdConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.obj("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<FileMetadata>(okResult))
         }
 
-        if (errorResult == GetFileByIdError.NoFileWithThatId::class.simpleName) {
+        if (jv.obj?.get("Err") == GetFileByIdError.NoFileWithThatId::class.simpleName) {
             return Err(GetFileByIdError.NoFileWithThatId)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(GetFileByIdError.UnexpectedError(unexpectedResult))
@@ -241,11 +252,12 @@ val insertFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(InsertFileError.UnexpectedError(unexpectedResult))
@@ -262,14 +274,12 @@ val renameFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             RenameFileError.FileDoesNotExist::class.simpleName -> return Err(
                 RenameFileError.FileDoesNotExist
             )
@@ -278,6 +288,8 @@ val renameFileConverter = object : Converter {
             )
             RenameFileError.NewNameContainsSlash::class.simpleName -> return Err(RenameFileError.NewNameContainsSlash)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(RenameFileError.UnexpectedError(unexpectedResult))
@@ -294,20 +306,20 @@ val createFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.obj("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<FileMetadata>(okResult))
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             CreateFileError.NoAccount::class.simpleName -> return Err(CreateFileError.NoAccount)
             CreateFileError.DocumentTreatedAsFolder::class.simpleName -> return Err(CreateFileError.DocumentTreatedAsFolder)
             CreateFileError.CouldNotFindAParent::class.simpleName -> return Err(CreateFileError.CouldNotFindAParent)
             CreateFileError.FileNameNotAvailable::class.simpleName -> return Err(CreateFileError.FileNameNotAvailable)
             CreateFileError.FileNameContainsSlash::class.simpleName -> return Err(CreateFileError.FileNameContainsSlash)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(CreateFileError.UnexpectedError(unexpectedResult))
@@ -324,16 +336,16 @@ val deleteFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        if (errorResult == DeleteFileError.NoFileWithThatId::class.simpleName) {
+        if (jv.obj?.get("Err") == DeleteFileError.NoFileWithThatId::class.simpleName) {
             return Err(DeleteFileError.NoFileWithThatId)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(SetLastSyncedError.UnexpectedError(unexpectedResult))
@@ -350,20 +362,20 @@ val readDocumentConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.obj("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult is JsonObject) {
             return Ok(Klaxon().parseFromJsonObject<DecryptedValue>(okResult))
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             ReadDocumentError.TreatedFolderAsDocument::class.simpleName -> return Err(
                 ReadDocumentError.TreatedFolderAsDocument
             )
             ReadDocumentError.NoAccount::class.simpleName -> return Err(ReadDocumentError.NoAccount)
             ReadDocumentError.FileDoesNotExist::class.simpleName -> return Err(ReadDocumentError.FileDoesNotExist)
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(ReadDocumentError.UnexpectedError(unexpectedResult))
@@ -380,14 +392,12 @@ val writeDocumentConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             WriteToDocumentError.NoAccount::class.simpleName -> return Err(WriteToDocumentError.NoAccount)
             WriteToDocumentError.FileDoesNotExist::class.simpleName -> return Err(
                 WriteToDocumentError.FileDoesNotExist
@@ -396,6 +406,8 @@ val writeDocumentConverter = object : Converter {
                 WriteToDocumentError.FolderTreatedAsDocument
             )
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(WriteToDocumentError.UnexpectedError(unexpectedResult))
@@ -412,14 +424,12 @@ val moveFileConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             MoveFileError.NoAccount::class.simpleName -> return Err(
                 MoveFileError.NoAccount
             )
@@ -437,6 +447,8 @@ val moveFileConverter = object : Converter {
             )
         }
 
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
+
         if (unexpectedResult is String) {
             return Err(MoveFileError.UnexpectedError(unexpectedResult))
         }
@@ -452,14 +464,12 @@ val syncAllConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        when (errorResult) {
+        when (val errorResult = jv.obj?.get("Err")) {
             SyncAllError.NoAccount::class.simpleName -> return Err(
                 SyncAllError.NoAccount
             )
@@ -469,13 +479,16 @@ val syncAllConverter = object : Converter {
             is JsonObject -> {
                 val innerJsonArray = errorResult.array<ExecuteWorkError>("ExecuteWorkError")
                 if (innerJsonArray is JsonArray<ExecuteWorkError>) {
-                    val executeWorkError = Klaxon().converter(executeSyncWorkErrorsConverter).parseFromJsonArray<ExecuteWorkError>(innerJsonArray)
+                    val executeWorkError = Klaxon().converter(executeSyncWorkErrorsConverter)
+                        .parseFromJsonArray<ExecuteWorkError>(innerJsonArray)
                     if (executeWorkError != null) {
                         return Err(SyncAllError.ExecuteWorkError(executeWorkError))
                     }
                 }
             }
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(SyncAllError.UnexpectedError(unexpectedResult))
@@ -493,8 +506,6 @@ val calculateSyncWorkConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         val okWorkUnits = jv.obj?.obj("Ok")?.array<WorkUnit>("work_units")
         val okMostRecentUpdate = jv.obj?.obj("Ok")?.long("most_recent_update_from_server")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okWorkUnits is JsonArray<WorkUnit> && okMostRecentUpdate is Long) {
             val workUnitResult = Klaxon().parseFromJsonArray<WorkUnit>(okWorkUnits)
@@ -503,7 +514,7 @@ val calculateSyncWorkConverter = object : Converter {
             }
         }
 
-        when (errorResult) {
+        when (jv.obj?.get("Err")) {
             CalculateWorkError.NoAccount::class.simpleName -> return Err(
                 CalculateWorkError.NoAccount
             )
@@ -511,6 +522,8 @@ val calculateSyncWorkConverter = object : Converter {
                 CalculateWorkError.CouldNotReachServer
             )
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(CalculateWorkError.UnexpectedError(unexpectedResult))
@@ -527,16 +540,18 @@ val executeSyncWorkConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? {
         val okResult = jv.obj?.containsKey("Ok")
-        val errorResult = jv.obj?.get("Err")
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (okResult == true) {
             return Ok(Unit)
         }
 
-        if (errorResult == ExecuteWorkError.CouldNotReachServer::class.simpleName) {
+        if (jv.obj?.get("Err") == ExecuteWorkError.CouldNotReachServer::class.simpleName) {
             return Err(ExecuteWorkError.CouldNotReachServer)
         }
+
+        Timber.e(jv.obj?.toJsonString(prettyPrint = true))
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return Err(ExecuteWorkError.UnexpectedError(unexpectedResult))
@@ -552,12 +567,12 @@ val executeSyncWorkErrorsConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val errorResult = jv.string
-        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
-        if (errorResult is String) {
+        if (jv.string == ExecuteWorkError.CouldNotReachServer::class.simpleName) {
             return ExecuteWorkError.CouldNotReachServer
         }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
 
         if (unexpectedResult is String) {
             return ExecuteWorkError.UnexpectedError(unexpectedResult)
