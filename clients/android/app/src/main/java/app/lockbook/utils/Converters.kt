@@ -210,7 +210,6 @@ val getChildrenConverter = object : Converter {
 
         val unexpectedResult = jv.obj?.get("UnexpectedError")
 
-
         if (unexpectedResult is String) {
             return Err(GetChildrenError.UnexpectedError(unexpectedResult))
         }
