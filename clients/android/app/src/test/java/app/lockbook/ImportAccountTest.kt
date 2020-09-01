@@ -27,19 +27,16 @@ class ImportAccountTest {
     @Test
     fun importAccountOk() {
         assertType<Unit>(
-            this::importAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val exportAccountString = assertTypeReturn<String>(
-            this::importAccountOk.name,
             CoreModel.exportAccount(config).component1()
         )
 
         config = Config(createRandomPath())
 
         assertType<Unit>(
-            this::importAccountOk.name,
             CoreModel.importAccount(config, exportAccountString).component1()
         )
     }
@@ -47,7 +44,6 @@ class ImportAccountTest {
     @Test
     fun importAccountStringCorrupted() {
         assertType<ImportError.AccountStringCorrupted>(
-            this::importAccountStringCorrupted.name,
             CoreModel.importAccount(config, "!@#$%^&*()").component2()
         )
     }
@@ -59,7 +55,6 @@ class ImportAccountTest {
                 .parse(importAccount("", ""))
 
         assertType<ImportError.UnexpectedError>(
-            this::importAccountUnexpectedError.name,
             importResult?.component2()
         )
     }

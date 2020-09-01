@@ -27,17 +27,14 @@ class InsertFileTest {
     @Test
     fun insertFileOk() {
         assertType<Unit>(
-            this::insertFileOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::insertFileOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::insertFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class InsertFileTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::insertFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -57,12 +53,10 @@ class InsertFileTest {
         )
 
         assertType<Unit>(
-            this::insertFileOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::insertFileOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
     }
@@ -74,7 +68,6 @@ class InsertFileTest {
                 .parse(insertFile("", ""))
 
         assertType<InsertFileError.UnexpectedError>(
-            this::insertFileError.name,
             insertResult?.component2()
         )
     }

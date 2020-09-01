@@ -27,17 +27,14 @@ class ReadDocumentTest {
     @Test
     fun readDocumentOk() {
         assertType<Unit>(
-            this::readDocumentOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::readDocumentOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::readDocumentOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,12 +44,10 @@ class ReadDocumentTest {
         )
 
         assertType<Unit>(
-            this::readDocumentOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<DecryptedValue>(
-            this::readDocumentOk.name,
             CoreModel.getDocumentContent(config, document.id).component1()
         )
     }
@@ -60,17 +55,14 @@ class ReadDocumentTest {
     @Test
     fun readFolder() {
         assertType<Unit>(
-            this::readFolder.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::readFolder.name,
             CoreModel.getRoot(config).component1()
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::readFolder.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -80,12 +72,10 @@ class ReadDocumentTest {
         )
 
         assertType<Unit>(
-            this::readFolder.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<ReadDocumentError.TreatedFolderAsDocument>(
-            this::readFolder.name,
             CoreModel.getDocumentContent(config, folder.id).component2()
         )
     }
@@ -93,12 +83,10 @@ class ReadDocumentTest {
     @Test
     fun readDocumentDoesNotExist() {
         assertType<Unit>(
-            this::readDocumentDoesNotExist.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<ReadDocumentError.FileDoesNotExist>(
-            this::readDocumentDoesNotExist.name,
             CoreModel.getDocumentContent(config, generateId()).component2()
         )
     }
@@ -109,7 +97,6 @@ class ReadDocumentTest {
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
 
         assertType<ReadDocumentError.UnexpectedError>(
-            this::readDocumentUnexpectedError.name,
             getDocumentResult?.component2()
         )
     }
