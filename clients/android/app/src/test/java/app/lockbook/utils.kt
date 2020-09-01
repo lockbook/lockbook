@@ -17,15 +17,15 @@ fun createRandomPath(): String {
     return path
 }
 
-inline fun <reified T> assertType(methodName: String, comparableValue: Any?) {
+inline fun <reified T> assertType(comparableValue: Any?) {
     require(comparableValue is T) {
-        "$methodName: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 }
 
-inline fun <reified T> assertTypeReturn(methodName: String, comparableValue: Any?): T {
+inline fun <reified T> assertTypeReturn(comparableValue: Any?): T {
     require(comparableValue is T) {
-        "$methodName: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 
     return comparableValue
