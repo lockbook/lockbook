@@ -26,7 +26,6 @@ class InitLoggerTest {
     @Test
     fun initLoggerOk() {
         assertType<Unit>(
-            this::initLoggerOk.name,
             CoreModel.setUpInitLogger(config.writeable_path).component1()
         )
     }
@@ -34,7 +33,6 @@ class InitLoggerTest {
     @Test
     fun initLoggerUnexpected() {
         assertType<InitLoggerError.Unexpected>(
-            this::initLoggerUnexpected.name,
             CoreModel.setUpInitLogger("${config.writeable_path}/${generateAlphaString()}.txt").component2()
         )
     }
