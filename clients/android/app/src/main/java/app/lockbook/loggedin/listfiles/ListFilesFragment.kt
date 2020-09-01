@@ -220,8 +220,6 @@ class ListFilesFragment : Fragment() {
                 syncSnackProgressBar,
                 SnackProgressBarManager.LENGTH_INDEFINITE
             )
-        } else {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
         }
     }
 
