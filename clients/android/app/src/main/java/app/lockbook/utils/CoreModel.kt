@@ -280,7 +280,7 @@ object CoreModel {
             )
 
         if (executeSyncWorkResult != null) {
-            if(executeSyncWorkResult.component2() is ExecuteWorkError.UnexpectedError) {
+            if (executeSyncWorkResult.component2() is ExecuteWorkError.UnexpectedError) {
                 Timber.e("Uhoh")
             }
             return executeSyncWorkResult
