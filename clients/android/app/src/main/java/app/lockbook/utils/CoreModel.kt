@@ -268,8 +268,6 @@ object CoreModel {
         account: Account,
         workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
-        Timber.e("${Klaxon().toJsonString(workUnit)}, ${config.writeable_path}")
-
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
                 executeSyncWork(
@@ -280,9 +278,6 @@ object CoreModel {
             )
 
         if (executeSyncWorkResult != null) {
-            if(executeSyncWorkResult.component2() is ExecuteWorkError.UnexpectedError) {
-                Timber.e("Uhoh")
-            }
             return executeSyncWorkResult
         }
 
