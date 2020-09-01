@@ -26,7 +26,6 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -158,10 +157,10 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.collapseExpandFAB.observe(
+        listFilesViewModel.isFABOpen.observe(
             viewLifecycleOwner,
-            Observer {
-                onFABClicked()
+            Observer { isFABOpen ->
+                collapseExpandFAB(isFABOpen)
             }
         )
 
@@ -192,35 +191,33 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun earlyStopSyncSnackBar() {
-        snackProgressBarManager.dismiss()
+//        snackProgressBarManager.dismiss()
     }
 
     private fun updateProgressSnackBar(progress: Int) {
-        if (progress > listFilesViewModel.syncMaxProgress) {
-            snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
-        }
-        snackProgressBarManager.setProgress(progress)
-
-        if (progress == listFilesViewModel.syncMaxProgress) {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
-        }
+//        if (progress > listFilesViewModel.syncMaxProgress) {
+//            snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
+//        }
+//        snackProgressBarManager.setProgress(progress)
+//
+//        if (progress == listFilesViewModel.syncMaxProgress) {
+//            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+//        }
     }
 
     private fun showSyncSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
-        if (maxProgress != 0) {
-            syncSnackProgressBar.setProgressMax(maxProgress)
-            syncSnackProgressBar.setMessage(
-                resources.getString(
-                    R.string.list_files_sync_snackbar,
-                    maxProgress.toString()
-                )
+        syncSnackProgressBar.setProgressMax(maxProgress)
+        syncSnackProgressBar.setMessage(
+            resources.getString(
+                R.string.list_files_sync_snackbar,
+                maxProgress.toString()
             )
-            snackProgressBarManager.show(
-                syncSnackProgressBar,
-                SnackProgressBarManager.LENGTH_INDEFINITE
-            )
-        }
+        )
+        snackProgressBarManager.show(
+            syncSnackProgressBar,
+            SnackProgressBarManager.LENGTH_INDEFINITE
+        )
     }
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
@@ -241,12 +238,12 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showOfflineSnackBar() {
-        snackProgressBarManager.dismiss()
-        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+//        snackProgressBarManager.dismiss()
+//        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
     }
 
-    private fun onFABClicked() {
-        if (!listFilesViewModel.isFABOpen) {
+    private fun collapseExpandFAB(isFABOpen: Boolean) {
+        if (isFABOpen) {
             showFABMenu()
         } else {
             closeFABMenu()
@@ -260,7 +257,6 @@ class ListFilesFragment : Fragment() {
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
         list_files_layout.isClickable = false
-        listFilesViewModel.isFABOpen = false
     }
 
     private fun showFABMenu() {
@@ -273,7 +269,6 @@ class ListFilesFragment : Fragment() {
         list_files_layout.setOnClickListener {
             closeFABMenu()
         }
-        listFilesViewModel.isFABOpen = true
     }
 
     private fun createFileNameDialog() {

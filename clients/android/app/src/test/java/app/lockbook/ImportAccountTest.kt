@@ -26,7 +26,7 @@ class ImportAccountTest {
 
     @Test
     fun importAccountOk() {
-        assertType<Unit>(
+        assertType<CreateAccountError.CouldNotReachServer>(
             this::importAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
