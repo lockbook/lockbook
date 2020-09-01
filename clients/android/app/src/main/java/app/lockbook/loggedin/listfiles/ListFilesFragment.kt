@@ -20,11 +20,13 @@ import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.IMPORT_BUNDLE_KEY
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -184,7 +186,7 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.startUpFiles()
+        listFilesViewModel.startUpFiles(arguments?.getBoolean(IMPORT_BUNDLE_KEY) ?: false)
 
         return binding.root
     }

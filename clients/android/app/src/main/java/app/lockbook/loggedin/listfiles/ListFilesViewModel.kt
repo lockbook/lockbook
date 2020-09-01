@@ -98,10 +98,13 @@ class ListFilesViewModel(path: String, application: Application) :
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
-    fun startUpFiles() {
+    fun startUpFiles(isThisAnImport: Boolean) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 setUpPreferenceChangeListener()
+                if(isThisAnImport) {
+                    incrementalSync(true)
+                }
                 fileModel.startUpInRoot()
                 setUpInternetListeners()
             }
@@ -115,7 +118,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
                 ) {
                     if (syncMaxProgress == 0) {
-                        incrementalSync()
+                        incrementalSync(false)
                     }
                 } else {
                     _showPreSyncSnackBar.postValue(syncWorkResult.value)
@@ -224,7 +227,7 @@ class ListFilesViewModel(path: String, application: Application) :
             .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
             if (syncMaxProgress == 0) {
-                incrementalSync()
+                incrementalSync(false)
             }
         }
     }
@@ -237,7 +240,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
                 ) {
                     if (syncMaxProgress == 0) {
-                        incrementalSync()
+                        incrementalSync(false)
                     }
                 }
             }
@@ -272,15 +275,12 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onSwipeToRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                incrementalSyncProgressSnackBar()
+                if(syncMaxProgress == 0) {
+                    incrementalSync(false)
+                }
                 _stopProgressSpinner.postValue(Unit)
             }
         }
-    }
-
-    private fun incrementalSyncProgressSnackBar() {
-        incrementalSync()
-        fileModel.refreshFiles()
     }
 
     fun onNewDocumentFABClicked() {
@@ -350,9 +350,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun incrementalSync() {
-        val syncErrors = hashMapOf<String, ExecuteWorkError>()
-
+    private fun incrementalSync(isThisAnImport: Boolean) {
         val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
             is Ok -> accountResult.value
             is Err -> return when (val error = accountResult.error) {
@@ -368,6 +366,8 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
         }
+
+        val syncErrors = hashMapOf<String, ExecuteWorkError>()
 
         syncMaxProgress = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
             is Ok -> syncWorkResult.value.work_units.size
@@ -450,6 +450,9 @@ class ListFilesViewModel(path: String, application: Application) :
                 ) {
                     is Ok -> {
                         currentProgress++
+                        if(!isThisAnImport) {
+                            fileModel.refreshFiles()
+                        }
                         _updateProgressSnackBar.postValue(currentProgress)
                         syncErrors.remove(workUnit.content.metadata.id)
                     }
@@ -461,7 +464,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
 
         if (syncErrors.isNotEmpty()) {
-            Timber.e("Couldn't resolve all syncErrors.")
+            Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
             _errorHasOccurred.postValue("Couldn't sync all files.")
             _earlyStopSyncSnackBar.postValue(Unit)
         }

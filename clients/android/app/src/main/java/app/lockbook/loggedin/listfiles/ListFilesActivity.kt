@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
+import app.lockbook.utils.IMPORT_BUNDLE_KEY
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
@@ -19,8 +20,9 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.android.synthetic.main.fragment_list_files.*
+import kotlinx.android.synthetic.main.activity_list_files.view.*
 import timber.log.Timber
+
 
 class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
@@ -28,6 +30,13 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
+        val mFragmentManager = supportFragmentManager
+        val listFilesFragment = ListFilesFragment()
+        val bundle = Bundle()
+        Timber.e(intent.hasCategory(IMPORT_BUNDLE_KEY).toString())
+        bundle.putBoolean(IMPORT_BUNDLE_KEY, intent.hasCategory(IMPORT_BUNDLE_KEY))
+        listFilesFragment.arguments = bundle
+        mFragmentManager.beginTransaction().replace(R.id.files_fragment, listFilesFragment).commit()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -43,7 +52,7 @@ class ListFilesActivity : AppCompatActivity() {
                 SORT_FILES_KEY,
                 SORT_FILES_A_Z
             )
-        ) {
+            ) {
             SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
             SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
             SORT_FILES_LAST_CHANGED ->
@@ -99,7 +108,8 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onBackPressed() {
         when (getFragment().component1()?.onBackPressed()) {
             false -> super.onBackPressed()
-            true -> {}
+            true -> {
+            }
             null -> {
                 Timber.e("Unable to get result of back press.")
                 Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
