@@ -26,17 +26,14 @@ class DeleteFileTest {
     @Test
     fun deleteFileOk() {
         assertType<Unit>(
-            this::deleteFileOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::deleteFileOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::deleteFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -46,7 +43,6 @@ class DeleteFileTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::deleteFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -56,22 +52,18 @@ class DeleteFileTest {
         )
 
         assertType<Unit>(
-            this::deleteFileOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::deleteFileOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<Unit>(
-            this::deleteFileOk.name,
             CoreModel.deleteFile(config, document.id).component1()
         )
 
         assertType<Unit>(
-            this::deleteFileOk.name,
             CoreModel.deleteFile(config, folder.id).component1()
         )
     }
@@ -79,12 +71,10 @@ class DeleteFileTest {
     @Test
     fun deleteFileNoFileWithThatId() {
         assertType<Unit>(
-            this::deleteFileNoFileWithThatId.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<DeleteFileError.NoFileWithThatId>(
-            this::deleteFileNoFileWithThatId.name,
             CoreModel.deleteFile(config, generateId()).component2()
         )
     }
@@ -95,7 +85,6 @@ class DeleteFileTest {
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
 
         assertType<DeleteFileError.UnexpectedError>(
-            this::deleteFileUnexpectedError.name,
             deleteFile?.component2()
         )
     }

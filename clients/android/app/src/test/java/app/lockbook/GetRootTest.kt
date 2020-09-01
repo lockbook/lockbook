@@ -27,12 +27,10 @@ class GetRootTest {
     @Test
     fun getRootOk() {
         assertType<Unit>(
-            this::getRootOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<FileMetadata>(
-            this::getRootOk.name,
             CoreModel.getRoot(config).component1()
         )
     }
@@ -43,7 +41,6 @@ class GetRootTest {
             Klaxon().converter(getRootConverter).parse(getRoot(""))
 
         assertType<GetRootError.UnexpectedError>(
-            this::getRootUnexpectedError.name,
             getRootResult?.component2()
         )
     }
