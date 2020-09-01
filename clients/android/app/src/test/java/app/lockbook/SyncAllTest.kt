@@ -27,17 +27,14 @@ class SyncAllTest {
     @Test
     fun syncAllOk() {
         assertType<Unit>(
-            this::syncAllOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::syncAllOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::syncAllOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class SyncAllTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::syncAllOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -57,17 +53,14 @@ class SyncAllTest {
         )
 
         assertType<Unit>(
-            this::syncAllOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::syncAllOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<Unit>(
-            this::syncAllOk.name,
             CoreModel.syncAllFiles(config).component1()
         )
     }
@@ -75,7 +68,6 @@ class SyncAllTest {
     @Test
     fun syncAllNoAccount() {
         assertType<SyncAllError.NoAccount>(
-            this::syncAllNoAccount.name,
             CoreModel.syncAllFiles(config).component2()
         )
     }
@@ -86,7 +78,6 @@ class SyncAllTest {
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
 
         assertType<SyncAllError.UnexpectedError>(
-            this::syncAllUnexpectedError.name,
             syncResult?.component2()
         )
     }

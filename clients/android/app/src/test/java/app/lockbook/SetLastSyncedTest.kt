@@ -27,12 +27,10 @@ class SetLastSyncedTest {
     @Test
     fun setLastSyncedOk() {
         assertType<Unit>(
-            this::setLastSyncedOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<Unit>(
-            this::setLastSyncedOk.name,
             CoreModel.setLastSynced(config, 1).component1()
         )
     }
@@ -43,7 +41,6 @@ class SetLastSyncedTest {
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced("", 0))
 
         assertType<SetLastSyncedError.UnexpectedError>(
-            this::setLastSyncedUnexpectedError.name,
             lastSyncedResult?.component2()
         )
     }
