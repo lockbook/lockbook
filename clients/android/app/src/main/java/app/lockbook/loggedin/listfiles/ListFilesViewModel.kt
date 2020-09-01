@@ -103,7 +103,7 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 setUpPreferenceChangeListener()
                 if(isThisAnImport) {
-                    incrementalSync(true)
+                    incrementalSync(isThisAnImport)
                 }
                 fileModel.startUpInRoot()
                 setUpInternetListeners()
@@ -120,7 +120,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     if (syncMaxProgress == 0) {
                         incrementalSync(false)
                     }
-                } else {
+                } else if(syncMaxProgress == 0) {
                     _showPreSyncSnackBar.postValue(syncWorkResult.value)
                 }
             is Err -> when (val error = syncWorkResult.error) {
@@ -369,8 +369,8 @@ class ListFilesViewModel(path: String, application: Application) :
 
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
 
-        syncMaxProgress = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
-            is Ok -> syncWorkResult.value.work_units.size
+        var syncWork = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
+            is Ok -> syncWorkResult.value
             is Err -> return when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is CalculateWorkError.CouldNotReachServer -> {
@@ -390,11 +390,13 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
 
+        syncMaxProgress = syncWork.work_units.size
+
         _showSyncSnackBar.postValue(syncMaxProgress)
         var currentProgress = 0
 
         repeat(10) {
-            val syncWork = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
+            syncWork = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                 is Ok -> syncWorkResult.value
                 is Err -> {
                     when (val error = syncWorkResult.error) {
@@ -467,6 +469,8 @@ class ListFilesViewModel(path: String, application: Application) :
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
             _errorHasOccurred.postValue("Couldn't sync all files.")
             _earlyStopSyncSnackBar.postValue(Unit)
+        } else {
+            _showPreSyncSnackBar.postValue(syncWork.work_units.size)
         }
 
         syncMaxProgress = 0
