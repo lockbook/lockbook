@@ -27,17 +27,14 @@ class ExecuteWorkTest {
     @Test
     fun executeWorkOk() {
         assertType<Unit>(
-            this::executeWorkOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::executeWorkOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::executeWorkOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class ExecuteWorkTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::executeWorkOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -57,27 +53,22 @@ class ExecuteWorkTest {
         )
 
         assertType<Unit>(
-            this::executeWorkOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::executeWorkOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
         repeat(10) {
             val syncWork = assertTypeReturn<WorkCalculated>(
-                this::executeWorkOk.name,
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
             for (workUnit in syncWork.work_units) {
                 assertType<Unit>(
-                    this::executeWorkOk.name,
                     CoreModel.executeFileSyncWork(
                         config,
                         assertTypeReturn(
-                            this::executeWorkOk.name,
                             CoreModel.getAccount(config).component1()
                         ),
                         workUnit
@@ -90,17 +81,14 @@ class ExecuteWorkTest {
     @Test
     fun executeWorkImportAccountOk() {
         assertType<Unit>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -110,7 +98,6 @@ class ExecuteWorkTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -120,45 +107,37 @@ class ExecuteWorkTest {
         )
 
         assertType<Unit>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<Unit>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.syncAllFiles(config).component1()
         )
 
         val exportAccountString = assertTypeReturn<String>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.exportAccount(config).component1()
         )
 
         config = Config(createRandomPath())
 
         assertType<Unit>(
-            this::executeWorkImportAccountOk.name,
             CoreModel.importAccount(config, exportAccountString).component1()
         )
 
         repeat(10) {
             val syncWork = assertTypeReturn<WorkCalculated>(
-                this::executeWorkImportAccountOk.name,
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
             for (workUnit in syncWork.work_units) {
                 assertType<Unit>(
-                    this::executeWorkImportAccountOk.name,
                     CoreModel.executeFileSyncWork(
                         config,
                         assertTypeReturn(
-                            this::executeWorkImportAccountOk.name,
                             CoreModel.getAccount(config).component1()
                         ),
                         workUnit
@@ -174,7 +153,6 @@ class ExecuteWorkTest {
             Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
 
         assertType<ExecuteWorkError.UnexpectedError>(
-            this::executeWorkUnexpectedError.name,
             executeSyncWorkResult?.component2()
         )
     }

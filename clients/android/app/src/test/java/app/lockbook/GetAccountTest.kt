@@ -27,12 +27,10 @@ class GetAccountTest {
     @Test
     fun getAccountOk() {
         assertType<Unit>(
-            this::getAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<Account>(
-            this::getAccountOk.name,
             CoreModel.getAccount(config).component1()
         )
     }
@@ -40,7 +38,6 @@ class GetAccountTest {
     @Test
     fun getAccountNoAccount() {
         assertType<GetAccountError.NoAccount>(
-            this::getAccountNoAccount.name,
             CoreModel.getAccount(config).component2()
         )
     }
@@ -51,7 +48,6 @@ class GetAccountTest {
             Klaxon().converter(getAccountConverter).parse(getAccount(""))
 
         assertType<GetAccountError.UnexpectedError>(
-            this::getAccountUnexpectedError.name,
             getAccountResult?.component2()
         )
     }
