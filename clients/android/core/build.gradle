@@ -47,6 +47,9 @@ dependencies {
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
 
+    // Coroutines for Mutex
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutine_version"
+
     // Testing Libraries
     testImplementation "junit:junit:$junit_version"
     androidTestImplementation "androidx.test.ext:junit:$junit_test_version"

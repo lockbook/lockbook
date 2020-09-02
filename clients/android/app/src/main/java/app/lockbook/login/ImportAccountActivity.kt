@@ -9,9 +9,9 @@ import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.IMPORT_BUNDLE_KEY
 import app.lockbook.utils.ImportError
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -60,10 +60,8 @@ class ImportAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
-                    setUpLoggedInState()
-                    val intent = Intent(applicationContext, ListFilesActivity::class.java)
-                    intent.addCategory(IMPORT_BUNDLE_KEY)
-                    startActivity(intent)
+                    setUpLoggedInImportState()
+                    startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> when (val error = importAccountResult.error) {
@@ -134,9 +132,12 @@ class ImportAccountActivity : AppCompatActivity() {
         }
     }
 
-    private fun setUpLoggedInState() {
+    private fun setUpLoggedInImportState() {
         PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
             LOGGED_IN_KEY, true
+        ).apply()
+        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
+            IS_THIS_AN_IMPORT_KEY, true
         ).apply()
     }
 }

@@ -4,7 +4,6 @@ import app.lockbook.core.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 object CoreModel {
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
@@ -100,7 +99,8 @@ object CoreModel {
 
     fun getAccount(config: Config): Result<Account, GetAccountError> {
         val getAccountResult: Result<Account, GetAccountError>? =
-            Klaxon().converter(getAccountConverter).parse(getAccount(Klaxon().toJsonString(config)))
+            Klaxon().converter(getAccountConverter)
+                .parse(getAccount(Klaxon().toJsonString(config)))
 
         if (getAccountResult != null) {
             return getAccountResult
@@ -109,7 +109,10 @@ object CoreModel {
         return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun setLastSynced(config: Config, lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
+    fun setLastSynced(
+        config: Config,
+        lastSyncedDuration: Long
+    ): Result<Unit, SetLastSyncedError> {
         val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter)
                 .parse(setLastSynced(Klaxon().toJsonString(config), lastSyncedDuration))

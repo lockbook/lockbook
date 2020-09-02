@@ -7,9 +7,11 @@
     android:orientation="vertical"
     tools:context=".login.WelcomeActivity">
 
-    <FrameLayout
+    <androidx.fragment.app.FragmentContainerView
         android:id="@+id/files_fragment"
+        android:name="app.lockbook.loggedin.listfiles.ListFilesFragment"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        tools:layout="@layout/fragment_list_files" />
 
 </LinearLayout>
