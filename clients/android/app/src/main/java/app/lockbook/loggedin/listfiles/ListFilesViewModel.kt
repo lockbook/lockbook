@@ -353,7 +353,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private fun incrementalSync() {
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
 
-        val account = when (val accountResult = fileModel.coreModel.getAccount()) {
+        val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
             is Ok -> accountResult.value
             is Err -> return when (val error = accountResult.error) {
                 is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
@@ -369,7 +369,7 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }
 
-        syncMaxProgress = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
+        syncMaxProgress = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
             is Ok -> syncWorkResult.value.work_units.size
             is Err -> return when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
@@ -394,7 +394,7 @@ class ListFilesViewModel(path: String, application: Application) :
         var currentProgress = 0
 
         repeat(10) {
-            val syncWork = when (val syncWorkResult = fileModel.coreModel.calculateFileSyncWork()) {
+            val syncWork = when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                 is Ok -> syncWorkResult.value
                 is Err -> {
                     when (val error = syncWorkResult.error) {
@@ -428,7 +428,7 @@ class ListFilesViewModel(path: String, application: Application) :
             if (syncWork.work_units.isEmpty()) {
                 if (syncErrors.isEmpty()) {
                     val setLastSyncedResult =
-                        fileModel.coreModel.setLastSynced(syncWork.most_recent_update_from_server)
+                        CoreModel.setLastSynced(fileModel.config, syncWork.most_recent_update_from_server)
                     if (setLastSyncedResult is Err) {
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
@@ -446,7 +446,7 @@ class ListFilesViewModel(path: String, application: Application) :
             for (workUnit in syncWork.work_units) {
                 when (
                     val executeFileSyncWorkResult =
-                        fileModel.coreModel.executeFileSyncWork(account, workUnit)
+                        CoreModel.executeFileSyncWork(fileModel.config, account, workUnit)
                 ) {
                     is Ok -> {
                         currentProgress++

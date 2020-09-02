@@ -9,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class ReadDocumentTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,53 +21,83 @@ class ReadDocumentTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun readDocumentOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        coreModel.getDocumentContent(document.id).component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<DecryptedValue>(
+            CoreModel.getDocumentContent(config, document.id).component1()
+        )
     }
 
     @Test
     fun readFolder() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        val readDocumentError = coreModel.getDocumentContent(folder.id).component2()!!
-        require(readDocumentError is ReadDocumentError.TreatedFolderAsDocument)
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<ReadDocumentError.TreatedFolderAsDocument>(
+            CoreModel.getDocumentContent(config, folder.id).component2()
+        )
     }
 
     @Test
     fun readDocumentDoesNotExist() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val readDocumentError = coreModel.getDocumentContent(generateId()).component2()!!
-        require(readDocumentError is ReadDocumentError.FileDoesNotExist)
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<ReadDocumentError.FileDoesNotExist>(
+            CoreModel.getDocumentContent(config, generateId()).component2()
+        )
     }
 
     @Test
     fun readDocumentUnexpectedError() {
         val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
-        val getDocumentError = getDocumentResult!!.component2()!!
-        require(getDocumentError is ReadDocumentError.UnexpectedError)
+
+        assertType<ReadDocumentError.UnexpectedError>(
+            getDocumentResult?.component2()
+        )
     }
 }

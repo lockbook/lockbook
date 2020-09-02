@@ -9,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class GetAccountTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,28 +21,34 @@ class GetAccountTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun getAccountOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
-        coreModel.getAccount().component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<Account>(
+            CoreModel.getAccount(config).component1()
+        )
     }
 
     @Test
     fun getAccountNoAccount() {
-        val coreModel = CoreModel(Config(path))
-        val getAccountError = coreModel.getAccount().component2()!!
-        require(getAccountError is GetAccountError.NoAccount)
+        assertType<GetAccountError.NoAccount>(
+            CoreModel.getAccount(config).component2()
+        )
     }
 
     @Test
     fun getAccountUnexpectedError() {
         val getAccountResult: Result<Account, GetAccountError>? =
             Klaxon().converter(getAccountConverter).parse(getAccount(""))
-        val getAccountError = getAccountResult!!.component2()!!
-        require(getAccountError is GetAccountError.UnexpectedError)
+
+        assertType<GetAccountError.UnexpectedError>(
+            getAccountResult?.component2()
+        )
     }
 }

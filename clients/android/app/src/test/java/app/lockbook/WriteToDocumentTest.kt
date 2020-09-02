@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class WriteToDocumentTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,53 +21,83 @@ class WriteToDocumentTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun writeToDocumentOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        CoreModel.writeContentToDocument(Config(path), document.id, "").component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.writeContentToDocument(config, document.id, "").component1()
+        )
     }
 
     @Test
     fun writeToDocumentFileDoesNotExist() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val writeToDocumentError = CoreModel.writeContentToDocument(Config(path), generateId(), "").component2()!!
-        require(writeToDocumentError is WriteToDocumentError.FileDoesNotExist)
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<WriteToDocumentError.FileDoesNotExist>(
+            CoreModel.writeContentToDocument(config, generateId(), "").component2()
+        )
     }
 
     @Test
     fun writeToDocumentFolderTreatedAsDocument() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
-        val writeToDocumentError = CoreModel.writeContentToDocument(Config(path), folder.id, "").component2()!!
-        require(writeToDocumentError is WriteToDocumentError.FolderTreatedAsDocument)
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<WriteToDocumentError.FolderTreatedAsDocument>(
+            CoreModel.writeContentToDocument(config, folder.id, "").component2()
+        )
     }
 
     @Test
     fun writeToDocumentUnexpectedError() {
         val writeResult: Result<Unit, WriteToDocumentError>? =
             Klaxon().converter(writeDocumentConverter).parse(writeDocument("", "", ""))
-        val writeError = writeResult!!.component2()!!
-        require(writeError is WriteToDocumentError.UnexpectedError)
+
+        assertType<WriteToDocumentError.UnexpectedError>(
+            writeResult?.component2()
+        )
     }
 }

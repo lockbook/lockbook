@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class GetChildrenTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,19 +21,22 @@ class GetChildrenTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun getChildrenOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        coreModel.getChildrenOfParent().component1()!!
-        coreModel.getParentOfParent().component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<List<FileMetadata>>(
+            CoreModel.getChildren(config, rootFileMetadata.id).component1()
+        )
     }
 
     @Test
@@ -42,7 +44,9 @@ class GetChildrenTest {
         val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren("", ""))
-        val getChildrenError = getChildrenResult!!.component2()!!
-        require(getChildrenError is GetChildrenError.UnexpectedError)
+
+        assertType<GetChildrenError.UnexpectedError>(
+            getChildrenResult?.component2()
+        )
     }
 }
