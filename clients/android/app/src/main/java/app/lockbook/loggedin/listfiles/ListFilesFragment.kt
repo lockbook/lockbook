@@ -67,8 +67,7 @@ class ListFilesFragment : Fragment() {
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-
-    private var alertDialog: AlertDialog? = null
+    private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -194,15 +193,15 @@ class ListFilesFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         collapseExpandFAB(listFilesViewModel.isFABOpen)
-        if(listFilesViewModel.isDialogOpen) {
-            alertDialog?.show()
+        if (listFilesViewModel.isDialogOpen) {
+            createFileNameDialog()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if(listFilesViewModel.isDialogOpen) {
-            alertDialog?.cancel()
+        if (listFilesViewModel.isDialogOpen) {
+            alertDialog.dismiss()
         }
     }
 
@@ -283,7 +282,7 @@ class ListFilesFragment : Fragment() {
     private fun createFileNameDialog() {
         val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        dialogBuilder.setView(
+        alertDialog = dialogBuilder.setView(
             layoutInflater.inflate(
                 R.layout.dialog_create_file_name,
                 view as ViewGroup,
@@ -292,20 +291,16 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
+                listFilesViewModel.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
-            }
-            .setOnDismissListener {
-                Timber.e("HERE1")
                 listFilesViewModel.isDialogOpen = false
             }
             .create()
 
-        Timber.e("HERE2")
-        listFilesViewModel.isDialogOpen = true
-        alertDialog = dialogBuilder.show()
+        alertDialog.show()
     }
 
     private fun updateRecyclerView(
