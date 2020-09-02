@@ -9,7 +9,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
-import app.lockbook.utils.IMPORT_BUNDLE_KEY
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.utils.SharedPreferences.SORT_FILES_FIRST_CHANGED
@@ -20,7 +19,6 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.android.synthetic.main.activity_list_files.view.*
 import timber.log.Timber
 
 
@@ -30,13 +28,6 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
-        val mFragmentManager = supportFragmentManager
-        val listFilesFragment = ListFilesFragment()
-        val bundle = Bundle()
-        Timber.e(intent.hasCategory(IMPORT_BUNDLE_KEY).toString())
-        bundle.putBoolean(IMPORT_BUNDLE_KEY, intent.hasCategory(IMPORT_BUNDLE_KEY))
-        listFilesFragment.arguments = bundle
-        mFragmentManager.beginTransaction().replace(R.id.files_fragment, listFilesFragment).commit()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

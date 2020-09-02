@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
+import app.lockbook.core.coreMutex
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import com.beust.klaxon.Klaxon
@@ -337,30 +338,34 @@ class FileModel(path: String) {
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
-            val syncAllResult =
-                CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
-            return if (syncAllResult is Err) {
-                when (val error = syncAllResult.error) {
-                    is SyncAllError.NoAccount -> {
-                        Timber.e("No account.")
-                        Result.failure()
+            if(!coreMutex.isLocked) {
+                val syncAllResult =
+                    CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
+                return if (syncAllResult is Err) {
+                    when (val error = syncAllResult.error) {
+                        is SyncAllError.NoAccount -> {
+                            Timber.e("No account.")
+                            Result.failure()
+                        }
+                        is SyncAllError.CouldNotReachServer -> {
+                            Timber.e("Could not reach server.")
+                            Result.retry()
+                        }
+                        is SyncAllError.ExecuteWorkError -> {
+                            Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
+                            Result.failure()
+                        }
+                        is SyncAllError.UnexpectedError -> {
+                            Timber.e("Unable to sync all files: ${error.error}")
+                            Result.failure()
+                        }
                     }
-                    is SyncAllError.CouldNotReachServer -> {
-                        Timber.e("Could not reach server.")
-                        Result.retry()
-                    }
-                    is SyncAllError.ExecuteWorkError -> {
-                        Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
-                        Result.failure()
-                    }
-                    is SyncAllError.UnexpectedError -> {
-                        Timber.e("Unable to sync all files: ${error.error}")
-                        Result.failure()
-                    }
+                } else {
+                    Result.success()
                 }
-            } else {
-                Result.success()
             }
+
+            return Result.failure()
         }
     }
 }
