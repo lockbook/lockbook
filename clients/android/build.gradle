@@ -12,7 +12,7 @@ buildscript {
         junit_test_version = '1.1.2'
         espresso_test_version = '3.3.0'
         constraint_layout_version = '2.0.1'
-        material_ui_version = '1.2.0'
+        material_ui_version = '1.2.1'
         qr_embedded_version = '4.0.0'
         qr_core_version = '3.3.0'
         json_parser_version = '5.2'
