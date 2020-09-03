@@ -30,9 +30,9 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
         if (pref.getBoolean(LOGGED_IN_KEY, false)) {
             if (!isBiometricsOptionsAvailable() && pref.getString(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            ) != BIOMETRIC_NONE
+                    BIOMETRIC_OPTION_KEY,
+                    BIOMETRIC_NONE
+                ) != BIOMETRIC_NONE
             ) {
                 pref.edit()
                     .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
@@ -60,7 +60,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     private fun performBiometricFlow(pref: SharedPreferences) {
         when (
             val optionValue = pref.getString(
-                BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
             )
         ) {
             BIOMETRIC_STRICT -> {
@@ -75,7 +76,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
                 val executor = ContextCompat.getMainExecutor(this)
                 val biometricPrompt = BiometricPrompt(
-                    this, executor,
+                    this,
+                    executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
                             errorCode: Int,
@@ -87,7 +89,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                     Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         applicationContext,
-                                        UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_SHORT
+                                        UNEXPECTED_ERROR_OCCURRED,
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                     finish()
@@ -95,7 +98,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
                                     Toast.makeText(
                                         applicationContext,
-                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                        "Too many tries, try again later!",
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 else -> finish()

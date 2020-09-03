@@ -3,7 +3,6 @@ package app.lockbook.loggedin.settings
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
-import app.lockbook.utils.Config
 
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -15,7 +14,7 @@ class SettingsActivity : AppCompatActivity() {
             .beginTransaction()
             .replace(
                 R.id.settings_preference_layout,
-                SettingsFragment(Config(application.filesDir.absolutePath))
+                SettingsFragment()
             )
             .commit()
     }
