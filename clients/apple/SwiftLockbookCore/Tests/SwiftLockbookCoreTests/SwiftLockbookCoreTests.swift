@@ -174,10 +174,6 @@ final class SwiftLockbookCoreTests: XCTestCase {
     
     func test10FfiPerformance() {
         self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
-            let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
-            
-            XCTAssertTrue(apiLocation.contains("qa"))
-            
             let accountResult = SwiftLockbookCoreTests.core.getAccount()
             if case .failure(_) = accountResult {
                 let newAccountResult = SwiftLockbookCoreTests.core.createAccount(username: "swiftperformance\(UUID.init().uuidString.prefix(5))")
