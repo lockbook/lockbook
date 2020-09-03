@@ -7,7 +7,6 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
-import app.lockbook.core.coreMutex
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import com.beust.klaxon.Klaxon
@@ -58,9 +57,11 @@ class FileModel(path: String) {
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
 
     fun upADirectory() {
-        when (val getSiblingsOfParentResult = CoreModel.getChildren(config, parentFileMetadata.parent)) {
+        when (val getSiblingsOfParentResult =
+            CoreModel.getChildren(config, parentFileMetadata.parent)) {
             is Ok -> {
-                when (val getParentOfParentResult = CoreModel.getFileById(config, parentFileMetadata.parent)) {
+                when (val getParentOfParentResult =
+                    CoreModel.getFileById(config, parentFileMetadata.parent)) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
@@ -187,7 +188,8 @@ class FileModel(path: String) {
     }
 
     fun createInsertRefreshFiles(name: String, fileType: String) {
-        when (val createFileResult = CoreModel.createFile(config, parentFileMetadata.id, name, fileType)) {
+        when (val createFileResult =
+            CoreModel.createFile(config, parentFileMetadata.id, name, fileType)) {
             is Ok -> {
                 val insertFileResult = CoreModel.insertFile(config, createFileResult.value)
                 if (insertFileResult is Err) {
@@ -302,7 +304,7 @@ class FileModel(path: String) {
         when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
-        ) {
+            ) {
             SharedPreferences.SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SharedPreferences.SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SharedPreferences.SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -338,34 +340,30 @@ class FileModel(path: String) {
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
-            if (!coreMutex.isLocked) {
-                val syncAllResult =
-                    CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
-                return if (syncAllResult is Err) {
-                    when (val error = syncAllResult.error) {
-                        is SyncAllError.NoAccount -> {
-                            Timber.e("No account.")
-                            Result.failure()
-                        }
-                        is SyncAllError.CouldNotReachServer -> {
-                            Timber.e("Could not reach server.")
-                            Result.retry()
-                        }
-                        is SyncAllError.ExecuteWorkError -> {
-                            Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
-                            Result.failure()
-                        }
-                        is SyncAllError.UnexpectedError -> {
-                            Timber.e("Unable to sync all files: ${error.error}")
-                            Result.failure()
-                        }
+            val syncAllResult =
+                CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
+            return if (syncAllResult is Err) {
+                when (val error = syncAllResult.error) {
+                    is SyncAllError.NoAccount -> {
+                        Timber.e("No account.")
+                        Result.failure()
                     }
-                } else {
-                    Result.success()
+                    is SyncAllError.CouldNotReachServer -> {
+                        Timber.e("Could not reach server.")
+                        Result.retry()
+                    }
+                    is SyncAllError.ExecuteWorkError -> {
+                        Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
+                        Result.failure()
+                    }
+                    is SyncAllError.UnexpectedError -> {
+                        Timber.e("Unable to sync all files: ${error.error}")
+                        Result.failure()
+                    }
                 }
+            } else {
+                Result.success()
             }
-
-            return Result.failure()
         }
     }
 }

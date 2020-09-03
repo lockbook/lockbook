@@ -4,6 +4,7 @@ import app.lockbook.core.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import timber.log.Timber
 
 object CoreModel {
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
@@ -271,6 +272,7 @@ object CoreModel {
         account: Account,
         workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
+        Timber.e("${Klaxon().toJsonString(workUnit)}, ${config.writeable_path}")
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
                 executeSyncWork(
