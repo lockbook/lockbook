@@ -9,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class GetRootTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,24 +21,27 @@ class GetRootTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun getRootOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
     }
 
     @Test
     fun getRootUnexpectedError() {
         val getRootResult: Result<FileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(""))
-        val getRootError = getRootResult!!.component2()!!
-        require(getRootError is GetRootError.UnexpectedError)
+
+        assertType<GetRootError.UnexpectedError>(
+            getRootResult?.component2()
+        )
     }
 }

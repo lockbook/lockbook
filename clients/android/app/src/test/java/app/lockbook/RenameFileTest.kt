@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.createFile
+import app.lockbook.core.renameFile
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
@@ -8,7 +8,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class CreateFileTest {
+class RenameFileTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -25,7 +25,7 @@ class CreateFileTest {
     }
 
     @Test
-    fun createFileOk() {
+    fun renameFileOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
@@ -34,7 +34,7 @@ class CreateFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<FileMetadata>(
+        val document = assertTypeReturn<FileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -43,7 +43,7 @@ class CreateFileTest {
             ).component1()
         )
 
-        assertType<FileMetadata>(
+        val folder = assertTypeReturn<FileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -51,41 +51,42 @@ class CreateFileTest {
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
         )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.renameFile(config, document.id, generateAlphaString()).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.renameFile(config, folder.id, generateAlphaString()).component1()
+        )
     }
 
     @Test
-    fun createFileContainsSlash() {
+    fun renameFileDoesNotExist() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        assertTypeReturn<FileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CreateFileError.FileNameContainsSlash>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "/",
-                Klaxon().toJsonString(FileType.Document)
-            ).component2()
-        )
-
-        assertType<CreateFileError.FileNameContainsSlash>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "/",
-                Klaxon().toJsonString(FileType.Folder)
-            ).component2()
+        assertType<RenameFileError.FileDoesNotExist>(
+            CoreModel.renameFile(config, generateId(), generateAlphaString()).component2()
         )
     }
 
     @Test
-    fun createFileNotAvailable() {
+    fun renameFileContainsSlash() {
         val fileName = generateAlphaString()
-
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
@@ -94,45 +95,44 @@ class CreateFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<FileMetadata>(
+        val document = assertTypeReturn<FileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
-                fileName,
+                generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
         )
 
-        assertType<CreateFileError.FileNameNotAvailable>(
+        val folder = assertTypeReturn<FileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
                 fileName,
                 Klaxon().toJsonString(FileType.Folder)
-            ).component2()
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<RenameFileError.FileNameNotAvailable>(
+            CoreModel.renameFile(config, document.id, fileName).component2()
         )
     }
 
     @Test
-    fun createFileNoAccount() {
-        assertType<CreateFileError.NoAccount>(
-            CoreModel.createFile(
-                config,
-                generateId(),
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component2()
-        )
-    }
+    fun renameFileUnexpectedError() {
+        val renameFileResult: Result<Unit, RenameFileError>? =
+            Klaxon().converter(renameFileConverter).parse(renameFile("", "", ""))
 
-    @Test
-    fun createFileUnexpectedError() {
-        val createFileResult: Result<FileMetadata, CreateFileError>? =
-            Klaxon().converter(createFileConverter)
-                .parse(createFile("", "", "", ""))
-
-        assertType<CreateFileError.UnexpectedError>(
-            createFileResult?.component2()
+        assertType<RenameFileError.UnexpectedError>(
+            renameFileResult?.component2()
         )
     }
 }

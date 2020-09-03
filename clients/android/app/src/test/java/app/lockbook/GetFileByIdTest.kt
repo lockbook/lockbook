@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.syncAll
+import app.lockbook.core.exportAccount
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
@@ -8,7 +8,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class SyncAllTest {
+class GetFileByIdTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -25,7 +25,7 @@ class SyncAllTest {
     }
 
     @Test
-    fun syncAllOk() {
+    fun getFileByIdOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
@@ -60,25 +60,34 @@ class SyncAllTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
+        assertType<FileMetadata>(
+            CoreModel.getFileById(config, document.id).component1()
+        )
+
+        assertType<FileMetadata>(
+            CoreModel.getFileById(config, folder.id).component1()
+        )
+    }
+
+    @Test
+    fun getFileByIdNoFile() {
         assertType<Unit>(
-            CoreModel.syncAllFiles(config).component1()
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<GetFileByIdError.NoFileWithThatId>(
+            CoreModel.getFileById(config, generateId()).component2()
         )
     }
 
     @Test
-    fun syncAllNoAccount() {
-        assertType<SyncAllError.NoAccount>(
-            CoreModel.syncAllFiles(config).component2()
-        )
-    }
+    fun getFileByIdUnexpectedError() {
+        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
+            Klaxon().converter(getFileByIdConverter)
+                .parse(exportAccount(""))
 
-    @Test
-    fun syncAllUnexpectedError() {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
-
-        assertType<SyncAllError.UnexpectedError>(
-            syncResult?.component2()
+        assertType<GetFileByIdError.UnexpectedError>(
+            getFileByIdResult?.component2()
         )
     }
 }

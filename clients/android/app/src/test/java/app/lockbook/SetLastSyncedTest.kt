@@ -1,10 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.setLastSynced
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.SetLastSyncedError
-import app.lockbook.utils.setLastSyncedConverter
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -12,8 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class SetLastSyncedTest {
-
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -25,24 +21,27 @@ class SetLastSyncedTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun setLastSyncedOk() {
-        val coreModel = CoreModel(Config(path))
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setLastSynced(1)
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.setLastSynced(config, 1).component1()
+        )
     }
 
     @Test
     fun setLastSyncedUnexpectedError() {
         val lastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced("", 0))
-        val lastSyncedError = lastSyncedResult!!.component2()!!
-        require(lastSyncedError is SetLastSyncedError.UnexpectedError)
+
+        assertType<SetLastSyncedError.UnexpectedError>(
+            lastSyncedResult?.component2()
+        )
     }
 }

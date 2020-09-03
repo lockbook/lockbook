@@ -1,10 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.importAccount
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.ImportError
-import app.lockbook.utils.importAccountConverter
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -12,7 +9,7 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class ImportAccountTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -24,25 +21,31 @@ class ImportAccountTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun importAccountOk() {
-        CoreModel.generateAccount(Config(path), generateAlphaString()).component1()!!
-        val exportAccountString = CoreModel.exportAccount(Config(path)).component1()!!
-        path = createRandomPath()
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
 
-        CoreModel.importAccount(Config(path), exportAccountString).component1()!!
+        val exportAccountString = assertTypeReturn<String>(
+            CoreModel.exportAccount(config).component1()
+        )
+
+        config = Config(createRandomPath())
+
+        assertType<Unit>(
+            CoreModel.importAccount(config, exportAccountString).component1()
+        )
     }
 
     @Test
     fun importAccountStringCorrupted() {
-        val firstImportAccountError = CoreModel.importAccount(
-            Config(path),
-            "!@#$%^&*()"
-        ).component2()!!
-        require(firstImportAccountError is ImportError.AccountStringCorrupted)
+        assertType<ImportError.AccountStringCorrupted>(
+            CoreModel.importAccount(config, "!@#$%^&*()").component2()
+        )
     }
 
     @Test
@@ -50,7 +53,9 @@ class ImportAccountTest {
         val importResult: Result<Unit, ImportError>? =
             Klaxon().converter(importAccountConverter)
                 .parse(importAccount("", ""))
-        val importError = importResult!!.component2()!!
-        require(importError is ImportError.UnexpectedError)
+
+        assertType<ImportError.UnexpectedError>(
+            importResult?.component2()
+        )
     }
 }

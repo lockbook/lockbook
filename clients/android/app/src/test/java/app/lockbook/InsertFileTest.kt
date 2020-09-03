@@ -9,9 +9,8 @@ import org.junit.BeforeClass
 import org.junit.Test
 
 class InsertFileTest {
-    var path = createRandomPath()
+    var config = Config(createRandomPath())
 
-    private val coreModel = CoreModel(Config(path))
     companion object {
         @BeforeClass
         @JvmStatic
@@ -22,20 +21,44 @@ class InsertFileTest {
 
     @After
     fun createDirectory() {
-        path = createRandomPath()
+        config = Config(createRandomPath())
     }
 
     @Test
     fun insertFileOk() {
-        CoreModel.generateAccount(
-            Config(path),
-            generateAlphaString()
-        ).component1()!!
-        coreModel.setParentToRoot().component1()!!
-        val document = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Document)).component1()!!
-        coreModel.insertFile(document).component1()!!
-        val folder = coreModel.createFile(generateAlphaString(), Klaxon().toJsonString(FileType.Folder)).component1()!!
-        coreModel.insertFile(folder).component1()!!
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
     }
 
     @Test
@@ -43,7 +66,9 @@ class InsertFileTest {
         val insertResult: Result<Unit, InsertFileError>? =
             Klaxon().converter(insertFileConverter)
                 .parse(insertFile("", ""))
-        val insertError = insertResult!!.component2()!!
-        require(insertError is InsertFileError.UnexpectedError)
+
+        assertType<InsertFileError.UnexpectedError>(
+            insertResult?.component2()
+        )
     }
 }
