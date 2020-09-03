@@ -27,11 +27,9 @@ class CalculateWorkTest {
     @Test
     fun calculateWorkOk() {
         assertType<Unit>(
-            this::calculateWorkOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
         assertType<WorkCalculated>(
-            this::calculateWorkOk.name,
             CoreModel.calculateFileSyncWork(config).component1()
         )
     }
@@ -42,7 +40,6 @@ class CalculateWorkTest {
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
 
         assertType<CalculateWorkError.UnexpectedError>(
-            this::calculateWorkUnexpectedError.name,
             calculateSyncWorkResult?.component2()
         )
     }

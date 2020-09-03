@@ -61,7 +61,8 @@ pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), 
             ))
         })
         .chain(log_file)
-        .level(log::LevelFilter::Debug);
+        .level(log::LevelFilter::Warn)
+        .level_for("lockbook_core", log::LevelFilter::Trace);
 
     fern::Dispatch::new()
         .chain(stdout_logger)

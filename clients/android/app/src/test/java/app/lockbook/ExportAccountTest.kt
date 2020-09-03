@@ -27,12 +27,10 @@ class ExportAccountTest {
     @Test
     fun exportAccountOk() {
         assertType<Unit>(
-            this::exportAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<String>(
-            this::exportAccountOk.name,
             CoreModel.exportAccount(config).component1()
         )
     }
@@ -40,7 +38,6 @@ class ExportAccountTest {
     @Test
     fun exportAccountNoAccount() {
         assertType<AccountExportError.NoAccount>(
-            this::exportAccountOk.name,
             CoreModel.exportAccount(config).component2()
         )
     }
@@ -52,7 +49,6 @@ class ExportAccountTest {
                 .parse(exportAccount(""))
 
         assertType<AccountExportError.UnexpectedError>(
-            this::exportAccountUnexpectedError.name,
             exportAccountResult?.component2()
         )
     }
