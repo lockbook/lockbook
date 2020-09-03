@@ -27,14 +27,6 @@ final class SwiftLockbookCoreTests: XCTestCase {
         }
     }
     
-    func test00WhatEnvAmIUsing() {
-        let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
-        
-        print(apiLocation)
-        
-        XCTAssertTrue(apiLocation.contains("qa."))
-    }
-    
     func test01CreateExportImportAccount() {
         let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
         let result = SwiftLockbookCoreTests.core.createAccount(username: username)
@@ -194,7 +186,6 @@ final class SwiftLockbookCoreTests: XCTestCase {
 
 
     static var allTests = [
-        ("test00WhatEnvAmIUsing", test00WhatEnvAmIUsing),
         ("test01CreateExportImportAccount", test01CreateExportImportAccount),
         ("test02CreateFile", test02CreateFile),
         ("test03Sync", test03Sync),
