@@ -19,7 +19,6 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
@@ -99,7 +98,8 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onBackPressed() {
         when (getFragment().component1()?.onBackPressed()) {
             false -> super.onBackPressed()
-            true -> {}
+            true -> {
+            }
             null -> {
                 Timber.e("Unable to get result of back press.")
                 Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
