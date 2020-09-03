@@ -27,17 +27,14 @@ class RenameFileTest {
     @Test
     fun renameFileOk() {
         assertType<Unit>(
-            this::renameFileOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::renameFileOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::renameFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class RenameFileTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::renameFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -57,22 +53,18 @@ class RenameFileTest {
         )
 
         assertType<Unit>(
-            this::renameFileOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::renameFileOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<Unit>(
-            this::renameFileOk.name,
             CoreModel.renameFile(config, document.id, generateAlphaString()).component1()
         )
 
         assertType<Unit>(
-            this::renameFileOk.name,
             CoreModel.renameFile(config, folder.id, generateAlphaString()).component1()
         )
     }
@@ -80,17 +72,14 @@ class RenameFileTest {
     @Test
     fun renameFileDoesNotExist() {
         assertType<Unit>(
-            this::renameFileDoesNotExist.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertTypeReturn<FileMetadata>(
-            this::renameFileDoesNotExist.name,
             CoreModel.getRoot(config).component1()
         )
 
         assertType<RenameFileError.FileDoesNotExist>(
-            this::renameFileDoesNotExist.name,
             CoreModel.renameFile(config, generateId(), generateAlphaString()).component2()
         )
     }
@@ -99,17 +88,14 @@ class RenameFileTest {
     fun renameFileContainsSlash() {
         val fileName = generateAlphaString()
         assertType<Unit>(
-            this::renameFileContainsSlash.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::renameFileContainsSlash.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::renameFileContainsSlash.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -119,7 +105,6 @@ class RenameFileTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::renameFileContainsSlash.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -129,17 +114,14 @@ class RenameFileTest {
         )
 
         assertType<Unit>(
-            this::renameFileContainsSlash.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::renameFileContainsSlash.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<RenameFileError.FileNameNotAvailable>(
-            this::renameFileContainsSlash.name,
             CoreModel.renameFile(config, document.id, fileName).component2()
         )
     }
@@ -150,7 +132,6 @@ class RenameFileTest {
             Klaxon().converter(renameFileConverter).parse(renameFile("", "", ""))
 
         assertType<RenameFileError.UnexpectedError>(
-            this::renameFileUnexpectedError.name,
             renameFileResult?.component2()
         )
     }

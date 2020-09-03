@@ -27,17 +27,14 @@ class GetFileByIdTest {
     @Test
     fun getFileByIdOk() {
         assertType<Unit>(
-            this::getFileByIdOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::getFileByIdOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         val document = assertTypeReturn<FileMetadata>(
-            this::getFileByIdOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class GetFileByIdTest {
         )
 
         val folder = assertTypeReturn<FileMetadata>(
-            this::getFileByIdOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -57,22 +53,18 @@ class GetFileByIdTest {
         )
 
         assertType<Unit>(
-            this::getFileByIdOk.name,
             CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
-            this::getFileByIdOk.name,
             CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<FileMetadata>(
-            this::getFileByIdOk.name,
             CoreModel.getFileById(config, document.id).component1()
         )
 
         assertType<FileMetadata>(
-            this::getFileByIdOk.name,
             CoreModel.getFileById(config, folder.id).component1()
         )
     }
@@ -80,12 +72,10 @@ class GetFileByIdTest {
     @Test
     fun getFileByIdNoFile() {
         assertType<Unit>(
-            this::getFileByIdNoFile.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<GetFileByIdError.NoFileWithThatId>(
-            this::getFileByIdNoFile.name,
             CoreModel.getFileById(config, generateId()).component2()
         )
     }
@@ -97,7 +87,6 @@ class GetFileByIdTest {
                 .parse(exportAccount(""))
 
         assertType<GetFileByIdError.UnexpectedError>(
-            this::getFileByIdUnexpectedError.name,
             getFileByIdResult?.component2()
         )
     }

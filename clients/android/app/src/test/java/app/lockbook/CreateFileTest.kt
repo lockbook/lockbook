@@ -27,17 +27,14 @@ class CreateFileTest {
     @Test
     fun createFileOk() {
         assertType<Unit>(
-            this::createFileOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::createFileOk.name,
             CoreModel.getRoot(config).component1()
         )
 
         assertType<FileMetadata>(
-            this::createFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -47,7 +44,6 @@ class CreateFileTest {
         )
 
         assertType<FileMetadata>(
-            this::createFileOk.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -60,17 +56,14 @@ class CreateFileTest {
     @Test
     fun createFileContainsSlash() {
         assertType<Unit>(
-            this::createFileContainsSlash.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::createFileContainsSlash.name,
             CoreModel.getRoot(config).component1()
         )
 
         assertType<CreateFileError.FileNameContainsSlash>(
-            this::createFileContainsSlash.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -80,7 +73,6 @@ class CreateFileTest {
         )
 
         assertType<CreateFileError.FileNameContainsSlash>(
-            this::createFileContainsSlash.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -95,17 +87,14 @@ class CreateFileTest {
         val fileName = generateAlphaString()
 
         assertType<Unit>(
-            this::createFileNotAvailable.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            this::createFileNotAvailable.name,
             CoreModel.getRoot(config).component1()
         )
 
         assertType<FileMetadata>(
-            this::createFileNotAvailable.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -115,7 +104,6 @@ class CreateFileTest {
         )
 
         assertType<CreateFileError.FileNameNotAvailable>(
-            this::createFileNotAvailable.name,
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -128,7 +116,6 @@ class CreateFileTest {
     @Test
     fun createFileNoAccount() {
         assertType<CreateFileError.NoAccount>(
-            this::createFileNoAccount.name,
             CoreModel.createFile(
                 config,
                 generateId(),
@@ -145,7 +132,6 @@ class CreateFileTest {
                 .parse(createFile("", "", "", ""))
 
         assertType<CreateFileError.UnexpectedError>(
-            this::createFileUnexpectedError.name,
             createFileResult?.component2()
         )
     }
