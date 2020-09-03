@@ -85,3 +85,8 @@ data class EditableFile(
     val id: String,
     val contents: String
 )
+
+data class SyncingStatus(
+    var isSyncing: Boolean,
+    var maxProgress: Int
+)

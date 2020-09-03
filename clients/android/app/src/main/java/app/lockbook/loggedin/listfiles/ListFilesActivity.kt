@@ -21,7 +21,6 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import timber.log.Timber
 
-
 class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
 
@@ -43,7 +42,7 @@ class ListFilesActivity : AppCompatActivity() {
                 SORT_FILES_KEY,
                 SORT_FILES_A_Z
             )
-            ) {
+        ) {
             SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
             SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
             SORT_FILES_LAST_CHANGED ->

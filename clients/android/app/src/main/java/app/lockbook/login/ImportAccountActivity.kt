@@ -134,10 +134,12 @@ class ImportAccountActivity : AppCompatActivity() {
 
     private fun setUpLoggedInImportState() {
         PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            LOGGED_IN_KEY, true
+            LOGGED_IN_KEY,
+            true
         ).apply()
         PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            IS_THIS_AN_IMPORT_KEY, true
+            IS_THIS_AN_IMPORT_KEY,
+            true
         ).apply()
     }
 }
