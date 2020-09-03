@@ -12,14 +12,14 @@ struct FileBrowserView: View {
     @ObservedObject var coordinator: Coordinator
     
     var body: some View {
-        NavigationView {
-            FolderList(coordinator: self.coordinator, dirId: self.coordinator.root.id, dirName: "\(self.coordinator.account.username)'s Files")
-        }
+        FolderList(coordinator: self.coordinator, dir: self.coordinator.root, dirName: "\(self.coordinator.account.username)'s Files")
     }
 }
 
 struct ListView_Previews: PreviewProvider {
     static var previews: some View {
-        FileBrowserView(coordinator: Coordinator()).preferredColorScheme(.dark)
+        NavigationView {
+            FileBrowserView(coordinator: Coordinator())
+            }.preferredColorScheme(.dark)
     }
 }

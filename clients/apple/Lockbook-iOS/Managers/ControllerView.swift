@@ -16,7 +16,9 @@ struct ControllerView: View {
         if let account = loginManager.account {
             let coordinator = (try? Coordinator(lockbookApi: loginManager.lockbookApi, account: account))!
             return AnyView(VStack {
-                FileBrowserView(coordinator: coordinator)
+                NavigationView {
+                    FileBrowserView(coordinator: coordinator)
+                }.listStyle(GroupedListStyle())
                 ProgressWidget(coordinator: coordinator)
                     .frame(height: 20)
                     .padding()

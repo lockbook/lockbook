@@ -122,10 +122,10 @@ final class Coordinator: ObservableObject {
         }
     }
     
-    func getRoot() -> UUID? {
+    func getRoot() -> FileMetadata? {
         switch self.lockbookApi.getRoot() {
         case .success(let rootMeta):
-            return Optional.some(rootMeta.id)
+            return Optional.some(rootMeta)
         case .failure(let err):
             print("Failed getting root with error: \(err)")
             return Optional.none
