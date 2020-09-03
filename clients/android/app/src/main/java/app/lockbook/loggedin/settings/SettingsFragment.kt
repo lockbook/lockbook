@@ -41,10 +41,12 @@ import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import timber.log.Timber
 
-class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() {
+class SettingsFragment : PreferenceFragmentCompat() {
+    lateinit var config: Config
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
-
+        config = Config(requireContext().filesDir.absolutePath)
         setUpPreferences()
     }
 
@@ -62,19 +64,21 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
 
         findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
             editText.inputType = InputType.TYPE_CLASS_NUMBER
-            editText.filters = arrayOf(object : InputFilter {
-                override fun filter(
-                    source: CharSequence?,
-                    start: Int,
-                    end: Int,
-                    dest: Spanned?,
-                    dstart: Int,
-                    dend: Int
-                ): CharSequence? {
-                    val input = (dest.toString() + source.toString()).toIntOrNull()
-                    return if ((0..Int.MAX_VALUE).contains(input)) null else ""
+            editText.filters = arrayOf(
+                object : InputFilter {
+                    override fun filter(
+                        source: CharSequence?,
+                        start: Int,
+                        end: Int,
+                        dest: Spanned?,
+                        dstart: Int,
+                        dend: Int
+                    ): CharSequence? {
+                        val input = (dest.toString() + source.toString()).toIntOrNull()
+                        return if ((0..Int.MAX_VALUE).contains(input)) null else ""
+                    }
                 }
-            })
+            )
         }
 
         if (!isBiometricsOptionsAvailable()) {
@@ -129,7 +133,8 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
 
                 val executor = ContextCompat.getMainExecutor(requireContext())
                 val biometricPrompt = BiometricPrompt(
-                    this, executor,
+                    this,
+                    executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
                             errorCode: Int,
@@ -141,14 +146,16 @@ class SettingsFragment(private val config: Config) : PreferenceFragmentCompat() 
                                     Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         requireContext(),
-                                        UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_SHORT
+                                        UNEXPECTED_ERROR_OCCURRED,
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> {
                                     Toast.makeText(
                                         requireContext(),
-                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                        "Too many tries, try again later!",
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 }

@@ -95,7 +95,8 @@ class NewAccountActivity : AppCompatActivity() {
 
     private fun setUpLoggedInState() {
         PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            LOGGED_IN_KEY, true
+            LOGGED_IN_KEY,
+            true
         ).apply()
     }
 }
