@@ -17,7 +17,7 @@ import timber.log.Timber
 
 class FileModel(path: String) {
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _errorHasOccurred = MutableLiveData<String>()
+    private val _errorHasOccurred = SingleMutableLiveData<String>()
     private lateinit var parentFileMetadata: FileMetadata
     private lateinit var lastDocumentAccessed: FileMetadata
     val config = Config(path)
@@ -57,9 +57,15 @@ class FileModel(path: String) {
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
 
     fun upADirectory() {
-        when (val getSiblingsOfParentResult = CoreModel.getChildren(config, parentFileMetadata.parent)) {
+        when (
+            val getSiblingsOfParentResult =
+                CoreModel.getChildren(config, parentFileMetadata.parent)
+        ) {
             is Ok -> {
-                when (val getParentOfParentResult = CoreModel.getFileById(config, parentFileMetadata.parent)) {
+                when (
+                    val getParentOfParentResult =
+                        CoreModel.getFileById(config, parentFileMetadata.parent)
+                ) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
@@ -186,7 +192,10 @@ class FileModel(path: String) {
     }
 
     fun createInsertRefreshFiles(name: String, fileType: String) {
-        when (val createFileResult = CoreModel.createFile(config, parentFileMetadata.id, name, fileType)) {
+        when (
+            val createFileResult =
+                CoreModel.createFile(config, parentFileMetadata.id, name, fileType)
+        ) {
             is Ok -> {
                 val insertFileResult = CoreModel.insertFile(config, createFileResult.value)
                 if (insertFileResult is Err) {

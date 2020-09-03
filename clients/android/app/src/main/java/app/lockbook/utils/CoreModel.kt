@@ -100,7 +100,8 @@ object CoreModel {
 
     fun getAccount(config: Config): Result<Account, GetAccountError> {
         val getAccountResult: Result<Account, GetAccountError>? =
-            Klaxon().converter(getAccountConverter).parse(getAccount(Klaxon().toJsonString(config)))
+            Klaxon().converter(getAccountConverter)
+                .parse(getAccount(Klaxon().toJsonString(config)))
 
         if (getAccountResult != null) {
             return getAccountResult
@@ -109,7 +110,10 @@ object CoreModel {
         return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun setLastSynced(config: Config, lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
+    fun setLastSynced(
+        config: Config,
+        lastSyncedDuration: Long
+    ): Result<Unit, SetLastSyncedError> {
         val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter)
                 .parse(setLastSynced(Klaxon().toJsonString(config), lastSyncedDuration))
@@ -269,7 +273,6 @@ object CoreModel {
         workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
         Timber.e("${Klaxon().toJsonString(workUnit)}, ${config.writeable_path}")
-
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
                 executeSyncWork(
@@ -280,9 +283,6 @@ object CoreModel {
             )
 
         if (executeSyncWorkResult != null) {
-            if (executeSyncWorkResult.component2() is ExecuteWorkError.UnexpectedError) {
-                Timber.e("Uhoh")
-            }
             return executeSyncWorkResult
         }
 

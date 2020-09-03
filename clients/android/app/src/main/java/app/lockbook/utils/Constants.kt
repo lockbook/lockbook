@@ -25,6 +25,9 @@ object SharedPreferences {
 
     const val VIEW_LOGS_TITLE_KEY = "view_logs_title"
     const val VIEW_LOGS_KEY = "view_logs"
+    const val CLEAR_LOGS_KEY = "clear_logs"
+
+    const val IS_THIS_AN_IMPORT_KEY = "import"
 }
 
 object RequestResultCodes {

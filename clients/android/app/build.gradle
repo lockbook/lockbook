@@ -14,7 +14,7 @@ android {
         minSdkVersion 22
         targetSdkVersion 29
         versionCode 1
-        versionName "0.1.3"
+        versionName "0.1.4"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,7 +47,7 @@ android {
     }
 
     kotlinter {
-        disabledRules = ["no-wildcard-imports"]
+        disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
     }
 
     testOptions {

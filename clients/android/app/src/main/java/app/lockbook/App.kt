@@ -12,13 +12,12 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import app.lockbook.loggedin.listfiles.FileModel
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.LOG_FILE_NAME
+import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
-import com.github.michaelbull.result.Err
-import java.io.File
+import kotlinx.coroutines.*
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -37,12 +36,7 @@ class App : Application() {
 
     private fun loadLockbookCore() {
         System.loadLibrary("lockbook_core")
-        val initLoggerResult = CoreModel.setUpInitLogger(filesDir.absolutePath)
-        if (initLoggerResult is Err) {
-            val logFile = File("$filesDir/$LOG_FILE_NAME")
-            logFile.createNewFile()
-            logFile.writeText("Cannot startup init_logger: ${initLoggerResult.error}")
-        }
+        CoreModel.setUpInitLogger(filesDir.absolutePath)
     }
 }
 
@@ -62,12 +56,17 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     fun onMoveToBackground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
-                App.instance
-            )
-                .getBoolean(BACKGROUND_SYNC_ENABLED_KEY, true)
+                    App.instance
+                )
+                .getBoolean(
+                        BACKGROUND_SYNC_ENABLED_KEY,
+                        true
+                    ) && PreferenceManager.getDefaultSharedPreferences(App.instance)
+                .getBoolean(SharedPreferences.IS_THIS_AN_IMPORT_KEY, false)
         ) {
             val work = PeriodicWorkRequestBuilder<FileModel.SyncWork>(
-                PreferenceManager.getDefaultSharedPreferences(App.instance).getString(BACKGROUND_SYNC_PERIOD_KEY, "30")?.toLongOrNull() ?: 30,
+                PreferenceManager.getDefaultSharedPreferences(App.instance)
+                    .getString(BACKGROUND_SYNC_PERIOD_KEY, "30")?.toLongOrNull() ?: 30,
                 TimeUnit.MINUTES
             )
                 .setConstraints(Constraints.NONE)
