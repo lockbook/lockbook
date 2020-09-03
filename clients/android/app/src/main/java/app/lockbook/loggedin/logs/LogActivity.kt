@@ -1,7 +1,6 @@
 package app.lockbook.loggedin.logs
 
 import android.os.Bundle
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
 import app.lockbook.utils.LOG_FILE_NAME
@@ -17,11 +16,6 @@ class LogActivity : AppCompatActivity() {
         setContentView(R.layout.activity_debug)
 
         getDebugContent()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        debug_scroller.fullScroll(View.FOCUS_DOWN)
     }
 
     private fun getDebugContent() {
