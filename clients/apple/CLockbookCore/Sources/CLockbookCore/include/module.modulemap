@@ -1,0 +1,5 @@
+module CLockbookCore {
+    header "lockbook_core.h"
+    link "lockbook_core"
+    export *
+}
