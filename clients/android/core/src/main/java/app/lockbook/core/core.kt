@@ -1,9 +1,5 @@
 package app.lockbook.core
 
-import kotlinx.coroutines.sync.Mutex
-
-val coreMutex = Mutex()
-
 external fun initLogger(path: String): String
 external fun createAccount(config: String, username: String): String
 external fun importAccount(config: String, account: String): String

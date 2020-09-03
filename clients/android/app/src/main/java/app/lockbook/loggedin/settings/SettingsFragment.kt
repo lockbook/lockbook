@@ -23,6 +23,7 @@ import app.lockbook.loggedin.logs.LogActivity
 import app.lockbook.utils.AccountExportError
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.LOG_FILE_NAME
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -30,6 +31,7 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
+import app.lockbook.utils.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.utils.SharedPreferences.VIEW_LOGS_KEY
@@ -40,6 +42,7 @@ import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import timber.log.Timber
+import java.io.File
 
 class SettingsFragment : PreferenceFragmentCompat() {
     lateinit var config: Config
@@ -61,6 +64,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<Preference>(VIEW_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
         findPreference<Preference>(VIEW_LOGS_TITLE_KEY)?.isVisible = BuildConfig.DEBUG
+        findPreference<Preference>(CLEAR_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
 
         findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
             editText.inputType = InputType.TYPE_CLASS_NUMBER
@@ -91,6 +95,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
             VIEW_LOGS_KEY -> {
                 startActivity(Intent(context, LogActivity::class.java))
+            }
+            CLEAR_LOGS_KEY -> {
+                File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
             }
             BACKGROUND_SYNC_ENABLED_KEY -> {
                 val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)

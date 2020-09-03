@@ -189,6 +189,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private fun incrementalSyncIfNotRunning() {
         if (!syncingStatus.isSyncing) {
             incrementalSync()
+            fileModel.refreshFiles()
             syncingStatus.isSyncing = false
             syncingStatus.maxProgress = 0
         }

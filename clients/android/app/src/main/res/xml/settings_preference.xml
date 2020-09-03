@@ -12,6 +12,10 @@
             android:key="view_logs"
             android:title="@string/settings_preference_logs"
             app:iconSpaceReserved="false" />
+        <Preference
+            android:key="clear_logs"
+            android:title="@string/settings_preference_clear_logs"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
