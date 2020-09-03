@@ -33,7 +33,7 @@ android {
     }
 
     kotlinter {
-        disabledRules = ["no-wildcard-imports"]
+        disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
     }
 }
 

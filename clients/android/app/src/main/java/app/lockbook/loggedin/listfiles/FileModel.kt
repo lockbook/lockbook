@@ -18,7 +18,7 @@ import timber.log.Timber
 
 class FileModel(path: String) {
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _errorHasOccurred = MutableLiveData<String>()
+    private val _errorHasOccurred = SingleMutableLiveData<String>()
     private lateinit var parentFileMetadata: FileMetadata
     private lateinit var lastDocumentAccessed: FileMetadata
     val config = Config(path)
@@ -338,7 +338,7 @@ class FileModel(path: String) {
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
-            if(!coreMutex.isLocked) {
+            if (!coreMutex.isLocked) {
                 val syncAllResult =
                     CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
                 return if (syncAllResult is Err) {

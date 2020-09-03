@@ -75,7 +75,10 @@ class ListFilesFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_list_files, container, false
+            inflater,
+            R.layout.fragment_list_files,
+            container,
+            false
         )
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
@@ -101,7 +104,7 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.earlyStopSyncSnackBar.observe(
+        listFilesViewModel.stopSyncSnackBar.observe(
             viewLifecycleOwner,
             {
                 earlyStopSyncSnackBar()
@@ -167,7 +170,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.createFileNameDialog.observe(
             viewLifecycleOwner,
             {
-                createFileNameDialog()
+                createFileNameDialog("")
             }
         )
 
@@ -185,22 +188,33 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.startUpFiles()
-
         return binding.root
     }
 
     override fun onResume() {
         super.onResume()
+        setUpAfterConfigChange()
+    }
+
+    private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
         if (listFilesViewModel.isDialogOpen) {
-            createFileNameDialog()
+            Timber.e(listFilesViewModel.alertDialogFileName)
+            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        }
+        if (listFilesViewModel.syncingStatus.isSyncing) {
+            showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        setUpBeforeConfigChange()
+    }
+
+    private fun setUpBeforeConfigChange() {
         if (listFilesViewModel.isDialogOpen) {
+            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
             alertDialog.dismiss()
         }
     }
@@ -279,7 +293,7 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun createFileNameDialog() {
+    private fun createFileNameDialog(originalFileName: String) {
         val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
         alertDialog = dialogBuilder.setView(
@@ -301,13 +315,14 @@ class ListFilesFragment : Fragment() {
             .create()
 
         alertDialog.show()
+        alertDialog.findViewById<EditText>(R.id.new_file_username)?.setText(originalFileName)
     }
 
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
     ) {
-        adapter.files = if (files.isEmpty()) listOf() else files
+        adapter.files = files
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {

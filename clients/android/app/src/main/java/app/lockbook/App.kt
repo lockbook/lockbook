@@ -10,19 +10,14 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import app.lockbook.core.coreMutex
 import app.lockbook.loggedin.listfiles.FileModel
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.LOG_FILE_NAME
 import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
-import com.github.michaelbull.result.Err
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.withLock
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -50,7 +45,7 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onMoveToForeground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(LOGGED_IN_KEY, false)
+            .getBoolean(LOGGED_IN_KEY, false)
         ) {
             WorkManager.getInstance(App.instance)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
@@ -60,13 +55,13 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onMoveToBackground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
-                App.instance
-            )
+            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
+                    App.instance
+                )
                 .getBoolean(
-                    BACKGROUND_SYNC_ENABLED_KEY,
-                    true
-                ) && PreferenceManager.getDefaultSharedPreferences(App.instance)
+                        BACKGROUND_SYNC_ENABLED_KEY,
+                        true
+                    ) && PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getBoolean(SharedPreferences.IS_THIS_AN_IMPORT_KEY, false)
         ) {
             val work = PeriodicWorkRequestBuilder<FileModel.SyncWork>(
