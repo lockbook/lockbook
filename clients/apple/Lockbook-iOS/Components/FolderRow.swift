@@ -14,23 +14,21 @@ struct FolderRow: View {
     var metadata: FileMetadata
 
     var body: some View {
-        NavigationLink(destination: FolderList(coordinator: self.coordinator, dirId: metadata.id, dirName: metadata.name)) {
-            HStack {
-                Image(systemName: "folder")
-                    .foregroundColor(.blue)
-                    .frame(width: 30, height: 30)
-                VStack {
-                    HStack {
-                        Text(metadata.name)
-                            .font(.headline)
-                        Spacer()
-                    }
-                    HStack {
-                        Text("Last synced \(intEpochToString(epoch: metadata.metadataVersion))")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
+        HStack {
+            Image(systemName: "folder")
+                .foregroundColor(.blue)
+                .frame(width: 30, height: 30)
+            VStack {
+                HStack {
+                    Text(metadata.name)
+                        .font(.headline)
+                    Spacer()
+                }
+                HStack {
+                    Text("Last synced \(intEpochToString(epoch: metadata.metadataVersion))")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
             }
         }
