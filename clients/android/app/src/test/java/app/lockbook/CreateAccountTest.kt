@@ -27,7 +27,6 @@ class CreateAccountTest {
     @Test
     fun createAccountOk() {
         assertType<Unit>(
-            this::createAccountOk.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
     }
@@ -36,13 +35,11 @@ class CreateAccountTest {
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
         assertType<Unit>(
-            this::createAccountUsernameTaken.name,
             CoreModel.generateAccount(config, username).component1()
         )
         config = Config(createRandomPath())
 
         assertType<CreateAccountError.UsernameTaken>(
-            this::createAccountUsernameTaken.name,
             CoreModel.generateAccount(config, username).component2()
         )
     }
@@ -50,7 +47,6 @@ class CreateAccountTest {
     @Test
     fun createAccountInvalidUsername() {
         assertType<CreateAccountError.InvalidUsername>(
-            this::createAccountInvalidUsername.name,
             CoreModel.generateAccount(config, "!@#$%^&*()").component2()
         )
     }
@@ -58,11 +54,9 @@ class CreateAccountTest {
     @Test
     fun createAccountExistsAlready() {
         assertType<Unit>(
-            this::createAccountExistsAlready.name,
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
         assertType<CreateAccountError.AccountExistsAlready>(
-            this::createAccountExistsAlready.name,
             CoreModel.generateAccount(config, generateAlphaString()).component2()
         )
     }
@@ -74,7 +68,6 @@ class CreateAccountTest {
                 .parse(createAccount("", ""))
 
         assertType<CreateAccountError.UnexpectedError>(
-            this::createAccountUnexpectedError.name,
             createAccountOk?.component2()
         )
     }
