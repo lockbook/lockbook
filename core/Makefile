@@ -23,10 +23,10 @@ android:
 macos_jni:
 	@touch src/lib.rs
 	@cargo build --lib --release
-	
+
 	@echo "Cleaning up old .dylib if they exist"
 	@rm -rf $(jniLibs)/desktop
-	
+
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/desktop
 
@@ -36,10 +36,10 @@ macos_jni:
 windows_jni:
 	@touch src/lib.rs
 	@cargo build --lib --release
-	
+
 	@echo "Cleaning up old .dll if they exist"
 	@rm -rf $(jniLibs)/desktop
-	
+
 	@echo "Moving new .dll over"
 	@mkdir -p $(jniLibs)/desktop
 
@@ -49,36 +49,42 @@ windows_jni:
 linux_jni:
 	@touch src/lib.rs
 	@cargo build --lib --release
-	
+
 	@echo "Cleaning up old .so if they exist"
 	@rm -rf $(jniLibs)/desktop
-	
+
 	@echo "Moving new .so over"
 	@mkdir -p $(jniLibs)/desktop
 
 	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
-.PHONY: apple
-apple:
+.PHONY: lib_c_for_swift_ios
+lib_c_for_swift_ios:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
-
 	@echo "Creating header"
-	@cbindgen src/c_interface.rs -l c > lockbook_core.h
-
+	@rm ${swift_inc}lockbook_core.h || true
+	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@mkdir -p ${swift_inc}
+	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
-	@cargo lipo --release
+	@rm ${swift_lib}liblockbook_core.a || true
+	cargo lipo --release
+	@mkdir -p ${swift_lib}
+	cp target/universal/release/liblockbook_core.a ${swift_lib}
 
-	@echo "Purge/create library folders"
-	@rm -rf ${inc_apple} ${libs_apple}
-	@mkdir ${inc_apple}
-	@mkdir ${libs_apple}
-
-	@echo "Copying headers"
-	@cp lockbook_core.h ${inc_apple}
-
-	@echo "Copying fat library"
-	@cp target/universal/release/liblockbook_core.a ${libs_apple}
-
+.PHONY: lib_c_for_swift
+lib_c_for_swift:
+	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
+	@echo "Creating header"
+	@rm ${swift_inc}lockbook_core.h || true
+	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@mkdir -p ${swift_inc}
+	cp lockbook_core.h ${swift_inc}
+	@echo "Building fat library"
+	@rm ${swift_lib}liblockbook_core.a || true
+	cargo build
+	@mkdir -p ${swift_lib}
+	cp target/debug/liblockbook_core.a ${swift_lib}
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
@@ -86,6 +92,6 @@ libName = 'liblockbook_core.so'
 macosLibName = 'liblockbook_core.dylib'
 windowsLibName = 'liblockbook_core.dll'
 
-# Apple Library Location
-inc_apple := ../clients/apple/include/
-libs_apple := ../clients/apple/libs/
+# Swift Library Location
+swift_inc := ../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
+swift_lib := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
