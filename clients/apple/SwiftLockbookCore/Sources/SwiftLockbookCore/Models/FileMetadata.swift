@@ -6,8 +6,8 @@ public struct FileMetadata: Codable, Identifiable {
     public var parent: UUID
     public var name: String
     public var owner: String
-    public var contentVersion: Int
-    public var metadataVersion: Int
+    public var contentVersion: UInt64
+    public var metadataVersion: UInt64
     public var deleted: Bool
     public var signature: SignedValue = SignedValue(content: "", signature: "")
     public var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
