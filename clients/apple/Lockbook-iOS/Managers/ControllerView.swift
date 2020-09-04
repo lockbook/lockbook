@@ -19,6 +19,8 @@ struct ControllerView: View {
                 NavigationView {
                     FileBrowserView(coordinator: coordinator)
                 }
+                .foregroundColor(Color(UIColor.label))
+                .accentColor(Color(UIColor.label))
             })
         } else {
             return AnyView(WelcomeView(loginManager: loginManager))
