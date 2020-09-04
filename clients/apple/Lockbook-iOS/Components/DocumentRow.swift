@@ -12,12 +12,14 @@ import SwiftLockbookCore
 struct DocumentRow: View {
     @ObservedObject var coordinator: Coordinator
     var metadata: FileMetadata
-    var color: Color
     var image: Image
 
     var body: some View {
         NavigationLink(destination: FileView(coordinator: self.coordinator, metadata: metadata)) {
             HStack {
+                self.image
+                    .foregroundColor(.blue)
+                    .frame(width: 30, height: 30)
                 VStack {
                     HStack {
                         Text(metadata.name)
@@ -31,12 +33,6 @@ struct DocumentRow: View {
                         Spacer()
                     }
                 }
-                Spacer()
-                ZStack {
-                    self.image
-                        .foregroundColor(self.color)
-                        .frame(width: 50, height: 30)
-                }
             }
         }
     }
@@ -46,19 +42,14 @@ struct DocumentRow: View {
         self.metadata = metadata
         switch (false, false, false, metadata.deleted) {
             case (true, _, _, _):
-                self.color = Color.green
                 self.image = Image(systemName: "plus")
             case (_, true, _, _):
-                self.color = Color.purple
                 self.image = Image(systemName: "tray.and.arrow.down")
             case (_, _, true, _):
-                self.color = Color.blue
                 self.image = Image(systemName: "tray.and.arrow.up")
             case (_, _, _, true):
-                self.color = Color.red
                 self.image = Image(systemName: "trash")
             case (_, _, _, _):
-                self.color = Color.primary
                 self.image = Image(systemName: "doc")
         }
     }
