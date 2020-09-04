@@ -172,7 +172,7 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let now = Date().timeIntervalSince1970
-        return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: Int(now), metadataVersion: Int(now), deleted: false))
+        return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: UInt64(now), metadataVersion: UInt64(now), deleted: false))
     }
     
     public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {

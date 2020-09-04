@@ -1,7 +1,7 @@
 import Foundation
 import CLockbookCore
 
-public func intEpochToString(epoch: Int) -> String {
+public func intEpochToString(epoch: UInt64) -> String {
     let date = Date(timeIntervalSince1970: TimeInterval(epoch/1000))
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy/MM/dd hh:mm a"
