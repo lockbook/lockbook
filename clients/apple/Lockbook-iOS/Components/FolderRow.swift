@@ -16,7 +16,7 @@ struct FolderRow: View {
     var body: some View {
         HStack {
             Image(systemName: "folder")
-                .foregroundColor(.blue)
+                .foregroundColor(.pink)
                 .frame(width: 30, height: 30)
             VStack {
                 HStack {

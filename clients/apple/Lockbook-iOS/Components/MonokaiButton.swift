@@ -14,9 +14,8 @@ struct MonokaiButton: View {
         Text(text)
             .frame(minWidth: 250)
             .padding(10)
-            .background(Monokai.yellow)
-            .accentColor(Monokai.black)
-            .foregroundColor(Monokai.black)
+            .background(Color(UIColor.label))
+            .foregroundColor(Color(UIColor.systemBackground))
             .padding(.bottom, 25)
             .frame(minWidth: 250)
             .font(.system(size: 15, design: .monospaced))
@@ -25,6 +24,10 @@ struct MonokaiButton: View {
 
 struct MonokaiButton_Previews: PreviewProvider {
     static var previews: some View {
-        MonokaiButton(text: "test")
+        Group {
+            MonokaiButton(text: "test")
+            MonokaiButton(text: "test")
+                .preferredColorScheme(.dark)
+        }
     }
 }

@@ -23,7 +23,7 @@ struct PullDownView : UIViewRepresentable {
         control.refreshControl = UIRefreshControl()
         control.refreshControl?.addTarget(context.coordinator, action: #selector(SVCoordinator.handleRefreshControl), for: .valueChanged)
         if let root = self.coordinator.getRoot() {
-            let childView = UIHostingController(rootView: FolderList(coordinator: self.coordinator, dir: root, dirName: "\(self.coordinator.account.username)'s Files"))
+            let childView = UIHostingController(rootView: FolderList(coordinator: self.coordinator, dir: root))
             childView.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
             control.addSubview(childView.view)
         } else {

@@ -114,11 +114,14 @@ final class Coordinator: ObservableObject {
     
     /// Calculates work and executes every work unit (great to plug a hook for a progress bar or something)
     func fullIncrementalSync() -> Void {
-        if case .success(let workMeta) = self.lockbookApi.calculateWork() {
+        switch self.lockbookApi.calculateWork() {
+        case .success(let workMeta):
             if (workMeta.workUnits.count > 0) {
                 self.progress = Optional.some((Float(0.0), "Syncing", Color.yellow))
                 self.incrementAndExecute(work: ArraySlice(workMeta.workUnits), processed: 0, total: workMeta.workUnits.count)
             }
+        case .failure(let err):
+            self.progress = Optional.some((Float(0.0), "Err: \(err)", Color.red))
         }
     }
     
