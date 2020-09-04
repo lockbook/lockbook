@@ -23,9 +23,30 @@ struct CreateFileView: View {
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 50)
+                .disableAutocorrection(true)
             
-            Toggle("Folder?", isOn: $isFolder)
-                .padding(.horizontal, 80)
+            Button(action: {
+                self.isFolder = !self.isFolder
+            }) {
+                HStack {
+                    HStack {
+                        Image(systemName: "doc")
+                        Text("Document")
+                    }
+                    .foregroundColor(.blue)
+                    .opacity(!self.isFolder ? 1.0 : 0.2)
+                    Text("/")
+                    .foregroundColor(.secondary)
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("Folder")
+                    }
+                    .foregroundColor(.pink)
+                    .opacity(self.isFolder ? 1.0 : 0.2)
+                }
+            }
+            .padding(.all, 20)
+            
             
             MonokaiButton(text: "Create \(isFolder ? "Folder":"Document")")
                 .onTapGesture {

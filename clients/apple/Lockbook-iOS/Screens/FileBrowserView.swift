@@ -12,7 +12,14 @@ struct FileBrowserView: View {
     @ObservedObject var coordinator: Coordinator
     
     var body: some View {
-        FolderList(coordinator: self.coordinator, dir: self.coordinator.root, dirName: "\(self.coordinator.account.username)'s Files")
+        VStack {
+            FolderList(coordinator: self.coordinator, dir: self.coordinator.root)
+            coordinator.progress.map { _ in
+                ProgressWidget(coordinator: coordinator)
+                .frame(height: 20)
+                .padding()
+            }
+        }
     }
 }
 

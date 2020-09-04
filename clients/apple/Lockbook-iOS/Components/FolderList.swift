@@ -13,7 +13,14 @@ struct FolderList: View {
     @ObservedObject var coordinator: Coordinator
     @State var path: [FileMetadata] = []
     @State var dir: FileMetadata
-    var dirName: String
+    
+    func dirName() -> String {
+        if (path.isEmpty) {
+            return "\(self.coordinator.account.username)'s Files"
+        } else {
+            return "\(path.map { $0.name.prefix(1) }.joined(separator: "/"))/\(dir.name)"
+        }
+    }
     
     var body: some View {
         let files = self.coordinator.navigateAndListFiles(dirId: dir.id).sorted(by: { (a, b) -> Bool in
@@ -24,7 +31,6 @@ struct FolderList: View {
             ForEach(files){ file in
                 if (file.fileType == .Folder) {
                     FolderRow(coordinator: self.coordinator, metadata: file).onTapGesture {
-                        print(self.path)
                         self.path.append(self.dir)
                         self.dir = file
                     }
@@ -37,7 +43,7 @@ struct FolderList: View {
                 self.coordinator.markFileForDeletion(id: meta.id)
             }
         }
-        .navigationBarTitle(dirName)
+        .navigationBarTitle(dirName())
         .navigationBarItems(
             leading: HStack {
                 self.path.last.map { parent in
@@ -67,7 +73,7 @@ struct FolderView_Previews: PreviewProvider {
         let coord = Coordinator()
         
         return NavigationView {
-            FolderList(coordinator: coord, dir: coord.root, dirName: "root")
+            FolderList(coordinator: coord, dir: coord.root)
             .previewLayout(.sizeThatFits)
             .preferredColorScheme(.dark)
         }
