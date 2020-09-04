@@ -20,7 +20,7 @@ pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), 
     let stdout_lb_level = if std_enabled {
         log::LevelFilter::Debug
     } else {
-        log::LevelFilter::Off
+        log::LevelFilter::Info
     };
 
     let stdout_logger = fern::Dispatch::new()

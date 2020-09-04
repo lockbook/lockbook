@@ -106,8 +106,10 @@ pub enum InitLoggerError {
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
     let print_debug = env::var("LOCKBOOK_DEBUG").is_ok();
     let print_colors = env::var("LOCKBOOK_NO_COLOR").is_err();
-    loggers::init(log_path, print_debug, print_colors)
-        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))
+    let result = loggers::init(log_path, print_debug, print_colors)
+        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
+    info!("Logger initialized! Path: {:#?}", log_path);
+    Ok(result)
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {
