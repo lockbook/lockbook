@@ -514,7 +514,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "Lockbook-iOS/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
@@ -545,7 +545,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "Lockbook-iOS/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
@@ -637,7 +637,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development: raayanp01@gmail.com (7FC6YZ6U94)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "Lockbook-iOS/Preview\\ Content";
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_BITCODE = NO;
