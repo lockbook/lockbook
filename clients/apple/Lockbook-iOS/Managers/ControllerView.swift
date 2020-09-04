@@ -18,7 +18,7 @@ struct ControllerView: View {
             return AnyView(VStack {
                 NavigationView {
                     FileBrowserView(coordinator: coordinator)
-                }.listStyle(GroupedListStyle())
+                }
             })
         } else {
             return AnyView(WelcomeView(loginManager: loginManager))

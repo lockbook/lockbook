@@ -32,7 +32,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         lockbookApi.initializeLogger()
         let loginManager = LoginManager(lockbookApi: lockbookApi)
         // Use a UIHostingController as window root view controller.
-        let controllerView = ControllerView(loginManager: loginManager)
+        let controllerView = ControllerView(loginManager: loginManager).environmentObject(loginManager)
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
             window.rootViewController = UIHostingController(rootView: controllerView)

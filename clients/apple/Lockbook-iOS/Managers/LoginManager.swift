@@ -48,4 +48,13 @@ class LoginManager: ObservableObject {
             return nil
         }
     }
+    
+    func logoutAndDelete() -> Void {
+        let lockbookDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.appendingPathComponent("lockbook.sled")
+        print("Deleting \(lockbookDir)")
+        if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
+            print("Logging out")
+            self.account = nil
+        }
+    }
 }

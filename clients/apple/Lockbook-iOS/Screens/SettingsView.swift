@@ -10,6 +10,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var coordinator: Coordinator
+    @EnvironmentObject var loginManager: LoginManager
     
     func fail() -> Void {
         print("Failure!")
@@ -89,6 +90,19 @@ struct SettingsView: View {
                 HStack {
                     Image(systemName: "globe")
                     Text(self.coordinator.lockbookApi.getApiLocation())
+                }
+            }
+            Divider()
+            Group {
+                Text("Debug")
+                Button(action: {
+                    self.loginManager.logoutAndDelete()
+                }) {
+                    HStack {
+                        Image(systemName: "trash.circle.fill")
+                        Text("Delete & Logout")
+                    }
+                    .foregroundColor(.red)
                 }
             }
             Spacer()
