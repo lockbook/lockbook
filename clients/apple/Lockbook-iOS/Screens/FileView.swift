@@ -18,6 +18,7 @@ struct FileView: View {
     var body: some View {
         VStack {
             TextEditor(text: self.$content)
+            .disableAutocorrection(true)
         }
         .alert(isPresented: $showingAlert) {
             Alert(title: Text("Failed to get/update file!"))
@@ -32,11 +33,7 @@ struct FileView: View {
         .onDisappear {
             if let file = self.coordinator.getFile(meta: self.metadata) {
                 if file.secret != self.content {
-                    if (self.coordinator.updateFile(id: self.metadata.id, content: self.content)) {
-                        self.coordinator.sync()
-                    } else {
-                        self.showingAlert = true
-                    }
+                    let _ = self.coordinator.updateFile(id: self.metadata.id, content: self.content)
                 } else {
                     print("Files look the same, not updating")
                 }

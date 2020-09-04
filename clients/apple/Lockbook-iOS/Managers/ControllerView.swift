@@ -19,9 +19,6 @@ struct ControllerView: View {
                 NavigationView {
                     FileBrowserView(coordinator: coordinator)
                 }.listStyle(GroupedListStyle())
-                ProgressWidget(coordinator: coordinator)
-                    .frame(height: 20)
-                    .padding()
             })
         } else {
             return AnyView(WelcomeView(loginManager: loginManager))
