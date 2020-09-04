@@ -47,11 +47,16 @@ struct FolderList: View {
         .navigationBarItems(
             leading: HStack {
                 self.path.last.map { parent in
-                    Button(action: {
+                    Image(systemName: "arrow.turn.left.up")
+                    .onTapGesture {
                         let _ = self.path.popLast()
                         self.dir = parent
-                    }) {
-                        Image(systemName: "arrow.turn.left.up")
+                    }
+                    .onLongPressGesture {
+                        self.path.first.map {
+                            self.path = []
+                            self.dir = $0
+                        }
                     }
                 }
             },
@@ -72,10 +77,12 @@ struct FolderView_Previews: PreviewProvider {
     static var previews: some View {
         let coord = Coordinator()
         
-        return NavigationView {
-            FolderList(coordinator: coord, dir: coord.root)
-            .previewLayout(.sizeThatFits)
-            .preferredColorScheme(.dark)
+        return Group {
+            NavigationView {
+                FolderList(coordinator: coord, dir: coord.root)
+                .previewLayout(.sizeThatFits)
+                .preferredColorScheme(.dark)
+            }
         }
     }
 }
