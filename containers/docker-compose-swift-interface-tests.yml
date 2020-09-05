@@ -57,7 +57,7 @@ services:
       '
 
   swift_interface_tests:
-    image: swift_interface:$HASH
+    image: swift_interface_tests:$HASH
     container_name: swift_interface_tests-swift-$HASH
     env_file:
       - ../containers/test.env
