@@ -15,26 +15,30 @@ struct ProgressWidget: View {
     var body: some View {
         return GeometryReader { geometry in
             self.coordinator.progress.map { prog in
-                VStack {
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .frame(width: geometry.size.width, height: self.height)
-                            .opacity(0.2)
-                        Rectangle()
-                            .frame(width: min(geometry.size.width * CGFloat(prog.0), geometry.size.width), height: self.height)
-                            .animation(.linear)
-                    }.cornerRadius(10)
-                    HStack {
-                        if (prog.0 == 0) {
-                            Image(systemName: "checkmark.circle")
-                        } else {
-                            Image(systemName: "arrow.up.arrow.down.circle")
+                Button(action: {
+                    self.coordinator.progress = Optional.none
+                }) {
+                    VStack {
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .frame(width: geometry.size.width, height: self.height)
+                                .opacity(0.2)
+                            Rectangle()
+                                .frame(width: min(geometry.size.width * CGFloat(prog.0), geometry.size.width), height: self.height)
+                                .animation(.linear)
+                        }.cornerRadius(10)
+                        HStack {
+                            if (prog.0 == 0) {
+                                Image(systemName: "checkmark.circle")
+                            } else {
+                                Image(systemName: "arrow.up.arrow.down.circle")
+                            }
+                            Text(prog.1)
                         }
-                        Text(prog.1)
+                        .animation(.easeIn)
                     }
-                    .animation(.easeIn)
+                    .foregroundColor(prog.2)
                 }
-                .foregroundColor(prog.2)
             }
         }
         
