@@ -16,14 +16,11 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.databinding.library.BuildConfig
 import androidx.preference.*
-import app.lockbook.BuildConfig
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
-import app.lockbook.utils.AccountExportError
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.LOG_FILE_NAME
+import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -90,6 +87,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
+
+
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
@@ -98,6 +97,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
             CLEAR_LOGS_KEY -> {
                 File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
+            }
+            BACKGROUND_SYNC_PERIOD_KEY -> {
+                NumberPickerPreferenceDialog.newInstance(preference.key)
             }
             BACKGROUND_SYNC_ENABLED_KEY -> {
                 val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)

@@ -57,14 +57,13 @@
             android:title="@string/settings_preference_background_title_background_sync_enabled"
             app:iconSpaceReserved="false" />
 
-        <EditTextPreference
-            android:defaultValue="30"
-            android:digits="0123456789"
-            android:inputType="numberDecimal"
+        <app.lockbook.utils.NumberPickerPreference
+            android:defaultValue="15"
             android:key="background_sync_period"
             android:summary="@string/settings_preference_background_summary_sync_period"
             android:title="@string/settings_preference_background_title_sync_period"
             app:iconSpaceReserved="false" />
+
 
     </PreferenceCategory>
 
