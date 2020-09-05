@@ -153,8 +153,9 @@ where
         if let Err(e) = index_db::connect(&server_state.config.index_db)
             .await {
             error!("Failed to reconnect to postgres: {:?}", e);
+        } else {
+            info!("Reconnected to index_db");
         }
-        info!("Reconnected to index_db");
     }
     serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
         Ok(req) => Ok(endpoint_handle(server_state, req).await),
