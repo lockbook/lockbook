@@ -1,4 +1,4 @@
-name: Github Actions
+name: Checks
 
 on:
   push:
@@ -9,6 +9,15 @@ on:
     branches: [ master ]
 
 jobs:
+  Clean:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Lint
+      run: make clean
   Core:
     runs-on: self-hosted
     env:
