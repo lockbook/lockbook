@@ -156,9 +156,9 @@ jobs:
       - name: Build server container
         run: make server
       - name: Build test container
-        run: make swift_interface
-      - name: Compile and run tests
         run: make swift_interface_tests
+      - name: Compile and run tests
+        run: make swift_interface_tests_run
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
         with:
