@@ -47,15 +47,19 @@ struct FolderList: View {
         .navigationBarItems(
             leading: HStack {
                 self.path.last.map { parent in
-                    Image(systemName: "arrow.turn.left.up")
-                    .onTapGesture {
-                        let _ = self.path.popLast()
-                        self.dir = parent
-                    }
-                    .onLongPressGesture {
-                        self.path.first.map {
-                            self.path = []
-                            self.dir = $0
+                    Button(action: {
+                    
+                    }) {
+                        Image(systemName: "arrow.turn.left.up")
+                        .onTapGesture {
+                            let _ = self.path.popLast()
+                            self.dir = parent
+                        }
+                        .onLongPressGesture {
+                            self.path.first.map {
+                                self.path = []
+                                self.dir = $0
+                            }
                         }
                     }
                 }

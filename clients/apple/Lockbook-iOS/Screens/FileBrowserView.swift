@@ -27,6 +27,6 @@ struct ListView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
             FileBrowserView(coordinator: Coordinator())
-            }.preferredColorScheme(.dark)
+        }.preferredColorScheme(.dark)
     }
 }
