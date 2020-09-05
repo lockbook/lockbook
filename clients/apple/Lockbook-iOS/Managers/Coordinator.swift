@@ -91,7 +91,6 @@ final class Coordinator: ObservableObject {
         if let wu = work.first {
             let tail = work.dropFirst()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                print(progress, processed, total)
                 self.progress = Optional.some((progress, "Processing \(wu.type()) Change \(wu.get().name)", Color.gray))
                 switch self.lockbookApi.executeWork(work: wu) {
                 case .success(_):
