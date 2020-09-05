@@ -7,16 +7,15 @@
 //
 
 import SwiftUI
+import SwiftLockbookCore
 
 struct ContentView: View {
-    var items: [String] = ["Hey", "Hi", "Ho"]
+    var lockbookApi: LockbookApi
     var body: some View {
         NavigationView {
-            List {
-                ForEach(items, id: \.self) { item in
-                    NavigationLink(destination: ItemView()) {
-                        Text("Word: \(item)")
-                    }
+            List((try? lockbookApi.listFiles().get()) ?? []) { item in
+                NavigationLink(destination: ItemView(content: (try? self.lockbookApi.getFile(id: item.id).get().secret) ?? "Could not load \(item.name)")) {
+                    Text(item.name)
                 }
             }
         }
@@ -26,6 +25,6 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(lockbookApi: FakeApi())
     }
 }
