@@ -4,8 +4,11 @@ all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli
 
 .PHONY: clean
 clean:
+	-docker network prune -f
+
+.PHONY: exorcise
+exorcise:
 	-docker rm -f $$(docker ps -a -q)
-	-docker rmi -f $$(docker images -q)
 	-docker system prune -a -f
 	-git clean -fdX
 
