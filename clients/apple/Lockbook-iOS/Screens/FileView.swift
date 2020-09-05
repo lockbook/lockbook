@@ -13,15 +13,11 @@ struct FileView: View {
     @ObservedObject var coordinator: Coordinator
     let metadata: FileMetadata
     @State var content: String
-    @State private var showingAlert = false
 
     var body: some View {
         VStack {
             TextEditor(text: self.$content)
             .disableAutocorrection(true)
-        }
-        .alert(isPresented: $showingAlert) {
-            Alert(title: Text("Failed to get/update file!"))
         }
         .onAppear {
             if let file = self.coordinator.getFile(meta: self.metadata) {
@@ -49,7 +45,6 @@ struct FileView: View {
             self._content = State.init(initialValue: file.secret)
         } else {
             self._content = State.init(initialValue: "")
-            showingAlert = true
         }
     }
 }
