@@ -1,15 +1,12 @@
 package app.lockbook.utils
 
-import android.R.attr
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
 import androidx.preference.DialogPreference
 import app.lockbook.R
-import timber.log.Timber
 
-
-class NumberPickerPreference(context: Context, attributeSet: AttributeSet?): DialogPreference(
+class NumberPickerPreference(context: Context, attributeSet: AttributeSet?) : DialogPreference(
     context,
     attributeSet
 ) {
@@ -41,5 +38,4 @@ class NumberPickerPreference(context: Context, attributeSet: AttributeSet?): Dia
     override fun getDialogLayoutResource(): Int {
         return R.layout.dialog_duration_picker
     }
-
 }

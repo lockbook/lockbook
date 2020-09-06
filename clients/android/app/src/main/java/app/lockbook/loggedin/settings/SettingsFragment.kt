@@ -13,7 +13,6 @@ import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
-import androidx.databinding.library.BuildConfig
 import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
@@ -29,7 +28,6 @@ import app.lockbook.utils.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.utils.SharedPreferences.VIEW_LOGS_KEY
-import app.lockbook.utils.SharedPreferences.VIEW_LOGS_TITLE_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -56,15 +54,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
             false
         }
 
-        findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled = PreferenceManager.getDefaultSharedPreferences(
-            requireContext()).getBoolean(
-            BACKGROUND_SYNC_ENABLED_KEY,
-            true
-        )
-
-        findPreference<Preference>(VIEW_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
-        findPreference<Preference>(VIEW_LOGS_TITLE_KEY)?.isVisible = BuildConfig.DEBUG
-        findPreference<Preference>(CLEAR_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
+        findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+            PreferenceManager.getDefaultSharedPreferences(
+                requireContext()
+            ).getBoolean(
+                BACKGROUND_SYNC_ENABLED_KEY,
+                true
+            )
 
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
@@ -85,16 +81,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
-            VIEW_LOGS_KEY -> {
-                startActivity(Intent(context, LogActivity::class.java))
-            }
-            CLEAR_LOGS_KEY -> {
-                File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
-            }
-            BACKGROUND_SYNC_ENABLED_KEY -> {
-                val numberPickerPreference = findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)
-                numberPickerPreference?.isEnabled = (preference as SwitchPreference).isChecked
-            }
+            VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
+            CLEAR_LOGS_KEY -> File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
+            BACKGROUND_SYNC_ENABLED_KEY ->
+                findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+                    (preference as SwitchPreference).isChecked
             else -> super.onPreferenceTreeClick(preference)
         }
 
@@ -109,10 +100,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 BIOMETRIC_OPTION_KEY,
                 BIOMETRIC_NONE
             )
-            ) {
+        ) {
             BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(
@@ -152,6 +143,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                     )
                                         .show()
                                 }
+                                else -> {}
                             }
                         }
 
