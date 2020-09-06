@@ -5,9 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputFilter
-import android.text.InputType
-import android.text.Spanned
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
@@ -59,35 +56,31 @@ class SettingsFragment : PreferenceFragmentCompat() {
             false
         }
 
+        findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled = PreferenceManager.getDefaultSharedPreferences(
+            requireContext()).getBoolean(
+            BACKGROUND_SYNC_ENABLED_KEY,
+            true
+        )
+
         findPreference<Preference>(VIEW_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
         findPreference<Preference>(VIEW_LOGS_TITLE_KEY)?.isVisible = BuildConfig.DEBUG
         findPreference<Preference>(CLEAR_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
-
-        findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
-            editText.inputType = InputType.TYPE_CLASS_NUMBER
-            editText.filters = arrayOf(
-                object : InputFilter {
-                    override fun filter(
-                        source: CharSequence?,
-                        start: Int,
-                        end: Int,
-                        dest: Spanned?,
-                        dstart: Int,
-                        dend: Int
-                    ): CharSequence? {
-                        val input = (dest.toString() + source.toString()).toIntOrNull()
-                        return if ((0..Int.MAX_VALUE).contains(input)) null else ""
-                    }
-                }
-            )
-        }
 
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
     }
 
-
+    override fun onDisplayPreferenceDialog(preference: Preference?) {
+        if (preference is NumberPickerPreference) {
+            val numberPickerPreferenceDialog =
+                NumberPickerPreferenceDialog.newInstance(preference.key)
+            numberPickerPreferenceDialog.setTargetFragment(this, 0)
+            numberPickerPreferenceDialog.show(requireFragmentManager(), null)
+        } else {
+            super.onDisplayPreferenceDialog(preference)
+        }
+    }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
@@ -98,18 +91,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             CLEAR_LOGS_KEY -> {
                 File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
             }
-            BACKGROUND_SYNC_PERIOD_KEY -> {
-                NumberPickerPreferenceDialog.newInstance(preference.key)
-            }
             BACKGROUND_SYNC_ENABLED_KEY -> {
-                val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)
-                when (val onOrOff = editText?.isEnabled) {
-                    true, false -> editText.isEnabled = !onOrOff
-                    null -> {
-                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY editext, it is null.")
-                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
-                    }
-                }
+                val numberPickerPreference = findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)
+                numberPickerPreference?.isEnabled = (preference as SwitchPreference).isChecked
             }
             else -> super.onPreferenceTreeClick(preference)
         }
@@ -125,10 +109,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 BIOMETRIC_OPTION_KEY,
                 BIOMETRIC_NONE
             )
-        ) {
+            ) {
             BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(

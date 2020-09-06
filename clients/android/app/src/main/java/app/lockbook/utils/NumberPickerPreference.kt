@@ -1,11 +1,18 @@
 package app.lockbook.utils
 
+import android.R.attr
 import android.content.Context
 import android.content.res.TypedArray
+import android.util.AttributeSet
 import androidx.preference.DialogPreference
 import app.lockbook.R
+import timber.log.Timber
 
-class NumberPickerPreference(context: Context): DialogPreference(context) {
+
+class NumberPickerPreference(context: Context, attributeSet: AttributeSet?): DialogPreference(
+    context,
+    attributeSet
+) {
     private var durationInMinutes: Int? = null
 
     fun getDuration(): Int {
@@ -14,6 +21,8 @@ class NumberPickerPreference(context: Context): DialogPreference(context) {
 
     fun setDuration(duration: Int) {
         this.durationInMinutes = duration
+
+        persistInt(duration)
     }
 
     override fun onGetDefaultValue(a: TypedArray?, index: Int): Any {
@@ -25,10 +34,12 @@ class NumberPickerPreference(context: Context): DialogPreference(context) {
     }
 
     override fun onSetInitialValue(defaultValue: Any?) {
-        setDuration(getPersistedInt(durationInMinutes ?: 15))
+        val trueDefaultValue = defaultValue?.toString()?.toIntOrNull() ?: 15
+        setDuration(getPersistedInt(durationInMinutes ?: trueDefaultValue))
     }
 
     override fun getDialogLayoutResource(): Int {
         return R.layout.dialog_duration_picker
     }
+
 }
