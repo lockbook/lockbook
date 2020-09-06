@@ -58,12 +58,14 @@ class NumberPickerPreferenceDialog: PreferenceDialogFragmentCompat() {
         var durationInMinutes = (dayNumberPicker?.value ?: 0) * 1440 + (hourNumberPicker?.value ?: 0) * 60 + (minuteNumberPicker?.value ?: 0)
 
         val preference = preference
-        if(preference is NumberPickerPreference) {
+        if(preference is NumberPickerPreference && positiveResult) {
             preference.callChangeListener(durationInMinutes)
             preference.setDuration(durationInMinutes)
-        } else {
+        } else if(preference == null) {
             Timber.e("Unable to access preference.")
         }
     }
+
+
 
 }
