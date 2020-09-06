@@ -150,8 +150,7 @@ where
     ResponseError: Serialize,
 {
     if server_state.index_db_client.is_closed() {
-        if let Err(e) = index_db::connect(&server_state.config.index_db)
-            .await {
+        if let Err(e) = index_db::connect(&server_state.config.index_db).await {
             error!("Failed to reconnect to postgres: {:?}", e);
         } else {
             info!("Reconnected to index_db");
