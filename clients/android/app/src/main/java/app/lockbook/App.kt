@@ -15,9 +15,11 @@ import app.lockbook.utils.CoreModel
 import app.lockbook.utils.SharedPreferences
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
+import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
 import kotlinx.coroutines.*
+import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -55,18 +57,18 @@ class ForegroundBackgroundObserver : LifecycleObserver {
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onMoveToBackground() {
         if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(
-                    App.instance
-                )
+            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getBoolean(
                         BACKGROUND_SYNC_ENABLED_KEY,
                         true
-                    ) && PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(SharedPreferences.IS_THIS_AN_IMPORT_KEY, false)
+                    ) && !PreferenceManager.getDefaultSharedPreferences(App.instance)
+                .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
         ) {
+            Timber.e("Smail ${PreferenceManager.getDefaultSharedPreferences(App.instance)
+                .getInt(BACKGROUND_SYNC_PERIOD_KEY, 30).toLong()}")
             val work = PeriodicWorkRequestBuilder<FileModel.SyncWork>(
                 PreferenceManager.getDefaultSharedPreferences(App.instance)
-                    .getString(BACKGROUND_SYNC_PERIOD_KEY, "30")?.toLongOrNull() ?: 30,
+                    .getInt(BACKGROUND_SYNC_PERIOD_KEY, 30).toLong(),
                 TimeUnit.MINUTES
             )
                 .setConstraints(Constraints.NONE)
