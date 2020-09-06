@@ -119,7 +119,8 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun isThisAnImport() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getBoolean(IS_THIS_AN_IMPORT_KEY, false)) {
+            .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
+        ) {
             incrementalSync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
                 IS_THIS_AN_IMPORT_KEY,
