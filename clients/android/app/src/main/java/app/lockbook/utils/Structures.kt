@@ -87,6 +87,12 @@ data class EditableFile(
 )
 
 data class SyncingStatus(
-    var isSyncing: Boolean,
-    var maxProgress: Int
+    var isSyncing: Boolean = false,
+    var maxProgress: Int = 0
+)
+
+data class DialogStatus(
+    var isDialogOpen: Boolean = false,
+    var alertDialogFileName: String = ""
+
 )
