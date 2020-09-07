@@ -50,10 +50,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
-    val syncingStatus = SyncingStatus(false, 0)
+    val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var isDialogOpen = false
-    var alertDialogFileName = ""
+    var dialogStatus = DialogStatus()
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
@@ -62,6 +61,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
+    private val _navigateToHandwritingEditor = SingleMutableLiveData<Unit>()
     private val _navigateToPopUpInfo = SingleMutableLiveData<FileMetadata>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _createFileNameDialog = SingleMutableLiveData<Unit>()
@@ -90,6 +90,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
+
+    val navigateToHandwritingEditor: LiveData<Unit>
+        get() = _navigateToHandwritingEditor
 
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
@@ -306,7 +309,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Document
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                isDialogOpen = true
+                dialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -318,7 +321,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Folder
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                isDialogOpen = true
+                dialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -507,8 +510,11 @@ class ListFilesViewModel(path: String, application: Application) :
                     if (fileMetadata.file_type == FileType.Folder) {
                         fileModel.intoFolder(fileMetadata)
                     } else {
+
                         val editableFileResult = fileModel.handleReadDocument(fileMetadata)
-                        if (editableFileResult is EditableFile) {
+                        if(fileMetadata.name.endsWith(".svg")) { // This is temporary, its to test
+                            _navigateToHandwritingEditor.postValue(Unit) // This is temporary, its to test
+                        } else if (editableFileResult is EditableFile) {
                             _navigateToFileEditor.postValue(editableFileResult)
                         }
                     }

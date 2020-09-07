@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
+import app.lockbook.loggedin.editor.HandwritingEditorActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.utils.EditableFile
@@ -146,6 +147,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.navigateToHandwritingEditor.observe(
+            viewLifecycleOwner,
+            {
+                navigateToHandwritingEditor()
+            }
+        )
+
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
             { editableFile ->
@@ -198,9 +206,9 @@ class ListFilesFragment : Fragment() {
 
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
-        if (listFilesViewModel.isDialogOpen) {
-            Timber.e(listFilesViewModel.alertDialogFileName)
-            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            Timber.e(listFilesViewModel.dialogStatus.alertDialogFileName)
+            createFileNameDialog(listFilesViewModel.dialogStatus.alertDialogFileName)
         }
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
@@ -213,8 +221,8 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setUpBeforeConfigChange() {
-        if (listFilesViewModel.isDialogOpen) {
-            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            listFilesViewModel.dialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
             alertDialog.dismiss()
         }
     }
@@ -305,12 +313,12 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
             }
             .create()
 
@@ -341,6 +349,10 @@ class ListFilesFragment : Fragment() {
         intent.putExtra("metadataVersion", fileMetadata.metadata_version.toString())
         intent.putExtra("contentVersion", fileMetadata.content_version.toString())
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
+    }
+
+    private fun navigateToHandwritingEditor() {
+        startActivity(Intent(context, HandwritingEditorActivity::class.java))
     }
 
     private fun errorHasOccurred(errorText: String) {
