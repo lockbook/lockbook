@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
