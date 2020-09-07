@@ -16,7 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
-import app.lockbook.loggedin.texteditor.TextEditorActivity
+import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE

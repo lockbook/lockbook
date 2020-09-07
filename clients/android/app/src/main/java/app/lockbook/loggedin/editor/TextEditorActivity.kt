@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler

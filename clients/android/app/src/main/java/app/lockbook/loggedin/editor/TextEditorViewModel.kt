@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import android.text.Editable
 import android.text.TextWatcher
