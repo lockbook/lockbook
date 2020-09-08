@@ -37,6 +37,10 @@
         <item name="android:fontFamily">monospace</item>
     </style>
 
+    <style name="Toolbar.Title" parent="TextAppearance.AppCompat.Large">
+
+    </style>
+
     <style name="File.Title" parent="TextAppearance.AppCompat">
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
