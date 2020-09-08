@@ -1,3 +1,7 @@
 <resources>
-    <dimen name="fab_margin">16dp</dimen>
+    <integer name="handwriting_editor_pen_1">1</integer>
+    <integer name="handwriting_editor_pen_2">5</integer>
+    <integer name="handwriting_editor_pen_3">15</integer>
+    <integer name="handwriting_editor_pen_4">20</integer>
+
 </resources>
