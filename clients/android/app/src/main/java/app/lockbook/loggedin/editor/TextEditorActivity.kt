@@ -26,7 +26,7 @@ class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var timer: Timer = Timer()
     private val handler = Handler()
-    var menu: Menu? = null
+    private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,15 +46,14 @@ class TextEditorActivity : AppCompatActivity() {
             return
         }
 
-        val textEditorViewModelFactory =
-            TextEditorViewModelFactory(
-                id,
-                filesDir.absolutePath,
-                contents
-            )
-
         textEditorViewModel =
-            ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
+            ViewModelProvider(
+                this, TextEditorViewModelFactory(
+                    application,
+                    id,
+                    contents
+                )
+            ).get(TextEditorViewModel::class.java)
 
         textEditorViewModel.canUndo.observe(
             this,
@@ -173,7 +172,8 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    .show()
             }
         }
 

@@ -1,7 +1,9 @@
 package app.lockbook.loggedin.editor
 
+import android.app.Application
 import android.text.Editable
 import android.text.TextWatcher
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -12,9 +14,9 @@ import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import timber.log.Timber
 
-class TextEditorViewModel(private val id: String, path: String, initialContents: String) :
-    ViewModel(), TextWatcher {
-    private val config = Config(path)
+class TextEditorViewModel(application: Application, private val id: String, initialContents: String) :
+    AndroidViewModel(application), TextWatcher {
+    private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private var history = mutableListOf<String>()
     private var historyIndex = 0
     var ignoreChange = false
