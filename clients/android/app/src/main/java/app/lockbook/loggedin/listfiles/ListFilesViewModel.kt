@@ -118,9 +118,9 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun isThisAnImport() {
-        val isThisAnImport = PreferenceManager.getDefaultSharedPreferences(getApplication())
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
             .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
-        if (isThisAnImport) {
+        ) {
             incrementalSync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
                 IS_THIS_AN_IMPORT_KEY,
