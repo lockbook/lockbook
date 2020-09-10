@@ -52,13 +52,13 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "RUST_BACKTRACE"
+            key = "LOCKBOOK_DEBUG"
             value = "1"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable
-            key = "RUST_LOG"
-            value = "lockbook_core=debug"
+            key = "LOCKBOOK_NO_COLOR"
+            value = "1"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

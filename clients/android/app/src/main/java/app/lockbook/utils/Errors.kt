@@ -1,5 +1,9 @@
 package app.lockbook.utils
 
+sealed class InitLoggerError {
+    data class Unexpected(val error: String) : InitLoggerError()
+}
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
@@ -20,6 +24,15 @@ sealed class ImportError {
 sealed class AccountExportError {
     object NoAccount : AccountExportError()
     data class UnexpectedError(val error: String) : AccountExportError()
+}
+
+sealed class GetAccountError {
+    object NoAccount : GetAccountError()
+    data class UnexpectedError(val error: String) : GetAccountError()
+}
+
+sealed class SetLastSyncedError {
+    data class UnexpectedError(val error: String) : SetLastSyncedError()
 }
 
 sealed class WriteToDocumentError {
