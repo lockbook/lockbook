@@ -153,7 +153,7 @@ where
         match index_db::connect(&server_state.config.index_db).await {
             Err(e) => {
                 error!("Failed to reconnect to postgres: {:?}", e);
-            },
+            }
             Ok(client) => {
                 server_state.index_db_client = client;
                 info!("Reconnected to index_db");
