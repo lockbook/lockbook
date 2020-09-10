@@ -22,6 +22,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct ServerState {
+    pub config: config::Config,
     pub index_db_client: tokio_postgres::Client,
     pub files_db_client: s3::bucket::Bucket,
 }
@@ -43,11 +44,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Failed to connect to files_db");
     info!("Connected to files_db");
 
+    let port = config.server.port;
     let server_state = Arc::new(Mutex::new(ServerState {
+        config: config,
         index_db_client: index_db_client,
         files_db_client: files_db_client,
     }));
-    let addr = format!("0.0.0.0:{}", config.server.port).parse()?;
+    let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
@@ -59,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
-    info!("Serving on port {}", config.server.port);
+    info!("Serving on port {}", port);
     hyper::Server::bind(&addr).serve(make_service).await?;
     Ok(())
 }
@@ -146,6 +149,13 @@ where
     Response: Serialize,
     ResponseError: Serialize,
 {
+    if server_state.index_db_client.is_closed() {
+        if let Err(e) = index_db::connect(&server_state.config.index_db).await {
+            error!("Failed to reconnect to postgres: {:?}", e);
+        } else {
+            info!("Reconnected to index_db");
+        }
+    }
     serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
         Ok(req) => Ok(endpoint_handle(server_state, req).await),
         Err(err) => Err(err),

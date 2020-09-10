@@ -37,7 +37,7 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: String,
+    val public_key: RSAPublicKey,
     val access_key: EncryptedValue
 )
 
@@ -51,21 +51,32 @@ data class DecryptedValue(
 
 data class Account(
     val username: String,
-    val keys: String
+    val keys: RSAPrivateKey
+)
+
+data class RSAPrivateKey(
+    val n: List<Int>,
+    val e: List<Int>,
+    val d: List<Int>,
+    val primes: List<String>
+)
+
+data class RSAPublicKey(
+    val n: List<Int>,
+    val e: List<Int>
 )
 
 data class WorkCalculated(
     val work_units: List<WorkUnit>,
-    val most_recent_update_from_server: Int
+    val most_recent_update_from_server: Long
 )
 
 data class WorkUnit(
-    val LocalChange: LocalChange,
-    val ServerChange: ServerChange
+    val tag: String,
+    val content: WorkUnitMetadata
 )
 
-data class LocalChange(val metadata: FileMetadata)
-data class ServerChange(val metadata: FileMetadata)
+data class WorkUnitMetadata(val metadata: FileMetadata)
 
 data class Config(val writeable_path: String)
 
@@ -73,4 +84,9 @@ data class EditableFile(
     val name: String,
     val id: String,
     val contents: String
+)
+
+data class SyncingStatus(
+    var isSyncing: Boolean,
+    var maxProgress: Int
 )

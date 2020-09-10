@@ -34,7 +34,7 @@
         android:inputType="textVisiblePassword" />
 
     <Button
-        android:id="@+id/welcome_import_lockbook"
+        android:id="@+id/import_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         style="@style/Button.Colored"

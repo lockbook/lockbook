@@ -1,28 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <PreferenceCategory
+        android:key="view_logs_title"
+        android:title="Debug"
+        app:iconSpaceReserved="false">
+        <Preference
+            android:key="view_logs"
+            android:title="@string/settings_preference_logs"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="clear_logs"
+            android:title="@string/settings_preference_clear_logs"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="biometric_category"
-        android:title="Biometrics">
+        android:title="@string/settings_preference_title_biometrics"
+        app:iconSpaceReserved="false">
         <ListPreference
             android:defaultValue="@string/biometric_none_value"
             android:entries="@array/settings_biometric_names"
             android:entryValues="@array/settings_biometric_values"
             android:key="biometric"
             android:summary="Secure your account with biometrics"
-            android:title="@string/protect_account_biometric" />
+            android:title="@string/settings_protect_account_biometric"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Export Account">
+    <PreferenceCategory
+        android:title="@string/settings_preference_title_account"
+        app:iconSpaceReserved="false">
         <Preference
             android:key="export_account_raw"
-            android:title="@string/export_account_raw" />
+            android:title="@string/settings_export_account_raw"
+            app:iconSpaceReserved="false" />
 
         <Preference
             android:key="export_account_qr"
-            android:title="@string/export_account_qr" />
+            android:title="@string/settings_export_account_qr"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/settings_preference_title_background_sync"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="background_sync_enabled"
+            android:title="@string/settings_preference_background_title_background_sync_enabled"
+            app:iconSpaceReserved="false" />
+
+        <app.lockbook.utils.NumberPickerPreference
+            android:defaultValue="15"
+            android:key="background_sync_period"
+            android:summary="@string/settings_preference_background_summary_sync_period"
+            android:title="@string/settings_preference_background_title_sync_period"
+            app:iconSpaceReserved="false" />
+
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/settings_preference_title_incremental_sync"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="sync_automatically_in_app"
+            android:title="@string/settings_sync_edit"
+            app:iconSpaceReserved="false" />
 
     </PreferenceCategory>
 

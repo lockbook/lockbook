@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::init_logger_safely;
+use crate::utils::init_logger_or_print;
 use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod copy;
@@ -81,7 +81,8 @@ enum Lockbook {
 }
 
 fn main() {
-    init_logger_safely();
+    init_logger_or_print();
+
     let args: Lockbook = Lockbook::from_args();
     match args {
         Lockbook::Copy { file } => copy::copy(file),
@@ -130,3 +131,4 @@ static FILE_NAME_NOT_AVAILABLE: u8 = 20;
 static ACCOUNT_ALREADY_EXISTS: u8 = 21;
 static ACCOUNT_DOES_NOT_EXIST: u8 = 22;
 static USERNAME_PK_MISMATCH: u8 = 23;
+static NO_CLI_LOCATION: u8 = 24;

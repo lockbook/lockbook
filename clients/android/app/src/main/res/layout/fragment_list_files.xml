@@ -13,15 +13,15 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
             <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
                 android:id="@+id/list_files_refresh"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent" >
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/files_list"
@@ -30,9 +30,7 @@
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
             </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
         </LinearLayout>
-
 
         <FrameLayout
             android:id="@+id/list_files_layout"
@@ -75,9 +73,10 @@
                     android:layout_marginTop="10dp"
                     android:layout_marginRight="18dp"
                     android:layout_marginBottom="18dp"
-                    android:onClick="@{() -> listFilesViewModel.collapseFAB()}"
+                    android:onClick="@{() -> listFilesViewModel.collapseExpandFAB()}"
                     android:src="@drawable/ic_baseline_add_24"
                     app:rippleColor="@color/light" />
+                
             </LinearLayout>
         </FrameLayout>
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
