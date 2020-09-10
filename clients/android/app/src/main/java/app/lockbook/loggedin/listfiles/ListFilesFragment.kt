@@ -11,7 +11,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
@@ -22,14 +21,53 @@ import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
-import kotlinx.android.synthetic.main.dialog_create_file_name.*
+import com.tingyik90.snackprogressbar.SnackProgressBar
+import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import java.util.*
+import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
-
     private lateinit var listFilesViewModel: ListFilesViewModel
-    private var isFABOpen = false
+    private val snackProgressBarManager by lazy {
+        SnackProgressBarManager(
+            requireView(),
+            lifecycleOwner = this
+        ).setViewToMove(list_files_layout)
+    }
+    private val offlineSnackBar by lazy {
+        SnackProgressBar(
+            SnackProgressBar.TYPE_NORMAL,
+            resources.getString(R.string.list_files_offline_snackbar)
+        )
+            .setSwipeToDismiss(false)
+            .setAllowUserInput(true)
+    }
+    private val preSyncSnackBar by lazy {
+        SnackProgressBar(
+            SnackProgressBar.TYPE_NORMAL,
+            resources.getString(R.string.list_files_presync_snackbar, "n")
+        )
+            .setSwipeToDismiss(true)
+            .setAllowUserInput(true)
+    }
+    private val syncSnackProgressBar by lazy {
+        SnackProgressBar(
+            SnackProgressBar.TYPE_HORIZONTAL,
+            resources.getString(R.string.list_files_sync_snackbar, "n")
+        )
+            .setIsIndeterminate(false)
+            .setSwipeToDismiss(false)
+            .setAllowUserInput(true)
+    }
+    private val syncUpToDateSnackBar by lazy {
+        SnackProgressBar(
+            SnackProgressBar.TYPE_NORMAL,
+            resources.getString(R.string.list_files_sync_finished_snackbar)
+        )
+            .setSwipeToDismiss(false)
+            .setAllowUserInput(true)
+    }
+    private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -37,7 +75,10 @@ class ListFilesFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_list_files, container, false
+            inflater,
+            R.layout.fragment_list_files,
+            container,
+            false
         )
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
@@ -53,65 +94,178 @@ class ListFilesFragment : Fragment() {
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
-            listFilesViewModel.syncRefresh()
+            listFilesViewModel.onSwipeToRefresh()
         }
 
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
-            Observer { files ->
+            { files ->
                 updateRecyclerView(files, adapter)
+            }
+        )
+
+        listFilesViewModel.stopSyncSnackBar.observe(
+            viewLifecycleOwner,
+            {
+                earlyStopSyncSnackBar()
+            }
+        )
+
+        listFilesViewModel.stopProgressSpinner.observe(
+            viewLifecycleOwner,
+            {
+                list_files_refresh.isRefreshing = false
+            }
+        )
+
+        listFilesViewModel.showSyncSnackBar.observe(
+            viewLifecycleOwner,
+            { maxProgress ->
+                showSyncSnackBar(maxProgress)
+            }
+        )
+
+        listFilesViewModel.showPreSyncSnackBar.observe(
+            viewLifecycleOwner,
+            { amountToSync ->
+                showPreSyncSnackBar(amountToSync)
+            }
+        )
+
+        listFilesViewModel.showOfflineSnackBar.observe(
+            viewLifecycleOwner,
+            {
+                showOfflineSnackBar()
+            }
+        )
+
+        listFilesViewModel.updateProgressSnackBar.observe(
+            viewLifecycleOwner,
+            { progress ->
+                updateProgressSnackBar(progress)
             }
         )
 
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
-            Observer { editableFile ->
+            { editableFile ->
                 navigateToFileEditor(editableFile)
             }
         )
 
         listFilesViewModel.navigateToPopUpInfo.observe(
             viewLifecycleOwner,
-            Observer { fileMetadata ->
+            { fileMetadata ->
                 navigateToPopUpInfo(fileMetadata)
-            }
-        )
-
-        listFilesViewModel.listFilesRefreshing.observe(
-            viewLifecycleOwner,
-            Observer { isRefreshing ->
-                list_files_refresh.isRefreshing = isRefreshing
             }
         )
 
         listFilesViewModel.collapseExpandFAB.observe(
             viewLifecycleOwner,
-            Observer {
-                onFABClicked()
+            { isFABOpen ->
+                collapseExpandFAB(isFABOpen)
             }
         )
 
         listFilesViewModel.createFileNameDialog.observe(
             viewLifecycleOwner,
-            Observer {
-                createFileNameDialog()
+            {
+                createFileNameDialog("")
+            }
+        )
+
+        listFilesViewModel.fileModelErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                errorHasOccurred(errorText)
             }
         )
 
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
-            Observer { errorText ->
+            { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
-        listFilesViewModel.startUpFiles()
-
         return binding.root
     }
 
-    private fun onFABClicked() {
-        if (!isFABOpen) {
+    override fun onResume() {
+        super.onResume()
+        setUpAfterConfigChange()
+    }
+
+    private fun setUpAfterConfigChange() {
+        collapseExpandFAB(listFilesViewModel.isFABOpen)
+        if (listFilesViewModel.isDialogOpen) {
+            Timber.e(listFilesViewModel.alertDialogFileName)
+            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        }
+        if (listFilesViewModel.syncingStatus.isSyncing) {
+            showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        setUpBeforeConfigChange()
+    }
+
+    private fun setUpBeforeConfigChange() {
+        if (listFilesViewModel.isDialogOpen) {
+            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+            alertDialog.dismiss()
+        }
+    }
+
+    private fun earlyStopSyncSnackBar() {
+        snackProgressBarManager.dismiss()
+    }
+
+    private fun updateProgressSnackBar(progress: Int) {
+        snackProgressBarManager.setProgress(progress)
+    }
+
+    private fun showSyncSnackBar(maxProgress: Int) {
+        snackProgressBarManager.dismiss()
+        syncSnackProgressBar.setProgressMax(maxProgress)
+        syncSnackProgressBar.setMessage(
+            resources.getString(
+                R.string.list_files_sync_snackbar,
+                maxProgress.toString()
+            )
+        )
+        snackProgressBarManager.show(
+            syncSnackProgressBar,
+            SnackProgressBarManager.LENGTH_INDEFINITE
+        )
+    }
+
+    private fun showPreSyncSnackBar(amountToSync: Int) {
+        snackProgressBarManager.dismiss()
+        if (amountToSync == 0) {
+            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+        } else {
+            snackProgressBarManager.show(
+                preSyncSnackBar.setMessage(
+                    resources.getString(
+                        R.string.list_files_presync_snackbar,
+                        amountToSync.toString()
+                    )
+                ),
+                SnackProgressBarManager.LENGTH_SHORT
+            )
+        }
+    }
+
+    private fun showOfflineSnackBar() {
+        snackProgressBarManager.dismiss()
+        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+    }
+
+    private fun collapseExpandFAB(isFABOpen: Boolean) {
+        if (isFABOpen) {
             showFABMenu()
         } else {
             closeFABMenu()
@@ -125,7 +279,6 @@ class ListFilesFragment : Fragment() {
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
         list_files_layout.isClickable = false
-        isFABOpen = false
     }
 
     private fun showFABMenu() {
@@ -136,35 +289,40 @@ class ListFilesFragment : Fragment() {
         list_files_refresh.alpha = 0.7f
         list_files_layout.isClickable = true
         list_files_layout.setOnClickListener {
-            closeFABMenu()
+            listFilesViewModel.collapseExpandFAB()
         }
-        isFABOpen = true
     }
 
-    private fun createFileNameDialog() {
-        val builder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+    private fun createFileNameDialog(originalFileName: String) {
+        val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        builder.setView(layoutInflater.inflate(R.layout.dialog_create_file_name, view as ViewGroup, false))
+        alertDialog = dialogBuilder.setView(
+            layoutInflater.inflate(
+                R.layout.dialog_create_file_name,
+                view as ViewGroup,
+                false
+            )
+        )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
+                listFilesViewModel.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
+                listFilesViewModel.isDialogOpen = false
             }
+            .create()
 
-        builder.show()
+        alertDialog.show()
+        alertDialog.findViewById<EditText>(R.id.new_file_username)?.setText(originalFileName)
     }
 
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
     ) {
-        if (files.isEmpty()) {
-            adapter.files = listOf()
-        } else {
-            adapter.files = files
-        }
+        adapter.files = files
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {

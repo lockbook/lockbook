@@ -1,6 +1,6 @@
 # TODO to significantly speedup this build make it multistage
 
-from ubuntu:20.04
+FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
@@ -35,4 +35,4 @@ RUN make android
 
 # Build android
 WORKDIR ../clients/android
-RUN ./gradlew build
+RUN ./gradlew assemble
