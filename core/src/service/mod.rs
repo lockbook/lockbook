@@ -5,3 +5,4 @@ pub mod crypto_service;
 pub mod file_encryption_service;
 pub mod file_service;
 pub mod sync_service;
+pub mod db_state_service;
