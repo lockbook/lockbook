@@ -47,6 +47,7 @@ pub use sled::Db;
 use std::env;
 use std::path::Path;
 use uuid::Uuid;
+use crate::service::db_state_service::DbStateServiceImpl;
 
 pub mod c_interface;
 pub mod client;
@@ -66,6 +67,7 @@ pub type DefaultSymmetric = AesImpl;
 pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
+pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo>;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 pub type DefaultAccountService = AccountServiceImpl<
