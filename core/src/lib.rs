@@ -44,18 +44,22 @@ use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePK
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 use serde::Serialize;
 pub use sled::Db;
+use std::env;
+use std::path::Path;
 use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
+pub mod java_interface;
 pub mod model;
 pub mod repo;
 pub mod service;
 
-mod java_interface;
+mod loggers;
 
 static API_URL: &str = env!("API_URL");
 static DB_NAME: &str = "lockbook.sled";
+static LOG_FILE: &str = "output.log";
 
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
@@ -94,10 +98,18 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
-pub fn init_logger_safely() {
-    if env_logger::try_init().is_ok() {
-        info!("envvar RUST_LOG is {:?}", std::env::var("RUST_LOG"));
-    }
+#[derive(Debug, Serialize)]
+pub enum InitLoggerError {
+    Unexpected(String),
+}
+
+pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
+    let print_debug = env::var("LOCKBOOK_DEBUG").is_ok();
+    let print_colors = env::var("LOCKBOOK_NO_COLOR").is_err();
+    loggers::init(log_path, print_debug, print_colors)
+        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
+    info!("Logger initialized! Path: {:?}", log_path);
+    Ok(())
 }
 
 fn connect_to_db(config: &Config) -> Result<Db, String> {

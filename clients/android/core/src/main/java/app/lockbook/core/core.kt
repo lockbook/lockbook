@@ -1,9 +1,11 @@
 package app.lockbook.core
 
-external fun initLogger()
+external fun initLogger(path: String): String
 external fun createAccount(config: String, username: String): String
 external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
+external fun getAccount(config: String): String
+external fun setLastSynced(config: String, lastSynced: Long): String
 external fun getRoot(config: String): String
 external fun getChildren(config: String, id: String): String
 external fun getFileById(config: String, id: String): String
@@ -17,8 +19,3 @@ external fun moveFile(config: String, id: String, parentId: String): String
 external fun syncAll(config: String): String
 external fun calculateSyncWork(config: String): String
 external fun executeSyncWork(config: String, account: String, workUnit: String): String
-
-fun loadLockbookCore() {
-    System.loadLibrary("lockbook_core")
-    initLogger()
-}

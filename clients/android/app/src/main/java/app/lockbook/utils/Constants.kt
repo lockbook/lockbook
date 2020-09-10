@@ -3,8 +3,6 @@ package app.lockbook.utils
 object SharedPreferences {
     const val LOGGED_IN_KEY = "loggedin"
 
-    const val BIOMETRIC_CATEGORY_KEY = "biometric_category"
-
     const val BIOMETRIC_OPTION_KEY = "biometric"
     const val BIOMETRIC_NONE = "biometric_none"
     const val BIOMETRIC_RECOMMENDED = "biometric_recommended"
@@ -20,12 +18,19 @@ object SharedPreferences {
     const val SORT_FILES_TYPE = "sort_files_type"
     const val SORT_FILES_FIRST_CHANGED = "sort_files_first_changed"
     const val SORT_FILES_LAST_CHANGED = "sort_files_last_changed"
+
+    const val BACKGROUND_SYNC_PERIOD_KEY = "background_sync_period"
+    const val BACKGROUND_SYNC_ENABLED_KEY = "background_sync_enabled"
+    const val SYNC_AUTOMATICALLY_KEY = "sync_automatically_in_app"
+
+    const val VIEW_LOGS_TITLE_KEY = "view_logs_title"
+    const val VIEW_LOGS_KEY = "view_logs"
+    const val CLEAR_LOGS_KEY = "clear_logs"
+
+    const val IS_THIS_AN_IMPORT_KEY = "import"
 }
 
 object RequestResultCodes {
-    const val FAILED_RESULT_CODE: Int = 2
-
-    const val NEW_FILE_REQUEST_CODE: Int = 101
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
 
@@ -33,7 +38,13 @@ object RequestResultCodes {
     const val DELETE_RESULT_CODE: Int = 202
 }
 
-const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
-const val BACKGROUND_SYNC_PERIOD: Long = 1800000
-const val PERIODIC_SYNC_TAG = "periodic_sync"
+object Messages {
+    const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
+}
+
+object WorkManagerTags {
+    const val PERIODIC_SYNC_TAG = "periodic_sync"
+}
+
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
+const val LOG_FILE_NAME = "output.log"
