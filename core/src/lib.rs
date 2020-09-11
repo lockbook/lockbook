@@ -24,6 +24,7 @@ use crate::service::account_service::{
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
+use crate::service::db_state_service::DbStateServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
     DocumentRenameError, FileMoveError, ReadDocumentError as FSReadDocumentError,
@@ -47,7 +48,6 @@ pub use sled::Db;
 use std::env;
 use std::path::Path;
 use uuid::Uuid;
-use crate::service::db_state_service::DbStateServiceImpl;
 
 pub mod c_interface;
 pub mod client;
