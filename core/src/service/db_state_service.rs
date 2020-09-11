@@ -1,9 +1,9 @@
-use sled::Db;
-use crate::repo::{db_version_repo, account_repo};
-use crate::repo::account_repo::AccountRepo;
-use crate::service::db_state_service::GetStateError::AccountDbError;
 use crate::model::account::Account;
+use crate::repo::account_repo::AccountRepo;
+use crate::repo::{account_repo, db_version_repo};
+use crate::service::db_state_service::GetStateError::AccountDbError;
 use crate::service::db_state_service::State::Empty;
+use sled::Db;
 
 #[derive(Debug)]
 pub enum State {
@@ -20,7 +20,7 @@ pub enum GetStateError {
 
 #[derive(Debug)]
 pub enum MigrationError {
-    RepoError(db_version_repo::Error)
+    RepoError(db_version_repo::Error),
 }
 
 pub trait DbStateService {
@@ -28,19 +28,18 @@ pub trait DbStateService {
     fn perform_migration(db: &Db) -> Result<MigrationError, ()>;
 }
 
-pub struct DbStateServiceImpl<
-    AccountDb: AccountRepo
-> {
-    _account: AccountDb
+pub struct DbStateServiceImpl<AccountDb: AccountRepo> {
+    _account: AccountDb,
 }
 
 impl<AccountDb: AccountRepo> DbStateService for DbStateServiceImpl<AccountDb> {
     fn get_state(db: &Db) -> Result<State, GetStateError> {
-        if AccountDb::maybe_get_account(&db).map_err(AccountDbError)?.is_none() {
+        if AccountDb::maybe_get_account(&db)
+            .map_err(AccountDbError)?
+            .is_none()
+        {
             return Ok(Empty);
         }
-
-
     }
 
     fn perform_migration(db: &Db) -> Result<MigrationError, ()> {
