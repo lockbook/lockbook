@@ -11,6 +11,7 @@ use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
+use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
 use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
@@ -24,7 +25,8 @@ use crate::service::account_service::{
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
-use crate::service::db_state_service::DbStateServiceImpl;
+use crate::service::db_state_service;
+use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
     DocumentRenameError, FileMoveError, ReadDocumentError as FSReadDocumentError,
@@ -67,7 +69,8 @@ pub type DefaultSymmetric = AesImpl;
 pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo>;
+pub type DefaultDbVersionRepo = DbVersionRepoImpl;
+pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
 pub type DefaultClock = ClockImpl;
 pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 pub type DefaultAccountService = AccountServiceImpl<
@@ -123,6 +126,42 @@ fn connect_to_db(config: &Config) -> Result<Db, String> {
     })?;
 
     Ok(db)
+}
+
+#[derive(Debug, Serialize)]
+pub enum GetStateError {
+    UnexpectedError(String),
+}
+
+pub fn get_db_state(config: &Config) -> Result<State, GetStateError> {
+    let db = connect_to_db(&config).map_err(GetStateError::UnexpectedError)?;
+
+    match DefaultDbStateService::get_state(&db) {
+        Ok(state) => Ok(state),
+        Err(err) => Err(GetStateError::UnexpectedError(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum MigrationError {
+    StateRequiresCleaning,
+    UnexpectedError(String),
+}
+
+pub fn migrate_db(config: &Config) -> Result<(), MigrationError> {
+    let db = connect_to_db(&config).map_err(MigrationError::UnexpectedError)?;
+
+    match DefaultDbStateService::perform_migration(&db) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            db_state_service::MigrationError::StateRequiresClearing => {
+                Err(MigrationError::StateRequiresCleaning)
+            }
+            db_state_service::MigrationError::RepoError(_) => {
+                Err(MigrationError::UnexpectedError(format!("{:#?}", err)))
+            }
+        },
+    }
 }
 
 #[derive(Debug, Serialize)]
