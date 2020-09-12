@@ -32,7 +32,7 @@ pub enum ChangeDocumentContentError {
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
-    UpdateRequired,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -63,6 +63,7 @@ pub enum CreateDocumentError {
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -90,6 +91,7 @@ pub enum DeleteDocumentError {
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -120,6 +122,7 @@ pub enum MoveDocumentError {
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -149,6 +152,7 @@ pub enum RenameDocumentError {
     DocumentDeleted,
     EditConflict,
     DocumentPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -167,6 +171,7 @@ pub struct GetDocumentResponse {
 pub enum GetDocumentError {
     InternalError,
     DocumentNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -195,6 +200,7 @@ pub enum CreateFolderError {
     UserNotFound,
     FileIdTaken,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -222,6 +228,7 @@ pub enum DeleteFolderError {
     FolderNotFound,
     EditConflict,
     FolderDeleted,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -252,6 +259,7 @@ pub enum MoveFolderError {
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -281,6 +289,7 @@ pub enum RenameFolderError {
     FolderDeleted,
     EditConflict,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -299,6 +308,7 @@ pub enum GetPublicKeyError {
     InternalError,
     InvalidUsername,
     UserNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -322,6 +332,7 @@ pub enum GetUpdatesError {
     NotPermissioned,
     UserNotFound,
     InvalidUsername,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -350,4 +361,5 @@ pub enum NewAccountError {
     InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
+    ClientUpdateRequired,
 }

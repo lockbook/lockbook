@@ -1,6 +1,6 @@
 use crate::file_content_client;
 use crate::file_index_repo;
-use crate::utils::username_is_valid;
+use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
 use lockbook_core::model::api::*;
 use lockbook_core::model::file_metadata::FileType;
@@ -9,6 +9,10 @@ pub async fn change_document_content(
     server_state: &mut ServerState,
     request: ChangeDocumentContentRequest,
 ) -> Result<ChangeDocumentContentResponse, ChangeDocumentContentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(ChangeDocumentContentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(ChangeDocumentContentError::InvalidUsername);
     }
@@ -83,6 +87,10 @@ pub async fn create_document(
     server_state: &mut ServerState,
     request: CreateDocumentRequest,
 ) -> Result<CreateDocumentResponse, CreateDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(CreateDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(CreateDocumentError::InvalidUsername);
     }
@@ -149,6 +157,10 @@ pub async fn delete_document(
     server_state: &mut ServerState,
     request: DeleteDocumentRequest,
 ) -> Result<DeleteDocumentResponse, DeleteDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(DeleteDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(DeleteDocumentError::InvalidUsername);
     }
@@ -209,6 +221,10 @@ pub async fn move_document(
     server_state: &mut ServerState,
     request: MoveDocumentRequest,
 ) -> Result<MoveDocumentResponse, MoveDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(MoveDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(MoveDocumentError::InvalidUsername);
     }
@@ -258,6 +274,10 @@ pub async fn rename_document(
     server_state: &mut ServerState,
     request: RenameDocumentRequest,
 ) -> Result<RenameDocumentResponse, RenameDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(RenameDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(RenameDocumentError::InvalidUsername);
     }
@@ -306,6 +326,10 @@ pub async fn get_document(
     server_state: &mut ServerState,
     request: GetDocumentRequest,
 ) -> Result<GetDocumentResponse, GetDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(GetDocumentError::ClientUpdateRequired);
+    }
+
     let files_result = file_content_client::get(
         &server_state.files_db_client,
         request.id,
@@ -326,6 +350,10 @@ pub async fn create_folder(
     server_state: &mut ServerState,
     request: CreateFolderRequest,
 ) -> Result<CreateFolderResponse, CreateFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(CreateFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(CreateFolderError::InvalidUsername);
     }
@@ -375,6 +403,10 @@ pub async fn delete_folder(
     server_state: &mut ServerState,
     request: DeleteFolderRequest,
 ) -> Result<DeleteFolderResponse, DeleteFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(DeleteFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(DeleteFolderError::InvalidUsername);
     }
@@ -421,6 +453,10 @@ pub async fn move_folder(
     server_state: &mut ServerState,
     request: MoveFolderRequest,
 ) -> Result<MoveFolderResponse, MoveFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(MoveFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(MoveFolderError::InvalidUsername);
     }
@@ -470,6 +506,10 @@ pub async fn rename_folder(
     server_state: &mut ServerState,
     request: RenameFolderRequest,
 ) -> Result<RenameFolderResponse, RenameFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(RenameFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(RenameFolderError::InvalidUsername);
     }
@@ -518,6 +558,10 @@ pub async fn get_updates(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(GetUpdatesError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(GetUpdatesError::InvalidUsername);
     }
