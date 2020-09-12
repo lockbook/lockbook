@@ -2,11 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 
 use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::{
-    create_file_at_path, get_account, write_document, CreateFileAtPathError, GetAccountError,
-};
+use lockbook_core::{create_file_at_path, write_document, CreateFileAtPathError};
 
-use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::utils::{
+    exit_with, exit_with_no_account, get_config, prepare_db_and_get_account_or_exit,
+};
 use crate::{
     COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_FILE, COULD_NOT_READ_OS_METADATA,
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
@@ -14,6 +14,8 @@ use crate::{
 };
 
 pub fn copy(path: PathBuf) {
+    let account = prepare_db_and_get_account_or_exit();
+
     let metadata = fs::metadata(&path).unwrap_or_else(|err| {
         exit_with(
             &format!("Failed to read file metadata: {}", err),
@@ -28,14 +30,6 @@ pub fn copy(path: PathBuf) {
                 COULD_NOT_READ_OS_FILE,
             )
         });
-
-        let account = match get_account(&get_config()) {
-            Ok(account) => account,
-            Err(err) => match err {
-                GetAccountError::NoAccount => exit_with_no_account(),
-                GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-            },
-        };
 
         let absolute_path_maybe = fs::canonicalize(&path).unwrap_or_else(|error| {
             exit_with(
