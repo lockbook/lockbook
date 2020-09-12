@@ -1,4 +1,4 @@
-# Version upgrades and breaking changes
+# Version Upgrades and Breaking Changes
 
 Evolving the Lockbook code base requires some special considerations. 
 
