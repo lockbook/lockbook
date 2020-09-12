@@ -2,7 +2,10 @@ use lockbook_core::{
     calculate_work, execute_work, set_last_synced, CalculateWorkError, SetLastSyncedError,
 };
 
-use crate::utils::{exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_config, prepare_db_and_get_account_or_exit};
+use crate::utils::{
+    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_config,
+    prepare_db_and_get_account_or_exit,
+};
 use crate::UNEXPECTED_ERROR;
 use lockbook_core::model::work_unit::WorkUnit;
 use std::io;

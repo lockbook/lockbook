@@ -7,11 +7,13 @@ use uuid::Uuid;
 
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
-    get_file_by_path, read_document, write_document,
-    GetFileByPathError, ReadDocumentError, WriteToDocumentError,
+    get_file_by_path, read_document, write_document, GetFileByPathError, ReadDocumentError,
+    WriteToDocumentError,
 };
 
-use crate::utils::{edit_file_with_editor, exit_with, get_config, prepare_db_and_get_account_or_exit};
+use crate::utils::{
+    edit_file_with_editor, exit_with, get_config, prepare_db_and_get_account_or_exit,
+};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
