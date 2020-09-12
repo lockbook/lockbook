@@ -1,4 +1,4 @@
-use crate::utils::username_is_valid;
+use crate::utils::{username_is_valid, version_is_supported};
 use crate::{file_index_repo, ServerState};
 use lockbook_core::model::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
@@ -10,6 +10,10 @@ pub async fn new_account(
     server_state: &mut ServerState,
     request: NewAccountRequest,
 ) -> Result<NewAccountResponse, NewAccountError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(NewAccountError::ClientUpdateRequired);
+    }
+
     // let auth = serde_json::from_str::<SignedValue>(&request.auth)
     //     .map_err(|_| NewAccountError::InvalidAuth)?;
     // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
@@ -95,6 +99,10 @@ pub async fn get_public_key(
     server_state: &mut ServerState,
     request: GetPublicKeyRequest,
 ) -> Result<GetPublicKeyResponse, GetPublicKeyError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(GetPublicKeyError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(GetPublicKeyError::InvalidUsername);
     }
