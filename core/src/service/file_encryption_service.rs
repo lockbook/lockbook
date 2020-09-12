@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use serde::export::PhantomData;
 use uuid::Uuid;
 
 use crate::model::account::Account;
@@ -112,8 +111,8 @@ pub trait FileEncryptionService {
 }
 
 pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> {
-    pk: PhantomData<PK>,
-    aes: PhantomData<AES>,
+    _pk: PK,
+    _aes: AES,
 }
 
 impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
