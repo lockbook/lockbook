@@ -65,7 +65,7 @@ pub mod service;
 mod loggers;
 
 static API_URL: &str = env!("API_URL");
-static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "output.log";
 
@@ -122,7 +122,7 @@ pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
     Ok(())
 }
 
-fn connect_to_db(config: &Config) -> Result<Db, String> {
+pub fn connect_to_db(config: &Config) -> Result<Db, String> {
     let db = DefaultDbProvider::connect_to_db(&config).map_err(|err| {
         format!(
             "Could not connect to db, config: {:#?}, error: {:#?}",
