@@ -35,7 +35,7 @@ Again, this only effects on-line interactions, you would always be able to acces
 
 To accomplish this: any server endpoint can return `UpdateRequired` which should make it's way to the UI ultimately signaling that they can't do the operation they were trying to do without an update.
 
-## Internal representation of Documents
+## Internal Representation of Documents
 
 Using a file extension lets us treat documents differently, but we could want to represent documents differently internally. Creating `DocumentType`s provides us a layer of flexibility in gracefully handling:
 + Different ways to store text (changelog, which captures a lot of detail about who made what edit when versus no history files which take up far less space.)
