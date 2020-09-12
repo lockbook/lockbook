@@ -26,21 +26,21 @@ pub fn init_logger_or_print() {
     }
 }
 
-pub fn prepare_db_and_get_account_or_exit() -> Account {
-    fn get_account_or_exit() -> Account {
-        match get_account(&get_config()) {
-            Ok(account) => account,
-            Err(error) => match error {
-                GetAccountError::NoAccount => exit_with_no_account(),
-                GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-            },
-        }
+pub fn get_account_or_exit() -> Account {
+    match get_account(&get_config()) {
+        Ok(account) => account,
+        Err(error) => match error {
+            GetAccountError::NoAccount => exit_with_no_account(),
+            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
+}
 
+pub fn check_and_perform_migrations() {
     match get_db_state(&get_config()) {
         Ok(state) => match state {
-            State::ReadyToUse => get_account_or_exit(),
-            State::Empty => exit_with_no_account(),
+            State::ReadyToUse => {}
+            State::Empty => {}
             State::MigrationRequired => {
                 if atty::is(atty::Stream::Stdout) {
                     println!("Local state requires migration! Performing migration now...");
@@ -50,7 +50,6 @@ pub fn prepare_db_and_get_account_or_exit() -> Account {
                         if atty::is(atty::Stream::Stdout) {
                             println!("Migration Successful!");
                         }
-                        get_account_or_exit()
                     }
                     Err(error) => match error {
                         MigrationError::StateRequiresCleaning => exit_with(
