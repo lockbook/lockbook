@@ -1,19 +1,13 @@
-use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::utils::{exit_with, get_config, prepare_db_and_get_account_or_exit};
 use crate::{FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NAME_CONTAINS_SLASH, UNEXPECTED_ERROR};
 use lockbook_core::{
-    get_account, get_file_by_path, rename_file, GetAccountError, GetFileByPathError,
+    get_file_by_path, rename_file, GetFileByPathError,
     RenameFileError,
 };
 use std::process::exit;
 
 pub fn rename(path: &str, new_name: &str) {
-    match get_account(&get_config()) {
-        Ok(_) => {}
-        Err(err) => match err {
-            GetAccountError::NoAccount => exit_with_no_account(),
-            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    prepare_db_and_get_account_or_exit();
 
     match get_file_by_path(&get_config(), path) {
         Ok(file_metadata) => match rename_file(&get_config(), file_metadata.id, new_name) {
