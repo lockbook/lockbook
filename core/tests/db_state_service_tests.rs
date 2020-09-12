@@ -21,7 +21,10 @@ mod db_state_service_tests {
 
         let db = connect_to_db(&cfg).unwrap();
         DefaultDbVersionRepo::set(&db, "0.1.0").unwrap();
-        assert_ne!(DefaultDbVersionRepo::get(&db).unwrap().unwrap(), CORE_CODE_VERSION);
+        assert_ne!(
+            DefaultDbVersionRepo::get(&db).unwrap().unwrap(),
+            CORE_CODE_VERSION
+        );
 
         assert_eq!(
             DefaultDbStateService::get_state(&db).unwrap(),
@@ -36,6 +39,9 @@ mod db_state_service_tests {
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), ReadyToUse);
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), ReadyToUse);
 
-        assert_eq!(DefaultDbVersionRepo::get(&db).unwrap().unwrap(), CORE_CODE_VERSION);
+        assert_eq!(
+            DefaultDbVersionRepo::get(&db).unwrap().unwrap(),
+            CORE_CODE_VERSION
+        );
     }
 }
