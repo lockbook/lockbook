@@ -16,7 +16,7 @@ Therefore, where possible, we should support old functionality. When this is not
 
 Sled is the embedded db that lives on all client devices. Sled itself could have breaking changes between versions. The migration process for that is documented [here](https://docs.rs/sled/0.34.4/sled/struct.Db.html#method.export).
 
-## Breaking changes between core and server
+## Breaking Changes Between `core` and `server`
 
 Because our clients are native ones installed via arbitrary channels (downloads from our site, package manager, app stores, or compiled from source), our server will explicitly need to keep track of what the minimum version client it can service. We want to be very conservative with incrementing the hard cut off where our server essentially says "I can't service this request until you update your client." Being forced to update is generally a bad experience, and it is made worse depending on how you need to update.
 
