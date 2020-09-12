@@ -1,11 +1,9 @@
 use lockbook_core::{export_account, AccountExportError};
 
-use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
+use crate::utils::{exit_with, exit_with_no_account, get_config};
 use crate::UNEXPECTED_ERROR;
 
 pub fn export() {
-    get_account_or_exit();
-
     match export_account(&get_config()) {
         Ok(account_string) => {
             if atty::is(atty::Stream::Stdout) {
