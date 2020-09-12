@@ -10,8 +10,7 @@ use lockbook_core::{
 use uuid::Uuid;
 
 use crate::utils::{
-    edit_file_with_editor, exit_with, exit_with_no_account, get_config,
-    prepare_db_and_get_account_or_exit,
+    edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
 };
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_NO_ROOT, SUCCESS,
@@ -19,7 +18,7 @@ use crate::{
 };
 
 pub fn new(file_name: &str) {
-    prepare_db_and_get_account_or_exit();
+    get_account_or_exit();
 
     let file_metadata = match create_file_at_path(&get_config(), &file_name) {
         Ok(file_metadata) => file_metadata,

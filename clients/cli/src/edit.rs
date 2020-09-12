@@ -11,16 +11,14 @@ use lockbook_core::{
     WriteToDocumentError,
 };
 
-use crate::utils::{
-    edit_file_with_editor, exit_with, get_config, prepare_db_and_get_account_or_exit,
-};
+use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn edit(file_name: &str) {
-    prepare_db_and_get_account_or_exit();
+    get_account_or_exit();
 
     let file_metadata = match get_file_by_path(&get_config(), file_name) {
         Ok(file_metadata) => file_metadata,
