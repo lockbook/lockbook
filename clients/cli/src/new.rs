@@ -5,12 +5,14 @@ use std::path::Path;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
-    create_file_at_path, write_document, CreateFileAtPathError,
-    WriteToDocumentError,
+    create_file_at_path, write_document, CreateFileAtPathError, WriteToDocumentError,
 };
 use uuid::Uuid;
 
-use crate::utils::{edit_file_with_editor, exit_with, get_config, prepare_db_and_get_account_or_exit, exit_with_no_account};
+use crate::utils::{
+    edit_file_with_editor, exit_with, exit_with_no_account, get_config,
+    prepare_db_and_get_account_or_exit,
+};
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_NO_ROOT, SUCCESS,
     UNEXPECTED_ERROR,

@@ -1,4 +1,6 @@
-use crate::utils::{exit_with, exit_with_no_account, get_config, prepare_db_and_get_account_or_exit};
+use crate::utils::{
+    exit_with, exit_with_no_account, get_config, prepare_db_and_get_account_or_exit,
+};
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, UNEXPECTED_ERROR,
 };

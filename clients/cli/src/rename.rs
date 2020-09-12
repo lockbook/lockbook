@@ -1,9 +1,6 @@
 use crate::utils::{exit_with, get_config, prepare_db_and_get_account_or_exit};
 use crate::{FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NAME_CONTAINS_SLASH, UNEXPECTED_ERROR};
-use lockbook_core::{
-    get_file_by_path, rename_file, GetFileByPathError,
-    RenameFileError,
-};
+use lockbook_core::{get_file_by_path, rename_file, GetFileByPathError, RenameFileError};
 use std::process::exit;
 
 pub fn rename(path: &str, new_name: &str) {

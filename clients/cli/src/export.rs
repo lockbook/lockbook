@@ -1,6 +1,8 @@
 use lockbook_core::{export_account, AccountExportError};
 
-use crate::utils::{exit_with, exit_with_no_account, get_config, prepare_db_and_get_account_or_exit};
+use crate::utils::{
+    exit_with, exit_with_no_account, get_config, prepare_db_and_get_account_or_exit,
+};
 use crate::UNEXPECTED_ERROR;
 
 pub fn export() {
