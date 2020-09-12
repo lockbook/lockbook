@@ -8,9 +8,9 @@ extern crate log;
 
 pub mod account_service;
 pub mod config;
-pub mod file_service;
 pub mod file_content_client;
 pub mod file_index_repo;
+pub mod file_service;
 pub mod utils;
 
 use crate::config::config;
