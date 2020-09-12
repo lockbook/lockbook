@@ -3,8 +3,8 @@ use lockbook_core::{
 };
 
 use crate::utils::{
-    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_config,
-    prepare_db_and_get_account_or_exit,
+    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required,
+    get_account_or_exit, get_config,
 };
 use crate::UNEXPECTED_ERROR;
 use lockbook_core::model::work_unit::WorkUnit;
@@ -12,7 +12,7 @@ use std::io;
 use std::io::Write;
 
 pub fn sync() {
-    let account = prepare_db_and_get_account_or_exit();
+    let account = get_account_or_exit();
 
     let mut work_calculated = match calculate_work(&get_config()) {
         Ok(work) => work,
