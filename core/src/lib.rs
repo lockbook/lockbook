@@ -61,7 +61,7 @@ pub mod service;
 mod loggers;
 
 static API_URL: &str = env!("API_URL");
-static CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
+static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "output.log";
 
