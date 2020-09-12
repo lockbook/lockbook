@@ -1,7 +1,6 @@
 use std::num::ParseIntError;
 
 use rsa::RSAPublicKey;
-use serde::export::PhantomData;
 
 use crate::model::account::Account;
 use crate::model::crypto::*;
@@ -63,8 +62,8 @@ pub trait AuthService {
 }
 
 pub struct AuthServiceImpl<Time: Clock, Crypto: PubKeyCryptoService> {
-    clock: PhantomData<Time>,
-    crypto: PhantomData<Crypto>,
+    _clock: Time,
+    _crypto: Crypto,
 }
 
 impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<Time, Crypto> {
