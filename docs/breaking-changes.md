@@ -12,7 +12,7 @@ Because we support offline use our clients store and maintain local state. If we
 
 Therefore, where possible, we should support old functionality. When this is not possible (a data format changed), a "migration" must be performed. Encoded in rust forever will be instructions on how to step through each version of state. These migrations should not require an internet connection. All core endpoints that interact with state may return `MigrationRequired`. You can also explicitly check the status by calling `get_db_state`.
 
-#### Breaking changes between versions of sled
+#### Breaking Changes Between Versions of Sled
 
 Sled is the embedded db that lives on all client devices. Sled itself could have breaking changes between versions. The migration process for that is documented [here](https://docs.rs/sled/0.34.4/sled/struct.Db.html#method.export).
 
