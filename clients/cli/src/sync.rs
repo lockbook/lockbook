@@ -3,8 +3,10 @@ use lockbook_core::{
     GetAccountError, SetLastSyncedError,
 };
 
-use crate::utils::{exit_with, exit_with_no_account, get_config};
-use crate::{NETWORK_ISSUE, UNEXPECTED_ERROR};
+use crate::utils::{
+    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_config,
+};
+use crate::UNEXPECTED_ERROR;
 use lockbook_core::model::work_unit::WorkUnit;
 use std::io;
 use std::io::Write;
@@ -22,9 +24,8 @@ pub fn sync() {
         Ok(work) => work,
         Err(err) => match err {
             CalculateWorkError::NoAccount => exit_with_no_account(),
-            CalculateWorkError::CouldNotReachServer => {
-                exit_with("Could not reach server!", NETWORK_ISSUE)
-            }
+            CalculateWorkError::CouldNotReachServer => exit_with_offline(),
+            CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
             CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     };
@@ -47,10 +48,9 @@ pub fn sync() {
             Ok(work) => work,
             Err(err) => match err {
                 CalculateWorkError::NoAccount => exit_with_no_account(),
-                CalculateWorkError::CouldNotReachServer => {
-                    exit_with("Could not reach server!", NETWORK_ISSUE)
-                }
+                CalculateWorkError::CouldNotReachServer => exit_with_offline(),
                 CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
             },
         };
     }
