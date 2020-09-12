@@ -10,7 +10,7 @@ Because we support offline use our clients store and maintain local state. If we
 + Depending on the user this could take a long time
 + Needlessly places a load our infrastructure
 
-Where possible therefore, where possible we should support old functionality. When this is not possible (a data format changed), a "migration" must be performed. Encoded in rust forever will be instructions on how to step through each version of state. These migrations should not require an internet connection. All core endpoints that interact with state may return `MigrationRequired`, you can also explicitly check the status by calling `get_db_state`.
+Therefore, where possible, we should support old functionality. When this is not possible (a data format changed), a "migration" must be performed. Encoded in rust forever will be instructions on how to step through each version of state. These migrations should not require an internet connection. All core endpoints that interact with state may return `MigrationRequired`. You can also explicitly check the status by calling `get_db_state`.
 
 #### Breaking changes between versions of sled
 
