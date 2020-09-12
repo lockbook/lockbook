@@ -3,18 +3,79 @@ use std::env;
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
-use lockbook_core::init_logger;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
+use lockbook_core::{
+    get_account, get_db_state, init_logger, migrate_db, GetAccountError, GetStateError,
+    MigrationError,
+};
 use lockbook_core::{get_last_synced, DefaultClock};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UPDATE_REQUIRED};
+use crate::{
+    NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
+    UPDATE_REQUIRED,
+};
+use lockbook_core::model::account::Account;
+use lockbook_core::service::db_state_service::State;
 use std::process::exit;
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
         eprintln!("Logger failed to initialize! {:#?}", err)
+    }
+}
+
+pub fn prepare_db_and_get_account_or_exit() -> Account {
+    fn get_account_or_exit() -> Account {
+        match get_account(&get_config()) {
+            Ok(account) => account,
+            Err(error) => match error {
+                GetAccountError::NoAccount => exit_with_no_account(),
+                GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            },
+        }
+    }
+
+    match get_db_state(&get_config()) {
+        Ok(state) => match state {
+            State::ReadyToUse => get_account_or_exit(),
+            State::Empty => exit_with_no_account(),
+            State::MigrationRequired => {
+                if atty::is(atty::Stream::Stdout) {
+                    println!("Local state requires migration! Performing migration now...");
+                }
+                match migrate_db(&get_config()) {
+                    Ok(_) => {
+                        if atty::is(atty::Stream::Stdout) {
+                            println!("Migration Successful!");
+                        }
+                        get_account_or_exit()
+                    }
+                    Err(error) => match error {
+                        MigrationError::StateRequiresCleaning => exit_with(
+                            "Your local state cannot be migrated, please re-sync with a fresh client.",
+                            UNINSTALL_REQUIRED,
+                        ),
+                        MigrationError::UnexpectedError(msg) =>
+                            exit_with(
+                                &format!(
+                                    "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
+                                    &msg
+                                ),
+                                UNEXPECTED_ERROR
+                            )
+                    }
+                }
+            }
+            State::StateRequiresClearing => exit_with(
+                "Your local state cannot be migrated, please re-sync with a fresh client.",
+                UNINSTALL_REQUIRED,
+            ),
+        },
+        Err(err) => match err {
+            GetStateError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
     }
 }
 
