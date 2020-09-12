@@ -4,46 +4,30 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import androidx.core.graphics.scaleMatrix
-import timber.log.Timber
 
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     View(context, attributeSet) {
-    private lateinit var canvas: Canvas
-    val paints = mutableListOf<Paint>()
-    val paths = mutableListOf<Path>()
+    val color = Color()
+    private val lastPoint = PointF()
+    private val point = PointF()
     private var scaleFactor = 1f
+    val svgObject = SVG.svg { }
     private val scaleGestureDetector =
         ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 scaleFactor *= detector.scaleFactor
-
                 scaleFactor = 0.1f.coerceAtLeast(scaleFactor.coerceAtMost(5.0f))
 
                 invalidate()
                 return true
             }
         })
-
-    init {
-        val paint = Paint()
-
-        paint.isAntiAlias = true
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeJoin = Paint.Join.MITER
-        paint.strokeWidth = 0f
-
-        paints.add(paint)
-        paths.add(Path())
-    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -62,14 +46,26 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         } else {
             return super.onTouchEvent(event)
         }
+
         return false
     }
 
     private fun handleStylusEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> paths.last().moveTo(event.x, event.y)
+            MotionEvent.ACTION_DOWN -> {
+                lastPoint.set(event.x, event.y)
+                point.set(event.x, event.y)
+            }
             MotionEvent.ACTION_MOVE -> {
-                paths.last().lineTo(event.x, event.y)
+                svgObject.line {
+                    stroke = "#FFFFFF"
+                    x1 = point.x.toString()
+                    y1 = point.y.toString()
+                    x2 = event.x.toString()
+                    y2 = event.y.toString()
+                }
+                lastPoint.set(point)
+                point.set(event.x, event.y)
                 invalidate()
             }
             MotionEvent.ACTION_UP -> {
@@ -83,14 +79,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         return true
     }
 
-    override fun onDraw(canvas: Canvas) {
-        this.canvas = canvas
-        for((path, paint) in paths.zip(paints)) {
-            Timber.e("lol123")
-            canvas.drawPath(path, paint)
-        }
-        scaleMatrix(scaleFactor, scaleFactor)
+    override fun onDraw(canvas: Canvas?) {
+        com.caverock.androidsvg.SVG.getFromString(svgObject.toString()).renderToCanvas(canvas)
         super.onDraw(canvas)
     }
-
 }

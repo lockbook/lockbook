@@ -45,7 +45,7 @@
     </androidx.appcompat.widget.Toolbar>
 
     <app.lockbook.loggedin.editor.HandwritingEditorView
-        android:id="@+id/handwriting_editor_canvas"
+        android:id="@+id/handwriting_editor"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
