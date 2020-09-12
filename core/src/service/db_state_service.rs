@@ -99,7 +99,10 @@ mod unit_tests {
         assert!(DbVersionRepoImpl::get(&db).unwrap().is_none());
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), Empty);
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), Empty);
-        assert_eq!(DbVersionRepoImpl::get(&db).unwrap().unwrap(), CORE_CODE_VERSION);
+        assert_eq!(
+            DbVersionRepoImpl::get(&db).unwrap().unwrap(),
+            CORE_CODE_VERSION
+        );
     }
 
     // The rest are integration tests
