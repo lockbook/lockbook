@@ -2,7 +2,7 @@
 
 Evolving the Lockbook code base requires some special considerations. 
 
-## Breaking change between core versions
+## Breaking Change Between `core` Versions
 
 Because we support offline use our clients store and maintain local state. If we update our app, we need to make sure the new version of the app can gracefully interact with the current data on the device. Ultimately we can always nuke the local state and re-sync with the server. We want to avoid doing this where possible for the following reasons:
 
