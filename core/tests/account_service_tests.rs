@@ -174,6 +174,7 @@ mod account_tests {
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountDoesNotExist
                 | ImportError::UsernamePKMismatch
+                | ImportError::ClientUpdateRequired
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
             },
@@ -191,6 +192,7 @@ mod account_tests {
                 ImportError::AccountExistsAlready
                 | ImportError::AccountDoesNotExist
                 | ImportError::UsernamePKMismatch
+                | ImportError::ClientUpdateRequired
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
             },
@@ -220,6 +222,7 @@ mod account_tests {
                 ImportError::AccountDoesNotExist => println!("Test passed!"),
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountExistsAlready
+                | ImportError::ClientUpdateRequired
                 | ImportError::UsernamePKMismatch
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
@@ -247,6 +250,7 @@ mod account_tests {
                 ImportError::UsernamePKMismatch => println!("Test passed!"),
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountExistsAlready
+                | ImportError::ClientUpdateRequired
                 | ImportError::AccountDoesNotExist
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic! {"Wrong error: {:#?}", err},
