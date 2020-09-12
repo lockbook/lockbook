@@ -19,6 +19,7 @@ import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
+import app.lockbook.utils.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
@@ -61,7 +62,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
-    private val _navigateToHandwritingEditor = SingleMutableLiveData<Unit>()
+    private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = SingleMutableLiveData<FileMetadata>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _createFileNameDialog = SingleMutableLiveData<Unit>()
@@ -91,7 +92,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
 
-    val navigateToHandwritingEditor: LiveData<Unit>
+    val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
 
     val navigateToPopUpInfo: LiveData<FileMetadata>
@@ -236,7 +237,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         resultCode,
                         data
                     )
-                    TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
+                    TEXT_EDITOR_REQUEST_CODE == requestCode || HANDWRITING_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
                     resultCode == RESULT_CANCELED -> {
                     }
                     else -> {
@@ -513,7 +514,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
                         val editableFileResult = fileModel.handleReadDocument(fileMetadata)
                         if(fileMetadata.name.endsWith(".svg")) { // This is temporary, its to test
-                            _navigateToHandwritingEditor.postValue(Unit) // This is temporary, its to test
+                            _navigateToHandwritingEditor.postValue(editableFileResult) // This is temporary, its to test
                         } else if (editableFileResult is EditableFile) {
                             _navigateToFileEditor.postValue(editableFileResult)
                         }

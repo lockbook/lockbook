@@ -149,8 +149,8 @@ class ListFilesFragment : Fragment() {
 
         listFilesViewModel.navigateToHandwritingEditor.observe(
             viewLifecycleOwner,
-            {
-                navigateToHandwritingEditor()
+            { editableFile ->
+                navigateToHandwritingEditor(editableFile)
             }
         )
 
@@ -351,8 +351,12 @@ class ListFilesFragment : Fragment() {
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
-    private fun navigateToHandwritingEditor() {
-        startActivity(Intent(context, HandwritingEditorActivity::class.java))
+    private fun navigateToHandwritingEditor(editableFile: EditableFile) {
+        val intent = Intent(context, HandwritingEditorActivity::class.java)
+        intent.putExtra("name", editableFile.name)
+        intent.putExtra("id", editableFile.id)
+        intent.putExtra("contents", editableFile.contents)
+        startActivity(intent)
     }
 
     private fun errorHasOccurred(errorText: String) {
