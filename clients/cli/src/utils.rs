@@ -9,7 +9,7 @@ use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{get_last_synced, DefaultClock};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{NO_ACCOUNT, NO_CLI_LOCATION};
+use crate::{NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UPDATE_REQUIRED};
 use std::process::exit;
 
 pub fn init_logger_or_print() {
@@ -29,6 +29,17 @@ pub fn get_config() -> Config {
     Config {
         writeable_path: path,
     }
+}
+
+pub fn exit_with_upgrade_required() -> ! {
+    exit_with(
+        "An update to your application is required to do this action!",
+        UPDATE_REQUIRED,
+    )
+}
+
+pub fn exit_with_offline() -> ! {
+    exit_with("Could not reach server!", NETWORK_ISSUE)
 }
 
 pub fn exit_with_no_account() -> ! {
