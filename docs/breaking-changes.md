@@ -18,7 +18,7 @@ Sled is the embedded db that lives on all client devices. Sled itself could have
 
 ## Breaking changes between core and server
 
-Because our clients are native ones installed via arbitrary channels (downloads from our site, package manager, app stores, or compiled from source) our server will explicitly need to keep track of what the minimum version client it can service. We want to be very conservative with incrementing the hard cut off where our server essentially says "I can't service this request until you update your client", being forced to update is generally a bad experience, and it is made worse depending on how you need to update.
+Because our clients are native ones installed via arbitrary channels (downloads from our site, package manager, app stores, or compiled from source), our server will explicitly need to keep track of what the minimum version client it can service. We want to be very conservative with incrementing the hard cut off where our server essentially says "I can't service this request until you update your client." Being forced to update is generally a bad experience, and it is made worse depending on how you need to update.
 
 An example of a breaking change between client and server could include (but are not limited to):
 + Changing the name of an endpoint
