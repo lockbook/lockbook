@@ -4,45 +4,45 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <androidx.appcompat.widget.Toolbar
-        style="@style/Text.Medium"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/colorPrimary"
-        android:elevation="4dp">
+<!--    <androidx.appcompat.widget.Toolbar-->
+<!--        style="@style/Text.Medium"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:background="?attr/colorPrimary"-->
+<!--        android:elevation="4dp">-->
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="end"
-            android:orientation="horizontal">
+<!--        <LinearLayout-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="match_parent"-->
+<!--            android:gravity="end"-->
+<!--            android:orientation="horizontal">-->
 
-            <TextView
-                style="@style/Toolbar.Title"
-                android:layout_width="150sp"
-                android:layout_height="wrap_content"
-                android:singleLine="true" />
+<!--            <TextView-->
+<!--                style="@style/Toolbar.Title"-->
+<!--                android:layout_width="150sp"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:singleLine="true" />-->
 
-            <Spinner
-                android:id="@+id/handwriting_editor_pen_size_spinner"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/baseline_create_white_18dp"
-                android:contentDescription="@string/handwriting_editor_pen_size_description"
-                android:paddingHorizontal="5dp"
-                android:spinnerMode="dropdown" />
+<!--            <Spinner-->
+<!--                android:id="@+id/handwriting_editor_pen_size_spinner"-->
+<!--                android:layout_width="wrap_content"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:src="@drawable/baseline_create_white_18dp"-->
+<!--                android:contentDescription="@string/handwriting_editor_pen_size_description"-->
+<!--                android:paddingHorizontal="5dp"-->
+<!--                android:spinnerMode="dropdown" />-->
 
-            <Spinner
-                android:id="@+id/handwriting_editor_pallete_spinner"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/baseline_palette_white_pallete_18dp"
-                android:contentDescription="@string/handwriting_editor_pallete_description"
-                android:paddingHorizontal="5dp"
-                android:spinnerMode="dropdown" />
-        </LinearLayout>
+<!--            <Spinner-->
+<!--                android:id="@+id/handwriting_editor_pallete_spinner"-->
+<!--                android:layout_width="wrap_content"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:src="@drawable/baseline_palette_white_pallete_18dp"-->
+<!--                android:contentDescription="@string/handwriting_editor_pallete_description"-->
+<!--                android:paddingHorizontal="5dp"-->
+<!--                android:spinnerMode="dropdown" />-->
+<!--        </LinearLayout>-->
 
-    </androidx.appcompat.widget.Toolbar>
+<!--    </androidx.appcompat.widget.Toolbar>-->
 
     <app.lockbook.loggedin.editor.HandwritingEditorView
         android:id="@+id/handwriting_editor"
