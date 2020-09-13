@@ -98,5 +98,9 @@ data class DialogStatus(
 )
 
 data class Path(
-    val points: MutableList<PointF> = mutableListOf()
+    val points: MutableList<PointFloat> = mutableListOf()
 )
+
+data class PointFloat(val x: Float, val y: Float)
+
+

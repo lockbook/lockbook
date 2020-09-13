@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use sled::Db;
 
 use crate::client::Client;
@@ -66,12 +64,12 @@ pub struct AccountServiceImpl<
     FileCrypto: FileEncryptionService,
     FileMetadata: FileMetadataRepo,
 > {
-    encryption: PhantomData<Crypto>,
-    accounts: PhantomData<AccountDb>,
-    client: PhantomData<ApiClient>,
-    auth: PhantomData<Auth>,
-    file_crypto: PhantomData<FileCrypto>,
-    file_db: PhantomData<FileMetadata>,
+    _encryption: Crypto,
+    _accounts: AccountDb,
+    _client: ApiClient,
+    _auth: Auth,
+    _file_crypto: FileCrypto,
+    _file_db: FileMetadata,
 }
 
 impl<

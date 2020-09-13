@@ -1,17 +1,9 @@
-use crate::utils::{exit_with, exit_with_no_account, get_config};
+use crate::utils::{exit_with, get_account_or_exit, get_config};
 use crate::{FILE_NOT_FOUND, UNEXPECTED_ERROR};
-use lockbook_core::{
-    get_account, get_file_by_path, read_document, GetAccountError, GetFileByPathError,
-};
+use lockbook_core::{get_file_by_path, read_document, GetFileByPathError};
 
 pub fn print(file_name: &str) {
-    match get_account(&get_config()) {
-        Ok(_) => {}
-        Err(err) => match err {
-            GetAccountError::NoAccount => exit_with_no_account(),
-            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    get_account_or_exit();
 
     let file_metadata = match get_file_by_path(&get_config(), &file_name) {
         Ok(fm) => fm,
