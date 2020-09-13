@@ -16,7 +16,11 @@ import app.lockbook.utils.Path
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     View(context, attributeSet) {
     private val paint = Paint()
-    var path = Path()
+
+    var activePath: Path = Path()
+    var drawn = 0
+    var drawnPaths: MutableList<Path> = mutableListOf()
+
     private var scaleFactor = 1f
     private val canvasPath = android.graphics.Path()
     private val scaleGestureDetector =
@@ -62,14 +66,17 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun handleStylusEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                path.points.add(PointF(Float.MIN_VALUE, Float.MIN_VALUE))
-                path.points.add(PointF(event.x, event.y))
+                activePath = Path()
+                drawn = 0
+                activePath.points.add(PointF(Float.MIN_VALUE, Float.MIN_VALUE))
+                activePath.points.add(PointF(event.x, event.y))
             }
             MotionEvent.ACTION_MOVE -> {
-                path.points.add(PointF(event.x, event.y))
+                activePath.points.add(PointF(event.x, event.y))
                 invalidate()
             }
             MotionEvent.ACTION_UP -> {
+                drawnPaths.add(activePath)
             }
         }
         return true
@@ -81,16 +88,17 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     override fun onDraw(canvas: Canvas?) {
-        for (index in 0 until path.points.size) {
-            if (index != 0 && path.points[index - 1].x != Float.MIN_VALUE) {
-                canvasPath.lineTo(path.points[index].x, path.points[index].y)
+        for (index in drawn until activePath.points.size) {
+            drawn++
+            if (index != 0 && activePath.points[index - 1].x != Float.MIN_VALUE) {
+                canvasPath.lineTo(activePath.points[index].x, activePath.points[index].y)
             } else {
-                canvasPath.moveTo(path.points[index].x, path.points[index].y)
+                canvasPath.moveTo(activePath.points[index].x, activePath.points[index].y)
             }
         }
 
         if (canvas != null) {
-            for (point in path.points) {
+            for (point in activePath.points) {
                 canvas.drawPath(canvasPath, paint)
             }
         }
