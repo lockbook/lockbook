@@ -1,5 +1,6 @@
 package app.lockbook.utils
 
+import android.graphics.PointF
 import java.util.LinkedHashMap
 
 data class FileMetadata(
@@ -94,5 +95,8 @@ data class SyncingStatus(
 data class DialogStatus(
     var isDialogOpen: Boolean = false,
     var alertDialogFileName: String = ""
+)
 
+data class Path(
+    val points: MutableList<PointF> = mutableListOf()
 )

@@ -1,21 +1,13 @@
 package app.lockbook.loggedin.editor
 
 import android.app.Application
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Path
-import android.os.Handler
-import androidx.core.graphics.applyCanvas
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import app.lockbook.utils.*
-import com.caverock.androidsvg.SVG
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
-import kotlinx.android.synthetic.main.activity_debug.*
-import kotlinx.android.synthetic.main.activity_text_editor.*
 import timber.log.Timber
-import java.util.*
 
 class HandwritingEditorViewModel(
     application: Application,
@@ -28,9 +20,9 @@ class HandwritingEditorViewModel(
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
-    fun saveSVG(svg: String) {
-        Timber.e("SMAIL1: $svg")
-        val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, svg.removeSuffix("</svg>").removePrefix("<svg>"))
+    fun savePath(path: Path) {
+        val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(path))
+
         if (writeToDocumentResult is Err) {
             when (val error = writeToDocumentResult.error) {
                 is WriteToDocumentError.FolderTreatedAsDocument -> {

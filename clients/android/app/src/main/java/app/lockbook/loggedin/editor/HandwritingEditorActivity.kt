@@ -9,11 +9,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
+import app.lockbook.utils.Path
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
-import com.github.nwillc.ksvg.elements.Container
-import com.github.nwillc.ksvg.elements.Element
-import com.github.nwillc.ksvg.elements.G
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
 import timber.log.Timber
 import java.util.*
@@ -54,11 +52,11 @@ class HandwritingEditorActivity: AppCompatActivity() {
             }
         )
 
-        setUpHandwritingToolbar()
-        Timber.e("SMAIL3: $contents")
-        val g = G()
-        g.body = contents
-        handwriting_editor.svgObject.children.add(g)
+//        setUpHandwritingToolbar()
+        if(contents.isNotEmpty()) {
+            Timber.e(contents)
+            handwriting_editor.path = Klaxon().parse(contents)!!
+        }
         startBackgroundSave()
     }
 
@@ -67,7 +65,7 @@ class HandwritingEditorActivity: AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.saveSVG(handwriting_editor.svgObject.toString())
+                        handwritingEditorViewModel.savePath(handwriting_editor.path)
                     }
                 }
             },
@@ -76,55 +74,60 @@ class HandwritingEditorActivity: AppCompatActivity() {
         )
     }
 
-    private fun setUpHandwritingToolbar() {
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.handwriting_editor_pen_size,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            handwriting_editor_pen_size_spinner.adapter = adapter
-        }
-
-        handwriting_editor_pen_size_spinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-
-                }
-
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-
-            }
-
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.handwriting_editor_pallete_colors,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            handwriting_editor_pallete_spinner.adapter = adapter
-        }
-
-        handwriting_editor_pallete_spinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-
-                }
-
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-
-            }
+    override fun onDestroy() {
+        timer.cancel()
+        super.onDestroy()
     }
+
+//    private fun setUpHandwritingToolbar() {
+//        ArrayAdapter.createFromResource(
+//            this,
+//            R.array.handwriting_editor_pen_size,
+//            android.R.layout.simple_spinner_item
+//        ).also { adapter ->
+//            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+//            handwriting_editor_pen_size_spinner.adapter = adapter
+//        }
+//
+//        handwriting_editor_pen_size_spinner.onItemSelectedListener =
+//            object : AdapterView.OnItemSelectedListener {
+//                override fun onItemSelected(
+//                    parent: AdapterView<*>?,
+//                    view: View?,
+//                    position: Int,
+//                    id: Long
+//                ) {
+//
+//                }
+//
+//                override fun onNothingSelected(parent: AdapterView<*>?) {}
+//
+//            }
+//
+//        ArrayAdapter.createFromResource(
+//            this,
+//            R.array.handwriting_editor_pallete_colors,
+//            android.R.layout.simple_spinner_item
+//        ).also { adapter ->
+//            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+//            handwriting_editor_pallete_spinner.adapter = adapter
+//        }
+//
+//        handwriting_editor_pallete_spinner.onItemSelectedListener =
+//            object : AdapterView.OnItemSelectedListener {
+//                override fun onItemSelected(
+//                    parent: AdapterView<*>?,
+//                    view: View?,
+//                    position: Int,
+//                    id: Long
+//                ) {
+//
+//                }
+//
+//                override fun onNothingSelected(parent: AdapterView<*>?) {}
+//
+//            }
+//    }
 
     private fun errorHasOccurred(errorText: String) {
         finish()
