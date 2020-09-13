@@ -2,14 +2,10 @@ package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
-import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Path
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
@@ -55,7 +51,7 @@ class HandwritingEditorActivity: AppCompatActivity() {
 //        setUpHandwritingToolbar()
         if(contents.isNotEmpty()) {
             Timber.e(contents)
-            handwriting_editor.path = Klaxon().parse(contents)!!
+            handwriting_editor.activePath = Klaxon().parse(contents)!!
         }
         startBackgroundSave()
     }
@@ -65,7 +61,7 @@ class HandwritingEditorActivity: AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(handwriting_editor.path)
+                        handwritingEditorViewModel.savePath(handwriting_editor.activePath)
                     }
                 }
             },
