@@ -122,9 +122,9 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun isThisAnImport() {
-        val isThisAnImport = PreferenceManager.getDefaultSharedPreferences(getApplication())
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
             .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
-        if (isThisAnImport) {
+        ) {
             incrementalSync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
                 IS_THIS_AN_IMPORT_KEY,
@@ -237,7 +237,8 @@ class ListFilesViewModel(path: String, application: Application) :
                         resultCode,
                         data
                     )
-                    TEXT_EDITOR_REQUEST_CODE == requestCode || HANDWRITING_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
+                    TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
+                    HANDWRITING_EDITOR_REQUEST_CODE == requestCode -> handleHandwritingEditorRequest()
                     resultCode == RESULT_CANCELED -> {
                     }
                     else -> {
@@ -246,6 +247,14 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                 }
             }
+        }
+    }
+
+    private fun handleHandwritingEditorRequest() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+                .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+        ) {
+            incrementalSyncIfNotRunning()
         }
     }
 
@@ -513,8 +522,8 @@ class ListFilesViewModel(path: String, application: Application) :
                     } else {
 
                         val editableFileResult = fileModel.handleReadDocument(fileMetadata)
-                        if(fileMetadata.name.endsWith(".svg")) { // This is temporary, its to test
-                            _navigateToHandwritingEditor.postValue(editableFileResult) // This is temporary, its to test
+                        if(fileMetadata.name.endsWith(".svg")) {
+                            _navigateToHandwritingEditor.postValue(editableFileResult)
                         } else if (editableFileResult is EditableFile) {
                             _navigateToFileEditor.postValue(editableFileResult)
                         }
