@@ -5,22 +5,23 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import app.lockbook.utils.Path
+import app.lockbook.utils.PointFloat
+import com.beust.klaxon.Klaxon
+import timber.log.Timber
 
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     View(context, attributeSet) {
     private val paint = Paint()
-
     var activePath: Path = Path()
     var drawn = 0
     var drawnPaths: MutableList<Path> = mutableListOf()
-
+    var reOpened = false
     private var scaleFactor = 1f
     private val canvasPath = android.graphics.Path()
     private val scaleGestureDetector =
@@ -68,11 +69,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             MotionEvent.ACTION_DOWN -> {
                 activePath = Path()
                 drawn = 0
-                activePath.points.add(PointF(Float.MIN_VALUE, Float.MIN_VALUE))
-                activePath.points.add(PointF(event.x, event.y))
+                activePath.points.add(PointFloat(-100.321f, -100.321f))
+                activePath.points.add(PointFloat(event.x, event.y))
             }
             MotionEvent.ACTION_MOVE -> {
-                activePath.points.add(PointF(event.x, event.y))
+                activePath.points.add(PointFloat(event.x, event.y))
                 invalidate()
             }
             MotionEvent.ACTION_UP -> {
@@ -88,13 +89,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     override fun onDraw(canvas: Canvas?) {
+        Timber.e(drawn.toString())
         for (index in drawn until activePath.points.size) {
             drawn++
-            if (index != 0 && activePath.points[index - 1].x != Float.MIN_VALUE) {
+            if (index != 0 && activePath.points[index - 1].x != -100.321f) {
                 canvasPath.lineTo(activePath.points[index].x, activePath.points[index].y)
             } else {
                 canvasPath.moveTo(activePath.points[index].x, activePath.points[index].y)
             }
+        }
+
+        if(reOpened && canvas != null) {
+            for(path in drawnPaths) {
+                for (index in drawn until path.points.size) {
+                    if (index != 0 && path.points[index - 1].x != -100.321f) {
+                        canvasPath.lineTo(path.points[index].x, path.points[index].y)
+                    } else {
+                        canvasPath.moveTo(path.points[index].x, path.points[index].y)
+                    }
+                }
+            }
+            canvas.drawPath(canvasPath, paint)
+            reOpened = false
         }
 
         if (canvas != null) {

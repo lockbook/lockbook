@@ -1,4 +1,3 @@
-use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
@@ -137,11 +136,11 @@ pub struct FileServiceImpl<
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
-    metadatas: PhantomData<FileMetadataDb>,
-    files: PhantomData<FileDb>,
-    changes_db: PhantomData<ChangesDb>,
-    account: PhantomData<AccountDb>,
-    file_crypto: PhantomData<FileCrypto>,
+    _metadatas: FileMetadataDb,
+    _files: FileDb,
+    _changes_db: ChangesDb,
+    _account: AccountDb,
+    _file_crypto: FileCrypto,
 }
 
 impl<

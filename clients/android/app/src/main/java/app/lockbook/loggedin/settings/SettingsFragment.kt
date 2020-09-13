@@ -5,9 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputFilter
-import android.text.InputType
-import android.text.Spanned
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
@@ -17,13 +14,9 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.preference.*
-import app.lockbook.BuildConfig
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
-import app.lockbook.utils.AccountExportError
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.LOG_FILE_NAME
+import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -35,7 +28,6 @@ import app.lockbook.utils.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.utils.SharedPreferences.VIEW_LOGS_KEY
-import app.lockbook.utils.SharedPreferences.VIEW_LOGS_TITLE_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -62,53 +54,38 @@ class SettingsFragment : PreferenceFragmentCompat() {
             false
         }
 
-        findPreference<Preference>(VIEW_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
-        findPreference<Preference>(VIEW_LOGS_TITLE_KEY)?.isVisible = BuildConfig.DEBUG
-        findPreference<Preference>(CLEAR_LOGS_KEY)?.isVisible = BuildConfig.DEBUG
-
-        findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)?.setOnBindEditTextListener { editText ->
-            editText.inputType = InputType.TYPE_CLASS_NUMBER
-            editText.filters = arrayOf(
-                object : InputFilter {
-                    override fun filter(
-                        source: CharSequence?,
-                        start: Int,
-                        end: Int,
-                        dest: Spanned?,
-                        dstart: Int,
-                        dend: Int
-                    ): CharSequence? {
-                        val input = (dest.toString() + source.toString()).toIntOrNull()
-                        return if ((0..Int.MAX_VALUE).contains(input)) null else ""
-                    }
-                }
+        findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+            PreferenceManager.getDefaultSharedPreferences(
+                requireContext()
+            ).getBoolean(
+                BACKGROUND_SYNC_ENABLED_KEY,
+                true
             )
-        }
 
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
     }
 
+    override fun onDisplayPreferenceDialog(preference: Preference?) {
+        if (preference is NumberPickerPreference) {
+            val numberPickerPreferenceDialog =
+                NumberPickerPreferenceDialog.newInstance(preference.key)
+            numberPickerPreferenceDialog.setTargetFragment(this, 0)
+            numberPickerPreferenceDialog.show(requireFragmentManager(), null)
+        } else {
+            super.onDisplayPreferenceDialog(preference)
+        }
+    }
+
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
-            VIEW_LOGS_KEY -> {
-                startActivity(Intent(context, LogActivity::class.java))
-            }
-            CLEAR_LOGS_KEY -> {
-                File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
-            }
-            BACKGROUND_SYNC_ENABLED_KEY -> {
-                val editText = findPreference<EditTextPreference>(BACKGROUND_SYNC_PERIOD_KEY)
-                when (val onOrOff = editText?.isEnabled) {
-                    true, false -> editText.isEnabled = !onOrOff
-                    null -> {
-                        Timber.e("Unable to access $BACKGROUND_SYNC_PERIOD_KEY editext, it is null.")
-                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
+            VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
+            CLEAR_LOGS_KEY -> File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
+            BACKGROUND_SYNC_ENABLED_KEY ->
+                findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+                    (preference as SwitchPreference).isChecked
             else -> super.onPreferenceTreeClick(preference)
         }
 
@@ -166,6 +143,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                     )
                                         .show()
                                 }
+                                else -> {}
                             }
                         }
 

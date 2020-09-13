@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
+import app.lockbook.utils.Path
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
@@ -50,10 +51,24 @@ class HandwritingEditorActivity: AppCompatActivity() {
 
 //        setUpHandwritingToolbar()
         if(contents.isNotEmpty()) {
-            Timber.e(contents)
-            handwriting_editor.activePath = Klaxon().parse(contents)!!
+            val paths = Klaxon().parseArray<Path>(contents)
+            if(paths != null) {
+                handwriting_editor.drawnPaths = paths.toMutableList()
+                handwriting_editor.reOpened = true
+
+            } else {
+                errorHasOccurred("Unable to parse old view together: $contents")
+                finish()
+                return
+            }
         }
+
         startBackgroundSave()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        handwriting_editor.invalidate()
     }
 
     private fun startBackgroundSave() {
@@ -61,7 +76,7 @@ class HandwritingEditorActivity: AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(handwriting_editor.activePath)
+                        handwritingEditorViewModel.savePath(handwriting_editor.drawnPaths.toList())
                     }
                 }
             },
@@ -72,6 +87,7 @@ class HandwritingEditorActivity: AppCompatActivity() {
 
     override fun onDestroy() {
         timer.cancel()
+        handwritingEditorViewModel.savePath(handwriting_editor.drawnPaths.toList())
         super.onDestroy()
     }
 

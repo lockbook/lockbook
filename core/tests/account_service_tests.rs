@@ -54,6 +54,25 @@ mod account_tests {
     }
 
     #[test]
+    fn empty_username_test() {
+        let db = test_db();
+        match DefaultAccountService::create_account(&db, "").unwrap_err() {
+            AccountCreationError::ApiError(api_err) => match api_err {
+                Error::Api(api_api_err) => {
+                    match api_api_err {
+                        NewAccountError::InvalidUsername => return, // Test passed
+                        _ => {}
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+
+        panic!("This username (empty) should have been invalid.")
+    }
+
+    #[test]
     fn invalid_username_test() {
         let db = test_db();
         match DefaultAccountService::create_account(&db, "💩").unwrap_err() {
@@ -174,6 +193,7 @@ mod account_tests {
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountDoesNotExist
                 | ImportError::UsernamePKMismatch
+                | ImportError::ClientUpdateRequired
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
             },
@@ -191,6 +211,7 @@ mod account_tests {
                 ImportError::AccountExistsAlready
                 | ImportError::AccountDoesNotExist
                 | ImportError::UsernamePKMismatch
+                | ImportError::ClientUpdateRequired
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
             },
@@ -220,6 +241,7 @@ mod account_tests {
                 ImportError::AccountDoesNotExist => println!("Test passed!"),
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountExistsAlready
+                | ImportError::ClientUpdateRequired
                 | ImportError::UsernamePKMismatch
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
@@ -247,6 +269,7 @@ mod account_tests {
                 ImportError::UsernamePKMismatch => println!("Test passed!"),
                 ImportError::AccountStringCorrupted
                 | ImportError::AccountExistsAlready
+                | ImportError::ClientUpdateRequired
                 | ImportError::AccountDoesNotExist
                 | ImportError::CouldNotReachServer
                 | ImportError::UnexpectedError(_) => panic! {"Wrong error: {:#?}", err},
