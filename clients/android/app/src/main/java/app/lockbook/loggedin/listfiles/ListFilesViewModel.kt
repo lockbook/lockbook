@@ -252,7 +252,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun handleHandwritingEditorRequest() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
             incrementalSyncIfNotRunning()
         }
@@ -522,7 +522,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     } else {
 
                         val editableFileResult = fileModel.handleReadDocument(fileMetadata)
-                        if(fileMetadata.name.endsWith(".svg")) {
+                        if (fileMetadata.name.endsWith(".svg")) {
                             _navigateToHandwritingEditor.postValue(editableFileResult)
                         } else if (editableFileResult is EditableFile) {
                             _navigateToFileEditor.postValue(editableFileResult)

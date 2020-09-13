@@ -11,9 +11,7 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import app.lockbook.utils.Path
 import app.lockbook.utils.PointFloat
-import com.beust.klaxon.Klaxon
 import timber.log.Timber
-
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     View(context, attributeSet) {
@@ -25,15 +23,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private var scaleFactor = 1f
     private val canvasPath = android.graphics.Path()
     private val scaleGestureDetector =
-        ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                scaleFactor *= detector.scaleFactor
-                scaleFactor = 0.1f.coerceAtLeast(scaleFactor.coerceAtMost(5.0f))
+        ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    scaleFactor *= detector.scaleFactor
+                    scaleFactor = 0.1f.coerceAtLeast(scaleFactor.coerceAtMost(5.0f))
 
-                invalidate()
-                return true
+                    invalidate()
+                    return true
+                }
             }
-        })
+        )
 
     init {
         paint.isAntiAlias = true
@@ -99,8 +100,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
         }
 
-        if(reOpened && canvas != null) {
-            for(path in drawnPaths) {
+        if (reOpened && canvas != null) {
+            for (path in drawnPaths) {
                 for (index in drawn until path.points.size) {
                     if (index != 0 && path.points[index - 1].x != -100.321f) {
                         canvasPath.lineTo(path.points[index].x, path.points[index].y)

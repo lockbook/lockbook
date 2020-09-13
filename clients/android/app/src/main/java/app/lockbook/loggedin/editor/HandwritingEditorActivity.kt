@@ -10,10 +10,9 @@ import app.lockbook.utils.Path
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
-class HandwritingEditorActivity: AppCompatActivity() {
+class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
     private var timer: Timer = Timer()
     private val handler = Handler()
@@ -50,12 +49,11 @@ class HandwritingEditorActivity: AppCompatActivity() {
         )
 
 //        setUpHandwritingToolbar()
-        if(contents.isNotEmpty()) {
+        if (contents.isNotEmpty()) {
             val paths = Klaxon().parseArray<Path>(contents)
-            if(paths != null) {
+            if (paths != null) {
                 handwriting_editor.drawnPaths = paths.toMutableList()
                 handwriting_editor.reOpened = true
-
             } else {
                 errorHasOccurred("Unable to parse old view together: $contents")
                 finish()
@@ -145,5 +143,4 @@ class HandwritingEditorActivity: AppCompatActivity() {
         finish()
         Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
     }
-
 }

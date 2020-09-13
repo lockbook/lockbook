@@ -48,7 +48,8 @@ class TextEditorActivity : AppCompatActivity() {
 
         textEditorViewModel =
             ViewModelProvider(
-                this, TextEditorViewModelFactory(
+                this,
+                TextEditorViewModelFactory(
                     application,
                     id,
                     contents
