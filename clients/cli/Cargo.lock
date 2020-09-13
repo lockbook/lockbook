@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "0.2.14"
+version = "0.2.15"
 dependencies = [
  "atty",
  "chrono",
@@ -865,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook_core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aead",
  "aes-gcm",
