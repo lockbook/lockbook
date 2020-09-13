@@ -7,24 +7,18 @@ use uuid::Uuid;
 
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
-    get_account, get_file_by_path, read_document, write_document, GetAccountError,
-    GetFileByPathError, ReadDocumentError, WriteToDocumentError,
+    get_file_by_path, read_document, write_document, GetFileByPathError, ReadDocumentError,
+    WriteToDocumentError,
 };
 
-use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_config};
+use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn edit(file_name: &str) {
-    match get_account(&get_config()) {
-        Ok(_) => {}
-        Err(err) => match err {
-            GetAccountError::NoAccount => exit_with_no_account(),
-            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    get_account_or_exit();
 
     let file_metadata = match get_file_by_path(&get_config(), file_name) {
         Ok(file_metadata) => file_metadata,
