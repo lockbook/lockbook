@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::utils::init_logger_or_print;
+use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod copy;
@@ -82,6 +82,7 @@ enum Lockbook {
 
 fn main() {
     init_logger_or_print();
+    check_and_perform_migrations();
 
     let args: Lockbook = Lockbook::from_args();
     match args {
@@ -132,3 +133,5 @@ static ACCOUNT_ALREADY_EXISTS: u8 = 21;
 static ACCOUNT_DOES_NOT_EXIST: u8 = 22;
 static USERNAME_PK_MISMATCH: u8 = 23;
 static NO_CLI_LOCATION: u8 = 24;
+static UPDATE_REQUIRED: u8 = 25;
+static UNINSTALL_REQUIRED: u8 = 26;
