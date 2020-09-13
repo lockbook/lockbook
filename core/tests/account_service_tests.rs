@@ -78,10 +78,14 @@ mod account_tests {
         let invalid_unames = ["", "💩"];
 
         for uname in &invalid_unames {
-            match DefaultAccountService::create_account(&db, uname).unwrap_err() {
-                AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername)) => {}
-                _ => panic!("Username \"{}\" should have been invalid", uname),
-            }
+            assert!(
+                matches!(
+                    DefaultAccountService::create_account(&db, uname).unwrap_err(),
+                    AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
+                ),
+                "Username \"{}\" should have been invalid",
+                uname
+            )
         }
     }
 
