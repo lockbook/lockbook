@@ -1,6 +1,5 @@
 package app.lockbook.utils
 
-import android.graphics.PointF
 import java.util.LinkedHashMap
 
 data class FileMetadata(
@@ -102,5 +101,3 @@ data class Path(
 )
 
 data class PointFloat(val x: Float, val y: Float)
-
-
