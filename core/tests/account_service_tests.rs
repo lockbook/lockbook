@@ -22,6 +22,8 @@ mod account_tests {
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 
+    use crate::assert_matches;
+
     #[test]
     fn create_account_successfully() {
         let db = test_db();
@@ -59,14 +61,10 @@ mod account_tests {
         let invalid_unames = ["", "💩"];
 
         for uname in &invalid_unames {
-            assert!(
-                matches!(
-                    DefaultAccountService::create_account(&db, uname).unwrap_err(),
-                    AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
-                ),
-                "Username \"{}\" should have been invalid",
-                uname
-            )
+            assert_matches!(
+                DefaultAccountService::create_account(&db, uname).unwrap_err(),
+                AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
+            );
         }
     }
 
