@@ -1,5 +1,6 @@
 package app.lockbook.utils
 
+import android.graphics.PointF
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
