@@ -769,7 +769,7 @@ mod unit_tests {
                 id: root_id,
                 file_type: FileType::Folder,
                 parent: root_id,
-                name: "".to_string(),
+                name: "rootdir".to_string(),
                 owner: "".to_string(),
                 signature: SignedValue {
                     content: "".to_string(),
