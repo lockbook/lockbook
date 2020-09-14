@@ -54,41 +54,23 @@ mod account_tests {
     }
 
     #[test]
-    fn empty_username_test() {
-        let db = test_db();
-        match DefaultAccountService::create_account(&db, "").unwrap_err() {
-            AccountCreationError::ApiError(api_err) => match api_err {
-                Error::Api(api_api_err) => {
-                    match api_api_err {
-                        NewAccountError::InvalidUsername => return, // Test passed
-                        _ => {}
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
-        }
-
-        panic!("This username (empty) should have been invalid.")
-    }
-
-    #[test]
     fn invalid_username_test() {
         let db = test_db();
-        match DefaultAccountService::create_account(&db, "💩").unwrap_err() {
-            AccountCreationError::ApiError(api_err) => match api_err {
-                Error::Api(api_api_err) => {
-                    match api_api_err {
-                        NewAccountError::InvalidUsername => return, // Test passed
-                        _ => {}
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
-        }
+        let invalid_unames = ["", "💩"];
 
-        panic!("This username should have been invalid.")
+        for uname in &invalid_unames {
+            let err = DefaultAccountService::create_account(&db, uname).unwrap_err();
+
+            assert!(
+                matches!(
+                    err,
+                    AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
+                ),
+                "Username \"{}\" should have been InvalidUsername but instead was {:?}",
+                uname,
+                err
+            )
+        }
     }
 
     #[test]
