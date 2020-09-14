@@ -44,7 +44,8 @@ use crate::service::sync_service::{
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
 use crate::CreateFileAtPathError::{
-    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathContainsEmptyFile,
+    PathDoesntStartWithRoot,
 };
 use crate::GetFileByPathError::NoFileAtThatPath;
 use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
@@ -317,6 +318,7 @@ pub enum CreateFileAtPathError {
     NoAccount,
     NoRoot,
     PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
     DocumentTreatedAsFolder,
     UnexpectedError(String),
 }
@@ -331,6 +333,7 @@ pub fn create_file_at_path(
         Ok(file_metadata) => Ok(file_metadata),
         Err(err) => match err {
             NewFileFromPathError::PathDoesntStartWithRoot => Err(PathDoesntStartWithRoot),
+            NewFileFromPathError::PathContainsEmptyFile => Err(PathContainsEmptyFile),
             NewFileFromPathError::FileAlreadyExists => Err(FileAlreadyExists),
             NewFileFromPathError::NoRoot => Err(NoRoot),
             NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
