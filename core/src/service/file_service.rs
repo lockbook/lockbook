@@ -25,7 +25,7 @@ use crate::service::file_service::FileMoveError::{
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
-    FileNameNotAvailable, MetadataRepoError,
+    FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
@@ -44,6 +44,7 @@ pub enum NewFileError {
     FailedToRecordChange(local_changes_repo::DbError),
     FileNameNotAvailable,
     DocumentTreatedAsFolder,
+    FileNameEmpty,
     FileNameContainsSlash,
 }
 
@@ -86,6 +87,7 @@ pub enum ReadDocumentError {
 #[derive(Debug)]
 pub enum DocumentRenameError {
     FileDoesNotExist,
+    FileNameEmpty,
     FileNameContainsSlash,
     FileNameNotAvailable,
     DbError(file_metadata_repo::DbError),
@@ -157,6 +159,10 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError> {
+        if name.is_empty() {
+            return Err(FileNameEmpty);
+        }
+
         if name.contains('/') {
             return Err(FileNameContainsSlash);
         }
