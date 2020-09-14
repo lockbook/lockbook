@@ -461,7 +461,7 @@ mod unit_tests {
     use crate::service::file_service::FileService;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use uuid::Uuid;
 
@@ -716,6 +716,17 @@ mod unit_tests {
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let paths_with_empties = ["username//", "username/path//to///file.md"];
+        for path in &paths_with_empties {
+            let err = DefaultFileService::create_at_path(&db, path).unwrap_err();
+            assert!(
+                matches!(err, NewFileFromPathError::PathContainsEmptyFile),
+                "Expected path \"{}\" to return PathContainsEmptyFile but instead it was {:?}",
+                path,
+                err
+            );
+        }
 
         assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
         assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
