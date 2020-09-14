@@ -7,7 +7,7 @@ use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use crate::repo::file_metadata_repo::Problem::{
-    CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileOrphaned,
+    CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty, FileOrphaned,
     NameConflictDetected, NoRootFolder,
 };
 
@@ -56,6 +56,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, ()> {
 pub enum Problem {
     NoRootFolder,
     FileOrphaned(Uuid),
+    FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
     CycleDetected(Uuid),
     NameConflictDetected(Uuid),
@@ -322,7 +323,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 } else {
                     for file in all {
                         probs.push(FileOrphaned(file.id));
-                        if file.name.contains('/') {
+                        if file.name.is_empty() {
+                            probs.push(FileNameEmpty(file.id));
+                        } else if file.name.contains('/') {
                             probs.push(FileNameContainsSlash(file.id));
                         }
                     }
@@ -338,7 +341,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
                 // Find files with invalid names
                 for file in all.clone() {
-                    if file.name.contains('/') {
+                    if file.name.is_empty() {
+                        probs.push(FileNameEmpty(file.id));
+                    } else if file.name.contains('/') {
                         probs.push(FileNameContainsSlash(file.id));
                     }
                 }
