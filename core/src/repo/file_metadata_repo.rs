@@ -465,6 +465,7 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
 
 #[cfg(test)]
 mod unit_tests {
+    use sled::Db;
     use uuid::Uuid;
 
     use crate::model::account::Account;
@@ -912,19 +913,14 @@ mod unit_tests {
         );
     }
 
-    #[test]
-    fn test_files_invalid_names() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-
-        let root_id = Uuid::new_v4();
-
+    fn insert_new_test_metadata(db: &Db, parent: Uuid, id: Uuid, name: &str) {
         DefaultFileMetadataRepo::insert(
             &db,
             &FileMetadata {
-                id: root_id,
+                id: id,
                 file_type: FileType::Folder,
-                parent: root_id,
-                name: "uh/oh".to_string(),
+                parent: parent,
+                name: name.to_string(),
                 owner: "".to_string(),
                 signature: SignedValue {
                     content: "".to_string(),
@@ -944,21 +940,24 @@ mod unit_tests {
             },
         )
         .unwrap();
+    }
 
-        assert_eq!(
-            DefaultFileMetadataRepo::test_repo_integrity(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+    #[test]
+    fn test_files_invalid_names() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        assert_eq!(
-            *DefaultFileMetadataRepo::test_repo_integrity(&db)
-                .unwrap()
-                .get(0)
-                .unwrap(),
-            Problem::FileNameContainsSlash(root_id)
-        );
+        let root_id = Uuid::new_v4();
+        let id_for_slash = Uuid::new_v4();
+        let id_for_empty = Uuid::new_v4();
+
+        insert_new_test_metadata(&db, root_id, root_id, "rootdir");
+        insert_new_test_metadata(&db, root_id, id_for_slash, "uh/oh");
+        insert_new_test_metadata(&db, root_id, id_for_empty, "");
+
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
+        assert_eq!(probs.len(), 2);
+        assert!(probs.contains(&Problem::FileNameContainsSlash(id_for_slash)));
+        assert!(probs.contains(&Problem::FileNameEmpty(id_for_empty)));
     }
 
     #[test]
