@@ -106,7 +106,6 @@ dependencies {
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
-    implementation "com.caverock:androidsvg-aar:$svg_parser_version"
 
     implementation project(':core')
 }
