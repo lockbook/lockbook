@@ -347,6 +347,7 @@ pub fn create_file_at_path(
                 | NewFileError::MetadataRepoError(_)
                 | NewFileError::FailedToWriteFileContent(_)
                 | NewFileError::FailedToRecordChange(_)
+                | NewFileError::FileNameEmpty
                 | NewFileError::FileNameContainsSlash => Err(
                     CreateFileAtPathError::UnexpectedError(format!("{:#?}", failed_to_create)),
                 ),
@@ -407,6 +408,7 @@ pub enum CreateFileError {
     DocumentTreatedAsFolder,
     CouldNotFindAParent,
     FileNameNotAvailable,
+    FileNameEmpty,
     FileNameContainsSlash,
     UnexpectedError(String),
 }
@@ -432,6 +434,7 @@ pub fn create_file(
                 ))),
             },
             NewFileError::FileNameNotAvailable => Err(CreateFileError::FileNameNotAvailable),
+            NewFileError::FileNameEmpty => Err(CreateFileError::FileNameEmpty),
             NewFileError::FileNameContainsSlash => Err(CreateFileError::FileNameContainsSlash),
             NewFileError::FileCryptoError(_)
             | NewFileError::MetadataRepoError(_)
@@ -612,6 +615,7 @@ pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, ListMetadata
 #[derive(Debug, Serialize)]
 pub enum RenameFileError {
     FileDoesNotExist,
+    NewNameEmpty,
     NewNameContainsSlash,
     FileNameNotAvailable,
     UnexpectedError(String),
@@ -624,6 +628,7 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Rena
         Ok(_) => Ok(()),
         Err(err) => match err {
             DocumentRenameError::FileDoesNotExist => Err(RenameFileError::FileDoesNotExist),
+            DocumentRenameError::FileNameEmpty => Err(RenameFileError::NewNameEmpty),
             DocumentRenameError::FileNameContainsSlash => {
                 Err(RenameFileError::NewNameContainsSlash)
             }
