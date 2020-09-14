@@ -13,8 +13,8 @@ use crate::utils::{
     edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
 };
 use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_NO_ROOT, SUCCESS,
-    UNEXPECTED_ERROR,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
+    PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn new(file_name: &str) {
@@ -29,6 +29,9 @@ pub fn new(file_name: &str) {
             CreateFileAtPathError::NoAccount => exit_with_no_account(),
             CreateFileAtPathError::NoRoot => {
                 exit_with("No root folder, have you synced yet?", NO_ROOT)
+            }
+            CreateFileAtPathError::PathContainsEmptyFile => {
+                exit_with("Path contains an empty file.", PATH_CONTAINS_EMPTY_FILE)
             }
             CreateFileAtPathError::PathDoesntStartWithRoot => {
                 exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)

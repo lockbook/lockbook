@@ -55,6 +55,7 @@ pub fn copy(path: PathBuf) {
                 CreateFileAtPathError::NoAccount => exit_with_no_account(),
                 CreateFileAtPathError::NoRoot => exit_with("No root folder, have you synced yet?", NO_ROOT),
                 CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest), DOCUMENT_TREATED_AS_FOLDER),
+                CreateFileAtPathError::PathContainsEmptyFile => exit_with(&format!("Input destination {} contains an empty file!", import_dest), UNEXPECTED_ERROR),
                 CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Unexpected: PathDoesntStartWithRoot", UNEXPECTED_ERROR),
                 CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
