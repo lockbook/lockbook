@@ -28,7 +28,6 @@ buildscript {
         work_version = '2.4.0'
         kotlinter_version = '3.0.2'
         snackprogressbar_version = '6.4.2'
-        svg_parser_version = '1.4'
     }
 
     repositories {
