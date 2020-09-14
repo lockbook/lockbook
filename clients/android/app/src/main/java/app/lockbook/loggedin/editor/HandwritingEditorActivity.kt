@@ -48,7 +48,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         )
 
-//        setUpHandwritingToolbar()
         if (contents.isNotEmpty()) {
             val paths = Klaxon().parseArray<Path>(contents)
             if (paths != null) {
@@ -88,56 +87,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
         handwritingEditorViewModel.savePath(handwriting_editor.drawnPaths.toList())
         super.onDestroy()
     }
-
-//    private fun setUpHandwritingToolbar() {
-//        ArrayAdapter.createFromResource(
-//            this,
-//            R.array.handwriting_editor_pen_size,
-//            android.R.layout.simple_spinner_item
-//        ).also { adapter ->
-//            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-//            handwriting_editor_pen_size_spinner.adapter = adapter
-//        }
-//
-//        handwriting_editor_pen_size_spinner.onItemSelectedListener =
-//            object : AdapterView.OnItemSelectedListener {
-//                override fun onItemSelected(
-//                    parent: AdapterView<*>?,
-//                    view: View?,
-//                    position: Int,
-//                    id: Long
-//                ) {
-//
-//                }
-//
-//                override fun onNothingSelected(parent: AdapterView<*>?) {}
-//
-//            }
-//
-//        ArrayAdapter.createFromResource(
-//            this,
-//            R.array.handwriting_editor_pallete_colors,
-//            android.R.layout.simple_spinner_item
-//        ).also { adapter ->
-//            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-//            handwriting_editor_pallete_spinner.adapter = adapter
-//        }
-//
-//        handwriting_editor_pallete_spinner.onItemSelectedListener =
-//            object : AdapterView.OnItemSelectedListener {
-//                override fun onItemSelected(
-//                    parent: AdapterView<*>?,
-//                    view: View?,
-//                    position: Int,
-//                    id: Long
-//                ) {
-//
-//                }
-//
-//                override fun onNothingSelected(parent: AdapterView<*>?) {}
-//
-//            }
-//    }
 
     private fun errorHasOccurred(errorText: String) {
         finish()
