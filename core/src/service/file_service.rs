@@ -28,7 +28,7 @@ use crate::service::file_service::NewFileError::{
     FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
-    FailedToCreateChild, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+    FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
@@ -53,6 +53,7 @@ pub enum NewFileFromPathError {
     DbError(file_metadata_repo::DbError),
     NoRoot,
     PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
     FailedToCreateChild(NewFileError),
     FailedToRecordChange(local_changes_repo::DbError),
     FileAlreadyExists,
@@ -210,6 +211,10 @@ impl<
     }
 
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
+        if path_and_name.contains("//") {
+            return Err(PathContainsEmptyFile);
+        }
+
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
