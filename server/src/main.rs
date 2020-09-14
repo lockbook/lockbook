@@ -6,10 +6,12 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 
+pub mod account_service;
 pub mod config;
+pub mod file_content_client;
+pub mod file_index_repo;
 pub mod file_service;
-pub mod files_db;
-pub mod index_db;
+pub mod utils;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
@@ -33,13 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config();
 
     info!("Connecting to index_db...");
-    let index_db_client = index_db::connect(&config.index_db)
+    let index_db_client = file_index_repo::connect(&config.index_db)
         .await
         .expect("Failed to connect to index_db");
     info!("Connected to index_db");
 
     info!("Connecting to files_db...");
-    let files_db_client = files_db::connect(&config.files_db)
+    let files_db_client = file_content_client::connect(&config.files_db)
         .await
         .expect("Failed to connect to files_db");
     info!("Connected to files_db");
@@ -115,7 +117,7 @@ async fn route(
         }
         (&Method::GET, "/get-public-key") => {
             info!("Request matched GET /get-public-key");
-            handle(&mut s, request, file_service::get_public_key).await
+            handle(&mut s, request, account_service::get_public_key).await
         }
         (&Method::GET, "/get-updates") => {
             info!("Request matched GET /get-updates");
@@ -123,7 +125,7 @@ async fn route(
         }
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
-            handle(&mut s, request, file_service::new_account).await
+            handle(&mut s, request, account_service::new_account).await
         }
         _ => {
             warn!(
@@ -150,7 +152,7 @@ where
     ResponseError: Serialize,
 {
     if server_state.index_db_client.is_closed() {
-        match index_db::connect(&server_state.config.index_db).await {
+        match file_index_repo::connect(&server_state.config.index_db).await {
             Err(e) => {
                 error!("Failed to reconnect to postgres: {:?}", e);
             }
