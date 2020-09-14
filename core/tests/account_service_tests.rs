@@ -50,7 +50,7 @@ mod account_tests {
     #[test]
     fn invalid_username_test() {
         let db = test_db();
-        let invalid_unames = ["", "💩"];
+        let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for uname in &invalid_unames {
             let err = DefaultAccountService::create_account(&db, uname).unwrap_err();
