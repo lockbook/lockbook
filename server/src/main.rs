@@ -6,10 +6,12 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 
+pub mod account_service;
 pub mod config;
+pub mod file_content_client;
+pub mod file_index_repo;
 pub mod file_service;
-pub mod files_db;
-pub mod index_db;
+pub mod utils;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
@@ -22,6 +24,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct ServerState {
+    pub config: config::Config,
     pub index_db_client: tokio_postgres::Client,
     pub files_db_client: s3::bucket::Bucket,
 }
@@ -32,22 +35,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config();
 
     info!("Connecting to index_db...");
-    let index_db_client = index_db::connect(&config.index_db)
+    let index_db_client = file_index_repo::connect(&config.index_db)
         .await
         .expect("Failed to connect to index_db");
     info!("Connected to index_db");
 
     info!("Connecting to files_db...");
-    let files_db_client = files_db::connect(&config.files_db)
+    let files_db_client = file_content_client::connect(&config.files_db)
         .await
         .expect("Failed to connect to files_db");
     info!("Connected to files_db");
 
+    let port = config.server.port;
     let server_state = Arc::new(Mutex::new(ServerState {
+        config: config,
         index_db_client: index_db_client,
         files_db_client: files_db_client,
     }));
-    let addr = format!("0.0.0.0:{}", config.server.port).parse()?;
+    let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
@@ -59,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
-    info!("Serving on port {}", config.server.port);
+    info!("Serving on port {}", port);
     hyper::Server::bind(&addr).serve(make_service).await?;
     Ok(())
 }
@@ -112,7 +117,7 @@ async fn route(
         }
         (&Method::GET, "/get-public-key") => {
             info!("Request matched GET /get-public-key");
-            handle(&mut s, request, file_service::get_public_key).await
+            handle(&mut s, request, account_service::get_public_key).await
         }
         (&Method::GET, "/get-updates") => {
             info!("Request matched GET /get-updates");
@@ -120,7 +125,7 @@ async fn route(
         }
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
-            handle(&mut s, request, file_service::new_account).await
+            handle(&mut s, request, account_service::new_account).await
         }
         _ => {
             warn!(
@@ -146,6 +151,17 @@ where
     Response: Serialize,
     ResponseError: Serialize,
 {
+    if server_state.index_db_client.is_closed() {
+        match file_index_repo::connect(&server_state.config.index_db).await {
+            Err(e) => {
+                error!("Failed to reconnect to postgres: {:?}", e);
+            }
+            Ok(client) => {
+                server_state.index_db_client = client;
+                info!("Reconnected to index_db");
+            }
+        }
+    }
     serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
         Ok(req) => Ok(endpoint_handle(server_state, req).await),
         Err(err) => Err(err),
