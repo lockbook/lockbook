@@ -689,35 +689,7 @@ mod unit_tests {
     fn test_cycle_detection() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let root_id = Uuid::new_v4();
-
-        DefaultFileMetadataRepo::insert(
-            &db,
-            &FileMetadata {
-                id: root_id,
-                file_type: FileType::Folder,
-                parent: root_id,
-                name: "uhoh".to_string(),
-                owner: "".to_string(),
-                signature: SignedValue {
-                    content: "".to_string(),
-                    signature: "".to_string(),
-                },
-                metadata_version: 0,
-                content_version: 0,
-                deleted: false,
-                user_access_keys: Default::default(),
-                folder_access_keys: FolderAccessInfo {
-                    folder_id: Default::default(),
-                    access_key: EncryptedValueWithNonce {
-                        garbage: "".to_string(),
-                        nonce: "".to_string(),
-                    },
-                },
-            },
-        )
-        .unwrap();
-
+        let _ = insert_test_metadata_root(&db, "rootdir");
         let folder1 = Uuid::new_v4();
         let folder2 = Uuid::new_v4();
 
@@ -728,22 +700,7 @@ mod unit_tests {
                 file_type: FileType::Folder,
                 parent: folder1,
                 name: "uhoh".to_string(),
-                owner: "".to_string(),
-                signature: SignedValue {
-                    content: "".to_string(),
-                    signature: "".to_string(),
-                },
-                metadata_version: 0,
-                content_version: 0,
-                deleted: false,
-                user_access_keys: Default::default(),
-                folder_access_keys: FolderAccessInfo {
-                    folder_id: Default::default(),
-                    access_key: EncryptedValueWithNonce {
-                        garbage: "".to_string(),
-                        nonce: "".to_string(),
-                    },
-                },
+                ..base_test_file_metadata()
             },
         )
         .unwrap();
@@ -755,22 +712,7 @@ mod unit_tests {
                 file_type: FileType::Folder,
                 parent: folder2,
                 name: "uhoh".to_string(),
-                owner: "".to_string(),
-                signature: SignedValue {
-                    content: "".to_string(),
-                    signature: "".to_string(),
-                },
-                metadata_version: 0,
-                content_version: 0,
-                deleted: false,
-                user_access_keys: Default::default(),
-                folder_access_keys: FolderAccessInfo {
-                    folder_id: Default::default(),
-                    access_key: EncryptedValueWithNonce {
-                        garbage: "".to_string(),
-                        nonce: "".to_string(),
-                    },
-                },
+                ..base_test_file_metadata()
             },
         )
         .unwrap();
