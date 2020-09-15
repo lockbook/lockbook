@@ -219,6 +219,7 @@ class FileModel(path: String) {
                 is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
                 is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
+                is CreateFileError.FileNameEmpty -> _errorHasOccurred.postValue("Error! File cannot be empty!")
                 is CreateFileError.UnexpectedError -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _errorHasOccurred.postValue(
