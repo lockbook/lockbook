@@ -86,6 +86,7 @@ sealed class RenameFileError {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()
     object FileNameNotAvailable : RenameFileError()
+    object NewNameEmpty : RenameFileError()
     data class UnexpectedError(val error: String) : RenameFileError()
 }
 

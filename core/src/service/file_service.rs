@@ -337,6 +337,10 @@ impl<
     }
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError> {
+        if new_name.is_empty() {
+            return Err(DocumentRenameError::FileNameEmpty);
+        }
+
         if new_name.contains('/') {
             return Err(DocumentRenameError::FileNameContainsSlash);
         }
