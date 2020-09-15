@@ -193,6 +193,9 @@ namespace lockbook {
                         case Core.CreateFile.PossibleErrors.FileNameContainsSlash:
                             await new MessageDialog("File names cannot contain slashes!", "Name Invalid!").ShowAsync();
                             break;
+                        case Core.CreateFile.PossibleErrors.FileNameEmpty:
+                            await new MessageDialog("File names cannot be empty!", "Name Empty!").ShowAsync();
+                            break;
                         default:
                             await new MessageDialog("Unhandled Error!", error.error.ToString()).ShowAsync();
                             break;
@@ -262,6 +265,9 @@ namespace lockbook {
                             break;
                         case Core.RenameFile.PossibleErrors.FileDoesNotExist:
                             await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.RenameFile.PossibleErrors.NewNameEmpty:
+                            await new MessageDialog("New name cannot be empty!", "File name empty!").ShowAsync();
                             break;
                     }
                     break;
