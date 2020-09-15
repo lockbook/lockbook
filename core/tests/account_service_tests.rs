@@ -3,7 +3,6 @@ mod integration_test;
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::client::Error;
-    use lockbook_core::model::api::NewAccountError::UsernameTaken;
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
@@ -35,28 +34,23 @@ mod account_tests {
         let username = &random_username();
         DefaultAccountService::create_account(&db1, username).unwrap();
 
-        match DefaultAccountService::create_account(&db2, username).unwrap_err() {
-            AccountCreationError::ApiError(api_err) => match api_err {
-                Error::Api(api_api_err) => {
-                    match api_api_err {
-                        UsernameTaken => {
-                            return; // Test passed
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
-        };
+        let err = DefaultAccountService::create_account(&db2, username).unwrap_err();
 
-        panic!("This username should have been taken.")
+        assert!(
+            matches!(
+                err,
+                AccountCreationError::ApiError(Error::Api(NewAccountError::UsernameTaken))
+            ),
+            "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
+            username,
+            err
+        )
     }
 
     #[test]
     fn invalid_username_test() {
         let db = test_db();
-        let invalid_unames = ["", "💩"];
+        let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for uname in &invalid_unames {
             let err = DefaultAccountService::create_account(&db, uname).unwrap_err();
