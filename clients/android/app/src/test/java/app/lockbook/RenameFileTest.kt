@@ -126,7 +126,6 @@ class RenameFileTest {
         )
     }
 
-
     @Test
     fun renameFileEmpty() {
         val fileName = generateAlphaString()
