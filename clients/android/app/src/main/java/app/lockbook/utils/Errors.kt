@@ -48,7 +48,7 @@ sealed class CreateFileError {
     object CouldNotFindAParent : CreateFileError()
     object FileNameNotAvailable : CreateFileError()
     object FileNameContainsSlash : CreateFileError()
-    object FileNameEmpty: CreateFileError()
+    object FileNameEmpty : CreateFileError()
     data class UnexpectedError(val error: String) : CreateFileError()
 }
 
