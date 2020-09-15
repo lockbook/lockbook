@@ -297,6 +297,10 @@ namespace lockbook {
                         return new Core.CreateFile.ExpectedError {
                             error = Core.CreateFile.PossibleErrors.FileNameContainsSlash
                         };
+                    case "FileNameEmpty":
+                        return new Core.CreateFile.ExpectedError {
+                            error = Core.CreateFile.PossibleErrors.FileNameEmpty
+                        };
                 }
             }
 
@@ -391,6 +395,10 @@ namespace lockbook {
                     case "FileNameNotAvailable": // TODO perhaps not how this works
                         return new Core.RenameFile.ExpectedError {
                             error = Core.RenameFile.PossibleErrors.FileNameNotAvailable
+                        };
+                    case "NewNameEmpty":
+                        return new Core.RenameFile.ExpectedError {
+                            error = Core.RenameFile.PossibleErrors.NewNameEmpty
                         };
                 }
             }
