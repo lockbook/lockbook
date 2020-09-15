@@ -83,6 +83,35 @@ class CreateFileTest {
     }
 
     @Test
+    fun createFileEmpty() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<CreateFileError.FileNameEmpty>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                "",
+                Klaxon().toJsonString(FileType.Document)
+            ).component2()
+        )
+
+        assertType<CreateFileError.FileNameEmpty>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                "",
+                Klaxon().toJsonString(FileType.Folder)
+            ).component2()
+        )
+    }
+
+    @Test
     fun createFileNotAvailable() {
         val fileName = generateAlphaString()
 
