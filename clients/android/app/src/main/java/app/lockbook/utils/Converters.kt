@@ -315,6 +315,7 @@ val createFileConverter = object : Converter {
             CreateFileError.CouldNotFindAParent::class.simpleName -> return Err(CreateFileError.CouldNotFindAParent)
             CreateFileError.FileNameNotAvailable::class.simpleName -> return Err(CreateFileError.FileNameNotAvailable)
             CreateFileError.FileNameContainsSlash::class.simpleName -> return Err(CreateFileError.FileNameContainsSlash)
+            CreateFileError.FileNameEmpty::class.simpleName -> return Err(CreateFileError.FileNameEmpty)
         }
 
         val unexpectedResult = jv.obj?.get("UnexpectedError")
