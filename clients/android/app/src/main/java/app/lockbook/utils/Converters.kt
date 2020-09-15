@@ -284,6 +284,9 @@ val renameFileConverter = object : Converter {
             RenameFileError.FileNameNotAvailable::class.simpleName -> return Err(
                 RenameFileError.FileNameNotAvailable
             )
+            RenameFileError.NewNameEmpty::class.simpleName -> return Err(
+                RenameFileError.NewNameEmpty
+            )
             RenameFileError.NewNameContainsSlash::class.simpleName -> return Err(RenameFileError.NewNameContainsSlash)
         }
 
