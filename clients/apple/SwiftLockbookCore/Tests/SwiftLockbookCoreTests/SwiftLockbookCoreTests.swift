@@ -163,7 +163,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
             XCTFail(err.message())
         }
     }
-    
+
     func test10FfiPerformance() {
         self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
             let accountResult = SwiftLockbookCoreTests.core.getAccount()
@@ -191,7 +191,6 @@ final class SwiftLockbookCoreTests: XCTestCase {
         ("test03Sync", test03Sync),
         ("test04ListFiles", test04ListFiles),
         ("test05CreateFile", test05CreateFile),
-        ("test06CalculateWork", test06CalculateWork),
-        ("test10FfiPerformance", test10FfiPerformance)
+        ("test06CalculateWork", test06CalculateWork)
     ]
 }
