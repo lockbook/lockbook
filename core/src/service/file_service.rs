@@ -15,14 +15,12 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
-use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
+use crate::service::file_service::DocumentRenameError::{FileDoesNotExist, CannotRenameRoot};
 use crate::service::file_service::DocumentUpdateError::{
     AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
     FolderTreatedAsDocument,
 };
-use crate::service::file_service::FileMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
-};
+use crate::service::file_service::FileMoveError::{FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist, CannotMoveRoot};
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
     FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
@@ -91,6 +89,7 @@ pub enum DocumentRenameError {
     FileNameEmpty,
     FileNameContainsSlash,
     FileNameNotAvailable,
+    CannotRenameRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
@@ -102,6 +101,7 @@ pub enum FileMoveError {
     FileDoesNotExist,
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
+    CannotMoveRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
     FailedToDecryptKey(KeyDecryptionFailure),
@@ -348,6 +348,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(DocumentRenameError::DbError)? {
             None => Err(FileDoesNotExist),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotRenameRoot);
+                }
+
                 let siblings = FileMetadataDb::get_children(&db, file.parent)
                     .map_err(DocumentRenameError::DbError)?;
 
@@ -375,6 +379,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotMoveRoot);
+                }
+
                 match FileMetadataDb::maybe_get(&db, new_parent).map_err(FileMoveError::DbError)? {
                     None => Err(TargetParentDoesNotExist),
                     Some(parent_metadata) => {
