@@ -19,7 +19,7 @@ pub fn move_file(path1: &str, path2: &str) {
                     Err(move_file_error) => match move_file_error {
                         MoveFileError::NoAccount => exit_with_no_account(),
                         MoveFileError::CannotMoveRoot => {
-                            exit_with(&format!("Cannot move root directory!"), NO_ROOT_OPS)
+                            exit_with("Cannot move root directory!", NO_ROOT_OPS)
                         }
                         MoveFileError::FileDoesNotExist => {
                             exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
