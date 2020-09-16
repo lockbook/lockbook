@@ -169,6 +169,22 @@ class RenameFileTest {
     }
 
     @Test
+    fun cannotRenameRoot() {
+        val fileName = generateAlphaString()
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<RenameFileError.CannotRenameRoot>(
+            CoreModel.renameFile(config, rootFileMetadata.id, "not_root").component2()
+        )
+    }
+
+    @Test
     fun renameFileUnexpectedError() {
         val renameFileResult: Result<Unit, RenameFileError>? =
             Klaxon().converter(renameFileConverter).parse(renameFile("", "", ""))
