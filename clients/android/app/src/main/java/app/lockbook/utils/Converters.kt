@@ -287,6 +287,9 @@ val renameFileConverter = object : Converter {
             RenameFileError.NewNameEmpty::class.simpleName -> return Err(
                 RenameFileError.NewNameEmpty
             )
+            RenameFileError.CannotRenameRoot::class.simpleName -> return Err(
+                RenameFileError.CannotRenameRoot
+            )
             RenameFileError.NewNameContainsSlash::class.simpleName -> return Err(RenameFileError.NewNameContainsSlash)
         }
 
@@ -446,6 +449,9 @@ val moveFileConverter = object : Converter {
             )
             MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> return Err(
                 MoveFileError.TargetParentHasChildNamedThat
+            )
+            MoveFileError.CannotMoveRoot::class.simpleName -> return Err(
+                MoveFileError.CannotMoveRoot
             )
         }
 
