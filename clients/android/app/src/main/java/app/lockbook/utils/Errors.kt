@@ -87,6 +87,7 @@ sealed class RenameFileError {
     object NewNameContainsSlash : RenameFileError()
     object FileNameNotAvailable : RenameFileError()
     object NewNameEmpty : RenameFileError()
+    object CannotRenameRoot : RenameFileError()
     data class UnexpectedError(val error: String) : RenameFileError()
 }
 
@@ -96,6 +97,7 @@ sealed class MoveFileError {
     object DocumentTreatedAsFolder : MoveFileError()
     object TargetParentDoesNotExist : MoveFileError()
     object TargetParentHasChildNamedThat : MoveFileError()
+    object CannotMoveRoot : MoveFileError()
     data class UnexpectedError(val error: String) : MoveFileError()
 }
 
