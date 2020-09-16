@@ -10,13 +10,6 @@ pub use sled::Db;
 use uuid::Uuid;
 
 use crate::client::{ClientImpl, Error};
-use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
-use crate::CreateFileAtPathError::{
-    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathContainsEmptyFile,
-    PathDoesntStartWithRoot,
-};
-use crate::GetFileByPathError::NoFileAtThatPath;
-use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::model::account::Account;
 use crate::model::api::{
     ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
@@ -27,7 +20,6 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::repo::{document_repo, file_metadata_repo};
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
@@ -36,10 +28,11 @@ use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::repo::{document_repo, file_metadata_repo};
+use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
-use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
@@ -56,6 +49,13 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
+use crate::CreateFileAtPathError::{
+    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathContainsEmptyFile,
+    PathDoesntStartWithRoot,
+};
+use crate::GetFileByPathError::NoFileAtThatPath;
+use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
 
 pub mod c_interface;

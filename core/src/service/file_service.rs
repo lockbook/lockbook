@@ -15,12 +15,15 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
-use crate::service::file_service::DocumentRenameError::{FileDoesNotExist, CannotRenameRoot};
+use crate::service::file_service::DocumentRenameError::{CannotRenameRoot, FileDoesNotExist};
 use crate::service::file_service::DocumentUpdateError::{
     AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
     FolderTreatedAsDocument,
 };
-use crate::service::file_service::FileMoveError::{FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist, CannotMoveRoot};
+use crate::service::file_service::FileMoveError::{
+    CannotMoveRoot, FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE,
+    TargetParentDoesNotExist,
+};
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
     FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
