@@ -400,6 +400,10 @@ namespace lockbook {
                         return new Core.RenameFile.ExpectedError {
                             error = Core.RenameFile.PossibleErrors.NewNameEmpty
                         };
+                    case "CannotRenameRoot":
+                        return new Core.RenameFile.ExpectedError {
+                            error = Core.RenameFile.PossibleErrors.CannotRenameRoot
+                        };
                 }
             }
 
@@ -454,6 +458,10 @@ namespace lockbook {
                     case "TargetParentDoesNotExist":
                         return new Core.MoveFile.ExpectedError {
                             error = Core.MoveFile.PossibleErrors.TargetParentDoesNotExist
+                        };
+                    case "CannotMoveRoot":
+                        return new Core.MoveFile.ExpectedError {
+                            error = Core.MoveFile.PossibleErrors.CannotMoveRoot
                         };
                 }
             }

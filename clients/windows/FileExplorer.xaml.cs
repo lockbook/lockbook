@@ -283,11 +283,15 @@ namespace lockbook {
 
         // Move things
         private void NavigationViewItem_DragStarting(UIElement sender, DragStartingEventArgs args) {
+            System.Diagnostics.Debug.WriteLine("drag starting");
+
             string tag = (string)((sender as FrameworkElement)?.Tag);
 
             if (tag != null) {
                 args.AllowedOperations = DataPackageOperation.Move;
                 args.Data.SetData("id", tag);
+            } else {
+                System.Diagnostics.Debug.WriteLine("tag was null");
             }
 
         }
@@ -323,6 +327,9 @@ namespace lockbook {
                                     break;
                                 case Core.MoveFile.PossibleErrors.TargetParentDoesNotExist:
                                     await new MessageDialog("Could not locate the file you're trying to move to! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.CannotMoveRoot:
+                                    await new MessageDialog("Cannot move root folder!", "Cannot move root!").ShowAsync();
                                     break;
                             }
                             break;
