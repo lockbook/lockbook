@@ -137,4 +137,4 @@ static UPDATE_REQUIRED: u8 = 25;
 static UNINSTALL_REQUIRED: u8 = 26;
 static PATH_CONTAINS_EMPTY_FILE: u8 = 27;
 static NAME_EMPTY: u8 = 28;
-static NO_ROOT_OPS: u8 = 28;
+static NO_ROOT_OPS: u8 = 29;
