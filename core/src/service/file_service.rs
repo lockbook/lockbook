@@ -473,6 +473,8 @@ mod unit_tests {
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_service::DocumentRenameError;
+    use crate::service::file_service::FileMoveError;
     use crate::service::file_service::FileService;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
@@ -1013,6 +1015,11 @@ mod unit_tests {
             .unwrap()
             .is_empty());
 
+        assert!(matches!(
+            DefaultFileService::rename_file(&db, root.id, "newroot").unwrap_err(),
+            DocumentRenameError::CannotRenameRoot
+        ));
+
         let file = DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
         assert!(
             DefaultLocalChangesRepo::get_local_changes(&db, file.id)
@@ -1138,6 +1145,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+
+        assert!(matches!(
+            DefaultFileService::move_file(&db, root.id, Uuid::new_v4()).unwrap_err(),
+            FileMoveError::CannotMoveRoot
+        ));
 
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
