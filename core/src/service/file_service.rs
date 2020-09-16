@@ -476,15 +476,18 @@ mod unit_tests {
     use crate::service::file_service::DocumentRenameError;
     use crate::service::file_service::FileMoveError;
     use crate::service::file_service::FileService;
+    use crate::service::file_service::NewFileError;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use uuid::Uuid;
 
+    type DefaultDbProvider = TempBackedDB;
+
     #[test]
     fn file_service_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -502,6 +505,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+
+        assert!(matches!(
+            DefaultFileService::create(&db, "", root.id, Document).unwrap_err(),
+            NewFileError::FileNameEmpty
+        ));
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
 
@@ -581,8 +589,7 @@ mod unit_tests {
 
     #[test]
     fn path_calculations_runthrough() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -660,8 +667,7 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -722,7 +728,7 @@ mod unit_tests {
     #[test]
     fn test_arbitrary_path_file_creation() {
         init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
             username: String::from("username"),
@@ -890,7 +896,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -912,7 +918,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_create() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -934,7 +940,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -956,7 +962,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -978,7 +984,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_bad_names() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -999,7 +1005,7 @@ mod unit_tests {
 
     #[test]
     fn rename_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -1130,7 +1136,7 @@ mod unit_tests {
 
     #[test]
     fn move_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -1240,7 +1246,7 @@ mod unit_tests {
 
     #[test]
     fn test_keeping_track_of_edits() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
