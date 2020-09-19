@@ -2,6 +2,13 @@
 extern crate log;
 extern crate reqwest;
 
+use std::env;
+use std::path::Path;
+
+use serde::Serialize;
+pub use sled::Db;
+use uuid::Uuid;
+
 use crate::client::{ClientImpl, Error};
 use crate::model::account::Account;
 use crate::model::api::{
@@ -44,16 +51,12 @@ use crate::service::sync_service::{
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::CreateAccountError::{CouldNotReachServer, InvalidUsername, UsernameTaken};
 use crate::CreateFileAtPathError::{
-    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+    DocumentTreatedAsFolder, FileAlreadyExists, NoRoot, PathContainsEmptyFile,
+    PathDoesntStartWithRoot,
 };
 use crate::GetFileByPathError::NoFileAtThatPath;
 use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
-use serde::Serialize;
-pub use sled::Db;
-use std::env;
-use std::path::Path;
-use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -317,6 +320,7 @@ pub enum CreateFileAtPathError {
     NoAccount,
     NoRoot,
     PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
     DocumentTreatedAsFolder,
     UnexpectedError(String),
 }
@@ -331,6 +335,7 @@ pub fn create_file_at_path(
         Ok(file_metadata) => Ok(file_metadata),
         Err(err) => match err {
             NewFileFromPathError::PathDoesntStartWithRoot => Err(PathDoesntStartWithRoot),
+            NewFileFromPathError::PathContainsEmptyFile => Err(PathContainsEmptyFile),
             NewFileFromPathError::FileAlreadyExists => Err(FileAlreadyExists),
             NewFileFromPathError::NoRoot => Err(NoRoot),
             NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
@@ -347,6 +352,7 @@ pub fn create_file_at_path(
                 | NewFileError::MetadataRepoError(_)
                 | NewFileError::FailedToWriteFileContent(_)
                 | NewFileError::FailedToRecordChange(_)
+                | NewFileError::FileNameEmpty
                 | NewFileError::FileNameContainsSlash => Err(
                     CreateFileAtPathError::UnexpectedError(format!("{:#?}", failed_to_create)),
                 ),
@@ -407,6 +413,7 @@ pub enum CreateFileError {
     DocumentTreatedAsFolder,
     CouldNotFindAParent,
     FileNameNotAvailable,
+    FileNameEmpty,
     FileNameContainsSlash,
     UnexpectedError(String),
 }
@@ -432,6 +439,7 @@ pub fn create_file(
                 ))),
             },
             NewFileError::FileNameNotAvailable => Err(CreateFileError::FileNameNotAvailable),
+            NewFileError::FileNameEmpty => Err(CreateFileError::FileNameEmpty),
             NewFileError::FileNameContainsSlash => Err(CreateFileError::FileNameContainsSlash),
             NewFileError::FileCryptoError(_)
             | NewFileError::MetadataRepoError(_)
@@ -612,8 +620,10 @@ pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, ListMetadata
 #[derive(Debug, Serialize)]
 pub enum RenameFileError {
     FileDoesNotExist,
+    NewNameEmpty,
     NewNameContainsSlash,
     FileNameNotAvailable,
+    CannotRenameRoot,
     UnexpectedError(String),
 }
 
@@ -624,10 +634,12 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Rena
         Ok(_) => Ok(()),
         Err(err) => match err {
             DocumentRenameError::FileDoesNotExist => Err(RenameFileError::FileDoesNotExist),
+            DocumentRenameError::FileNameEmpty => Err(RenameFileError::NewNameEmpty),
             DocumentRenameError::FileNameContainsSlash => {
                 Err(RenameFileError::NewNameContainsSlash)
             }
             DocumentRenameError::FileNameNotAvailable => Err(RenameFileError::FileNameNotAvailable),
+            DocumentRenameError::CannotRenameRoot => Err(RenameFileError::CannotRenameRoot),
             DocumentRenameError::DbError(_) | DocumentRenameError::FailedToRecordChange(_) => {
                 Err(RenameFileError::UnexpectedError(format!("{:#?}", err)))
             }
@@ -642,6 +654,7 @@ pub enum MoveFileError {
     DocumentTreatedAsFolder,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
+    CannotMoveRoot,
     UnexpectedError(String),
 }
 
@@ -663,6 +676,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Move
             }
             FileMoveError::FileDoesNotExist => Err(MoveFileError::FileDoesNotExist),
             FileMoveError::TargetParentDoesNotExist => Err(MoveFileError::TargetParentDoesNotExist),
+            FileMoveError::CannotMoveRoot => Err(MoveFileError::CannotMoveRoot),
             FileMoveError::DbError(_)
             | FileMoveError::FailedToRecordChange(_)
             | FileMoveError::FailedToDecryptKey(_)

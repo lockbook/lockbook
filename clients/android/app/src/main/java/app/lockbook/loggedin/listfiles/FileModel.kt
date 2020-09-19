@@ -105,6 +105,8 @@ class FileModel(path: String) {
                 is RenameFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 is RenameFileError.NewNameContainsSlash -> _errorHasOccurred.postValue("Error! New name contains slash!")
                 is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
+                is RenameFileError.NewNameEmpty -> _errorHasOccurred.postValue("Error! New file name cannot be empty!")
+                is RenameFileError.CannotRenameRoot -> _errorHasOccurred.postValue("Error! Cannot rename root!")
                 is RenameFileError.UnexpectedError -> {
                     Timber.e("Unable to rename file: ${error.error}")
                     _errorHasOccurred.postValue(
@@ -219,6 +221,7 @@ class FileModel(path: String) {
                 is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
                 is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
+                is CreateFileError.FileNameEmpty -> _errorHasOccurred.postValue("Error! File cannot be empty!")
                 is CreateFileError.UnexpectedError -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _errorHasOccurred.postValue(
