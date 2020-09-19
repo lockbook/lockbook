@@ -57,6 +57,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             handwriting_editor.lockBookDrawable = Klaxon().parse(contents)!!
             handwriting_editor.holder.addCallback(object: SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
+                    handwriting_editor.setUpBitmapCanvas()
                     handwriting_editor.drawLockbookDrawable()
                 }
 
@@ -69,6 +70,22 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {}
             })
+        } else {
+            handwriting_editor.holder.addCallback(object: SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder?) {
+                    handwriting_editor.setUpBitmapCanvas()
+                }
+
+                override fun surfaceChanged(
+                    holder: SurfaceHolder?,
+                    format: Int,
+                    width: Int,
+                    height: Int
+                ) {}
+
+                override fun surfaceDestroyed(holder: SurfaceHolder?) {}
+            })
+
         }
 
         startBackgroundSave()
