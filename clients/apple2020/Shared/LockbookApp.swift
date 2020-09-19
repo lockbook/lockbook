@@ -1,21 +1,20 @@
-//
-//  LockbookApp.swift
-//  Shared
-//
-//  Created by Raayan Pillai on 9/19/20.
-//
-
 import SwiftUI
 import SwiftLockbookCore
 
 @main
 struct LockbookApp: App {
-    let api = CoreApi(documentsDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
+    @StateObject var core = Core(documenstDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
     
     var body: some Scene {
-        api.initializeLogger()
-        return WindowGroup {
-            ContentView()
+        switch core.account {
+        case .none:
+            return WindowGroup {
+                Text("No account!")
+            }
+        case .some(let account):
+            return WindowGroup {
+                Text("Hello \(account.username)!")
+            }
         }
     }
 }
