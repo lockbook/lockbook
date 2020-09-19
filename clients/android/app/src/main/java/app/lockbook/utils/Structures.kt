@@ -101,7 +101,7 @@ data class LockbookDrawable(
     val events: MutableList<Event> = mutableListOf()
 )
 
-data class Event (
+data class Event(
     val penPath: PenPath? = null
 )
 
