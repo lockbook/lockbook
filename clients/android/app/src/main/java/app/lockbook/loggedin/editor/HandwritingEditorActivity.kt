@@ -1,15 +1,19 @@
 package app.lockbook.loggedin.editor
 
+import android.graphics.SurfaceTexture
 import android.os.Bundle
 import android.os.Handler
+import android.view.SurfaceHolder
+import android.view.TextureView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Path
+import app.lockbook.utils.LockbookDrawable
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
+import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -49,23 +53,25 @@ class HandwritingEditorActivity : AppCompatActivity() {
         )
 
         if (contents.isNotEmpty()) {
-            val paths = Klaxon().parseArray<Path>(contents)
-            if (paths != null) {
-                handwriting_editor.drawnPaths = paths.toMutableList()
-                handwriting_editor.reOpened = true
-            } else {
-                errorHasOccurred("Unable to parse old view together: $contents")
-                finish()
-                return
-            }
+            Timber.e(contents)
+            handwriting_editor.lockBookDrawable = Klaxon().parse(contents)!!
+            handwriting_editor.holder.addCallback(object: SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder?) {
+                    handwriting_editor.drawLockbookDrawable()
+                }
+
+                override fun surfaceChanged(
+                    holder: SurfaceHolder?,
+                    format: Int,
+                    width: Int,
+                    height: Int
+                ) {}
+
+                override fun surfaceDestroyed(holder: SurfaceHolder?) {}
+            })
         }
 
         startBackgroundSave()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        handwriting_editor.invalidate()
     }
 
     private fun startBackgroundSave() {
@@ -73,7 +79,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(handwriting_editor.drawnPaths.toList())
+//                        handwritingEditorViewModel.savePath(handwriting_editor.lockBookDrawable)
                     }
                 }
             },
@@ -84,7 +90,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         timer.cancel()
-        handwritingEditorViewModel.savePath(handwriting_editor.drawnPaths.toList())
+        handwritingEditorViewModel.savePath(handwriting_editor.lockBookDrawable)
         super.onDestroy()
     }
 
