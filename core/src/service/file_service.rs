@@ -15,20 +15,21 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
-use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
+use crate::service::file_service::DocumentRenameError::{CannotRenameRoot, FileDoesNotExist};
 use crate::service::file_service::DocumentUpdateError::{
     AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
     FolderTreatedAsDocument,
 };
 use crate::service::file_service::FileMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
+    CannotMoveRoot, FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE,
+    TargetParentDoesNotExist,
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
-    FileNameNotAvailable, MetadataRepoError,
+    FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
-    FailedToCreateChild, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+    FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
@@ -44,6 +45,7 @@ pub enum NewFileError {
     FailedToRecordChange(local_changes_repo::DbError),
     FileNameNotAvailable,
     DocumentTreatedAsFolder,
+    FileNameEmpty,
     FileNameContainsSlash,
 }
 
@@ -52,6 +54,7 @@ pub enum NewFileFromPathError {
     DbError(file_metadata_repo::DbError),
     NoRoot,
     PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
     FailedToCreateChild(NewFileError),
     FailedToRecordChange(local_changes_repo::DbError),
     FileAlreadyExists,
@@ -86,8 +89,10 @@ pub enum ReadDocumentError {
 #[derive(Debug)]
 pub enum DocumentRenameError {
     FileDoesNotExist,
+    FileNameEmpty,
     FileNameContainsSlash,
     FileNameNotAvailable,
+    CannotRenameRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
@@ -99,6 +104,7 @@ pub enum FileMoveError {
     FileDoesNotExist,
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
+    CannotMoveRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
     FailedToDecryptKey(KeyDecryptionFailure),
@@ -157,6 +163,10 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError> {
+        if name.is_empty() {
+            return Err(FileNameEmpty);
+        }
+
         if name.contains('/') {
             return Err(FileNameContainsSlash);
         }
@@ -204,6 +214,10 @@ impl<
     }
 
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
+        if path_and_name.contains("//") {
+            return Err(PathContainsEmptyFile);
+        }
+
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
@@ -326,6 +340,10 @@ impl<
     }
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError> {
+        if new_name.is_empty() {
+            return Err(DocumentRenameError::FileNameEmpty);
+        }
+
         if new_name.contains('/') {
             return Err(DocumentRenameError::FileNameContainsSlash);
         }
@@ -333,6 +351,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(DocumentRenameError::DbError)? {
             None => Err(FileDoesNotExist),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotRenameRoot);
+                }
+
                 let siblings = FileMetadataDb::get_children(&db, file.parent)
                     .map_err(DocumentRenameError::DbError)?;
 
@@ -360,6 +382,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotMoveRoot);
+                }
+
                 match FileMetadataDb::maybe_get(&db, new_parent).map_err(FileMoveError::DbError)? {
                     None => Err(TargetParentDoesNotExist),
                     Some(parent_metadata) => {
@@ -447,16 +473,21 @@ mod unit_tests {
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_service::DocumentRenameError;
+    use crate::service::file_service::FileMoveError;
     use crate::service::file_service::FileService;
+    use crate::service::file_service::NewFileError;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use uuid::Uuid;
 
+    type DefaultDbProvider = TempBackedDB;
+
     #[test]
     fn file_service_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -474,6 +505,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+
+        assert!(matches!(
+            DefaultFileService::create(&db, "", root.id, Document).unwrap_err(),
+            NewFileError::FileNameEmpty
+        ));
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
 
@@ -553,8 +589,7 @@ mod unit_tests {
 
     #[test]
     fn path_calculations_runthrough() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -632,8 +667,7 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -694,7 +728,7 @@ mod unit_tests {
     #[test]
     fn test_arbitrary_path_file_creation() {
         init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
             username: String::from("username"),
@@ -705,6 +739,17 @@ mod unit_tests {
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let paths_with_empties = ["username//", "username/path//to///file.md"];
+        for path in &paths_with_empties {
+            let err = DefaultFileService::create_at_path(&db, path).unwrap_err();
+            assert!(
+                matches!(err, NewFileFromPathError::PathContainsEmptyFile),
+                "Expected path \"{}\" to return PathContainsEmptyFile but instead it was {:?}",
+                path,
+                err
+            );
+        }
 
         assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
         assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
@@ -851,7 +896,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -873,7 +918,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_create() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -895,7 +940,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -917,7 +962,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -939,7 +984,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_bad_names() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -960,7 +1005,7 @@ mod unit_tests {
 
     #[test]
     fn rename_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -975,6 +1020,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+
+        assert!(matches!(
+            DefaultFileService::rename_file(&db, root.id, "newroot").unwrap_err(),
+            DocumentRenameError::CannotRenameRoot
+        ));
 
         let file = DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
         assert!(
@@ -1086,7 +1136,7 @@ mod unit_tests {
 
     #[test]
     fn move_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {
@@ -1101,6 +1151,11 @@ mod unit_tests {
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
             .unwrap()
             .is_empty());
+
+        assert!(matches!(
+            DefaultFileService::move_file(&db, root.id, Uuid::new_v4()).unwrap_err(),
+            FileMoveError::CannotMoveRoot
+        ));
 
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
@@ -1191,7 +1246,7 @@ mod unit_tests {
 
     #[test]
     fn test_keeping_track_of_edits() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let keys = DefaultCrypto::generate_key().unwrap();
 
         let account = Account {

@@ -7,8 +7,8 @@ use lockbook_core::{create_file_at_path, write_document, CreateFileAtPathError};
 use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
 use crate::{
     COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_FILE, COULD_NOT_READ_OS_METADATA,
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
-    UNIMPLEMENTED,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
+    PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR, UNIMPLEMENTED,
 };
 
 pub fn copy(path: PathBuf) {
@@ -55,7 +55,8 @@ pub fn copy(path: PathBuf) {
                 CreateFileAtPathError::NoAccount => exit_with_no_account(),
                 CreateFileAtPathError::NoRoot => exit_with("No root folder, have you synced yet?", NO_ROOT),
                 CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest), DOCUMENT_TREATED_AS_FOLDER),
-                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Unexpected: PathDoesntStartWithRoot", UNEXPECTED_ERROR),
+                CreateFileAtPathError::PathContainsEmptyFile => exit_with(&format!("Input destination {} contains an empty file!", import_dest), PATH_CONTAINS_EMPTY_FILE),
+                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Unexpected: PathDoesntStartWithRoot", PATH_NO_ROOT),
                 CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         };

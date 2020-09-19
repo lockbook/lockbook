@@ -193,6 +193,9 @@ namespace lockbook {
                         case Core.CreateFile.PossibleErrors.FileNameContainsSlash:
                             await new MessageDialog("File names cannot contain slashes!", "Name Invalid!").ShowAsync();
                             break;
+                        case Core.CreateFile.PossibleErrors.FileNameEmpty:
+                            await new MessageDialog("File names cannot be empty!", "Name Empty!").ShowAsync();
+                            break;
                         default:
                             await new MessageDialog("Unhandled Error!", error.error.ToString()).ShowAsync();
                             break;
@@ -263,6 +266,9 @@ namespace lockbook {
                         case Core.RenameFile.PossibleErrors.FileDoesNotExist:
                             await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
                             break;
+                        case Core.RenameFile.PossibleErrors.NewNameEmpty:
+                            await new MessageDialog("New name cannot be empty!", "File name empty!").ShowAsync();
+                            break;
                     }
                     break;
                 case Core.RenameFile.UnexpectedError uhOh:
@@ -277,11 +283,15 @@ namespace lockbook {
 
         // Move things
         private void NavigationViewItem_DragStarting(UIElement sender, DragStartingEventArgs args) {
+            System.Diagnostics.Debug.WriteLine("drag starting");
+
             string tag = (string)((sender as FrameworkElement)?.Tag);
 
             if (tag != null) {
                 args.AllowedOperations = DataPackageOperation.Move;
                 args.Data.SetData("id", tag);
+            } else {
+                System.Diagnostics.Debug.WriteLine("tag was null");
             }
 
         }
@@ -317,6 +327,9 @@ namespace lockbook {
                                     break;
                                 case Core.MoveFile.PossibleErrors.TargetParentDoesNotExist:
                                     await new MessageDialog("Could not locate the file you're trying to move to! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                                    break;
+                                case Core.MoveFile.PossibleErrors.CannotMoveRoot:
+                                    await new MessageDialog("Cannot move root folder!", "Cannot move root!").ShowAsync();
                                     break;
                             }
                             break;
