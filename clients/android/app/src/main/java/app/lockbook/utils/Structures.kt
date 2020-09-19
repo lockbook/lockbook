@@ -1,6 +1,6 @@
 package app.lockbook.utils
 
-import java.util.LinkedHashMap
+import java.util.*
 
 data class FileMetadata(
     val id: String,
@@ -96,8 +96,41 @@ data class DialogStatus(
     var alertDialogFileName: String = ""
 )
 
-data class Path(
-    val points: MutableList<PointFloat> = mutableListOf()
+data class LockbookDrawable(
+    val space: Space = Space(),
+    val events: MutableList<Event> = mutableListOf()
 )
 
-data class PointFloat(val x: Float, val y: Float)
+data class Event (
+    val penPath: PenPath? = null
+)
+
+data class PenPath(
+    val color: Int,
+    val transformation: Transformation? = null,
+    val points: MutableList<PressurePoint> = mutableListOf()
+)
+
+data class Space(
+    val width: Int = 10000,
+    val height: Int = 10000,
+    val transformation: Transformation? = null
+)
+
+data class Transformation(
+    val translation: Point,
+    val scale: Float,
+    val rotation: Int // we may not need to include it as it may be weird to have this persist
+    // can realistically be as small as it needs to, but just putting it as an int so it doesn't have to be converted
+)
+
+data class PressurePoint(
+    val x: Float,
+    val y: Float,
+    val pressure: Float
+)
+
+data class Point(
+    val x: Float,
+    val y: Float
+)
