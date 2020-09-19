@@ -2,46 +2,31 @@ package app.lockbook.loggedin.editor
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
-import android.view.View
-import app.lockbook.utils.Path
-import app.lockbook.utils.PointFloat
-import timber.log.Timber
+import android.view.SurfaceView
+import app.lockbook.utils.Event
+import app.lockbook.utils.LockbookDrawable
+import app.lockbook.utils.PenPath
+import app.lockbook.utils.PressurePoint
+
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
-    View(context, attributeSet) {
-    private val paint = Paint()
-    var activePath: Path = Path()
-    var drawn = 0
-    var drawnPaths: MutableList<Path> = mutableListOf()
-    var reOpened = false
-    private var scaleFactor = 1f
-    private val canvasPath = android.graphics.Path()
-    private val scaleGestureDetector =
-        ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    scaleFactor *= detector.scaleFactor
-                    scaleFactor = 0.1f.coerceAtLeast(scaleFactor.coerceAtMost(5.0f))
-
-                    invalidate()
-                    return true
-                }
-            }
-        )
+    SurfaceView(context, attributeSet) {
+    private val activePaint = Paint()
+    private val activePath = Path()
+    var lockBookDrawable: LockbookDrawable = LockbookDrawable()
 
     init {
-        paint.isAntiAlias = true
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeJoin = Paint.Join.MITER
-        paint.strokeWidth = 0f
+        activePaint.isAntiAlias = true
+        activePaint.style = Paint.Style.STROKE
+        activePaint.strokeJoin = Paint.Join.ROUND
+        activePaint.color = Color.WHITE
+
+        setZOrderOnTop(true)
+        holder.setFormat(PixelFormat.TRANSPARENT)
+
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -67,59 +52,80 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleStylusEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                activePath = Path()
-                drawn = 0
-                activePath.points.add(PointFloat(-100.321f, -100.321f))
-                activePath.points.add(PointFloat(event.x, event.y))
-            }
-            MotionEvent.ACTION_MOVE -> {
-                activePath.points.add(PointFloat(event.x, event.y))
-                invalidate()
-            }
-            MotionEvent.ACTION_UP -> {
-                drawnPaths.add(activePath)
-            }
+            MotionEvent.ACTION_DOWN -> moveTo(event)
+            MotionEvent.ACTION_MOVE -> lineTo(event)
+            MotionEvent.ACTION_UP -> activePath.reset()
         }
         return true
+    }
+
+    private fun moveTo(event: MotionEvent) {
+//        activePath.moveTo(event.x, event.y)
+        val penPath = PenPath(activePaint.color)
+        penPath.points.add(PressurePoint(event.x, event.y, 10f))
+        lockBookDrawable.events.add(Event(penPath))
+        drawLockbookDrawable()
+    }
+
+    private fun lineTo(event: MotionEvent) {
+//        activePaint.strokeWidth = 10f
+//        activePath.lineTo(event.x, event.y)
+//        val canvas = holder.lockCanvas()
+//        canvas.drawPath(activePath, activePaint)
+//        holder.unlockCanvasAndPost(canvas)
+        for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
+            val currentEvent = lockBookDrawable.events[eventIndex].penPath
+            if (currentEvent is PenPath) {
+                currentEvent.points.add(PressurePoint(event.x, event.y, 10f))
+                break
+            }
+        }
+        drawLockbookDrawable()
+
+
     }
 
     private fun handleFingerEvent(event: MotionEvent): Boolean {
-        scaleGestureDetector.onTouchEvent(event)
+//        scaleGestureDetector.onTouchEvent(event)
         return true
     }
 
-    override fun onDraw(canvas: Canvas?) {
-        Timber.e(drawn.toString())
-        for (index in drawn until activePath.points.size) {
-            drawn++
-            if (index != 0 && activePath.points[index - 1].x != -100.321f) {
-                canvasPath.lineTo(activePath.points[index].x, activePath.points[index].y)
-            } else {
-                canvasPath.moveTo(activePath.points[index].x, activePath.points[index].y)
-            }
-        }
+    fun drawLockbookDrawable() {
+        val canvas = holder.lockCanvas()
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-        if (reOpened && canvas != null) {
-            for (path in drawnPaths) {
-                for (index in drawn until path.points.size) {
-                    if (index != 0 && path.points[index - 1].x != -100.321f) {
-                        canvasPath.lineTo(path.points[index].x, path.points[index].y)
+        val currentPaint = Paint()
+        currentPaint.isAntiAlias = true
+        currentPaint.style = Paint.Style.STROKE
+        currentPaint.strokeJoin = Paint.Join.ROUND
+
+        for (eventIndex in 0 until lockBookDrawable.events.size) {
+            val currentEvent = lockBookDrawable.events[eventIndex]
+            if (currentEvent.penPath is PenPath) {
+                currentPaint.color = currentEvent.penPath.color
+
+                for (pointIndex in 0 until currentEvent.penPath.points.size) {
+                    currentPaint.strokeWidth = 10f
+                    if (pointIndex == 0) {
+                        activePath.moveTo(
+                            currentEvent.penPath.points[pointIndex].x,
+                            currentEvent.penPath.points[pointIndex].y
+                        )
                     } else {
-                        canvasPath.moveTo(path.points[index].x, path.points[index].y)
+                        activePath.lineTo(
+                            currentEvent.penPath.points[pointIndex].x,
+                            currentEvent.penPath.points[pointIndex].y
+                        )
                     }
                 }
-            }
-            canvas.drawPath(canvasPath, paint)
-            reOpened = false
-        }
 
-        if (canvas != null) {
-            for (point in activePath.points) {
-                canvas.drawPath(canvasPath, paint)
+                canvas.drawPath(activePath, currentPaint)
+                activePath.reset()
             }
         }
 
-        super.onDraw(canvas)
+        holder.unlockCanvasAndPost(canvas)
     }
+
+
 }
