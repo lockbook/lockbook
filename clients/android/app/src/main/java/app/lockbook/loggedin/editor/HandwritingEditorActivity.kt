@@ -1,15 +1,12 @@
 package app.lockbook.loggedin.editor
 
-import android.graphics.SurfaceTexture
 import android.os.Bundle
 import android.os.Handler
 import android.view.SurfaceHolder
-import android.view.TextureView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.LockbookDrawable
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
@@ -55,7 +52,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         if (contents.isNotEmpty()) {
             Timber.e(contents)
             handwriting_editor.lockBookDrawable = Klaxon().parse(contents)!!
-            handwriting_editor.holder.addCallback(object: SurfaceHolder.Callback {
+            handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapCanvas()
                     handwriting_editor.drawLockbookDrawable()
@@ -71,7 +68,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {}
             })
         } else {
-            handwriting_editor.holder.addCallback(object: SurfaceHolder.Callback {
+            handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapCanvas()
                 }
@@ -85,7 +82,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {}
             })
-
         }
 
         startBackgroundSave()

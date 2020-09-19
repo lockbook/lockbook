@@ -10,8 +10,6 @@ import app.lockbook.utils.Event
 import app.lockbook.utils.LockbookDrawable
 import app.lockbook.utils.PenPath
 import app.lockbook.utils.PressurePoint
-import timber.log.Timber
-
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet) {
@@ -28,7 +26,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.strokeJoin = Paint.Join.ROUND
         activePaint.color = Color.WHITE
         activePaint.strokeCap = Paint.Cap.ROUND
-
 
         setZOrderOnTop(true)
         holder.setFormat(PixelFormat.TRANSPARENT)
@@ -68,12 +65,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePath.moveTo(event.x, event.y)
         lastPoint.set(event.x, event.y)
         val penPath = PenPath(activePaint.color)
-        penPath.points.add(PressurePoint(event.x, event.y, event.pressure * 15))
+        penPath.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
         lockBookDrawable.events.add(Event(penPath))
     }
 
     private fun lineTo(event: MotionEvent) {
-        activePaint.strokeWidth = event.pressure * 15
+        activePaint.strokeWidth = event.pressure * 7
         activePath.reset()
         activePath.moveTo(lastPoint.x, lastPoint.y)
         activePath.lineTo(event.x, event.y)
@@ -85,7 +82,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
             val currentEvent = lockBookDrawable.events[eventIndex].penPath
             if (currentEvent is PenPath) {
-                currentEvent.points.add(PressurePoint(event.x, event.y, event.pressure * 15))
+                currentEvent.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
                 break
             }
         }
@@ -119,7 +116,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                     currentPaint.strokeWidth = currentEvent.penPath.points[pointIndex].pressure
                     if (pointIndex != 0) {
                         activePath.moveTo(
-                            currentEvent.penPath.points[pointIndex - 1].x ,
+                            currentEvent.penPath.points[pointIndex - 1].x,
                             currentEvent.penPath.points[pointIndex - 1].y
                         )
                         activePath.lineTo(
@@ -139,6 +136,4 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         canvas.drawBitmap(canvasBitmap, 0f, 0f, null)
         holder.unlockCanvasAndPost(canvas)
     }
-
-
 }
