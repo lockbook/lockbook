@@ -24,10 +24,10 @@ class HandwritingEditorViewModel(
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
-    fun savePath(paths: List<Path>) {
+    fun savePath(drawable: LockbookDrawable) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(paths))
+                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawable))
 
                 if (writeToDocumentResult is Err) {
                     when (val error = writeToDocumentResult.error) {
