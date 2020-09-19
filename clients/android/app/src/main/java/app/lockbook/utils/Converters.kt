@@ -284,6 +284,12 @@ val renameFileConverter = object : Converter {
             RenameFileError.FileNameNotAvailable::class.simpleName -> return Err(
                 RenameFileError.FileNameNotAvailable
             )
+            RenameFileError.NewNameEmpty::class.simpleName -> return Err(
+                RenameFileError.NewNameEmpty
+            )
+            RenameFileError.CannotRenameRoot::class.simpleName -> return Err(
+                RenameFileError.CannotRenameRoot
+            )
             RenameFileError.NewNameContainsSlash::class.simpleName -> return Err(RenameFileError.NewNameContainsSlash)
         }
 
@@ -315,6 +321,7 @@ val createFileConverter = object : Converter {
             CreateFileError.CouldNotFindAParent::class.simpleName -> return Err(CreateFileError.CouldNotFindAParent)
             CreateFileError.FileNameNotAvailable::class.simpleName -> return Err(CreateFileError.FileNameNotAvailable)
             CreateFileError.FileNameContainsSlash::class.simpleName -> return Err(CreateFileError.FileNameContainsSlash)
+            CreateFileError.FileNameEmpty::class.simpleName -> return Err(CreateFileError.FileNameEmpty)
         }
 
         val unexpectedResult = jv.obj?.get("UnexpectedError")
@@ -442,6 +449,9 @@ val moveFileConverter = object : Converter {
             )
             MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> return Err(
                 MoveFileError.TargetParentHasChildNamedThat
+            )
+            MoveFileError.CannotMoveRoot::class.simpleName -> return Err(
+                MoveFileError.CannotMoveRoot
             )
         }
 

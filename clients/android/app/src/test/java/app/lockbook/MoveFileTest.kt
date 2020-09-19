@@ -163,6 +163,21 @@ class MoveFileTest {
     }
 
     @Test
+    fun cannotMoveRoot() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<MoveFileError.CannotMoveRoot>(
+            CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id).component2()
+        )
+    }
+
+    @Test
     fun moveFileTargetParentHasChildNamedThat() {
         val documentName = generateAlphaString()
 

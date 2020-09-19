@@ -17,6 +17,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "$$FILES_DB_HOST Waiting for Minio to start..." && sleep 0.2; done; \
+        sleep 5; \
         /usr/bin/mc config host add filesdb $$FILES_DB_SCHEME://$$FILES_DB_HOST:$$FILES_DB_PORT $$FILES_DB_ACCESS_KEY $$FILES_DB_SECRET_KEY && \
         /usr/bin/mc mb --region=$$FILES_DB_REGION filesdb/$$FILES_DB_BUCKET && \
         /usr/bin/mc policy set public filesdb/$$FILES_DB_BUCKET && \
