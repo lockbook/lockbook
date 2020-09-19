@@ -61,11 +61,6 @@
             value = "1"
             isEnabled = "YES">
          </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "LOCKBOOK_NO_COLOR"
-            value = "1"
-            isEnabled = "YES">
-         </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
