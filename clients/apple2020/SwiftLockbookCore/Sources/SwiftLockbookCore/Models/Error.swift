@@ -6,7 +6,7 @@ public enum ApplicationError: Error {
     case State(String)
     case General(Error)
     
-    func message() -> String {
+    public func message() -> String {
         switch self {
         case .Lockbook(let coreErr):
             return coreErr.message
