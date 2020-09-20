@@ -12,7 +12,8 @@ class Core: ObservableObject {
     @Published var grouped: [FileMetadataWithChildren] = []
 
     private var cancellableSet: Set<AnyCancellable> = []
-    @Published var currentEdit: (UUID, String)?
+    @Published var editStream: (UUID, String)?
+    @Published var currentEdits: [UUID: String] = [:]
     @Published var saver: SaveStatus = .Inactive
     
     func purge() {
@@ -77,20 +78,20 @@ class Core: ObservableObject {
         self.api = api
         self.updateFiles()
         
-        $currentEdit
+        $editStream
             .sink(receiveValue: {
                 $0.map { (id, content) in
-                    print(id, content.count)
+                    self.currentEdits[id] = content
                 }
             })
             .store(in: &cancellableSet)
         
-        $currentEdit
+        $currentEdits
             .debounce(for: 5, scheduler: RunLoop.main)
             .sink(receiveValue: {
                 $0.map({ update in
-                    print("Trying to write \(update.0) \(update.1.count) chars")
-                    switch api.updateFile(id: update.0, content: update.1) {
+                    print("Trying to write \(update.key) \(update.value.count) chars")
+                    switch api.updateFile(id: update.key, content: update.value) {
                     case .success(_):
                         self.saver = .Succeeded
                     case .failure(let err):
