@@ -24,6 +24,8 @@
 		EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */; };
 		EAEDCD0B2516FC1C00EBE313 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */; };
 		EAEDCD0C2516FC1C00EBE313 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */; };
+		EAEDCD122517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
+		EAEDCD132517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +42,7 @@
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
+		EAEDCD112517193500EBE313 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */,
+				EAEDCD112517193500EBE313 /* EditorView.swift */,
 			);
 			path = Book;
 			sourceTree = "<group>";
@@ -245,6 +249,7 @@
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* FileBrowserView.swift in Sources */,
 				EAB4B50025167AF50071D1CD /* Core.swift in Sources */,
+				EAEDCD122517193500EBE313 /* EditorView.swift in Sources */,
 				EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
 			);
@@ -257,6 +262,7 @@
 				EAB4B50125167AF50071D1CD /* Core.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */,
+				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				EAEDCD0C2516FC1C00EBE313 /* FileBrowserView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,

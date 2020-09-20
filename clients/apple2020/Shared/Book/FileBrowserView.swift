@@ -12,7 +12,7 @@ struct FileBrowserView: View {
                     if meta.meta.fileType == .Folder {
                         FileCell(meta: meta.meta)
                     } else {
-                        NavigationLink(destination: Text("Destination")) {
+                        NavigationLink(destination: EditorView(core: core, meta: meta.meta)) {
                             FileCell(meta: meta.meta)
                         }
                     }
