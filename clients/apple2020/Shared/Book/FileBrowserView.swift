@@ -24,7 +24,7 @@ struct FileBrowserView: View {
                     Spacer()
                 }
             }
-            .listStyle(InsetGroupedListStyle())
+            .listStyle(InsetListStyle())
             .navigationTitle("\(account.username)'s files")
             .toolbar(content: {
                 HStack {
