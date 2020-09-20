@@ -17,12 +17,18 @@ struct EditorView: View {
         )
         
         return TextEditor(text: contentBinder)
+            .padding(0.1)
             .navigationTitle(meta.name)
-            .navigationBarItems(
-                trailing: Image(systemName: "checkmark.circle")
+            .toolbar(content: {
+                Image(systemName: "checkmark.circle")
                     .foregroundColor(core.saver ?? .secondary)
                     .opacity(0.4)
-            )
+            })
+            .toolbar(content: {
+                Image(systemName: "checkmark.circle")
+                    .foregroundColor(core.saver ?? .secondary)
+                    .opacity(0.4)
+            })
             .disabled(!succeeded)
             .onAppear {
                 switch core.api.getFile(id: meta.id) {
