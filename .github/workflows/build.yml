@@ -29,14 +29,6 @@ jobs:
       run: make core_fmt
     - name: Lint
       run: make core_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Core - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Server:
     runs-on: self-hosted
     env:
@@ -52,14 +44,6 @@ jobs:
       run: make server_fmt
     - name: Lint
       run: make server_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Server - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Cli:
     runs-on: self-hosted
     env:
@@ -75,14 +59,6 @@ jobs:
       run: make cli_fmt
     - name: Lint
       run: make cli_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Cli - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Android:
     runs-on: self-hosted
     env:
@@ -96,14 +72,6 @@ jobs:
         run: make android_fmt
       - name: Lint
         run: make android_lint
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: Build Android - ${{ job.status }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-        if: always()
   Integration-Tests:
     runs-on: self-hosted
     env:
@@ -117,14 +85,6 @@ jobs:
       run: make integration_tests
     - name: Compile and run tests
       run: make integration_tests_run
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Integration Test - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Kotlin-Interface-Tests:
     runs-on: self-hosted
     env:
@@ -138,14 +98,6 @@ jobs:
       run: make kotlin_interface_tests
     - name: Compile and run tests
       run: make kotlin_interface_tests_run
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Kotlin Test - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Swift-Interface-Tests:
     runs-on: self-hosted
     env:
@@ -159,11 +111,3 @@ jobs:
         run: make swift_interface_tests
       - name: Compile and run tests
         run: make swift_interface_tests_run
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: Swift Test - ${{ job.status }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-        if: always()
