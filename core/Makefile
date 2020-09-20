@@ -82,9 +82,9 @@ lib_c_for_swift:
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
 	@rm ${swift_lib}liblockbook_core.a || true
-	cargo build
+	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp target/debug/liblockbook_core.a ${swift_lib}
+	cp target/release/liblockbook_core.a ${swift_lib}
 
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift lib_c_for_swift_ios
