@@ -6,22 +6,17 @@ struct LockbookApp: App {
     @StateObject var core = Core(documenstDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
     
     var body: some Scene {
-        switch core.account {
-        case .none:
-            return WindowGroup {
-                AnyView(OnboardingView(core: core))
+        return WindowGroup {
+            VStack {
+                switch core.account {
+                case .none:
+                    AnyView(OnboardingView(core: core))
+                case .some(let account):
+                    AnyView(FileBrowserView(core: core, account: account))
+                }
+                self.core.message.map { MessageBanner(core: self.core, message: $0) }
             }
-        case .some(let account):
-            return WindowGroup {
-                AnyView(VStack {
-                    Text("Hello \(account.username)!")
-                        .font(.title)
-                        .padding(.bottom, 40)
-                    Button(action: self.core.purge) {
-                        Label("Purge", systemImage: "person.crop.circle.badge.xmark")
-                    }
-                })
-            }
+            .ignoresSafeArea()
         }
     }
 }
@@ -31,5 +26,27 @@ extension View {
         #if os(iOS)
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         #endif
+    }
+}
+
+struct MessageBanner: View {
+    @ObservedObject var core: Core
+    let message: Message
+    
+    var body: some View {
+        HStack {
+            Spacer()
+            Label(message.words, systemImage: message.icon ?? "")
+                .font(.headline)
+                .foregroundColor(.black)
+                .padding(.vertical, 20)
+            Spacer()
+        }
+        .background(message.color)
+        .onTapGesture {
+            withAnimation {
+                self.core.message = nil
+            }
+        }
     }
 }

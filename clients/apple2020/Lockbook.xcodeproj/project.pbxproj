@@ -22,6 +22,8 @@
 		EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */; };
 		EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */; };
+		EAEDCD0B2516FC1C00EBE313 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */; };
+		EAEDCD0C2516FC1C00EBE313 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +39,7 @@
 		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
+		EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +83,7 @@
 		EA5C7D672516605F00F7F358 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				EAEDCD092516FBA200EBE313 /* Book */,
 				EAEDCD072516FB5A00EBE313 /* Onboarding */,
 				EA5C7D682516605F00F7F358 /* LockbookApp.swift */,
 				EAB4B4FF25167AF50071D1CD /* Core.swift */,
@@ -123,6 +127,14 @@
 				EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */,
 			);
 			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		EAEDCD092516FBA200EBE313 /* Book */ = {
+			isa = PBXGroup;
+			children = (
+				EAEDCD0A2516FC1C00EBE313 /* FileBrowserView.swift */,
+			);
+			path = Book;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -231,6 +243,7 @@
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
+				EAEDCD0B2516FC1C00EBE313 /* FileBrowserView.swift in Sources */,
 				EAB4B50025167AF50071D1CD /* Core.swift in Sources */,
 				EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
@@ -244,6 +257,7 @@
 				EAB4B50125167AF50071D1CD /* Core.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */,
+				EAEDCD0C2516FC1C00EBE313 /* FileBrowserView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 			);
