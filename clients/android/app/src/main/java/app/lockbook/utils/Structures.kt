@@ -120,8 +120,7 @@ data class Space(
 data class Transformation(
     val translation: Point,
     val scale: Float,
-    val rotation: Int // we may not need to include it as it may be weird to have this persist
-    // can realistically be as small as it needs to, but just putting it as an int so it doesn't have to be converted
+    val rotation: Int
 )
 
 data class PressurePoint(

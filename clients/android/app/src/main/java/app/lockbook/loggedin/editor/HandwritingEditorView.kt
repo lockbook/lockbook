@@ -26,9 +26,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.strokeJoin = Paint.Join.ROUND
         activePaint.color = Color.WHITE
         activePaint.strokeCap = Paint.Cap.ROUND
-
-        setZOrderOnTop(true)
-        holder.setFormat(PixelFormat.TRANSPARENT)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -62,7 +59,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(event: MotionEvent) {
         activePath.reset()
-        activePath.moveTo(event.x, event.y)
         lastPoint.set(event.x, event.y)
         val penPath = PenPath(activePaint.color)
         penPath.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
@@ -71,13 +67,19 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun lineTo(event: MotionEvent) {
         activePaint.strokeWidth = event.pressure * 7
-        activePath.reset()
         activePath.moveTo(lastPoint.x, lastPoint.y)
         activePath.lineTo(event.x, event.y)
         tempCanvas.drawPath(activePath, activePaint)
+
         val canvas = holder.lockCanvas()
-        canvas.drawBitmap(canvasBitmap, 0f, 0f, null)
+        canvas.drawColor(
+            Color.TRANSPARENT,
+            PorterDuff.Mode.CLEAR
+        )
+        canvas.drawBitmap(canvasBitmap, Matrix(), null)
         holder.unlockCanvasAndPost(canvas)
+
+        activePath.reset()
         lastPoint.set(event.x, event.y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
             val currentEvent = lockBookDrawable.events[eventIndex].penPath
@@ -133,7 +135,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
 
         val canvas = holder.lockCanvas()
-        canvas.drawBitmap(canvasBitmap, 0f, 0f, null)
+        canvas.drawBitmap(canvasBitmap, Matrix(), null)
         holder.unlockCanvasAndPost(canvas)
     }
 }
