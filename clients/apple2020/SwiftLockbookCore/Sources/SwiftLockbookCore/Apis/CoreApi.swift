@@ -23,7 +23,7 @@ public protocol LockbookApi {
     // Document
     func getFile(id: UUID) -> CoreResult<DecryptedValue>
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
-    func updateFile(id: UUID, content: String) -> CoreResult<Bool>
+    func updateFile(id: UUID, content: String) -> CoreResult<Empty>
     func markFileForDeletion(id: UUID) -> CoreResult<Bool>
     
     // Diagnostic
@@ -100,7 +100,7 @@ public struct CoreApi: LockbookApi {
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }
     
-    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
         fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
@@ -175,7 +175,7 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
         return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: UInt64(now), metadataVersion: UInt64(now), deleted: false))
     }
     
-    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
