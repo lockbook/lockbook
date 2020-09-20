@@ -12,7 +12,7 @@ struct EditorView: View {
             get: { core.currentEdit.map({ $0.1 }) ?? "" },
             set: {
                 core.currentEdit = (meta.id, $0)
-                core.saver = nil
+                core.saver = .Inactive
             }
         )
         
@@ -20,14 +20,11 @@ struct EditorView: View {
             .padding(0.1)
             .navigationTitle(meta.name)
             .toolbar(content: {
-                Image(systemName: "checkmark.circle")
-                    .foregroundColor(core.saver ?? .secondary)
-                    .opacity(0.4)
-            })
-            .toolbar(content: {
-                Image(systemName: "checkmark.circle")
-                    .foregroundColor(core.saver ?? .secondary)
-                    .opacity(0.4)
+                ToolbarItem(placement: .automatic) {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundColor(saverColor(saver: core.saver))
+                        .opacity(0.4)
+                }
             })
             .disabled(!succeeded)
             .onAppear {
@@ -49,6 +46,17 @@ struct EditorView: View {
     init(core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
+    }
+    
+    func saverColor(saver: SaveStatus) -> Color {
+        switch saver {
+        case .Inactive:
+            return .secondary
+        case .Succeeded:
+            return .green
+        case .Failed:
+            return .red
+        }
     }
 }
 
