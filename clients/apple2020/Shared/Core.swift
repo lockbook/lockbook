@@ -1,6 +1,7 @@
 import Foundation
 import SwiftLockbookCore
 import SwiftUI
+import Combine
 
 class Core: ObservableObject {
     let documenstDirectory: String
@@ -9,6 +10,10 @@ class Core: ObservableObject {
     @Published var message: Message? = nil
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
+
+    private var cancellableSet: Set<AnyCancellable> = []
+    @Published var currentEdit: (UUID, String)?
+    @Published var saver: Color?
     
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
@@ -29,14 +34,14 @@ class Core: ObservableObject {
     
     func displayError(error: ApplicationError) {
         switch error {
-        case .Lockbook(_):
-            self.message = Message(words: error.message(), icon: "xmark.shield.fill", color: .yellow)
-        case .Serialization(_):
-            self.message = Message(words: error.message(), icon: "square.fill.and.line.vertical.square.fill", color: .purple)
-        case .State(_):
-            self.message = Message(words: error.message(), icon: "burst.fill", color: .red)
-        case .General(_):
-            self.message = Message(words: error.message(), icon: "exclamationmark.square.fill", color: .red)
+        case .Lockbook(let err):
+            self.message = Message(words: err.localizedDescription, icon: "xmark.shield.fill", color: .yellow)
+        case .Serialization(let msg):
+            self.message = Message(words: msg, icon: "square.fill.and.line.vertical.square.fill", color: .purple)
+        case .State(let msg):
+            self.message = Message(words: msg, icon: "burst.fill", color: .red)
+        case .General(let err):
+            self.message = Message(words: err.localizedDescription, icon: "exclamationmark.square.fill", color: .red)
         }
     }
     
@@ -71,6 +76,21 @@ class Core: ObservableObject {
         }
         self.api = api
         self.updateFiles()
+        
+        $currentEdit
+            .debounce(for: 5, scheduler: RunLoop.main)
+            .sink(receiveValue: {
+                $0.map({ update in
+                    print("Trying to write \(update.0) \(update.1.count) chars")
+                    switch api.updateFile(id: update.0, content: update.1) {
+                    case .success(_):
+                        self.saver = .green
+                    case .failure(let err):
+                        self.displayError(error: err)
+                    }
+                })
+            })
+            .store(in: &cancellableSet)
     }
     
     init() {
