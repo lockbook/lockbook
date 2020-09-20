@@ -33,6 +33,7 @@ struct ImportAccountView: View {
         switch self.core.api.importAccount(accountString: self.accountKey) {
         case .success(let acc):
             self.core.account = acc
+            self.core.sync()
         case .failure(let err):
             hideKeyboard()
             self.core.displayError(error: err)
