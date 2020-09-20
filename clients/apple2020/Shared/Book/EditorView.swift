@@ -9,9 +9,9 @@ struct EditorView: View {
         
     var body: some View {
         let contentBinder = Binding(
-            get: { core.currentEdit.map({ $0.1 }) ?? "" },
+            get: { core.currentEdits[meta.id] ?? "" },
             set: {
-                core.currentEdit = (meta.id, $0)
+                core.editStream = (meta.id, $0)
                 core.saver = .Inactive
             }
         )
@@ -30,16 +30,16 @@ struct EditorView: View {
             .onAppear {
                 switch core.api.getFile(id: meta.id) {
                 case .success(let decrypted):
-                    core.currentEdit = (meta.id, decrypted.secret)
+                    core.currentEdits[meta.id] = decrypted.secret
                     self.succeeded = true
                 case .failure(let err):
-                    core.currentEdit = nil
+                    core.currentEdits[meta.id] = nil
                     core.displayError(error: err)
                     self.succeeded = false
                 }
             }
             .onDisappear {
-                core.currentEdit = nil
+//                core.currentEdits[meta.id] = nil
             }
     }
     
