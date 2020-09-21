@@ -20,7 +20,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -28,7 +28,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public String accountJson;
+            public string accountJson;
         }
 
         public enum PossibleErrors {
@@ -40,7 +40,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -62,27 +62,27 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
     public class FileMetadata {
         [JsonProperty("id")]
-        public String Id { get; set; }
+        public string Id { get; set; }
 
         [JsonProperty("name")]
-        public String Name { get; set; }
+        public string Name { get; set; }
 
         [JsonProperty("parent")]
-        public String Parent { get; set; }
+        public string Parent { get; set; }
 
         [JsonProperty("file_type")]
-        public String Type { get; set; }
+        public string Type { get; set; }
     }
 
     public class DecryptedValue {
         [JsonProperty("secret")]
-        public String secret { get; set; }
+        public string secret { get; set; }
     }
 
     public enum FileType {
@@ -98,7 +98,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -122,7 +122,7 @@ namespace Core {
 
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -141,7 +141,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -162,7 +162,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -181,7 +181,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -200,7 +200,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -222,7 +222,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 
@@ -232,7 +232,7 @@ namespace Core {
             public List<dynamic> WorkUnits { get; set; }
 
             [JsonProperty("most_recent_update_from_server")]
-            public UInt64 MostRecentUpdateFromServer { get; set; }
+            public ulong MostRecentUpdateFromServer { get; set; }
         }
 
         public abstract class Result { }
@@ -251,7 +251,7 @@ namespace Core {
         }
 
         public class UnexpectedError : Result {
-            public String errorMessage;
+            public string errorMessage;
         }
     }
 }
