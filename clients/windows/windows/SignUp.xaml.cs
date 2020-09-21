@@ -18,7 +18,7 @@ namespace lockbook {
             ImportProgressRing.IsActive = true;
             importError.Visibility = Visibility.Collapsed;
 
-            Core.ImportAccount.Result importAccountResult = await CoreService.ImportAccount(accountStringTextBox.Text);
+            Core.ImportAccount.Result importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
 
             switch (importAccountResult) {
                 case Core.ImportAccount.Success:
@@ -52,7 +52,7 @@ namespace lockbook {
                     break;
             }
 
-            var syncResult = await CoreService.SyncAll();
+            var syncResult = await App.CoreService.SyncAll();
             switch (syncResult) {
                 case Core.SyncAll.Success:
                     Frame.Navigate(typeof(FileExplorer));
@@ -77,7 +77,7 @@ namespace lockbook {
             progressRing.Visibility = Visibility.Visible;
             progressRing.IsActive = true;
             newAccountError.Visibility = Visibility.Collapsed;
-            var createAccountResult = await CoreService.CreateAccount(username.Text);
+            var createAccountResult = await App.CoreService.CreateAccount(username.Text);
 
             switch (createAccountResult) {
                 case Core.CreateAccount.Success:
