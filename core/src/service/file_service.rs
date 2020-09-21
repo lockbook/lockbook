@@ -514,16 +514,18 @@ mod unit_tests {
         }
     );
 
+    fn test_account() -> Account {
+        Account {
+            username: String::from("username"),
+            keys: DefaultCrypto::generate_key().unwrap(),
+        }
+    }
+
     #[test]
     fn file_service_runthrough() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
         assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_none());
 
@@ -581,13 +583,8 @@ mod unit_tests {
     #[test]
     fn path_calculations_runthrough() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
         assert_total_filtered_paths!(&db, None, 0);
 
@@ -640,13 +637,8 @@ mod unit_tests {
     #[test]
     fn get_path_tests() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
@@ -698,12 +690,8 @@ mod unit_tests {
     fn test_arbitrary_path_file_creation() {
         init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
 
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
@@ -788,14 +776,10 @@ mod unit_tests {
     #[test]
     fn ensure_no_duplicate_files_via_path() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -808,14 +792,10 @@ mod unit_tests {
     #[test]
     fn ensure_no_duplicate_files_via_create() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -828,14 +808,10 @@ mod unit_tests {
     #[test]
     fn ensure_no_document_has_children_via_path() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -848,14 +824,10 @@ mod unit_tests {
     #[test]
     fn ensure_no_document_has_children() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -868,32 +840,24 @@ mod unit_tests {
     #[test]
     fn ensure_no_bad_names() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
-
         assert!(DefaultFileService::create(&db, "oops/txt", root.id, Document).is_err());
+
         assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn rename_runthrough() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
         assert_no_metadata_problems!(&db);
@@ -973,14 +937,10 @@ mod unit_tests {
     #[test]
     fn move_runthrough() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
         assert_no_metadata_problems!(&db);
@@ -1044,14 +1004,10 @@ mod unit_tests {
     #[test]
     fn test_keeping_track_of_edits() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
