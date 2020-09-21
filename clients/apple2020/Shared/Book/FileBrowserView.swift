@@ -27,18 +27,23 @@ struct FileBrowserView: View {
             .listStyle(InsetListStyle())
             .navigationTitle("\(account.username)'s files")
             .toolbar {
+                #if os(iOS)
+                ToolbarItem(placement: .navigationBarLeading) {
+                    HStack {
+                        Button(action: self.core.purge) {
+                            Image(systemName: "person.crop.circle.badge.xmark")
+                        }
+                        Button(action: self.core.sync) {
+                            Image(systemName: "arrow.2.circlepath.circle.fill")
+                        }
+                    }
+                }
+                #endif
                 ToolbarItem(placement: .automatic) {
                     Button(action: self.core.sync) {
                         Image(systemName: "arrow.2.circlepath.circle.fill")
                     }
                 }
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: self.core.purge) {
-                        Image(systemName: "person.crop.circle.badge.xmark")
-                    }
-                }
-                #endif
             }
             
             Text("Pick a file!")
