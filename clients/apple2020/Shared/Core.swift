@@ -12,9 +12,6 @@ class Core: ObservableObject {
     @Published var grouped: [FileMetadataWithChildren] = []
 
     private var cancellableSet: Set<AnyCancellable> = []
-    @Published var editStream: (UUID, String)?
-    @Published var currentEdits: [UUID: String] = [:]
-    @Published var saver: SaveStatus = .Inactive
     
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
@@ -77,30 +74,6 @@ class Core: ObservableObject {
         }
         self.api = api
         self.updateFiles()
-        
-        $editStream
-            .sink(receiveValue: {
-                $0.map { (id, content) in
-                    self.currentEdits[id] = content
-                }
-            })
-            .store(in: &cancellableSet)
-        
-        $currentEdits
-            .debounce(for: 5, scheduler: RunLoop.main)
-            .sink(receiveValue: {
-                $0.map({ update in
-                    print("Trying to write \(update.key) \(update.value.count) chars")
-                    switch api.updateFile(id: update.key, content: update.value) {
-                    case .success(_):
-                        self.saver = .Succeeded
-                    case .failure(let err):
-                        self.saver = .Failed
-                        self.displayError(error: err)
-                    }
-                })
-            })
-            .store(in: &cancellableSet)
     }
     
     init() {
@@ -130,10 +103,4 @@ struct Message {
     let words: String
     let icon: String?
     let color: Color
-}
-
-enum SaveStatus {
-    case Succeeded
-    case Failed
-    case Inactive
 }
