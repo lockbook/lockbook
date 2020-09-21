@@ -9,9 +9,13 @@ using System.Threading.Tasks;
 
 namespace lockbook {
     public class CoreService {
-        static String path = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
-        private static Mutex coreMutex = new Mutex();
+        public string path;
 
+        public CoreService(string path) {
+            this.path = path;
+        }
+
+        private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr get_api_loc();
@@ -54,26 +58,26 @@ namespace lockbook {
 
 
 
-        private static String getStringAndRelease(IntPtr pointer) {
-            String temp_string = Marshal.PtrToStringAnsi(pointer);
-            String result = (String)temp_string.Clone();
+        private static string getStringAndRelease(IntPtr pointer) {
+            string temp_string = Marshal.PtrToStringAnsi(pointer);
+            string result = (string)temp_string.Clone();
             release_pointer(pointer);
             return result;
         }
 
-        public static bool AccountExists() {
+        public bool AccountExists() {
             coreMutex.WaitOne();
-            String result = getStringAndRelease(get_account(path));
+            string result = getStringAndRelease(get_account(path));
             coreMutex.ReleaseMutex();
             JObject obj = JObject.Parse(result);
             JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
             return ok != null;
         }
 
-        public static async Task<Core.CreateAccount.Result> CreateAccount(String username) {
-            String result = await Task.Run(() => {
+        public async Task<Core.CreateAccount.Result> CreateAccount(string username) {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(create_account(path, username));
+                string coreResponse = getStringAndRelease(create_account(path, username));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -120,10 +124,10 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.GetAccount.Result> GetAccount() {
-            String result = await Task.Run(() => {
+        public async Task<Core.GetAccount.Result> GetAccount() {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreRespose = getStringAndRelease(get_account(path));
+                string coreRespose = getStringAndRelease(get_account(path));
                 coreMutex.ReleaseMutex();
                 return coreRespose;
             });
@@ -161,10 +165,10 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.ImportAccount.Result> ImportAccount(String account_string) {
-            String result = await Task.Run(() => {
+        public async Task<Core.ImportAccount.Result> ImportAccount(string account_string) {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(import_account(path, account_string));
+                string coreResponse = getStringAndRelease(import_account(path, account_string));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -215,10 +219,10 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
-            String result = await Task.Run(() => {
+        public async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResult = getStringAndRelease(list_metadatas(path));
+                string coreResult = getStringAndRelease(list_metadatas(path));
                 coreMutex.ReleaseMutex();
                 return coreResult;
             });
@@ -246,8 +250,8 @@ namespace lockbook {
 
         }
 
-        public static async Task<Core.CreateFile.Result> CreateFile(String name, String parent, FileType ft) {
-            String fileType;
+        public async Task<Core.CreateFile.Result> CreateFile(string name, string parent, FileType ft) {
+            string fileType;
 
             if (ft == FileType.Folder) {
                 fileType = "Folder";
@@ -255,9 +259,9 @@ namespace lockbook {
                 fileType = "Document";
             }
 
-            String result = await Task.Run(() => {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(create_file(path, name, parent, fileType));
+                string coreResponse = getStringAndRelease(create_file(path, name, parent, fileType));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -310,10 +314,10 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.SyncAll.Result> SyncAll() {
-            String result = await Task.Run(() => {
+        public async Task<Core.SyncAll.Result> SyncAll() {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(sync_all(path));
+                string coreResponse = getStringAndRelease(sync_all(path));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -356,11 +360,11 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.RenameFile.Result> RenameFile(String id, String newName) {
+        public async Task<Core.RenameFile.Result> RenameFile(string id, string newName) {
 
-            String result = await Task.Run(() => {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(rename_file(path, id, newName));
+                string coreResponse = getStringAndRelease(rename_file(path, id, newName));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -403,11 +407,11 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.MoveFile.Result> MoveFile(String id, String newParent) {
+        public async Task<Core.MoveFile.Result> MoveFile(string id, string newParent) {
 
-            String result = await Task.Run(() => {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(move_file(path, id, newParent));
+                string coreResponse = getStringAndRelease(move_file(path, id, newParent));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -458,11 +462,11 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.ReadDocument.Result> ReadDocument(String id) {
+        public async Task<Core.ReadDocument.Result> ReadDocument(string id) {
 
-            String result = await Task.Run(() => {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(read_document(path, id));
+                string coreResponse = getStringAndRelease(read_document(path, id));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -507,10 +511,10 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.WriteDocument.Result> WriteDocument(String id, String content) {
-            String result = await Task.Run(() => {
+        public async Task<Core.WriteDocument.Result> WriteDocument(string id, string content) {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(write_document(path, id, content));
+                string coreResponse = getStringAndRelease(write_document(path, id, content));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
@@ -553,11 +557,11 @@ namespace lockbook {
             };
         }
 
-        public static async Task<Core.CalculateWork.Result> CalculateWork() {
+        public async Task<Core.CalculateWork.Result> CalculateWork() {
 
-            String result = await Task.Run(() => {
+            string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                String coreResponse = getStringAndRelease(calculate_work(path));
+                string coreResponse = getStringAndRelease(calculate_work(path));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
