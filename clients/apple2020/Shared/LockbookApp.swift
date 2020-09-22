@@ -12,7 +12,12 @@ struct LockbookApp: App {
                 case .none:
                     AnyView(OnboardingView(core: core))
                 case .some(let account):
-                    AnyView(BookView(core: core, account: account))
+                    switch core.api.getRoot() {
+                    case .success(let root):
+                        AnyView(BookView(core: core, account: account, root: root))
+                    case .failure(let err):
+                        AnyView(Text("Something horrible happened!"))
+                    }
                 }
                 self.core.message.map { MessageBanner(core: self.core, message: $0) }
             }
