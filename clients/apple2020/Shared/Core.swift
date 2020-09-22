@@ -47,13 +47,19 @@ class Core: ObservableObject {
         return FileMetadataWithChildren(meta: meta, children: files.filter({ $0.parent == meta.id && $0.id != meta.id }).map(buildTree))
     }
     
+    func createFile(fullPath: String) {
+        fullPath.split(separator: "/").forEach({ s in
+            print(String(s))
+        })
+    }
+    
     func updateFiles() {
         switch api.getRoot() {
         case .success(let root):
             switch api.listFiles() {
             case .success(let metas):
                 self.files = metas
-                self.grouped = buildTree(meta: root).children ?? []
+                self.grouped = [buildTree(meta: root)]
             case .failure(let err):
                 displayError(error: err)
             }
