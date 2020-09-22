@@ -7,8 +7,8 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.SurfaceView
 import app.lockbook.utils.Event
-import app.lockbook.utils.LockbookDrawable
-import app.lockbook.utils.PenPath
+import app.lockbook.utils.Drawing
+import app.lockbook.utils.Stroke
 import app.lockbook.utils.PressurePoint
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
@@ -18,7 +18,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val activePath = Path()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    var lockBookDrawable: LockbookDrawable = LockbookDrawable()
+    var lockBookDrawable: Drawing = Drawing()
 
     init {
         activePaint.isAntiAlias = true
@@ -60,8 +60,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun moveTo(event: MotionEvent) {
         activePath.reset()
         lastPoint.set(event.x, event.y)
-        val penPath = PenPath(activePaint.color)
-        penPath.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
+        val penPath = Stroke(activePaint.color)
+        penPath.points.add(PressurePoint(event.x, event.y, event.pressure * 7)) //TODO: This should become a setting, maybe called sensitivity
         lockBookDrawable.events.add(Event(penPath))
     }
 
@@ -82,8 +82,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePath.reset()
         lastPoint.set(event.x, event.y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
-            val currentEvent = lockBookDrawable.events[eventIndex].penPath
-            if (currentEvent is PenPath) {
+            val currentEvent = lockBookDrawable.events[eventIndex].stroke
+            if (currentEvent is Stroke) {
                 currentEvent.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
                 break
             }
@@ -111,19 +111,19 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         for (eventIndex in 0 until lockBookDrawable.events.size) {
             val currentEvent = lockBookDrawable.events[eventIndex]
-            if (currentEvent.penPath is PenPath) {
-                currentPaint.color = currentEvent.penPath.color
+            if (currentEvent.stroke is Stroke) {
+                currentPaint.color = currentEvent.stroke.color
 
-                for (pointIndex in 0 until currentEvent.penPath.points.size) {
-                    currentPaint.strokeWidth = currentEvent.penPath.points[pointIndex].pressure
+                for (pointIndex in 0 until currentEvent.stroke.points.size) {
+                    currentPaint.strokeWidth = currentEvent.stroke.points[pointIndex].pressure
                     if (pointIndex != 0) {
                         activePath.moveTo(
-                            currentEvent.penPath.points[pointIndex - 1].x,
-                            currentEvent.penPath.points[pointIndex - 1].y
+                            currentEvent.stroke.points[pointIndex - 1].x,
+                            currentEvent.stroke.points[pointIndex - 1].y
                         )
                         activePath.lineTo(
-                            currentEvent.penPath.points[pointIndex].x,
-                            currentEvent.penPath.points[pointIndex].y
+                            currentEvent.stroke.points[pointIndex].x,
+                            currentEvent.stroke.points[pointIndex].y
                         )
                         tempCanvas.drawPath(activePath, currentPaint)
                         activePath.reset()
