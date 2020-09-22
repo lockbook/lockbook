@@ -5,7 +5,7 @@
 	<key>method</key>
 	<string>app-store</string>
 	<key>uploadBitcode</key>
-	<true/>
+	<false/>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>provisioningProfiles</key>

@@ -6,18 +6,28 @@ struct LockbookApp: App {
     @StateObject var core = Core(documenstDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
     
     var body: some Scene {
-        return WindowGroup {
+        WindowGroup {
             VStack {
                 switch core.account {
                 case .none:
                     AnyView(OnboardingView(core: core))
                 case .some(let account):
-                    AnyView(FileBrowserView(core: core, account: account))
+                    AnyView(BookView(core: core, account: account))
                 }
                 self.core.message.map { MessageBanner(core: self.core, message: $0) }
             }
             .ignoresSafeArea()
         }
+        #if os(macOS)
+        Settings {
+            switch core.account {
+            case .none:
+                AnyView(Text("You need an account for settings!").padding(100))
+            case .some(let account):
+                AnyView(AccountView(core: core, account: account).padding(100))
+            }
+        }
+        #endif
     }
 }
 
