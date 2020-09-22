@@ -4,10 +4,11 @@ import SwiftLockbookCore
 struct BookView: View {
     @ObservedObject var core: Core
     let account: Account
+    let root: FileMetadata
     
     var body: some View {
         NavigationView {
-            FileListView(core: core, account: account)
+            FileListView(core: core, account: account, selectedFolder: FileMetadataWithChildren(meta: root, children: []))
             
             Text("Pick a file!")
         }
@@ -20,18 +21,6 @@ struct BookView: View {
         case .failure(let err):
             core.displayError(error: err)
             return []
-        }
-    }
-}
-
-struct FileBrowserView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            BookView(core: Core(), account: Account(username: "test"))
-                .ignoresSafeArea()
-            BookView(core: Core(), account: Account(username: "test"))
-                .ignoresSafeArea()
-                .preferredColorScheme(.dark)
         }
     }
 }
@@ -52,12 +41,18 @@ struct FileCell: View {
 struct FileListView: View {
     @ObservedObject var core: Core
     let account: Account
+    @State var selectedFolder: FileMetadataWithChildren
+    @State var showingCreate: Bool = false
 
     var body: some View {
         let baseView = List {
             OutlineGroup(core.grouped, children: \.children) { meta in
                 if meta.meta.fileType == .Folder {
                     FileCell(meta: meta.meta)
+                        .foregroundColor(meta.id == selectedFolder.id ? .accentColor : .primary)
+                        .onTapGesture {
+                            selectedFolder = meta
+                        }
                 } else {
                     NavigationLink(destination: EditorView(core: core, meta: meta.meta)) {
                         FileCell(meta: meta.meta)
@@ -76,8 +71,17 @@ struct FileListView: View {
         
         #if os(iOS)
             return baseView
-                .navigationBarItems(leading: NavigationLink(destination: AccountView(core: core, account: account)) {
-                    Image(systemName: "person.circle.fill")
+                .navigationBarItems(leading: HStack {
+                    NavigationLink(destination: AccountView(core: core, account: account)) {
+                        Image(systemName: "person.circle.fill")
+                    }
+                    Button(action: { showingCreate.toggle() }) {
+                        Image(systemName: "plus.circle")
+                    }
+                    .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
+                    .sheet(isPresented: $showingCreate, content: {
+                        CreateFileView(core: core, isPresented: $showingCreate, currentFolder: selectedFolder)
+                    })
                 }, trailing: Button(action: self.core.sync) {
                     Image(systemName: "arrow.2.circlepath.circle.fill")
                 })
@@ -88,8 +92,56 @@ struct FileListView: View {
                         Button(action: self.core.sync) {
                             Image(systemName: "arrow.2.circlepath.circle.fill")
                         }
+                        Button(action: { showingCreate.toggle() }) {
+                            Image(systemName: "plus.circle")
+                        }
+                        .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                     }
                 }
+                .sheet(isPresented: $showingCreate, content: {
+                    CreateFileView(core: core, isPresented: $showingCreate, currentFolder: selectedFolder)
+                        .padding(100)
+                })
         #endif
+    }
+}
+
+struct FlipToggleStyle: ToggleStyle {
+    typealias Side = (String, systemImage: String, color: Color)
+    let left: Side
+    let right: Side
+    
+    func makeBody(configuration: Configuration) -> some View {
+        Button(action: {
+            configuration.isOn.toggle()
+        }) {
+            HStack {
+                Label(left.0, systemImage: left.systemImage)
+                    .foregroundColor(left.color)
+                    .opacity(configuration.isOn ? 1 : 0.3)
+                Text("/")
+                    .foregroundColor(.black)
+                Label(right.0, systemImage: right.systemImage)
+                    .foregroundColor(right.color)
+                    .opacity(configuration.isOn ? 0.3 : 1)
+                
+            }
+        }
+    }
+}
+
+struct BookView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            BookView(core: Core(), account: Account(username: "test"), root: FakeApi().root)
+                .ignoresSafeArea()
+            BookView(core: Core(), account: Account(username: "test"), root: FakeApi().root)
+                .ignoresSafeArea()
+                .preferredColorScheme(.dark)
+            Toggle("Folder", isOn: .constant(true))
+                .toggleStyle(FlipToggleStyle(left: ("Doc", "doc", .pink), right: ("Folder", "folder", .purple)))
+                .padding()
+                .previewLayout(.sizeThatFits)
+        }
     }
 }

@@ -16,6 +16,8 @@
 		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
 		EA5C7D7F2516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
 		EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
+		EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* CreateFileView.swift */; };
+		EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* CreateFileView.swift */; };
 		EAB4B50025167AF50071D1CD /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* Core.swift */; };
 		EAB4B50125167AF50071D1CD /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* Core.swift */; };
 		EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
@@ -40,6 +42,7 @@
 		EA5C7D772516606000F7F358 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA5C7D792516606100F7F358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EA5C7D7A2516606100F7F358 /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
+		EA77C34F2519AC70006B5247 /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
 		EAB4B4FF25167AF50071D1CD /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
 		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
@@ -149,6 +152,7 @@
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
 				EA08372725198A81008EA3F3 /* Account */,
+				EA77C34F2519AC70006B5247 /* CreateFileView.swift */,
 			);
 			path = Book;
 			sourceTree = "<group>";
@@ -256,6 +260,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
@@ -273,6 +278,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EAB4B50125167AF50071D1CD /* Core.swift in Sources */,
+				EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
