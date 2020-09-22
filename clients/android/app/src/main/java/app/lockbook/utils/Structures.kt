@@ -96,22 +96,21 @@ data class DialogStatus(
     var alertDialogFileName: String = ""
 )
 
-data class LockbookDrawable(
-    val space: Space = Space(),
+data class Drawing(
+    val page: Page = Page(),
     val events: MutableList<Event> = mutableListOf()
 )
 
 data class Event(
-    val penPath: PenPath? = null
+    val stroke: Stroke? = null
 )
 
-data class PenPath(
+data class Stroke(
     val color: Int,
-    val transformation: Transformation? = null,
     val points: MutableList<PressurePoint> = mutableListOf()
 )
 
-data class Space(
+data class Page(
     val width: Int = 10000,
     val height: Int = 10000,
     val transformation: Transformation? = null
