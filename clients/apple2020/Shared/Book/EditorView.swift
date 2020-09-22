@@ -8,27 +8,9 @@ struct EditorView: View {
     let meta: FileMetadata
         
     var body: some View {
-        return TextEditor(text: $buffer.content)
+        let baseEditor = TextEditor(text: $buffer.content)
             .padding(0.1)
             .navigationTitle(meta.name)
-            .toolbar(content: {
-                ToolbarItem(placement: .automatic) {
-                    switch buffer.status {
-                    case .Inactive:
-                        Image(systemName: "slash.circle")
-                            .foregroundColor(.secondary)
-                            .opacity(0.4)
-                    case .Succeeded:
-                        Image(systemName: "checkmark.circle")
-                            .foregroundColor(.green)
-                            .opacity(0.6)
-                    case .Failed:
-                        Image(systemName: "xmark.circle")
-                            .foregroundColor(.red)
-                            .opacity(0.6)
-                    }
-                }
-            })
             .disabled(!buffer.succeeded)
             .onAppear {
                 switch core.api.getFile(id: meta.id) {
@@ -40,6 +22,34 @@ struct EditorView: View {
                     buffer.succeeded = false
                 }
             }
+        
+        
+        #if os(iOS)
+        baseEditor
+            .navigationBarItems(trailing: makeStatus())
+        #else
+        baseEditor
+            .toolbar(content: {
+                ToolbarItem(placement: .automatic) { makeStatus() }
+            })
+        #endif
+    }
+    
+    func makeStatus() -> some View {
+        switch buffer.status {
+        case .Inactive:
+            return Image(systemName: "slash.circle")
+                .foregroundColor(.secondary)
+                .opacity(0.4)
+        case .Succeeded:
+            return Image(systemName: "checkmark.circle")
+                .foregroundColor(.green)
+                .opacity(0.6)
+        case .Failed:
+            return Image(systemName: "xmark.circle")
+                .foregroundColor(.red)
+                .opacity(0.6)
+        }
     }
     
     init(core: Core, meta: FileMetadata) {
@@ -93,7 +103,6 @@ class Buffer: ObservableObject {
             .sink(receiveCompletion: { (err) in
                 self.status = .Failed
             }, receiveValue: { (input) in
-                print("Done!")
                 self.status = .Succeeded
             })
             .store(in: &cancellables)
