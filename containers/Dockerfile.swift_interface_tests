@@ -16,6 +16,6 @@ ENV API_URL=http://lockbook_server:8000
 RUN make lib_c_for_swift
 
 # Build Swift Package
-COPY clients/apple2020 ../clients/apple2020
-WORKDIR ../clients/apple2020/SwiftLockbookCore
+COPY clients/apple ../clients/apple
+WORKDIR ../clients/apple/SwiftLockbookCore
 RUN swift build
