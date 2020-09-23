@@ -96,6 +96,6 @@ macosLibName = 'liblockbook_core.dylib'
 windowsLibName = 'liblockbook_core.dll'
 
 # Swift Library Location
-swift_inc := ../clients/apple2020/CLockbookCore/Sources/CLockbookCore/include/
-swift_lib := ../clients/apple2020/CLockbookCore/Sources/CLockbookCore/lib/
-swift_lib_ios := ../clients/apple2020/CLockbookCore/Sources/CLockbookCore/lib_ios/
+swift_inc := ../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
+swift_lib := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
+swift_lib_ios := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
