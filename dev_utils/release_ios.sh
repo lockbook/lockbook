@@ -4,7 +4,7 @@ set -e
 if [ "$ASCPW" ]; then
     project_root=$( cd "$(dirname "${BASH_SOURCE[0]}")"/.. ; pwd -P )
     echo "Project Dir: $project_root"
-    apple="$project_root/clients/apple2020"
+    apple="$project_root/clients/apple"
     echo "Apple Dir: $apple"
     core="$project_root/core"
     echo "Core Dir: $core"

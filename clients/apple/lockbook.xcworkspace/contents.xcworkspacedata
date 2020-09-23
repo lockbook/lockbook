@@ -2,9 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:./SwiftLockbookCore">
+      location = "group:SwiftLockbookCore">
    </FileRef>
    <FileRef
-      location = "container:lockbook.xcodeproj">
+      location = "container:Lockbook.xcodeproj">
    </FileRef>
 </Workspace>
