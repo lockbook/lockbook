@@ -114,8 +114,7 @@ data class Page(
 )
 
 data class Transformation(
-    var translationX: Float = 0f,
-    var translationY: Float = 0f,
+    var translation: Point = Point(0f, 0f),
     var scale: Float = 1f,
     var rotation: Float = 0f
 )
@@ -127,6 +126,6 @@ data class PressurePoint(
 )
 
 data class Point(
-    val x: Float,
-    val y: Float
+    var x: Float,
+    var y: Float
 )
