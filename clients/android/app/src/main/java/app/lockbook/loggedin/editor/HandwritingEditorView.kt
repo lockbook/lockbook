@@ -33,11 +33,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                         lockBookDrawable.page.transformation.scale.coerceAtMost(5.0f)
                     )
 
+                    lockBookDrawable.page.transformation.translation.x = detector.focusX
+                    lockBookDrawable.page.transformation.translation.y = detector.focusY
+                    Timber.e("Point: ${lockBookDrawable.page.transformation.translation.x}, ${lockBookDrawable.page.transformation.translation.y}")
+
                     drawingMatrix.setScale(
                         lockBookDrawable.page.transformation.scale,
                         lockBookDrawable.page.transformation.scale,
-                        detector.focusX,
-                        detector.focusY
                     )
 
                     drawBitmap()
@@ -141,7 +143,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             event.x / lockBookDrawable.page.transformation.scale,
             event.y / lockBookDrawable.page.transformation.scale
         )
+        tempCanvas.save()
+        tempCanvas.translate(lockBookDrawable.page.transformation.translation.x, lockBookDrawable.page.transformation.translation.y)
         tempCanvas.drawPath(activePath, activePaint)
+        tempCanvas.restore()
 
         Timber.e("Points: ${event.x} ${event.y}")
         drawBitmap()
