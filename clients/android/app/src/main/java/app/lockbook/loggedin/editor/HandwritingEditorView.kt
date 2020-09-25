@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
@@ -18,7 +19,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
-    private var scaleFactor = 1f
+    private val drawingMatrix = Matrix()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -27,42 +28,38 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    scaleFactor *= detector.scaleFactor
-                    scaleFactor = 0.1f.coerceAtLeast(scaleFactor.coerceAtMost(5.0f))
-
-                    val canvas = holder.lockCanvas()
-                    canvas.save()
-                    canvas.scale(scaleFactor, scaleFactor, detector.focusX, detector.focusY)
-                    canvas.drawColor(
-                        Color.TRANSPARENT,
-                        PorterDuff.Mode.CLEAR
+                    lockBookDrawable.page.transformation.scale *= detector.scaleFactor
+                    lockBookDrawable.page.transformation.scale = 0.1f.coerceAtLeast(
+                        lockBookDrawable.page.transformation.scale.coerceAtMost(5.0f)
                     )
-                    canvas.drawBitmap(canvasBitmap, Matrix(), null)
-                    canvas.restore()
-                    holder.unlockCanvasAndPost(canvas)
 
-                    tempCanvas.scale(scaleFactor, scaleFactor, detector.focusX, detector.focusY)
+                    drawingMatrix.setScale(
+                        lockBookDrawable.page.transformation.scale,
+                        lockBookDrawable.page.transformation.scale,
+                        detector.focusX,
+                        detector.focusY
+                    )
+
+                    drawBitmap()
                     return true
                 }
+
             }
         )
-//    private val gestureDetector = object : GestureDetector.SimpleOnGestureListener() {
-//        override fun onScroll(
-//            e1: MotionEvent?,
-//            e2: MotionEvent?,
-//            distanceX: Float,
-//            distanceY: Float
-//        ): Boolean {
-//            (lockBookDrawable.page.transformation ?: return false).translationX += distanceX
-//            (lockBookDrawable.page.transformation ?: return false).translationY += distanceY
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onScroll(
+            e1: MotionEvent?,
+            e2: MotionEvent?,
+            distanceX: Float,
+            distanceY: Float
+        ): Boolean {
+//            drawingMatrix.setTranslate(distanceX, distanceY)
 //
-//            val transformationMatrix = Matrix()
-//
-//            transformationMatrix.postTranslate(detector.focusX + detector.getFocusShiftX(), detector.focusY + detector.getFocusShiftY())
-//
-//            return true
-//        }
-//    }
+//            drawBitmap()
+            return true
+        }
+    })
 
     init {
         activePaint.isAntiAlias = true
@@ -70,6 +67,16 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.strokeJoin = Paint.Join.ROUND
         activePaint.color = Color.WHITE
         activePaint.strokeCap = Paint.Cap.ROUND
+    }
+
+    private fun drawBitmap() {
+        val canvas = holder.lockCanvas()
+        canvas.drawColor(
+            Color.TRANSPARENT,
+            PorterDuff.Mode.CLEAR
+        )
+        canvas.drawBitmap(canvasBitmap, drawingMatrix, null)
+        holder.unlockCanvasAndPost(canvas)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -95,6 +102,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleFingerEvent(event: MotionEvent): Boolean {
         scaleGestureDetector.onTouchEvent(event)
+        gestureDetector.onTouchEvent(event)
         return true
     }
 
@@ -108,36 +116,42 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(event: MotionEvent) {
         activePath.reset()
-        lastPoint.set(event.x, event.y)
+        lastPoint.set(
+            event.x,
+            event.y
+        )
         val penPath = Stroke(activePaint.color)
-        penPath.points.add(PressurePoint(event.x / scaleFactor, event.y / scaleFactor, event.pressure * 7)) //TODO: This should become a setting, maybe called sensitivity
+        penPath.points.add(
+            PressurePoint(
+                event.x,
+                event.y,
+                event.pressure * 7
+            )
+        ) //TODO: This should become a setting, maybe called sensitivity
         lockBookDrawable.events.add(Event(penPath))
     }
 
     private fun lineTo(event: MotionEvent) {
         activePaint.strokeWidth = event.pressure * 7
-        activePath.moveTo(lastPoint.x, lastPoint.y)
-        activePath.lineTo(event.x, event.y)
+        activePath.moveTo(
+            lastPoint.x / lockBookDrawable.page.transformation.scale,
+            lastPoint.y / lockBookDrawable.page.transformation.scale
+        )
+        activePath.lineTo(
+            event.x / lockBookDrawable.page.transformation.scale,
+            event.y / lockBookDrawable.page.transformation.scale
+        )
         tempCanvas.drawPath(activePath, activePaint)
 
         Timber.e("Points: ${event.x} ${event.y}")
-        val canvas = holder.lockCanvas()
-        canvas.save()
-        canvas.scale(scaleFactor, scaleFactor)
-        canvas.drawColor(
-            Color.TRANSPARENT,
-            PorterDuff.Mode.CLEAR
-        )
-        canvas.drawBitmap(canvasBitmap, Matrix(), null)
-        canvas.restore()
-        holder.unlockCanvasAndPost(canvas)
+        drawBitmap()
 
         activePath.reset()
         lastPoint.set(event.x, event.y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
             val currentEvent = lockBookDrawable.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(PressurePoint(event.x / scaleFactor, event.y / scaleFactor, event.pressure * 7))
+                currentEvent.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
                 break
             }
         }
