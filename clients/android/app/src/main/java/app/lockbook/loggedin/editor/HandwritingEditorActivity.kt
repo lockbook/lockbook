@@ -23,15 +23,9 @@ class HandwritingEditorActivity : AppCompatActivity() {
         setContentView(R.layout.activity_handwriting_editor)
 
         val id = intent.getStringExtra("id")
-        val contents = intent.getStringExtra("contents")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
-            finish()
-            return
-        }
-        if (contents == null) {
-            errorHasOccurred("Unable to retrieve contents.")
             finish()
             return
         }
@@ -49,12 +43,14 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         )
 
-        if (contents.isNotEmpty()) {
+        val contents = handwritingEditorViewModel.handleReadDocument(id)
+
+        if (contents != null && contents.isNotEmpty()) {
             Timber.e(contents)
             handwriting_editor.lockBookDrawable = Klaxon().parse(contents)!!
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
-                    handwriting_editor.setUpBitmapCanvas()
+                    handwriting_editor.setUpBitmapDrawable()
                     handwriting_editor.drawLockbookDrawable()
                 }
 
@@ -70,7 +66,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         } else {
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
-                    handwriting_editor.setUpBitmapCanvas()
+                    handwriting_editor.setUpBitmapDrawable()
                 }
 
                 override fun surfaceChanged(
