@@ -83,7 +83,6 @@ data class Config(val writeable_path: String)
 data class EditableFile(
     val name: String,
     val id: String,
-    val contents: String
 )
 
 data class SyncingStatus(
@@ -111,15 +110,14 @@ data class Stroke(
 )
 
 data class Page(
-    val width: Int = 10000,
-    val height: Int = 10000,
-    val transformation: Transformation? = null
+    var transformation: Transformation? = null,
 )
 
 data class Transformation(
-    val translation: Point,
-    val scale: Float,
-    val rotation: Int
+    var translationX: Float,
+    var translationY: Float,
+    var scale: Float,
+    var rotation: Int
 )
 
 data class PressurePoint(

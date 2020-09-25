@@ -19,7 +19,7 @@ class FileModel(path: String) {
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private lateinit var parentFileMetadata: FileMetadata
-    private lateinit var lastDocumentAccessed: FileMetadata
+    lateinit var lastDocumentAccessed: FileMetadata
     val config = Config(path)
 
     val files: LiveData<List<FileMetadata>>
@@ -138,32 +138,6 @@ class FileModel(path: String) {
                 }
             }
         }
-    }
-
-    fun handleReadDocument(fileMetadata: FileMetadata): EditableFile? {
-        when (val documentResult = CoreModel.getDocumentContent(config, fileMetadata.id)) {
-            is Ok -> {
-                lastDocumentAccessed = fileMetadata
-                return EditableFile(fileMetadata.name, fileMetadata.id, documentResult.value.secret)
-            }
-            is Err -> when (val error = documentResult.error) {
-                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to get content of file: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
-                else -> {
-                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
-                }
-            }
-        }
-
-        return null
     }
 
     fun intoFolder(fileMetadata: FileMetadata) {

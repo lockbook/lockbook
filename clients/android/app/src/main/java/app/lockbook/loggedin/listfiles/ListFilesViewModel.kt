@@ -520,11 +520,11 @@ class ListFilesViewModel(path: String, application: Application) :
                     if (fileMetadata.file_type == FileType.Folder) {
                         fileModel.intoFolder(fileMetadata)
                     } else {
-
-                        val editableFileResult = fileModel.handleReadDocument(fileMetadata)
+                        val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)
+                        fileModel.lastDocumentAccessed = fileMetadata
                         if (fileMetadata.name.endsWith(".draw")) {
                             _navigateToHandwritingEditor.postValue(editableFileResult)
-                        } else if (editableFileResult is EditableFile) {
+                        } else {
                             _navigateToFileEditor.postValue(editableFileResult)
                         }
                     }

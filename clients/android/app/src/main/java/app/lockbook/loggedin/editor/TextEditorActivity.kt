@@ -33,15 +33,9 @@ class TextEditorActivity : AppCompatActivity() {
         setContentView(R.layout.activity_text_editor)
 
         val id = intent.getStringExtra("id")
-        val contents = intent.getStringExtra("contents")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
-            finish()
-            return
-        }
-        if (contents == null) {
-            errorHasOccurred("Unable to retrieve contents.")
             finish()
             return
         }
@@ -51,34 +45,32 @@ class TextEditorActivity : AppCompatActivity() {
                 this,
                 TextEditorViewModelFactory(
                     application,
-                    id,
-                    contents
+                    id
                 )
             ).get(TextEditorViewModel::class.java)
 
         textEditorViewModel.canUndo.observe(
             this,
-            Observer { canUndo ->
+            { canUndo ->
                 menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = canUndo
             }
         )
 
         textEditorViewModel.canRedo.observe(
             this,
-            Observer { canRedo ->
+            { canRedo ->
                 menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = canRedo
             }
         )
 
         textEditorViewModel.errorHasOccurred.observe(
             this,
-            Observer { errorText ->
+            { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
-        setUpView()
-        startBackgroundSave()
+        setUpView(id)
     }
 
     private fun startBackgroundSave() {
@@ -100,7 +92,7 @@ class TextEditorActivity : AppCompatActivity() {
         Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
     }
 
-    private fun setUpView() {
+    private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
@@ -133,9 +125,12 @@ class TextEditorActivity : AppCompatActivity() {
             )
         }
 
-        text_editor.setText(intent.getStringExtra("contents"))
-
-        text_editor.addTextChangedListener(textEditorViewModel)
+        val contents = textEditorViewModel.handleReadDocument(id)
+        if(contents != null) {
+            text_editor.setText(contents)
+            text_editor.addTextChangedListener(textEditorViewModel)
+            startBackgroundSave()
+        }
     }
 
     private fun viewMarkdown() {
