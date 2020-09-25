@@ -9,11 +9,13 @@ import androidx.lifecycle.MutableLiveData
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.ReadDocumentError
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
-class TextEditorViewModel(application: Application, private val id: String, initialContents: String) :
+class TextEditorViewModel(application: Application, private val id: String) :
     AndroidViewModel(application), TextWatcher {
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private var history = mutableListOf<String>()
@@ -33,7 +35,35 @@ class TextEditorViewModel(application: Application, private val id: String, init
         get() = _errorHasOccurred
 
     init {
-        history.add(history.lastIndex + 1, initialContents)
+        val contents = handleReadDocument(id)
+        if(contents != null) {
+            history.add(history.lastIndex + 1, contents)
+        }
+    }
+
+    fun handleReadDocument(id: String): String? {
+        when (val documentResult = CoreModel.getDocumentContent(config, id)) {
+            is Ok -> {
+                return documentResult.value.secret
+            }
+            is Err -> when (val error = documentResult.error) {
+                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
+                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                is ReadDocumentError.UnexpectedError -> {
+                    Timber.e("Unable to get content of file: ${error.error}")
+                    _errorHasOccurred.postValue(
+                        UNEXPECTED_ERROR_OCCURRED
+                    )
+                }
+                else -> {
+                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                }
+            }
+        }
+
+        return null
     }
 
     override fun afterTextChanged(s: Editable?) {
