@@ -110,14 +110,14 @@ data class Stroke(
 )
 
 data class Page(
-    var transformation: Transformation? = null,
+    var transformation: Transformation = Transformation(),
 )
 
 data class Transformation(
-    var translationX: Float,
-    var translationY: Float,
-    var scale: Float,
-    var rotation: Int
+    var translationX: Float = 0f,
+    var translationY: Float = 0f,
+    var scale: Float = 1f,
+    var rotation: Float = 0f
 )
 
 data class PressurePoint(
