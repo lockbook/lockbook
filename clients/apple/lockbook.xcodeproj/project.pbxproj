@@ -22,6 +22,10 @@
 		EAB4B50125167AF50071D1CD /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* Core.swift */; };
 		EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
 		EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
+		EAC3DA37251ED7B3009499BA /* FlipToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */; };
+		EAC3DA38251ED7B3009499BA /* FlipToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */; };
+		EAC3DA40251EEB45009499BA /* RotatingProgressViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA3F251EEB45009499BA /* RotatingProgressViewStyle.swift */; };
+		EAC3DA41251EEB45009499BA /* RotatingProgressViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA3F251EEB45009499BA /* RotatingProgressViewStyle.swift */; };
 		EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */; };
@@ -45,6 +49,8 @@
 		EA77C34F2519AC70006B5247 /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
 		EAB4B4FF25167AF50071D1CD /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
 		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipToggleStyle.swift; sourceTree = "<group>"; };
+		EAC3DA3F251EEB45009499BA /* RotatingProgressViewStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotatingProgressViewStyle.swift; sourceTree = "<group>"; };
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
@@ -100,6 +106,7 @@
 		EA5C7D672516605F00F7F358 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				EAC3DA35251ED797009499BA /* Components */,
 				EAEDCD092516FBA200EBE313 /* Book */,
 				EAEDCD072516FB5A00EBE313 /* Onboarding */,
 				EA5C7D682516605F00F7F358 /* LockbookApp.swift */,
@@ -134,6 +141,15 @@
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
 			);
 			path = macOS;
+			sourceTree = "<group>";
+		};
+		EAC3DA35251ED797009499BA /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */,
+				EAC3DA3F251EEB45009499BA /* RotatingProgressViewStyle.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		EAEDCD072516FB5A00EBE313 /* Onboarding */ = {
@@ -265,11 +281,13 @@
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
+				EAC3DA37251ED7B3009499BA /* FlipToggleStyle.swift in Sources */,
 				EAB4B50025167AF50071D1CD /* Core.swift in Sources */,
 				EAEDCD122517193500EBE313 /* EditorView.swift in Sources */,
 				EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */,
 				EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EAC3DA40251EEB45009499BA /* RotatingProgressViewStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -277,8 +295,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EAC3DA38251ED7B3009499BA /* FlipToggleStyle.swift in Sources */,
 				EAB4B50125167AF50071D1CD /* Core.swift in Sources */,
 				EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */,
+				EAC3DA41251EEB45009499BA /* RotatingProgressViewStyle.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
@@ -409,7 +429,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
@@ -434,7 +454,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
@@ -464,7 +484,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -493,7 +513,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
