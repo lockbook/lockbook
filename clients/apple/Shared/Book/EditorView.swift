@@ -9,50 +9,56 @@ struct EditorView: View, Equatable {
     }
     
     @ObservedObject var core: Core
-    @ObservedObject var buffer: Buffer
+    @ObservedObject var titleBuffer: TitleBuffer
+    @ObservedObject var contentBuffer: ContentBuffer
     let meta: FileMetadata
         
     var body: some View {
-        let baseEditor = TextEditor(text: $buffer.content)
-            .padding(0.1)
-            .disabled(!buffer.succeeded)
-            .onAppear {
-                switch core.api.getFile(id: meta.id) {
-                case .success(let decrypted):
-                    buffer.content = decrypted.secret
-                    buffer.succeeded = true
-                case .failure(let err):
-                    core.displayError(error: err)
-                    buffer.succeeded = false
+        VStack {
+            TextField("your title here", text: titleBuffer.titleBinding)
+                .onAppear {
+                    titleBuffer.succeeded = true
                 }
-            }
-            .onDisappear {
-                switch buffer.save() {
-                case .success(_):
-                    buffer.succeeded = true
-                case .failure(let err):
-                    core.displayError(error: err)
-                    buffer.succeeded = false
+                
+            let baseEditor = TextEditor(text: $contentBuffer.content)
+                .padding(0.1)
+                .disabled(!contentBuffer.succeeded)
+                .onAppear {
+                    switch core.api.getFile(id: meta.id) {
+                    case .success(let decrypted):
+                        contentBuffer.content = decrypted.secret
+                        contentBuffer.succeeded = true
+                    case .failure(let err):
+                        core.displayError(error: err)
+                        contentBuffer.succeeded = false
+                    }
                 }
-            }
-        
-        
-        #if os(iOS)
-        baseEditor
-            .navigationBarItems(trailing: makeStatus())
-        #else
-        baseEditor
-            .toolbar(content: {
-                ToolbarItem(placement: .automatic) {
-                    makeStatus()
-                        .font(.title)
+                .onDisappear {
+                    switch contentBuffer.save() {
+                    case .success(_):
+                        contentBuffer.succeeded = true
+                    case .failure(let err):
+                        core.displayError(error: err)
+                        contentBuffer.succeeded = false
+                    }
                 }
-            })
-        #endif
+            #if os(iOS)
+            baseEditor
+                .navigationBarItems(trailing: makeStatus())
+            #else
+            baseEditor
+                .toolbar(content: {
+                    ToolbarItem(placement: .automatic) {
+                        makeStatus()
+                            .font(.title)
+                    }
+                })
+            #endif
+        }
     }
     
     func makeStatus() -> some View {
-        switch buffer.status {
+        switch contentBuffer.status {
         case .Inactive:
             return Image(systemName: "slash.circle")
                 .foregroundColor(.secondary)
@@ -71,7 +77,8 @@ struct EditorView: View, Equatable {
     init(core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
-        self.buffer = Buffer(meta: meta, initialContent: "<PLACEHOLDER>", core: core)
+        self.titleBuffer = TitleBuffer(meta: meta, core: core)
+        self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
     }
 }
 
@@ -83,7 +90,50 @@ struct EditorView_Previews: PreviewProvider {
     }
 }
 
-class Buffer: ObservableObject {
+class TitleBuffer: ObservableObject {
+    let meta: FileMetadata
+    private var cancellables: Set<AnyCancellable> = []
+    let core: Core
+    @Published var content: String
+    @Published var succeeded: Bool = false
+    var titleBinding: Binding<String>
+    
+    init(meta: FileMetadata, core: Core) {
+        self.meta = meta
+        self.core = core
+        self.content = meta.name
+        self.titleBinding = Binding.constant("")
+        self.titleBinding = Binding(get: {
+            return self.content
+        }, set: { v in
+            self.content = v
+        })
+        
+        $content
+            .debounce(for: 0.5, scheduler: DispatchQueue.global(qos: .background))
+            .filter({ _ in self.succeeded })
+            .eraseToAnyPublisher()
+            .receive(on: RunLoop.main)
+            .sink(receiveCompletion: { (err) in
+//                self.status = .Failed
+            }, receiveValue: { (input) in
+                self.save()
+                self.core.updateFiles()
+            })
+            .store(in: &cancellables)
+    }
+    
+    func save() -> Result<Void, ApplicationError> {
+        switch core.api.renameFile(id: meta.id, name: content) {
+        case .success(_):
+            return .success(())
+        case .failure(let err):
+            return .failure(err)
+        }
+    }
+}
+
+class ContentBuffer: ObservableObject {
     let meta: FileMetadata
     private var cancellables: Set<AnyCancellable> = []
     let core: Core
