@@ -3,10 +3,10 @@ import SwiftLockbookCore
 
 struct CreateFileView: View {
     @ObservedObject var core: Core
-    @Binding var isPresented: Bool
     @State var newFileIsDoc: Bool = true
     @State var newFileName: String = ""
     let currentFolder: FileMetadataWithChildren
+    @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
         VStack {
@@ -23,7 +23,7 @@ struct CreateFileView: View {
                         switch core.api.createFile(name: newFileName, dirId: currentFolder.id, isFolder: !newFileIsDoc) {
                         case .success(_):
                             core.updateFiles()
-                            isPresented = false
+                            presentationMode.wrappedValue.dismiss()
                         case .failure(let err):
                             core.displayError(error: err)
                         }
@@ -42,6 +42,6 @@ struct CreateFileView: View {
 
 struct CreateFileView_Previews: PreviewProvider {
     static var previews: some View {
-        CreateFileView(core: Core(), isPresented: .constant(true), currentFolder: FileMetadataWithChildren(meta: FakeApi().fileMetas[0], children: []))
+        CreateFileView(core: Core(), currentFolder: FileMetadataWithChildren(meta: FakeApi().fileMetas[0], children: []))
     }
 }
