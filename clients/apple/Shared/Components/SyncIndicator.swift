@@ -9,9 +9,12 @@ struct SyncIndicator: View {
                 .rotationEffect(.degrees(spin ? 360 : 0))
                 .animation(Animation.linear(duration: 0.5).repeatForever(autoreverses: false))
                 .onAppear() { spin.toggle() }
-                .opacity(0.5)
+                .foregroundColor(.pink)
+                .opacity(0.2)
+                .disabled(true)
         } else {
             Image(systemName: "arrow.2.circlepath.circle.fill")
+                .foregroundColor(.accentColor)
         }
     }
 }
