@@ -54,7 +54,7 @@ struct FileListView: View {
                             selectedFolder = meta
                         }
                 } else {
-                    NavigationLink(destination: EditorView(core: core, meta: meta.meta)) {
+                    NavigationLink(destination: EditorView(core: core, meta: meta.meta).equatable()) {
                         FileCell(meta: meta.meta)
                     }
                 }
