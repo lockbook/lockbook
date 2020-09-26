@@ -40,6 +40,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                     drawingMatrix.setScale(
                         lockBookDrawable.page.transformation.scale,
                         lockBookDrawable.page.transformation.scale,
+                        detector.focusX,
+                        detector.focusY
                     )
 
                     drawBitmap()
@@ -136,19 +138,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(event: MotionEvent) {
         activePaint.strokeWidth = event.pressure * 7
         activePath.moveTo(
-            lastPoint.x / lockBookDrawable.page.transformation.scale,
-            lastPoint.y / lockBookDrawable.page.transformation.scale
+            (lastPoint.x + lockBookDrawable.page.transformation.translation.x) / lockBookDrawable.page.transformation.scale,
+            (lastPoint.y + lockBookDrawable.page.transformation.translation.y) / lockBookDrawable.page.transformation.scale
         )
         activePath.lineTo(
-            event.x / lockBookDrawable.page.transformation.scale,
-            event.y / lockBookDrawable.page.transformation.scale
+            (event.x + lockBookDrawable.page.transformation.translation.x) / lockBookDrawable.page.transformation.scale,
+            (event.y + lockBookDrawable.page.transformation.translation.y) / lockBookDrawable.page.transformation.scale
         )
-        tempCanvas.save()
-        tempCanvas.translate(lockBookDrawable.page.transformation.translation.x, lockBookDrawable.page.transformation.translation.y)
-        tempCanvas.drawPath(activePath, activePaint)
-        tempCanvas.restore()
 
-        Timber.e("Points: ${event.x} ${event.y}")
         drawBitmap()
 
         activePath.reset()
