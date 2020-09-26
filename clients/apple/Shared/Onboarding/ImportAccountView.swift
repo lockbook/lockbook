@@ -21,7 +21,6 @@ struct ImportAccountView: View {
                 Label("Import", systemImage: "rectangle.stack.person.crop")
             })
         }
-        .navigationTitle("Import")
         .sheet(isPresented: self.$isScanning, content: {
             #if os(iOS)
             CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)

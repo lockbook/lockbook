@@ -15,7 +15,6 @@ struct EditorView: View, Equatable {
     var body: some View {
         let baseEditor = TextEditor(text: $buffer.content)
             .padding(0.1)
-            .navigationTitle(meta.name)
             .disabled(!buffer.succeeded)
             .onAppear {
                 switch core.api.getFile(id: meta.id) {
@@ -47,7 +46,6 @@ struct EditorView: View, Equatable {
                 ToolbarItem(placement: .automatic) {
                     makeStatus()
                         .font(.title)
-                    
                 }
             })
         #endif
