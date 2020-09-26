@@ -28,7 +28,13 @@ struct EditorView: View, Equatable {
                 }
             }
             .onDisappear {
-                buffer.save()
+                switch buffer.save() {
+                case .success(_):
+                    buffer.succeeded = true
+                case .failure(let err):
+                    core.displayError(error: err)
+                    buffer.succeeded = false
+                }
             }
         
         
