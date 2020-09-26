@@ -35,10 +35,12 @@ struct CreateFileView: View {
                 }
                 .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                 .padding(.horizontal, 10)
+                #if os(macOS)
                 Button("Dismiss", action: {
                     isPresented = false
                 })
                 .keyboardShortcut(KeyEquivalent("f"), modifiers: .command)
+                #endif
             }
         }
     }

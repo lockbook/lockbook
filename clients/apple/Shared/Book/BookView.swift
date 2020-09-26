@@ -4,11 +4,10 @@ import SwiftLockbookCore
 struct BookView: View {
     @ObservedObject var core: Core
     let account: Account
-    let root: FileMetadata
     
     var body: some View {
         NavigationView {
-            FileListView(core: core, account: account, selectedFolder: FileMetadataWithChildren(meta: root, children: []))
+            FileListView(core: core, account: account)
             
             Text("Pick a file!")
         }
@@ -41,7 +40,7 @@ struct FileCell: View {
 struct FileListView: View {
     @ObservedObject var core: Core
     let account: Account
-    @State var selectedFolder: FileMetadataWithChildren
+    @State var selectedFolder: FileMetadataWithChildren?
     @State var showingCreate: Bool = false
 
     var body: some View {
@@ -49,7 +48,11 @@ struct FileListView: View {
             OutlineGroup(core.grouped, children: \.children) { meta in
                 if meta.meta.fileType == .Folder {
                     FileCell(meta: meta.meta)
-                        .foregroundColor(meta.id == selectedFolder.id ? .accentColor : .primary)
+                        .foregroundColor(meta.id == selectedFolder?.id ? .accentColor : .primary)
+                        .onLongPressGesture {
+                            selectedFolder = meta
+                            showingCreate = true
+                        }
                         .onTapGesture {
                             selectedFolder = meta
                         }
@@ -68,6 +71,9 @@ struct FileListView: View {
         }
         .listStyle(InsetListStyle())
         .navigationTitle("\(account.username)'s files")
+        .onReceive(core.timer, perform: { _ in
+            core.sync()
+        })
         
         #if os(iOS)
             return baseView
@@ -79,69 +85,58 @@ struct FileListView: View {
                         Image(systemName: "plus.circle")
                     }
                     .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
-                    .sheet(isPresented: $showingCreate, content: {
-                        CreateFileView(core: core, isPresented: $showingCreate, currentFolder: selectedFolder)
+                    .popover(isPresented: $showingCreate, content: {
+                        if let folder = selectedFolder {
+                            CreateFileView(core: core, isPresented: $showingCreate, currentFolder: folder)
+                                .padding(50)
+                        } else {
+                            Text("Select a folder first!")
+                                .padding()
+                        }
                     })
-                }, trailing: Button(action: self.core.sync) {
-                    Image(systemName: "arrow.2.circlepath.circle.fill")
+                }, trailing: HStack {
+                    Button(action: core.sync) {
+                        SyncIndicator(syncing: $core.syncing)
+                            .foregroundColor(core.syncing ? .pink : .accentColor)
+                    }
+                    .disabled(core.syncing)
                 })
         #else
             return baseView
                 .toolbar {
                     HStack {
-                        Button(action: self.core.sync) {
-                            Image(systemName: "arrow.2.circlepath.circle.fill")
+                        Button(action: core.sync) {
+                            SyncIndicator(syncing: $core.syncing)
+                                .foregroundColor(core.syncing ? .pink : .accentColor)
                         }
+                        .disabled(core.syncing)
                         Button(action: { showingCreate.toggle() }) {
                             Image(systemName: "plus.circle")
                         }
                         .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
+                        .popover(isPresented: $showingCreate, content: {
+                            if let folder = selectedFolder {
+                                CreateFileView(core: core, isPresented: $showingCreate, currentFolder: folder)
+                                    .padding(50)
+                            } else {
+                                Text("Select a folder first!")
+                                    .padding()
+                            }
+                        })
                     }
                 }
-                .sheet(isPresented: $showingCreate, content: {
-                    CreateFileView(core: core, isPresented: $showingCreate, currentFolder: selectedFolder)
-                        .padding(100)
-                })
         #endif
-    }
-}
-
-struct FlipToggleStyle: ToggleStyle {
-    typealias Side = (String, systemImage: String, color: Color)
-    let left: Side
-    let right: Side
-    
-    func makeBody(configuration: Configuration) -> some View {
-        Button(action: {
-            configuration.isOn.toggle()
-        }) {
-            HStack {
-                Label(left.0, systemImage: left.systemImage)
-                    .foregroundColor(left.color)
-                    .opacity(configuration.isOn ? 1 : 0.3)
-                Text("/")
-                    .foregroundColor(.black)
-                Label(right.0, systemImage: right.systemImage)
-                    .foregroundColor(right.color)
-                    .opacity(configuration.isOn ? 0.3 : 1)
-                
-            }
-        }
     }
 }
 
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            BookView(core: Core(), account: Account(username: "test"), root: FakeApi().root)
+            BookView(core: Core(), account: Account(username: "test"))
                 .ignoresSafeArea()
-            BookView(core: Core(), account: Account(username: "test"), root: FakeApi().root)
+            BookView(core: Core(), account: Account(username: "test"))
                 .ignoresSafeArea()
                 .preferredColorScheme(.dark)
-            Toggle("Folder", isOn: .constant(true))
-                .toggleStyle(FlipToggleStyle(left: ("Doc", "doc", .pink), right: ("Folder", "folder", .purple)))
-                .padding()
-                .previewLayout(.sizeThatFits)
         }
     }
 }

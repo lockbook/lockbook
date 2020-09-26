@@ -10,7 +10,10 @@ class Core: ObservableObject {
     @Published var message: Message? = nil
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
-
+    @Published var syncing: Bool = false
+    let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    
+    private var passthrough = PassthroughSubject<Void, ApplicationError>()
     private var cancellableSet: Set<AnyCancellable> = []
     
     func purge() {
@@ -22,11 +25,14 @@ class Core: ObservableObject {
     }
     
     func sync() {
-        switch api.synchronize() {
-        case .success(_):
-            updateFiles()
-        case .failure(let err):
-            displayError(error: err)
+        self.syncing = true
+        DispatchQueue.global(qos: .background).async {
+            switch self.api.synchronize() {
+            case .success(_):
+                self.passthrough.send(())
+            case .failure(let err):
+                self.passthrough.send(completion: .failure(err))
+            }
         }
     }
     
@@ -45,12 +51,6 @@ class Core: ObservableObject {
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
         return FileMetadataWithChildren(meta: meta, children: files.filter({ $0.parent == meta.id && $0.id != meta.id }).map(buildTree))
-    }
-    
-    func createFile(fullPath: String) {
-        fullPath.split(separator: "/").forEach({ s in
-            print(String(s))
-        })
     }
     
     func updateFiles() {
@@ -81,6 +81,23 @@ class Core: ObservableObject {
         self.api = api
         print("API URL: \(api.getApiLocation())")
         self.updateFiles()
+        
+        passthrough
+            .receive(on: RunLoop.main)
+            .sink(receiveCompletion: { err in
+                self.syncing = false
+                switch err {
+                case .failure(let err):
+                    print("Error \(err.message())")
+                    self.displayError(error: err)
+                case .finished:
+                    print("Sync subscription finished!")
+                }
+            }, receiveValue: { _ in
+                self.updateFiles()
+                self.syncing = false
+            })
+            .store(in: &cancellableSet)
     }
     
     init() {
