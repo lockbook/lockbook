@@ -30,9 +30,6 @@ struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
         /// You can point this to a real directory with:
         // OnboardingView(core: Core(documenstDirectory: "<somedir>"))
-        OnboardingView(core: Core())
-        
-        MessageBanner(core: Core(), message: Message(words: "Oof!", icon: "exclamationmark.bubble", color: .yellow))
-            .previewLayout(.sizeThatFits)
+        OnboardingView(core: Core())        
     }
 }

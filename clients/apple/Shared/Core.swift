@@ -7,7 +7,6 @@ class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
     @Published var account: Account?
-    @Published var message: Message? = nil
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
@@ -37,16 +36,7 @@ class Core: ObservableObject {
     }
     
     func displayError(error: ApplicationError) {
-        switch error {
-        case .Lockbook(let err):
-            self.message = Message(words: err.localizedDescription, icon: "xmark.shield.fill", color: .yellow)
-        case .Serialization(let msg):
-            self.message = Message(words: msg, icon: "square.fill.and.line.vertical.square.fill", color: .purple)
-        case .State(let msg):
-            self.message = Message(words: msg, icon: "burst.fill", color: .red)
-        case .General(let err):
-            self.message = Message(words: err.localizedDescription, icon: "exclamationmark.square.fill", color: .red)
-        }
+        print("Error \(error.message())")
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
@@ -88,7 +78,6 @@ class Core: ObservableObject {
                 self.syncing = false
                 switch err {
                 case .failure(let err):
-                    print("Error \(err.message())")
                     self.displayError(error: err)
                 case .finished:
                     print("Sync subscription finished!")
