@@ -13,30 +13,32 @@ struct AccountView: View {
     }
     
     var body: some View {
-        VStack(alignment: .center, spacing: 50) {
+        VStack(spacing: 50) {
             Text("\(account.username)'s Account")
                 .font(.title)
-            Section(header: Text("Account String").font(.headline)) {
-                Button(action: { showingCode.toggle() }) {
-                    Label("Show QR Code", systemImage: "qrcode")
-                }
-                HStack {
-                    Button(action: copyAccountString ) {
-                        Label("Copy to Clipboard", systemImage: "pencil.and.ellipsis.rectangle")
+            GroupBox(label: Text("Account String").padding(.bottom, 20)) {
+                VStack(spacing: 20) {
+                    Button(action: { showingCode.toggle() }) {
+                        Label("Show QR Code", systemImage: "qrcode")
                     }
-                    copiedString.map { b in
-                        Button(action: hideMessage ) {
-                            if (b) {
-                                Label("Copied!", systemImage: "checkmark.square").foregroundColor(.green)
-                            } else {
-                                Label("Failed", systemImage: "exclamationmark.square").foregroundColor(.red)
-                            }
+                    HStack {
+                        Button(action: copyAccountString ) {
+                            Label("Copy to Clipboard", systemImage: "pencil.and.ellipsis.rectangle")
                         }
-                        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: hideMessage) }
+                        copiedString.map { b in
+                            Button(action: hideMessage ) {
+                                if (b) {
+                                    Label("Copied!", systemImage: "checkmark.square").foregroundColor(.green)
+                                } else {
+                                    Label("Failed", systemImage: "exclamationmark.square").foregroundColor(.red)
+                                }
+                            }
+                            .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: hideMessage) }
+                        }
                     }
                 }
             }
-            Section(header: Text("Debug").font(.headline)) {
+            GroupBox(label: Text("Debug").padding(.bottom, 20)) {
                 Button(action: purgeAndLogout) {
                     Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
                         .foregroundColor(.red)
