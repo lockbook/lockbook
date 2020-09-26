@@ -373,26 +373,27 @@ mod unit_tests {
 
     type DefaultDbProvider = TempBackedDB;
 
+    macro_rules! assert_total_local_changes (
+        ($db:expr, $total:literal) => {
+            assert_eq!(
+                LocalChangesRepoImpl::get_all_local_changes($db)
+                    .unwrap()
+                    .len(),
+                $total
+            );
+        }
+    );
+
     #[test]
     fn local_changes_runthrough() {
-        let id = Uuid::new_v4();
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
 
+        let id = Uuid::new_v4();
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
             Some(LocalChange {
@@ -503,33 +504,17 @@ mod unit_tests {
                 deleted: true,
             })
         );
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            4
-        );
+        assert_total_local_changes!(&db, 4);
 
         LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
             None
         );
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            4
-        );
+        assert_total_local_changes!(&db, 4);
 
         LocalChangesRepoImpl::untrack_edit(&db, id).unwrap();
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            4
-        );
+        assert_total_local_changes!(&db, 4);
 
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
@@ -550,31 +535,13 @@ mod unit_tests {
         let id = Uuid::new_v4();
 
         LocalChangesRepoImpl::track_rename(&db, id, "old_file", "new_name").unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         LocalChangesRepoImpl::track_rename(&db, id, "garbage", "garbage2").unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         LocalChangesRepoImpl::track_rename(&db, id, "garbage", "old_file").unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
     }
 
     #[test]
@@ -584,30 +551,12 @@ mod unit_tests {
         let og = Uuid::new_v4();
 
         LocalChangesRepoImpl::track_move(&db, id, og, Uuid::new_v4()).unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         LocalChangesRepoImpl::track_move(&db, id, Uuid::new_v4(), og).unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
     }
 }
