@@ -94,5 +94,5 @@ containers/prod.env
 containers/devtest.env
 server/qa-ca-certificate.crt
 clients/android/core/src/main/jniLibs/
-clients/apple/CLockbookCore/Sources/CLockbookCore/lib/liblockbook_core.a
-clients/apple/CLockbookCore/Sources/CLockbookCore/include/lockbook_core.h
+liblockbook_core.a
+lockbook_core.h
