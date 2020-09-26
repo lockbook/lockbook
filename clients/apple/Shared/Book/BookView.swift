@@ -50,12 +50,12 @@ struct FileListView: View {
                 if meta.meta.fileType == .Folder {
                     FileCell(meta: meta.meta)
                         .foregroundColor(meta.id == selectedFolder?.id ? .accentColor : .primary)
+                        .onTapGesture {
+                            selectedFolder = meta
+                        }
                         .onLongPressGesture {
                             selectedFolder = meta
                             showingCreate = true
-                        }
-                        .onTapGesture {
-                            selectedFolder = meta
                         }
                 } else {
                     NavigationLink(destination: EditorView(core: core, meta: meta.meta).equatable()) {
