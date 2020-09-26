@@ -54,7 +54,7 @@
          <EnvironmentVariable
             key = "LOCKBOOK_DEBUG"
             value = "1"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "LOCKBOOK_NO_COLOR"
