@@ -19,7 +19,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
-    private val drawingMatrix = Matrix()
+    private val viewPort = Rect()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -35,14 +35,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
                     lockBookDrawable.page.transformation.translation.x = detector.focusX
                     lockBookDrawable.page.transformation.translation.y = detector.focusY
-                    Timber.e("Point: ${lockBookDrawable.page.transformation.translation.x}, ${lockBookDrawable.page.transformation.translation.y}")
-
-                    drawingMatrix.setScale(
-                        lockBookDrawable.page.transformation.scale,
-                        lockBookDrawable.page.transformation.scale,
-                        detector.focusX,
-                        detector.focusY
-                    )
 
                     drawBitmap()
                     return true
@@ -79,7 +71,16 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             Color.TRANSPARENT,
             PorterDuff.Mode.CLEAR
         )
-        canvas.drawBitmap(canvasBitmap, drawingMatrix, null)
+        canvas.save()
+        canvas.scale(
+            lockBookDrawable.page.transformation.scale,
+            lockBookDrawable.page.transformation.scale,
+            lockBookDrawable.page.transformation.translation.x,
+            lockBookDrawable.page.transformation.translation.y
+        )
+        viewPort.set(canvas.clipBounds)
+        canvas.drawBitmap(canvasBitmap, Matrix(), null)
+        canvas.restore()
         holder.unlockCanvasAndPost(canvas)
     }
 
@@ -138,14 +139,17 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(event: MotionEvent) {
         activePaint.strokeWidth = event.pressure * 7
         activePath.moveTo(
-            (lastPoint.x + lockBookDrawable.page.transformation.translation.x) / lockBookDrawable.page.transformation.scale,
-            (lastPoint.y + lockBookDrawable.page.transformation.translation.y) / lockBookDrawable.page.transformation.scale
-        )
-        activePath.lineTo(
-            (event.x + lockBookDrawable.page.transformation.translation.x) / lockBookDrawable.page.transformation.scale,
-            (event.y + lockBookDrawable.page.transformation.translation.y) / lockBookDrawable.page.transformation.scale
+            (viewPort.right * lastPoint.x) / tempCanvas.clipBounds.right,
+            (viewPort.bottom * lastPoint.y) / tempCanvas.clipBounds.bottom
         )
 
+        activePath.lineTo(
+            (viewPort.right * event.x) / tempCanvas.clipBounds.right,
+            (viewPort.bottom * event.y) / tempCanvas.clipBounds.bottom
+        )
+        Timber.e("One: ${(viewPort.right * event.x) / tempCanvas.clipBounds.right}, Two: ${(viewPort.left * event.x) / tempCanvas.clipBounds.left}")
+
+        tempCanvas.drawPath(activePath, activePaint)
         drawBitmap()
 
         activePath.reset()
@@ -163,6 +167,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val canvas = holder.lockCanvas()
         canvasBitmap = Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
+        viewPort.set(canvas.clipBounds)
         holder.unlockCanvasAndPost(canvas)
     }
 
