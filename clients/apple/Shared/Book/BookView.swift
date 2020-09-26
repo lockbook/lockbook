@@ -42,7 +42,8 @@ struct FileListView: View {
     let account: Account
     @State var selectedFolder: FileMetadataWithChildren?
     @State var showingCreate: Bool = false
-
+    @State var showingAccount: Bool = false
+    
     var body: some View {
         let baseView = List {
             OutlineGroup(core.grouped, children: \.children) { meta in
@@ -78,9 +79,12 @@ struct FileListView: View {
         #if os(iOS)
             return baseView
                 .navigationBarItems(leading: HStack {
-                    NavigationLink(destination: AccountView(core: core, account: account)) {
+                    Button(action: { showingAccount.toggle() }) {
                         Image(systemName: "person.circle.fill")
                     }
+                    .sheet(isPresented: $showingAccount, content: {
+                        AccountView(core: core, account: account)
+                    })
                     Button(action: { showingCreate.toggle() }) {
                         Image(systemName: "plus.circle")
                     }
@@ -107,7 +111,6 @@ struct FileListView: View {
                     HStack {
                         Button(action: core.sync) {
                             SyncIndicator(syncing: $core.syncing)
-                                .foregroundColor(core.syncing ? .pink : .accentColor)
                         }
                         .disabled(core.syncing)
                         Button(action: { showingCreate.toggle() }) {
