@@ -44,7 +44,11 @@ struct EditorView: View, Equatable {
         #else
         baseEditor
             .toolbar(content: {
-                ToolbarItem(placement: .automatic) { makeStatus() }
+                ToolbarItem(placement: .automatic) {
+                    makeStatus()
+                        .font(.title)
+                    
+                }
             })
         #endif
     }
