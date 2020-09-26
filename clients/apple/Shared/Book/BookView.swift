@@ -7,7 +7,7 @@ struct BookView: View {
     
     var body: some View {
         NavigationView {
-            FileListView(core: core, account: account)
+            FileListView(core: core, account: account, selectedFolder: core.grouped.first!)
             
             Text("Pick a file!")
         }
@@ -40,16 +40,22 @@ struct FileCell: View {
 struct FileListView: View {
     @ObservedObject var core: Core
     let account: Account
-    @State var selectedFolder: FileMetadataWithChildren?
+    @State var selectedFolder: FileMetadataWithChildren
     @State var showingCreate: Bool = false
     @State var showingAccount: Bool = false
+    
+//    init(core: Core, account: Account, root: FileMetadataWithChildren) {
+//        self.core = core
+//        self.account = account
+//        self.selectedFolder = root
+//    }
     
     var body: some View {
         let baseView = List {
             OutlineGroup(core.grouped, children: \.children) { meta in
                 if meta.meta.fileType == .Folder {
                     FileCell(meta: meta.meta)
-                        .foregroundColor(meta.id == selectedFolder?.id ? .accentColor : .primary)
+                        .foregroundColor(meta.id == selectedFolder.id ? .accentColor : .primary)
                         .onTapGesture {
                             selectedFolder = meta
                         }
@@ -126,7 +132,7 @@ struct FileListView: View {
                                     .padding()
                             }
                         })
-                    }
+                    }.font(.title)
                 }
         #endif
     }
