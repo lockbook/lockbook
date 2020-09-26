@@ -2,7 +2,12 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
-struct EditorView: View {
+struct EditorView: View, Equatable {
+    /// Define an always equality so that this view doesn't reload once it's initialized
+    static func == (lhs: EditorView, rhs: EditorView) -> Bool {
+        lhs.meta.id == rhs.meta.id
+    }
+    
     @ObservedObject var core: Core
     @ObservedObject var buffer: Buffer
     let meta: FileMetadata
