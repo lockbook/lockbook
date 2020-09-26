@@ -91,7 +91,7 @@ struct FileListView: View {
                     .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                     .popover(isPresented: $showingCreate, content: {
                         if let folder = selectedFolder {
-                            CreateFileView(core: core, isPresented: $showingCreate, currentFolder: folder)
+                            CreateFileView(core: core, currentFolder: folder)
                                 .padding(50)
                         } else {
                             Text("Select a folder first!")
