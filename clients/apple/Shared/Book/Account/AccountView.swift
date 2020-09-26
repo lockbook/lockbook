@@ -5,46 +5,51 @@ struct AccountView: View {
     @ObservedObject var core: Core
     let account: Account
     @State var showingCode: Bool = false
-    @State var copiedString: Bool = false
+    @State var copiedString: Bool?
+    @Environment(\.presentationMode) var presentationMode
+
+    fileprivate func hideMessage() {
+        withAnimation { copiedString = nil }
+    }
     
     var body: some View {
-        VStack {
-            Button(action: { showingCode.toggle() }) {
-                Label("Account Code", systemImage: "qrcode")
-            }
-            .padding()
-            Button(action: {
-                switch core.api.exportAccount() {
-                case .success(let accountString):
-                    #if os(iOS)
-                    UIPasteboard.general.string = accountString
-                    #else
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(accountString, forType: .string)
-                    #endif
-                    copiedString.toggle()
-                case .failure(let err):
-                    core.displayError(error: err)
+        VStack(alignment: .center, spacing: 50) {
+            Text("\(account.username)'s Account")
+                .font(.title)
+            Section(header: Text("Account String").font(.headline)) {
+                Button(action: { showingCode.toggle() }) {
+                    Label("Show QR Code", systemImage: "qrcode")
                 }
-            }) {
-                Label("Account String", systemImage: "pencil.and.ellipsis.rectangle")
+                HStack {
+                    Button(action: copyAccountString ) {
+                        Label("Copy to Clipboard", systemImage: "pencil.and.ellipsis.rectangle")
+                    }
+                    copiedString.map { b in
+                        Button(action: hideMessage ) {
+                            if (b) {
+                                Label("Copied!", systemImage: "checkmark.square").foregroundColor(.green)
+                            } else {
+                                Label("Failed", systemImage: "exclamationmark.square").foregroundColor(.red)
+                            }
+                        }
+                        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: hideMessage) }
+                    }
+                }
             }
-            .alert(isPresented: $copiedString, content: {
-                Alert(title: Text("Copied account string to clipboard!"))
-            })
-            .padding()
-            Button(action: self.core.purge) {
-                Label("Purge Account", systemImage: "person.crop.circle.badge.xmark")
+            Section(header: Text("Debug").font(.headline)) {
+                Button(action: purgeAndLogout) {
+                    Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
+                        .foregroundColor(.red)
+                }
             }
-            .padding()
         }
-        .navigationTitle("\(account.username)")
         .sheet(isPresented: $showingCode, content: {
             VStack {
                 if let code = accountCode(), let cgCode = CIContext().createCGImage(code, from: code.extent) {
                     Image(cgCode, scale: 1.0, label: Text(""))
                 } else {
-                    Image(systemName: "person.crop.circle.badge.exclam")
+                    Label("Could not export account!", systemImage: "person.crop.circle.badge.exclam")
+                        .padding()
                 }
                 Button("Dismiss", action: { showingCode.toggle() })
             }
@@ -67,12 +72,33 @@ struct AccountView: View {
         }
         return nil
     }
+    
+    func copyAccountString() {
+        withAnimation {
+            switch core.api.exportAccount() {
+            case .success(let accountString):
+                #if os(iOS)
+                UIPasteboard.general.string = accountString
+                #else
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(accountString, forType: .string)
+                #endif
+                copiedString = true
+            case .failure(let err):
+                copiedString = false
+                core.displayError(error: err)
+            }
+        }
+    }
+    
+    func purgeAndLogout() {
+        presentationMode.wrappedValue.dismiss()
+        DispatchQueue.global(qos: .userInteractive).async { core.self.purge() }
+    }
 }
 
 struct AccountView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
-            AccountView(core: Core(), account: Account(username: "test"))
-        }
+        AccountView(core: Core(), account: Account(username: "test"))
     }
 }
