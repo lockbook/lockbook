@@ -49,9 +49,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-//            drawingMatrix.setTranslate(distanceX, distanceY)
-//
-//            drawBitmap()
+                lockBookDrawable.page.transformation.translation.x += (distanceX * 4 / lockBookDrawable.page.transformation.scale)
+                lockBookDrawable.page.transformation.translation.y += (distanceY * 4 / lockBookDrawable.page.transformation.scale)
                 return true
             }
         }
@@ -74,6 +73,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             lockBookDrawable.page.transformation.translation.x,
             lockBookDrawable.page.transformation.translation.y
         )
+//        canvas.translate(
+//            -lockBookDrawable.page.transformation.translation.x,
+//            -lockBookDrawable.page.transformation.translation.y
+//        )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
             Color.TRANSPARENT,
@@ -104,6 +107,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun handleFingerEvent(event: MotionEvent) {
         scaleGestureDetector.onTouchEvent(event)
         gestureDetector.onTouchEvent(event)
+
+        Thread {
+            val canvas = holder.lockCanvas()
+            synchronized(holder) {drawBitmap(canvas)}
+            holder.unlockCanvasAndPost(canvas)
+        }.start()
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
@@ -194,6 +203,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 activePath.reset()
+
+                Thread {
+                    val canvas = holder.lockCanvas()
+                    synchronized(holder) { drawBitmap(canvas) }
+                    holder.unlockCanvasAndPost(canvas)
+                }.start()
             }
         }
     }
