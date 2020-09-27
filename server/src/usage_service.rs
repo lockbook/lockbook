@@ -41,12 +41,12 @@ pub async fn calculate(
     transaction: &Transaction<'_>,
     username: &String,
 ) -> Result<Vec<FileUsage>, UsageCalculateError> {
-    let results = transaction
+    transaction
         .query(
             "with a as (
                             select file_id, generate_series(cast(date_trunc('month', current_date) as date), current_date, interval '1 day') dt
                             from usage_ledger
-                            where owner = 'raayan100'
+                            where owner = $1
                             group by file_id
                         ),
                              intervaled as (
@@ -73,11 +73,9 @@ pub async fn calculate(
             &[username],
         )
         .await
-        .map_err(UsageCalculateError::Postgres)?;
-
-    debug!("Returned {} results!", results.len());
-
-    results.iter().map(row_to_usage).collect()
+        .map_err(UsageCalculateError::Postgres)?
+        .iter()
+        .map(row_to_usage).collect()
 }
 
 #[derive(Debug)]
