@@ -1,18 +1,19 @@
 use std::path::PathBuf;
 
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use structopt::StructOpt;
 
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
+mod backup;
 mod copy;
 mod edit;
 mod export_private_key;
 mod import_private_key;
-mod new_account;
 mod list;
 mod move_file;
 mod new;
+mod new_account;
 mod print;
 mod remove;
 mod rename;
@@ -24,11 +25,25 @@ mod whoami;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
-    /// Bring a file from your computer into a target destination inside your Lockbook. If your Lockbook target destination is a Folder, the file name will be taken from the file-system file.
-    Copy { file: PathBuf, destination: String },
+    /// Bring a file from your computer into a target destination inside your Lockbook. If your
+    /// Lockbook target destination is a Folder, the file name will be taken from the file-system
+    /// file.
+    Copy {
+        /// Edit the file if it exists already
+        #[structopt(long)]
+        edit: bool,
+
+        /// File on your local filesystem to be copied into Lockbook
+        file: PathBuf,
+
+        /// Destination within your Lockbook to put the file
+        destination: String,
+    },
 
     /// Open a document for editing
-    Edit { path: String },
+    Edit {
+        path: String,
+    },
 
     /// Export your private key
     ExportPrivateKey,
@@ -47,27 +62,38 @@ enum Lockbook {
     ListAll,
 
     /// List only documents (the things you can filter for edit)
-    #[structopt(name = "list-docs")]
     ListDocs,
 
     /// List all your folders (the things you can filter for the start of new)
-    #[structopt(name = "list-folders")]
     ListFolders,
 
-    /// Move a specified file such that it has the target parent (list-all for first parameter list-folders for second parameter)
-    Move { target: String, new_parent: String },
+    /// Move a specified file such that it has the target parent (list-all for first parameter
+    /// list-folders for second parameter)
+    Move {
+        target: String,
+        new_parent: String,
+    },
 
     /// Create a new document or folder
-    New { path: String },
+    New {
+        path: String,
+    },
 
     /// Print the contents of a file
-    Print { path: String },
+    Print {
+        path: String,
+    },
 
     /// Rename a file at a path to a target value
-    Rename { path: String, name: String },
+    Rename {
+        path: String,
+        name: String,
+    },
 
     /// Move a file to trash TODO
-    Remove { path: String },
+    Remove {
+        path: String,
+    },
 
     /// What operations a sync would perform
     Status,
@@ -78,15 +104,22 @@ enum Lockbook {
     /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
+
+    // Backup your Lockbook files and structure to the current directory
+    Backup,
 }
 
 fn main() {
     init_logger_or_print();
+    let args: Lockbook = Lockbook::from_args();
     check_and_perform_migrations();
 
-    let args: Lockbook = Lockbook::from_args();
     match args {
-        Lockbook::Copy { file, destination} => copy::copy(file, &destination),
+        Lockbook::Copy {
+            file,
+            destination,
+            edit,
+        } => copy::copy(file, &destination),
         Lockbook::Edit { path } => edit::edit(&path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
@@ -103,6 +136,7 @@ fn main() {
         Lockbook::Status => status::status(),
         Lockbook::Sync => sync::sync(),
         Lockbook::WhoAmI => whoami::whoami(),
+        Lockbook::Backup => backup::backup(),
     }
 }
 
@@ -138,3 +172,5 @@ static UNINSTALL_REQUIRED: u8 = 26;
 static PATH_CONTAINS_EMPTY_FILE: u8 = 27;
 static NAME_EMPTY: u8 = 28;
 static NO_ROOT_OPS: u8 = 29;
+static PWD_MISSING: u8 = 30;
+static COULD_NOT_CREATE_OS_DIRECTORY: u8 = 31;
