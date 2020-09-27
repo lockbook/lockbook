@@ -52,8 +52,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
                     handwriting_editor.drawLockbookDrawable()
-                    handwriting_editor.isThreadRunning = true
-                    Thread(handwriting_editor).start()
                 }
 
                 override fun surfaceChanged(
@@ -64,15 +62,12 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 ) {}
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                    handwriting_editor.isThreadRunning = false
                 }
             })
         } else {
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
-                    handwriting_editor.isThreadRunning = true
-                    Thread(handwriting_editor).start()
                 }
 
                 override fun surfaceChanged(
@@ -83,7 +78,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 ) {}
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                    handwriting_editor.isThreadRunning = false
                 }
             })
         }
