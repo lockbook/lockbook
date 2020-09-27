@@ -64,6 +64,7 @@ pub async fn calculate(
                         with_latest as (
                             select *, last_value(bytes) over (ORDER BY file_id DESC) AS most_recent
                             from intervaled
+                            where bytes is not null
                         )
                         select file_id, avg(bytes)::bigint AS usage_mtd_avg, max(most_recent) AS usage_latest
                         from with_latest
