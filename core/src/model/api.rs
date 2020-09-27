@@ -319,7 +319,14 @@ pub struct GetUsageRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUsageResponse {
-    pub usage: i64,
+    pub usages: Vec<FileUsage>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct FileUsage {
+    pub file_id: String,
+    pub byte_secs: i64,
+    pub secs: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
