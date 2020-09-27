@@ -18,7 +18,7 @@ pub async fn track(
     let _ = transaction
         .execute(
             "INSERT INTO usage_ledger (file_id, owner, bytes, timestamp)
-            VALUES ($1, $2, $3, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT));",
+            VALUES ($1, $2, $3, now());",
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 username,
@@ -43,21 +43,32 @@ pub async fn calculate(
 ) -> Result<Vec<FileUsage>, UsageCalculateError> {
     let results = transaction
         .query(
-            "WITH integrated_usage AS (
-                    SELECT
-                        file_id,
-                        bytes,
-                        timestamp,
-                        least(
-                            lag(timestamp) OVER (ORDER BY timestamp DESC) - timestamp,
-                            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) - timestamp
-                        ) AS life
-                    FROM usage_ledger
-                    WHERE owner = $1
-                )
-                SELECT file_id, (sum(bytes*life)/(3600*24*30))::bigint usage
-                FROM integrated_usage
-                GROUP BY file_id;",
+            "with a as (
+                            select file_id, generate_series(cast(date_trunc('month', current_date) as date), current_date, interval '1 day') dt
+                            from usage_ledger
+                            where owner = $1
+                            group by file_id
+                        ),
+                        intervaled as (
+                            select file_id,
+                                   (select t1.bytes
+                                    from usage_ledger t1
+                                    where t1.file_id = a.file_id
+                                      and t1.timestamp::date <= a.dt
+                                    order by timestamp desc
+                                    limit 1),
+                                   dt
+                            from a
+                            order by dt desc
+                        ),
+                        with_latest as (
+                            select *, last_value(bytes) over (ORDER BY file_id DESC) AS most_recent
+                            from intervaled
+                        )
+                        select file_id, avg(bytes)::bigint AS usage_mtd_avg, max(most_recent) AS usage_latest
+                        from with_latest
+                        where dt > cast(date_trunc('month', current_date) as date)
+                        group by file_id;",
             &[username],
         )
         .await
@@ -71,7 +82,8 @@ pub async fn calculate(
 #[derive(Debug)]
 pub struct FileUsage {
     file_id: String,
-    pub usage: i64,
+    pub usage_mtd_avg: i64,
+    pub usage_latest: i64,
 }
 
 fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalculateError> {
@@ -79,8 +91,11 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
         file_id: row
             .try_get("file_id")
             .map_err(UsageCalculateError::Postgres)?,
-        usage: row
-            .try_get("usage")
+        usage_mtd_avg: row
+            .try_get("usage_mtd_avg")
+            .map_err(UsageCalculateError::Postgres)?,
+        usage_latest: row
+            .try_get("usage_latest")
             .map_err(UsageCalculateError::Postgres)?,
     })
 }

@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS user_access_keys (
 
 CREATE TABLE IF NOT EXISTS usage_ledger (
 	file_id			    TEXT NOT NULL,
-	timestamp           BIGINT NOT NULL,
+	timestamp           timestamptz NOT NULL,
 	owner			    TEXT NOT NULL,
     bytes               BIGINT NOT NULL,
 	CONSTRAINT pk_usage_ledger                      PRIMARY KEY (file_id, timestamp),
