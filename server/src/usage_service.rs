@@ -46,26 +46,26 @@ pub async fn calculate(
             "with a as (
                             select file_id, generate_series(cast(date_trunc('month', current_date) as date), current_date, interval '1 day') dt
                             from usage_ledger
-                            where owner = $1
+                            where owner = 'raayan100'
                             group by file_id
                         ),
-                        intervaled as (
-                            select file_id,
-                                   (select t1.bytes
-                                    from usage_ledger t1
-                                    where t1.file_id = a.file_id
-                                      and t1.timestamp::date <= a.dt
-                                    order by timestamp desc
-                                    limit 1),
-                                   dt
-                            from a
-                            order by dt desc
-                        ),
-                        with_latest as (
-                            select *, last_value(bytes) over (ORDER BY file_id DESC) AS most_recent
-                            from intervaled
-                            where bytes is not null
-                        )
+                             intervaled as (
+                                 select file_id,
+                                        (select t1.bytes
+                                         from usage_ledger t1
+                                         where t1.file_id = a.file_id
+                                           and t1.timestamp::date <= a.dt
+                                         order by timestamp desc
+                                         limit 1),
+                                        dt
+                                 from a
+                                 order by dt desc
+                             ),
+                             with_latest as (
+                                 select *, first_value(bytes) over (ORDER BY file_id DESC) AS most_recent
+                                 from intervaled
+                                 where bytes is not null
+                             )
                         select file_id, avg(bytes)::bigint AS usage_mtd_avg, max(most_recent) AS usage_latest
                         from with_latest
                         where dt > cast(date_trunc('month', current_date) as date)
