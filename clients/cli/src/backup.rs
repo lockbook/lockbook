@@ -5,7 +5,10 @@ use std::{env, fs};
 
 use chrono::{DateTime, Utc};
 use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-use lockbook_core::{get_file_by_path, list_paths, GetFileByPathError, ListPathsError, read_document, ReadDocumentError};
+use lockbook_core::{
+    get_file_by_path, list_paths, read_document, GetFileByPathError, ListPathsError,
+    ReadDocumentError,
+};
 
 use crate::utils::{exit_with, get_account_or_exit, get_config};
 use crate::{
@@ -119,15 +122,17 @@ pub fn backup() {
                 }
             });
 
-        let document_content = read_document(&get_config(), document_metadata.id).unwrap_or_else(|err| match err {
-            ReadDocumentError::TreatedFolderAsDocument |
-            ReadDocumentError::NoAccount |
-            ReadDocumentError::FileDoesNotExist |
-            ReadDocumentError::UnexpectedError(_) => exit_with(
-                &format!("Could not read file: {} error: {:?}", &doc, err),
-                UNEXPECTED_ERROR,
-            ),
-        }).secret;
+        let document_content = read_document(&get_config(), document_metadata.id)
+            .unwrap_or_else(|err| match err {
+                ReadDocumentError::TreatedFolderAsDocument
+                | ReadDocumentError::NoAccount
+                | ReadDocumentError::FileDoesNotExist
+                | ReadDocumentError::UnexpectedError(_) => exit_with(
+                    &format!("Could not read file: {} error: {:?}", &doc, err),
+                    UNEXPECTED_ERROR,
+                ),
+            })
+            .secret;
 
         document
             .write_all(document_content.as_bytes())
