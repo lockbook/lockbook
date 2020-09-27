@@ -24,8 +24,8 @@ mod whoami;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
-    /// Bring a file from your computer into your Lockbook
-    Copy { file: PathBuf },
+    /// Bring a file from your computer into a target destination inside your Lockbook. If your Lockbook target destination is a Folder, the file name will be taken from the file-system file.
+    Copy { file: PathBuf, destination: String },
 
     /// Open a document for editing
     Edit { path: String },
@@ -86,7 +86,7 @@ fn main() {
 
     let args: Lockbook = Lockbook::from_args();
     match args {
-        Lockbook::Copy { file } => copy::copy(file),
+        Lockbook::Copy { file, destination} => copy::copy(file, &destination),
         Lockbook::Edit { path } => edit::edit(&path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
