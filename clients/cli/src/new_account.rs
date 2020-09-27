@@ -6,7 +6,7 @@ use lockbook_core::{create_account, CreateAccountError};
 use crate::utils::{exit_with, exit_with_offline, exit_with_upgrade_required, get_config};
 use crate::{ACCOUNT_ALREADY_EXISTS, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
 
-pub fn init() {
+pub fn new_account() {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -15,6 +15,8 @@ pub fn init() {
         .read_line(&mut username)
         .expect("Failed to read from stdin");
     username.retain(|c| c != '\n');
+
+    println!("Generating keys and checking for username availability...");
 
     match create_account(&get_config(), &username) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
