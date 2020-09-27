@@ -36,7 +36,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     init {
         val contents = handleReadDocument(id)
-        if(contents != null) {
+        if (contents != null) {
             history.add(history.lastIndex + 1, contents)
         }
     }
