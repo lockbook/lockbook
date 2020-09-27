@@ -16,6 +16,8 @@ pub fn new_account() {
         .expect("Failed to read from stdin");
     username.retain(|c| c != '\n');
 
+    println!("Generating keys and checking for username availability...");
+
     match create_account(&get_config(), &username) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
         Err(error) => match error {

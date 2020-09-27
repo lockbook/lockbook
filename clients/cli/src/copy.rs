@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use lockbook_core::{create_file_at_path, CreateFileAtPathError, write_document};
 use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::{create_file_at_path, write_document, CreateFileAtPathError};
 
+use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
 use crate::{
     COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_FILE, COULD_NOT_READ_OS_METADATA,
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
     PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR, UNIMPLEMENTED,
 };
-use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
 
 pub fn copy(path: PathBuf, import_dest: &str) {
     get_account_or_exit();
