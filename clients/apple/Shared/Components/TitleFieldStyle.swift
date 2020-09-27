@@ -13,6 +13,7 @@ struct TitleFieldStyle: TextFieldStyle {
             .background(Color.textEditorBackground(isDark: colorScheme == .dark))
         #else
         return base
+            .autocapitalization(.none)
         #endif
     }
 }
