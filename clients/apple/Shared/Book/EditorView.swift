@@ -2,6 +2,15 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
+#if os(macOS)
+extension NSTextField {
+    open override var focusRingType: NSFocusRingType {
+        get { .none }
+        set { }
+    }
+}
+#endif
+
 struct EditorView: View, Equatable {
     /// Define an always equality so that this view doesn't reload once it's initialized
     static func == (lhs: EditorView, rhs: EditorView) -> Bool {
@@ -9,19 +18,23 @@ struct EditorView: View, Equatable {
     }
     
     @ObservedObject var core: Core
-    @ObservedObject var titleBuffer: TitleBuffer
     @ObservedObject var contentBuffer: ContentBuffer
+    @State var editingTitle: Bool = false
+    @State var title: String
     let meta: FileMetadata
         
     var body: some View {
-        VStack {
-            TextField("your title here", text: titleBuffer.titleBinding)
-                .onAppear {
-                    titleBuffer.succeeded = true
-                }
-                
-            let baseEditor = TextEditor(text: $contentBuffer.content)
-                .padding(0.1)
+        VStack(spacing: 0) {
+            //            if editingTitle {
+            TextField("type a title", text: $title)
+                .textFieldStyle(TitleFieldStyle())
+            //            } else {
+            //                Text(meta.name)
+            //                    .onTapGesture {
+            //                        editingTitle = true
+            //                    }
+            //            }
+            let baseEditor = ContentEditor(text: $contentBuffer.content)
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
                     switch core.api.getFile(id: meta.id) {
@@ -77,8 +90,8 @@ struct EditorView: View, Equatable {
     init(core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
-        self.titleBuffer = TitleBuffer(meta: meta, core: core)
         self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
+        self._title = .init(initialValue: meta.name)
     }
 }
 
@@ -86,49 +99,6 @@ struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
             EditorView(core: Core(), meta: FakeApi().fileMetas[0])
-        }
-    }
-}
-
-class TitleBuffer: ObservableObject {
-    let meta: FileMetadata
-    private var cancellables: Set<AnyCancellable> = []
-    let core: Core
-    @Published var content: String
-    @Published var succeeded: Bool = false
-    var titleBinding: Binding<String>
-    
-    init(meta: FileMetadata, core: Core) {
-        self.meta = meta
-        self.core = core
-        self.content = meta.name
-        self.titleBinding = Binding.constant("")
-        self.titleBinding = Binding(get: {
-            return self.content
-        }, set: { v in
-            self.content = v
-        })
-        
-        $content
-            .debounce(for: 0.5, scheduler: DispatchQueue.global(qos: .background))
-            .filter({ _ in self.succeeded })
-            .eraseToAnyPublisher()
-            .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { (err) in
-//                self.status = .Failed
-            }, receiveValue: { (input) in
-                self.save()
-                self.core.updateFiles()
-            })
-            .store(in: &cancellables)
-    }
-    
-    func save() -> Result<Void, ApplicationError> {
-        switch core.api.renameFile(id: meta.id, name: content) {
-        case .success(_):
-            return .success(())
-        case .failure(let err):
-            return .failure(err)
         }
     }
 }
