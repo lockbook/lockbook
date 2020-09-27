@@ -1,5 +1,6 @@
 use crate::file_content_client;
 use crate::file_index_repo;
+use crate::usage_service;
 use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
 use lockbook_core::model::api::*;
@@ -30,6 +31,19 @@ pub async fn change_document_content(
         request.old_metadata_version,
     )
     .await;
+
+    usage_service::track(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.new_content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        ChangeDocumentContentError::InternalError
+    })?;
+
     let (old_content_version, new_version) = result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
         file_index_repo::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
@@ -134,6 +148,19 @@ pub async fn create_document(
         &request.content,
     )
     .await;
+
+    usage_service::track(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        CreateDocumentError::InternalError
+    })?;
+
     if files_result.is_err() {
         error!(
             "Internal server error! Cannot create file in S3: {:?}",
