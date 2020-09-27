@@ -1,3 +1,4 @@
+use lockbook_core::model::api::FileUsage;
 use lockbook_core::model::crypto::EncryptedValueWithNonce;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
@@ -41,60 +42,78 @@ pub async fn calculate(
     transaction: &Transaction<'_>,
     username: &String,
 ) -> Result<Vec<FileUsage>, UsageCalculateError> {
-    transaction
+    let result = transaction
         .query(
-            "with a as (
-                            select file_id, generate_series(cast(date_trunc('month', current_date) as date), current_date, interval '1 day') dt
-                            from usage_ledger
-                            where owner = $1
-                            group by file_id
-                        ),
-                             intervaled as (
-                                 select file_id,
-                                        (select t1.bytes
-                                         from usage_ledger t1
-                                         where t1.file_id = a.file_id
-                                           and t1.timestamp::date <= a.dt
-                                         order by timestamp desc
-                                         limit 1),
-                                        dt
-                                 from a
-                                 order by dt desc
-                             ),
-                             with_latest as (
-                                 select *, first_value(bytes) over (ORDER BY file_id DESC) AS most_recent
-                                 from intervaled
-                                 where bytes is not null
-                             )
-                        select file_id, avg(bytes)::bigint AS usage_mtd_avg, max(most_recent) AS usage_latest
-                        from with_latest
-                        where dt > cast(date_trunc('month', current_date) as date)
-                        group by file_id;",
-            &[username],
+            "
+with months as (
+    select generate_series($1::text::date, $2::text::date, interval '1 hour') as timestamp
+),
+     with_months as (
+         select distinct m.timestamp, ul.file_id, ul.owner
+         from months m
+                  cross join usage_ledger ul
+     ),
+     with_months_and_usage as (
+         select file_id,
+                timestamp,
+                owner,
+                coalesce((select first_value(bytes) OVER (ORDER BY timestamp DESC)
+                          from usage_ledger ul
+                          where ul.timestamp < wm.timestamp
+                            and ul.file_id = wm.file_id
+                          limit 1), 0) bytes
+         from with_months wm
+         union
+         select *
+         from usage_ledger
+         where timestamp > $1::text::date
+         and timestamp < $2::text::date
+         order by file_id, timestamp desc
+     ),
+     lagged as (
+         select file_id,
+                timestamp          as start_date,
+                coalesce(lag(timestamp) OVER (PARTITION BY file_id ORDER BY timestamp desc), $2::text::date) as end_date,
+                bytes,
+                owner
+         from with_months_and_usage
+         where with_months_and_usage.owner = $3
+         order by file_id, start_date desc
+     ),
+     lagged_with_area as (
+         select *, (extract(epoch from (end_date - start_date)) * bytes)::bigint byte_secs
+         from lagged
+     ),
+     integrated_by_month as (
+         select file_id, sum(byte_secs)::bigint byte_secs, min(start_date), max(end_date), extract(epoch from (max(end_date) - min(start_date)))::bigint secs
+         from lagged_with_area
+         group by file_id
+     )
+select * from integrated_by_month;
+",
+            &[
+                &"2020-01-01",
+                &"2020-10-01",
+                username,
+            ],
         )
         .await
-        .map_err(UsageCalculateError::Postgres)?
-        .iter()
-        .map(row_to_usage).collect()
-}
+        .map_err(UsageCalculateError::Postgres)?;
 
-#[derive(Debug)]
-pub struct FileUsage {
-    file_id: String,
-    pub usage_mtd_avg: i64,
-    pub usage_latest: i64,
+    debug!("Results {}", result.len());
+
+    result.iter().map(row_to_usage).collect()
 }
 
 fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalculateError> {
+    debug!("Row {:#?}", row);
     Ok(FileUsage {
         file_id: row
             .try_get("file_id")
             .map_err(UsageCalculateError::Postgres)?,
-        usage_mtd_avg: row
-            .try_get("usage_mtd_avg")
+        byte_secs: row
+            .try_get("byte_secs")
             .map_err(UsageCalculateError::Postgres)?,
-        usage_latest: row
-            .try_get("usage_latest")
-            .map_err(UsageCalculateError::Postgres)?,
+        secs: row.try_get("secs").map_err(UsageCalculateError::Postgres)?,
     })
 }
