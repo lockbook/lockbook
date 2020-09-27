@@ -119,7 +119,7 @@ fn main() {
             file,
             destination,
             edit,
-        } => copy::copy(file, &destination),
+        } => copy::copy(file, &destination, edit),
         Lockbook::Edit { path } => edit::edit(&path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
