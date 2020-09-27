@@ -14,13 +14,11 @@ import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
-    SurfaceView(context, attributeSet), Runnable {
+    SurfaceView(context, attributeSet) {
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
     private val viewPort = Rect()
-    var isThreadRunning = false
-    private var previousTime = 0L
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -142,6 +140,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         tempCanvas.drawPath(activePath, activePaint)
 
+        Thread {
+            val canvas = holder.lockCanvas()
+            synchronized(holder) {drawBitmap(canvas)}
+            holder.unlockCanvasAndPost(canvas)
+        }.start()
+
         activePath.reset()
         lastPoint.set(x, y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
@@ -190,32 +194,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 activePath.reset()
-            }
-        }
-    }
-
-    override fun run() {
-        while (isThreadRunning) {
-            val currentTimeMillis = System.currentTimeMillis()
-            val elapsedTimeMs: Long = currentTimeMillis - previousTime
-            val sleepTimeMs = (1000f / 120 - elapsedTimeMs)
-
-            val canvas = holder.lockCanvas()
-            try {
-                if (canvas == null) {
-                    Thread.sleep(1)
-                    continue
-                } else if (sleepTimeMs > 0) {
-                    Thread.sleep(sleepTimeMs.toLong())
-                }
-                synchronized(holder) { drawBitmap(canvas) }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                if (canvas != null) {
-                    holder.unlockCanvasAndPost(canvas)
-                    previousTime = System.currentTimeMillis()
-                }
             }
         }
     }
