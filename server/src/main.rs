@@ -11,6 +11,7 @@ pub mod config;
 pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
+pub mod usage_service;
 pub mod utils;
 
 use crate::config::config;
@@ -126,6 +127,10 @@ async fn route(
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
             handle(&mut s, request, account_service::new_account).await
+        }
+        (&Method::GET, "/get-usage") => {
+            info!("Request matched GET /get-usage");
+            handle(&mut s, request, account_service::calculate_usage).await
         }
         _ => {
             warn!(

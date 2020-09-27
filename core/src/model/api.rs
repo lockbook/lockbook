@@ -312,6 +312,25 @@ pub enum GetPublicKeyError {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUsageRequest {
+    pub username: String,
+    pub client_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUsageResponse {
+    pub usage: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetUsageError {
+    InternalError,
+    InvalidUsername,
+    UserNotFound,
+    ClientUpdateRequired,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
     pub signature: SignedValue,
