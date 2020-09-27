@@ -23,7 +23,7 @@ struct EditorView: View, Equatable {
 
     var body: some View {
         return VStack(spacing: 0) {
-            TitleTextField(text: $contentBuffer.title, onCommit: {
+            TitleTextField(text: $contentBuffer.title, doneEditing: {
                 print("Done editing! \(contentBuffer.title)")
                 switch core.api.renameFile(id: meta.id, name: contentBuffer.title) {
                 case .success(_):

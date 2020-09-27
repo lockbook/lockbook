@@ -2,11 +2,15 @@ import SwiftUI
 
 struct TitleTextField: View {
     @Binding var text: String
-    let onCommit: () -> Void
+    let doneEditing: () -> Void
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        let base = TextField("", text: $text, onCommit: onCommit)
+        let base = TextField("", text: $text, onEditingChanged: { editing in
+            if !editing {
+                doneEditing()
+            }
+        })
             .textFieldStyle(PlainTextFieldStyle())
             .font(.largeTitle)
             .multilineTextAlignment(.center)
@@ -23,7 +27,7 @@ struct TitleTextField: View {
 
 struct TitleFieldStyle_Previews: PreviewProvider {
     static var previews: some View {
-        TitleTextField(text: .constant("text!"), onCommit: {})
+        TitleTextField(text: .constant("text!"), doneEditing: {})
             .padding()
             .previewLayout(.sizeThatFits)
     }
