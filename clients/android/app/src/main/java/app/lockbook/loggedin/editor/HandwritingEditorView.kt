@@ -12,14 +12,15 @@ import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
-import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
-    SurfaceView(context, attributeSet) {
+    SurfaceView(context, attributeSet), Runnable {
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
     private val viewPort = Rect()
+    var isThreadRunning = false
+    private var previousTime = 0L
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -29,33 +30,34 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     lockBookDrawable.page.transformation.scale *= detector.scaleFactor
-                    lockBookDrawable.page.transformation.scale = 0.1f.coerceAtLeast(
+                    lockBookDrawable.page.transformation.scale = 1f.coerceAtLeast(
                         lockBookDrawable.page.transformation.scale.coerceAtMost(5.0f)
                     )
 
                     lockBookDrawable.page.transformation.translation.x = detector.focusX
                     lockBookDrawable.page.transformation.translation.y = detector.focusY
 
-                    drawBitmap()
                     return true
                 }
-
             }
         )
 
-    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onScroll(
-            e1: MotionEvent?,
-            e2: MotionEvent?,
-            distanceX: Float,
-            distanceY: Float
-        ): Boolean {
+    private val gestureDetector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent?,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
 //            drawingMatrix.setTranslate(distanceX, distanceY)
 //
 //            drawBitmap()
-            return true
+                return true
+            }
         }
-    })
+    )
 
     init {
         activePaint.isAntiAlias = true
@@ -65,12 +67,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.strokeCap = Paint.Cap.ROUND
     }
 
-    private fun drawBitmap() {
-        val canvas = holder.lockCanvas()
-        canvas.drawColor(
-            Color.TRANSPARENT,
-            PorterDuff.Mode.CLEAR
-        )
+    private fun drawBitmap(canvas: Canvas) {
         canvas.save()
         canvas.scale(
             lockBookDrawable.page.transformation.scale,
@@ -79,85 +76,77 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             lockBookDrawable.page.transformation.translation.y
         )
         viewPort.set(canvas.clipBounds)
+        canvas.drawColor(
+            Color.TRANSPARENT,
+            PorterDuff.Mode.CLEAR
+        )
         canvas.drawBitmap(canvasBitmap, Matrix(), null)
         canvas.restore()
-        holder.unlockCanvasAndPost(canvas)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
-            for (point in 0..event.pointerCount) {
+            for (point in 0 until event.pointerCount) {
                 if (event.getToolType(point) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(point) == MotionEvent.TOOL_TYPE_ERASER
                 ) {
-                    return handleStylusEvent(event)
+                    handleStylusEvent(event)
                 }
-
                 if (event.getToolType(point) == MotionEvent.TOOL_TYPE_FINGER) {
-                    return handleFingerEvent(event)
+                    handleFingerEvent(event)
                 }
             }
-        } else {
-            return super.onTouchEvent(event)
         }
 
-        return false
+        return true
     }
 
-    private fun handleFingerEvent(event: MotionEvent): Boolean {
+    private fun handleFingerEvent(event: MotionEvent) {
         scaleGestureDetector.onTouchEvent(event)
         gestureDetector.onTouchEvent(event)
-        return true
     }
 
-    private fun handleStylusEvent(event: MotionEvent): Boolean {
+    private fun handleStylusEvent(event: MotionEvent) {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> moveTo(event)
-            MotionEvent.ACTION_MOVE -> lineTo(event)
+            MotionEvent.ACTION_DOWN -> moveTo(event.x, event.y, event.pressure)
+            MotionEvent.ACTION_MOVE -> lineTo(event.x, event.y, event.pressure)
         }
-        return true
     }
 
-    private fun moveTo(event: MotionEvent) {
-        activePath.reset()
-        lastPoint.set(
-            event.x,
-            event.y
-        )
+    private fun moveTo(x: Float, y: Float, pressure: Float) {
+        lastPoint.set(x, y)
         val penPath = Stroke(activePaint.color)
         penPath.points.add(
             PressurePoint(
-                event.x,
-                event.y,
-                event.pressure * 7
+                x,
+                y,
+                pressure * 7
             )
-        ) //TODO: This should become a setting, maybe called sensitivity
+        ) // TODO: This should become a setting, maybe called sensitivity
         lockBookDrawable.events.add(Event(penPath))
     }
 
-    private fun lineTo(event: MotionEvent) {
-        activePaint.strokeWidth = event.pressure * 7
+    private fun lineTo(x: Float, y: Float, pressure: Float) {
+        activePaint.strokeWidth = pressure * 7
         activePath.moveTo(
-            (viewPort.right * lastPoint.x) / tempCanvas.clipBounds.right,
-            (viewPort.bottom * lastPoint.y) / tempCanvas.clipBounds.bottom
+            (viewPort.width() * (lastPoint.x / tempCanvas.clipBounds.width())) + viewPort.left,
+            (viewPort.height() * (lastPoint.y / tempCanvas.clipBounds.height())) + viewPort.top
         )
 
         activePath.lineTo(
-            (viewPort.right * event.x) / tempCanvas.clipBounds.right,
-            (viewPort.bottom * event.y) / tempCanvas.clipBounds.bottom
+            (viewPort.width() * (x / tempCanvas.clipBounds.width())) + viewPort.left,
+            (viewPort.height() * (y / tempCanvas.clipBounds.height())) + viewPort.top
         )
-        Timber.e("One: ${(viewPort.right * event.x) / tempCanvas.clipBounds.right}, Two: ${(viewPort.left * event.x) / tempCanvas.clipBounds.left}")
 
         tempCanvas.drawPath(activePath, activePaint)
-        drawBitmap()
 
         activePath.reset()
-        lastPoint.set(event.x, event.y)
+        lastPoint.set(x, y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
             val currentEvent = lockBookDrawable.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(PressurePoint(event.x, event.y, event.pressure * 7))
+                currentEvent.points.add(PressurePoint(x, y, pressure * 7))
                 break
             }
         }
@@ -202,9 +191,31 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 activePath.reset()
             }
         }
+    }
 
-        val canvas = holder.lockCanvas()
-        canvas.drawBitmap(canvasBitmap, Matrix(), null)
-        holder.unlockCanvasAndPost(canvas)
+    override fun run() {
+        while (isThreadRunning) {
+            val currentTimeMillis = System.currentTimeMillis()
+            val elapsedTimeMs: Long = currentTimeMillis - previousTime
+            val sleepTimeMs = (1000f / 120 - elapsedTimeMs)
+
+            var canvas = holder.lockCanvas()
+            try {
+                if (canvas == null) {
+                    Thread.sleep(1)
+                    continue
+                } else if (sleepTimeMs > 0) {
+                    Thread.sleep(sleepTimeMs.toLong())
+                }
+                synchronized(holder) { drawBitmap(canvas) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                if (canvas != null) {
+                    holder.unlockCanvasAndPost(canvas)
+                    previousTime = System.currentTimeMillis()
+                }
+            }
+        }
     }
 }
