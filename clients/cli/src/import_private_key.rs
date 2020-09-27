@@ -8,7 +8,7 @@ use crate::{
     SUCCESS, UNEXPECTED_ERROR, USERNAME_PK_MISMATCH,
 };
 
-pub fn import() {
+pub fn import_private_key() {
     if atty::is(atty::Stream::Stdin) {
         exit_with(
             "To import an existing Lockbook, pipe your account string into this command, \
