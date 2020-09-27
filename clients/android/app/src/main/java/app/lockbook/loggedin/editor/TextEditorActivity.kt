@@ -9,7 +9,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
@@ -126,7 +125,7 @@ class TextEditorActivity : AppCompatActivity() {
         }
 
         val contents = textEditorViewModel.handleReadDocument(id)
-        if(contents != null) {
+        if (contents != null) {
             text_editor.setText(contents)
             text_editor.addTextChangedListener(textEditorViewModel)
             startBackgroundSave()

@@ -8,9 +8,6 @@ import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import timber.log.Timber
 
 class HandwritingEditorViewModel(
@@ -47,7 +44,6 @@ class HandwritingEditorViewModel(
 
         return null
     }
-
 
     fun savePath(drawable: Drawing) {
         val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawable))
