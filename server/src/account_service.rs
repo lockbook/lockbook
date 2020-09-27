@@ -156,9 +156,10 @@ pub async fn calculate_usage(
 
     let res = usage_service::calculate(&transaction, &request.username)
         .await
-        .map_err(|_| GetUsageError::InternalError)?;
+        .map_err(|e| {
+            error!("Usage calculation error: {:#?}", e);
+            GetUsageError::InternalError
+        })?;
 
-    Ok(GetUsageResponse {
-        usage: res.iter().map(|e| e.usage_latest).sum(),
-    })
+    Ok(GetUsageResponse { usages: res })
 }
