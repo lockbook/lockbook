@@ -24,16 +24,16 @@ struct EditorView: View, Equatable {
     let meta: FileMetadata
         
     var body: some View {
-        VStack(spacing: 0) {
-            //            if editingTitle {
-            TextField("type a title", text: $title)
+        let binding = Binding(
+            get: { self.title },
+            set: {
+                self.title = $0
+//                print(core.api.renameFile(id: meta.id, name: title))
+            }
+        )
+        return VStack(spacing: 0) {
+            TextField("", text: binding)
                 .textFieldStyle(TitleFieldStyle())
-            //            } else {
-            //                Text(meta.name)
-            //                    .onTapGesture {
-            //                        editingTitle = true
-            //                    }
-            //            }
             let baseEditor = ContentEditor(text: $contentBuffer.content)
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
