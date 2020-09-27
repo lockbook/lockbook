@@ -19,21 +19,22 @@ struct EditorView: View, Equatable {
     
     @ObservedObject var core: Core
     @ObservedObject var contentBuffer: ContentBuffer
-    @State var editingTitle: Bool = false
-    @State var title: String
     let meta: FileMetadata
-        
+
     var body: some View {
-        let binding = Binding(
-            get: { self.title },
-            set: {
-                self.title = $0
-//                print(core.api.renameFile(id: meta.id, name: title))
-            }
-        )
         return VStack(spacing: 0) {
-            TextField("", text: binding)
-                .textFieldStyle(TitleFieldStyle())
+            TitleTextField(text: $contentBuffer.title, onCommit: {
+                print("Done editing! \(contentBuffer.title)")
+                switch core.api.renameFile(id: meta.id, name: contentBuffer.title) {
+                case .success(_):
+                    core.updateFiles()
+                    contentBuffer.status = .Succeeded
+                case .failure(let err):
+                    print("Renaming failed, error: \(err.message())")
+                    contentBuffer.status = .Failed
+                }
+            })
+
             let baseEditor = ContentEditor(text: $contentBuffer.content)
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
@@ -89,9 +90,9 @@ struct EditorView: View, Equatable {
     
     init(core: Core, meta: FileMetadata) {
         self.core = core
+//        self._meta = .init(initialValue: meta)
         self.meta = meta
         self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
-        self._title = .init(initialValue: meta.name)
     }
 }
 
@@ -110,11 +111,13 @@ class ContentBuffer: ObservableObject {
     @Published var content: String
     @Published var succeeded: Bool = false
     @Published var status: SaveStatus = .Inactive
+    @Published var title: String
     
     init(meta: FileMetadata, initialContent: String, core: Core) {
         self.meta = meta
         self.core = core
         self.content = initialContent
+        self.title = meta.name
         
         $content
             .debounce(for: 0.2, scheduler: RunLoop.main)
@@ -139,7 +142,17 @@ class ContentBuffer: ObservableObject {
                 self.status = .Succeeded
             })
             .store(in: &cancellables)
-        
+     
+//        $title
+//            .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
+//            .removeDuplicates()
+//            .filter({ _ in self.succeeded })
+//            .receive(on: RunLoop.main)
+//            .sink(receiveValue: { title in
+//                print(self.core.api.renameFile(id: self.meta.id, name: title))
+////                self.core.updateFiles()
+//            })
+//            .store(in: &cancellables)
     }
     
     func save() -> Result<Void, ApplicationError> {
