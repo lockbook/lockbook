@@ -159,6 +159,6 @@ pub async fn calculate_usage(
         .map_err(|_| GetUsageError::InternalError)?;
 
     Ok(GetUsageResponse {
-        usage: res.iter().map(|e| e.usage).sum(),
+        usage: res.iter().map(|e| e.usage_latest).sum(),
     })
 }
