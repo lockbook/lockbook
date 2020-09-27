@@ -65,6 +65,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.strokeJoin = Paint.Join.ROUND
         activePaint.color = Color.WHITE
         activePaint.strokeCap = Paint.Cap.ROUND
+
     }
 
     private fun drawBitmap(canvas: Canvas) {
@@ -80,7 +81,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             Color.TRANSPARENT,
             PorterDuff.Mode.CLEAR
         )
-        canvas.drawBitmap(canvasBitmap, Matrix(), null)
+        canvas.drawBitmap(canvasBitmap, 0f, 0f, null)
         canvas.restore()
     }
 
@@ -199,7 +200,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             val elapsedTimeMs: Long = currentTimeMillis - previousTime
             val sleepTimeMs = (1000f / 120 - elapsedTimeMs)
 
-            var canvas = holder.lockCanvas()
+            val canvas = holder.lockCanvas()
             try {
                 if (canvas == null) {
                     Thread.sleep(1)
