@@ -1,8 +1,8 @@
 use crate::utils::{username_is_valid, version_is_supported};
-use crate::{file_index_repo, ServerState};
+use crate::{file_index_repo, usage_service, ServerState};
 use lockbook_core::model::api::{
-    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
-    NewAccountRequest, NewAccountResponse,
+    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
+    GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_core::model::file_metadata::FileType;
 
@@ -132,4 +132,33 @@ pub async fn get_public_key(
             Err(GetPublicKeyError::InternalError)
         }
     }
+}
+
+pub async fn calculate_usage(
+    server_state: &mut ServerState,
+    request: GetUsageRequest,
+) -> Result<GetUsageResponse, GetUsageError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(GetUsageError::ClientUpdateRequired);
+    }
+
+    if !username_is_valid(&request.username) {
+        debug!("{} is not a valid username", request.username);
+        return Err(GetUsageError::InvalidUsername);
+    }
+    let transaction = match server_state.index_db_client.transaction().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Internal server error! Cannot begin transaction: {:#?}", e);
+            return Err(GetUsageError::InternalError);
+        }
+    };
+
+    let res = usage_service::calculate(&transaction, &request.username)
+        .await
+        .map_err(|_| GetUsageError::InternalError)?;
+
+    Ok(GetUsageResponse {
+        usage: res.iter().map(|e| e.usage).sum(),
+    })
 }
