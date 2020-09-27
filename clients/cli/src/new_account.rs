@@ -6,7 +6,7 @@ use lockbook_core::{create_account, CreateAccountError};
 use crate::utils::{exit_with, exit_with_offline, exit_with_upgrade_required, get_config};
 use crate::{ACCOUNT_ALREADY_EXISTS, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
 
-pub fn init() {
+pub fn new_account() {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 

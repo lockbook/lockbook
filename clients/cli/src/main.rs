@@ -7,9 +7,9 @@ use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly
 
 mod copy;
 mod edit;
-mod export;
-mod import;
-mod init;
+mod export_private_key;
+mod import_private_key;
+mod new_account;
 mod list;
 mod move_file;
 mod new;
@@ -31,13 +31,13 @@ enum Lockbook {
     Edit { path: String },
 
     /// Export your private key
-    Export,
+    ExportPrivateKey,
 
     /// Import an existing Lockbook
-    Import,
+    ImportPrivateKey,
 
     /// Create a new Lockbook account
-    Init,
+    NewAccount,
 
     /// List all your paths
     List,
@@ -88,9 +88,9 @@ fn main() {
     match args {
         Lockbook::Copy { file } => copy::copy(file),
         Lockbook::Edit { path } => edit::edit(&path.trim()),
-        Lockbook::Export => export::export(),
-        Lockbook::Import => import::import(),
-        Lockbook::Init => init::init(),
+        Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
+        Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
+        Lockbook::NewAccount => new_account::new_account(),
         Lockbook::List => list::list(Some(LeafNodesOnly)),
         Lockbook::ListAll => list::list(None),
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
