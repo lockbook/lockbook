@@ -32,18 +32,6 @@ pub async fn change_document_content(
     )
     .await;
 
-    usage_service::track(
-        &transaction,
-        &request.id,
-        &request.username,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        error!("Usage tracking error: {:?}", err);
-        ChangeDocumentContentError::InternalError
-    })?;
-
     let (old_content_version, new_version) = result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
         file_index_repo::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
@@ -55,6 +43,18 @@ pub async fn change_document_content(
             );
             ChangeDocumentContentError::InternalError
         }
+    })?;
+
+    usage_service::track(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.new_content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        ChangeDocumentContentError::InternalError
     })?;
 
     let create_result = file_content_client::create(
@@ -141,14 +141,6 @@ pub async fn create_document(
         }
     })?;
 
-    let files_result = file_content_client::create(
-        &server_state.files_db_client,
-        request.id,
-        new_version,
-        &request.content,
-    )
-    .await;
-
     usage_service::track(
         &transaction,
         &request.id,
@@ -160,6 +152,14 @@ pub async fn create_document(
         error!("Usage tracking error: {:?}", err);
         CreateDocumentError::InternalError
     })?;
+
+    let files_result = file_content_client::create(
+        &server_state.files_db_client,
+        request.id,
+        new_version,
+        &request.content,
+    )
+    .await;
 
     if files_result.is_err() {
         error!(
