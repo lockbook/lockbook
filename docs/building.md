@@ -40,6 +40,21 @@ Download the android ndk through android studio or directly online from the andr
 
 `make android` in the `core` folder.
 
+
+## Windows
+
+You need a windows computer, and you need to set yourself up for [UWP development](https://docs.microsoft.com/en-us/windows/uwp/get-started/get-set-up).
+
+You'll also need the [rust toolchain](https://rustup.rs/) to build core.
+
+You can build `core` for windows by executing the `create_core_for_windows.bat` script from inside `dev_utils`.
+
+At this point you should be able to click the green play button inside Visual Studio.
+
+To create the executable:
+
+Run the `create_windows_app_bundle.bat` in `dev_utils`.
+
 ## iOS (iPhone and iPad)
 
 Standard iOS development toolchain (XCode).
