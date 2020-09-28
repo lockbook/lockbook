@@ -2,103 +2,40 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_usage_tests {
-    use crate::integration_test::{
-        aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
-    };
-    use lockbook_core::client::{Client, ClientImpl};
+    use crate::integration_test::{random_filename, random_username, test_config};
     use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
-    use uuid::Uuid;
+    use lockbook_core::{
+        create_account, create_file, get_root, get_usage, sync_all, write_document,
+    };
 
-    use crate::assert_matches;
+    use lockbook_core::model::file_metadata::FileType;
 
     #[test]
-    fn get_usage() {
-        // new account
-        let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+    fn report_no_usage() {
+        let config = &test_config();
+        create_account(config, &random_username()).unwrap();
+        let root = get_root(config).unwrap();
 
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
+        let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
+        write_document(
+            config,
+            file.id,
+            &DecryptedValue {
+                secret: "0000000000".to_string(),
+            },
+        )
+        .unwrap();
+
+        assert!(
+            get_usage(config).unwrap().is_empty(),
+            "Returned non-empty usage!"
         );
 
-        // create document
-        let doc_key = AesImpl::generate_key();
+        sync_all(config).unwrap();
 
-        assert_matches!(
-            ClientImpl::create_document(
-                &account.username,
-                &sign(&account),
-                Uuid::new_v4(),
-                &random_filename(),
-                folder_id,
-                aes_str(&doc_key, "0000000000000000"),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &doc_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        let usage_a = ClientImpl::get_usage(&account.username).unwrap().usage;
-
-        assert_matches!(
-            ClientImpl::create_document(
-                &account.username,
-                &sign(&account),
-                Uuid::new_v4(),
-                &random_filename(),
-                folder_id,
-                aes_str(&doc_key, "00000000000000000000000000000000"),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &doc_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        let usage_b = ClientImpl::get_usage(&account.username).unwrap().usage;
-
-        assert_matches!(
-            ClientImpl::create_document(
-                &account.username,
-                &sign(&account),
-                Uuid::new_v4(),
-                &random_filename(),
-                folder_id,
-                aes_str(
-                    &doc_key,
-                    "0000000000000000000000000000000000000000000000000000000000000000"
-                ),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &doc_key),
-                },
-            ),
-            Ok(_)
-        );
-
-        let usage_c = ClientImpl::get_usage(&account.username).unwrap().usage;
-
-        let usage_tot = usage_a + usage_b + usage_c;
-
-        assert_matches!(
-            ClientImpl::get_usage(&account.username).unwrap().usage,
-            usage_tot
+        assert!(
+            !get_usage(config).unwrap().is_empty(),
+            "Returned empty usage after file sync!"
         );
     }
 }
