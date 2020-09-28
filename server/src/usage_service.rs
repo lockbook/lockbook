@@ -41,12 +41,15 @@ pub enum UsageCalculateError {
 pub async fn calculate(
     transaction: &Transaction<'_>,
     username: &String,
+    start_date: chrono::NaiveDateTime,
+    end_date: chrono::NaiveDateTime,
 ) -> Result<Vec<FileUsage>, UsageCalculateError> {
+    debug!("Calculating usage from {} to {}", start_date, end_date);
     let result = transaction
         .query(
             "
 with months as (
-    select generate_series($1::text::date, $2::text::date, interval '1 hour') as timestamp
+    select unnest(array[$1::timestamp, $2::timestamp]) as timestamp
 ),
      with_months as (
          select distinct m.timestamp, ul.file_id, ul.owner
@@ -66,14 +69,14 @@ with months as (
          union
          select *
          from usage_ledger
-         where timestamp > $1::text::date
-         and timestamp < $2::text::date
+         where timestamp > $1
+         and timestamp < $2
          order by file_id, timestamp desc
      ),
      lagged as (
          select file_id,
                 timestamp          as start_date,
-                coalesce(lag(timestamp) OVER (PARTITION BY file_id ORDER BY timestamp desc), $2::text::date) as end_date,
+                coalesce(lag(timestamp) OVER (PARTITION BY file_id ORDER BY timestamp desc), $2::timestamp) as end_date,
                 bytes,
                 owner
          from with_months_and_usage
@@ -89,11 +92,11 @@ with months as (
          from lagged_with_area
          group by file_id
      )
-select * from integrated_by_month;
-",
+select * from integrated_by_month
+;",
             &[
-                &"2020-01-01",
-                &"2020-10-01",
+                &start_date,
+                &end_date,
                 username,
             ],
         )
