@@ -1,4 +1,5 @@
 extern crate base64;
+extern crate chrono;
 extern crate hyper;
 extern crate lockbook_core;
 extern crate tokio;

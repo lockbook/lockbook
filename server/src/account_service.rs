@@ -1,10 +1,12 @@
 use crate::utils::{username_is_valid, version_is_supported};
 use crate::{file_index_repo, usage_service, ServerState};
+use chrono::FixedOffset;
 use lockbook_core::model::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_core::model::file_metadata::FileType;
+use std::ops::Add;
 
 pub async fn new_account(
     server_state: &mut ServerState,
@@ -154,12 +156,19 @@ pub async fn calculate_usage(
         }
     };
 
-    let res = usage_service::calculate(&transaction, &request.username)
-        .await
-        .map_err(|e| {
-            error!("Usage calculation error: {:#?}", e);
-            GetUsageError::InternalError
-        })?;
+    let timestamp = chrono::Local::now().naive_utc();
+
+    let res = usage_service::calculate(
+        &transaction,
+        &request.username,
+        timestamp,
+        timestamp.add(FixedOffset::east(1)),
+    )
+    .await
+    .map_err(|e| {
+        error!("Usage calculation error: {:#?}", e);
+        GetUsageError::InternalError
+    })?;
 
     Ok(GetUsageResponse { usages: res })
 }

@@ -1001,6 +1001,7 @@ name = "lockbook-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
+ "chrono",
  "env_logger",
  "hyper",
  "lockbook_core",
@@ -1483,6 +1484,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e634590e8812c500088d88db721195979223dabb05149f43cb50931d0ff5865d"
 dependencies = [
  "bytes",
+ "chrono",
  "fallible-iterator",
  "postgres-protocol",
 ]
