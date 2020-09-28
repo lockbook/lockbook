@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
  "chrono",
@@ -988,7 +988,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook_core"
-version = "0.1.2"
+version = "0.1.1"
 dependencies = [
  "aead",
  "aes-gcm",
