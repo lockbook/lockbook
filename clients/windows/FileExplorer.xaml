@@ -48,6 +48,12 @@
         </DataTemplate>
         <SolidColorBrush x:Key="TextControlBorderBrushFocused"
                          Color="Transparent" />
+        <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver"
+                         Color="Transparent" />
+        <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed"
+                         Color="Transparent" />
+        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed"
+                         Color="Transparent" />
     </Page.Resources>
     <Grid>
         <muxc:NavigationView x:Name="navview"
