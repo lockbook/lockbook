@@ -31,7 +31,8 @@ pub fn init(log_path: &Path, log_name: String, std_colors: bool) -> Result<Dispa
                 ))
             }
         })
-        .chain(std::io::stdout());
+        .chain(std::io::stdout())
+        .level(log::LevelFilter::Warn);
 
     let _ = fs::create_dir_all(log_path)?;
     let log_file = fern::log_file(log_path.join(log_name))?;
