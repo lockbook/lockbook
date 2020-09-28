@@ -1,6 +1,6 @@
 [package]
 name = "lockbook_core"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
@@ -17,7 +17,6 @@ base64 = "0.11.0"
 bincode = "1.2.1"
 chrono = "0.4.15"
 diffy = "0.2.0"
-env_logger = "0.7.1"
 fern = { version = "0.6.0", features = ["colored"]}
 jni = { version = "0.13.1", default-features = false }
 log = "0.4.8"
