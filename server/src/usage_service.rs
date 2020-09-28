@@ -103,13 +103,13 @@ select * from integrated_by_month
         .await
         .map_err(UsageCalculateError::Postgres)?;
 
-    debug!("Results {}", result.len());
+    trace!("Usage query results {}", result.len());
 
     result.iter().map(row_to_usage).collect()
 }
 
 fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalculateError> {
-    debug!("Row {:#?}", row);
+    trace!("Parsing usage row {:?}", row);
     Ok(FileUsage {
         file_id: row
             .try_get("file_id")

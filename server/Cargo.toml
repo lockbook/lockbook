@@ -1,13 +1,13 @@
 [package]
 name = "lockbook-server"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Parth <parth@mehrotra.me>"]
 edition = "2018"
 
 [dependencies]
 base64 = "0.11.0"
 chrono = "0.4.15"
-env_logger = "0.7.1"
+fern = { version = "0.6.0", features = ["colored"]}
 hyper = "0.13.5"
 lockbook_core = { path = "../core" }
 log = "0.4.8"
