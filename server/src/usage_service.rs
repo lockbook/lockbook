@@ -111,9 +111,11 @@ select * from integrated_by_month
 fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalculateError> {
     trace!("Parsing usage row {:?}", row);
     Ok(FileUsage {
-        file_id: row
-            .try_get("file_id")
-            .map_err(UsageCalculateError::Postgres)?,
+        file_id: serde_json::from_str(
+            row.try_get("file_id")
+                .map_err(UsageCalculateError::Postgres)?,
+        )
+        .map_err(UsageCalculateError::Serialize)?,
         byte_secs: row
             .try_get("byte_secs")
             .map_err(UsageCalculateError::Postgres)?,
