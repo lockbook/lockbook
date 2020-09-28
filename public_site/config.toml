@@ -29,7 +29,7 @@ disableKinds = ["page", "section", "taxonomy", "taxonomyTerm"]
 	[[params.links]]
         icon = "windows"
         title = "Windows"
-        url = "mailto:mail@example.org"
+        url = "https://github.com/lockbook/lockbook/blob/master/docs/installing-windows.md"
 
 
     [[params.links]]
