@@ -122,11 +122,12 @@ pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
         .and_then(|s| log::LevelFilter::from_str(s.as_str()).ok())
-        .unwrap_or_else(|| log::LevelFilter::Warn);
+        .unwrap_or_else(|| log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
         .map_err(|err| InitLoggerError::Unexpected(format!("IO Error: {:#?}", err)))?
-        .level(lockbook_log_level)
+        .level(log::LevelFilter::Warn)
+        .level_for("lockbook_core", lockbook_log_level)
         .apply()
         .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
     info!("Logger initialized! Path: {:?}", log_path);
