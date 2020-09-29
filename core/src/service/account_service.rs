@@ -17,7 +17,7 @@ use crate::service::account_service::AccountImportError::{
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::{client, API_URL};
+use crate::{api_url, client};
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -171,7 +171,7 @@ impl<
 
         info!(
             "Checking this username, public_key pair exists at {}",
-            API_URL
+            api_url()
         );
         let server_public_key = ApiClient::get_public_key(&account.username)
             .map_err(FailedToVerifyAccountServerSide)?;

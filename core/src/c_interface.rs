@@ -10,7 +10,7 @@ use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
-use crate::{ExecuteWorkError, API_URL};
+use crate::ExecuteWorkError;
 use serde::Serialize;
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -46,13 +46,6 @@ unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
 
 unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
     serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> WorkUnit")
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn get_api_loc() -> *const c_char {
-    CString::new(API_URL.to_string())
-        .expect("Could not API_LOC String -> C String")
-        .into_raw()
 }
 
 #[no_mangle]

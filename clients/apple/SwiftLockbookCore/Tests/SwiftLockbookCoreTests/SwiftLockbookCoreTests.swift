@@ -6,25 +6,18 @@ final class SwiftLockbookCoreTests: XCTestCase {
     static let tempDir = NSTemporaryDirectory().appending(UUID.init().uuidString)
     
     /// The following can be used to interface Swift code with a local lockbook instance! Useful for testing
-    // CoreApi(documentsDirectory: "~/.lockbook")
     static let core = CoreApi(documentsDirectory: SwiftLockbookCoreTests.tempDir)
     
     override class func setUp() {
         super.setUp()
         
         print("LOCKBOOK DIR", SwiftLockbookCoreTests.core.documentsDirectory)
-        print("API LOCATION", SwiftLockbookCoreTests.core.getApiLocation())
     }
     
     override func setUp() {
         super.setUp()
         
         continueAfterFailure = false
-        
-        let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
-        if (apiLocation.contains("://api.")) {
-            XCTFail("API Location looks like prod: \"\(apiLocation)\". Stopping tests...")
-        }
     }
     
     func test01CreateExportImportAccount() {

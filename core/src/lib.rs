@@ -68,7 +68,6 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-static API_URL: &str = env!("API_URL");
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
@@ -111,6 +110,10 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultAccountRepo,
     DefaultFileEncryptionService,
 >;
+
+pub fn api_url() -> String {
+    env::var("API_URL").expect("Must set API_URL")
+}
 
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {

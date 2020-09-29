@@ -3,7 +3,7 @@ use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 
 use crate::model::file_metadata::FileMetadata;
-use crate::{API_URL, CORE_CODE_VERSION};
+use crate::{api_url, CORE_CODE_VERSION};
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use reqwest::Method;
@@ -28,7 +28,7 @@ pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: Des
     let client = ReqwestClient::new();
     let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
     let serialized_response = client
-        .request(method, format!("{}/{}", API_URL, endpoint).as_str())
+        .request(method, format!("{}/{}", api_url(), endpoint).as_str())
         .body(serialized_request)
         .send()
         .map_err(Error::SendFailed)?
