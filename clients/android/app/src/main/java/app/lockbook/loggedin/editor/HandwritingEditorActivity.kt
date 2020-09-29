@@ -7,10 +7,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -43,11 +42,28 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         )
 
+        if (startUpDrawing(id)) return
+
+        startBackgroundSave()
+    }
+
+    private fun startUpDrawing(id: String): Boolean {
         val contents = handwritingEditorViewModel.handleReadDocument(id)
 
         if (contents != null && contents.isNotEmpty()) {
-            Timber.e(contents)
-            handwriting_editor.lockBookDrawable = Klaxon().parse(contents)!!
+            val lockbookDrawable = if(handwritingEditorViewModel.lockBookDrawable == null) {
+
+                Klaxon().parse<Drawing>(contents)
+            } else {
+                handwritingEditorViewModel.lockBookDrawable
+            }
+
+            if (lockbookDrawable == null) {
+                errorHasOccurred("Unable to load this drawing.")
+                return true
+            }
+
+            handwriting_editor.lockBookDrawable = lockbookDrawable
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
@@ -59,11 +75,14 @@ class HandwritingEditorActivity : AppCompatActivity() {
                     format: Int,
                     width: Int,
                     height: Int
-                ) {}
+                ) {
+                }
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
                 }
             })
+
+
         } else {
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
@@ -75,22 +94,25 @@ class HandwritingEditorActivity : AppCompatActivity() {
                     format: Int,
                     width: Int,
                     height: Int
-                ) {}
+                ) {
+                }
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
                 }
             })
         }
 
-        startBackgroundSave()
+        return false
     }
 
-    private fun startBackgroundSave() {
+    private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
         timer.schedule(
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-//                        handwritingEditorViewModel.savePath(handwriting_editor.lockBookDrawable)
+                        handwritingEditorViewModel.savePath(
+                            handwriting_editor.lockBookDrawable.deepCopy()
+                        )
                     }
                 }
             },
@@ -101,6 +123,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         timer.cancel()
+        handwritingEditorViewModel.lockBookDrawable = handwriting_editor.lockBookDrawable
         handwritingEditorViewModel.savePath(handwriting_editor.lockBookDrawable)
         super.onDestroy()
     }
