@@ -14,7 +14,7 @@ RUN cargo build
 
 # Build our source
 COPY core .
-# Compile-time env var
+# Setup api location
 ENV API_URL=http://lockbook_server:8000
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs

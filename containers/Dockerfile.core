@@ -14,8 +14,6 @@ RUN cargo build
 
 # Build our source
 COPY core .
-# Compile-time env var
-ENV API_URL=unused
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
 RUN cargo build

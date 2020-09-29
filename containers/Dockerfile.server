@@ -13,8 +13,6 @@ COPY core ../core
 COPY containers/dummy.rs src/main.rs
 COPY server/Cargo.toml .
 COPY server/Cargo.lock .
-# Dependency on core which has compile-time env var
-ENV API_URL=unused
 RUN cargo build
 
 # Build our source
