@@ -8,6 +8,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import androidx.core.view.ViewCompat
 import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
@@ -49,8 +50,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockBookDrawable.page.transformation.translation.x += (distanceX * 4 / lockBookDrawable.page.transformation.scale)
-                lockBookDrawable.page.transformation.translation.y += (distanceY * 4 / lockBookDrawable.page.transformation.scale)
+                lockBookDrawable.page.transformation.translation.x += (-distanceX * 4 / lockBookDrawable.page.transformation.scale)
+                lockBookDrawable.page.transformation.translation.y += (-distanceY * 4 / lockBookDrawable.page.transformation.scale)
                 return true
             }
         }
@@ -73,10 +74,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             lockBookDrawable.page.transformation.translation.x,
             lockBookDrawable.page.transformation.translation.y
         )
-//        canvas.translate(
-//            -lockBookDrawable.page.transformation.translation.x,
-//            -lockBookDrawable.page.transformation.translation.y
-//        )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
             Color.TRANSPARENT,
