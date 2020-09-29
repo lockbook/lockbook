@@ -23,7 +23,7 @@ public protocol LockbookApi {
     // Document
     func getFile(id: UUID) -> CoreResult<DecryptedValue>
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
-    func updateFile(id: UUID, content: String) -> CoreResult<Bool>
+    func updateFile(id: UUID, content: String) -> CoreResult<Empty>
     func markFileForDeletion(id: UUID) -> CoreResult<Bool>
     
     // Diagnostic
@@ -100,7 +100,7 @@ public struct CoreApi: LockbookApi {
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }
     
-    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
         fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
@@ -155,7 +155,7 @@ public struct FakeApi: LockbookApi {
     }
     
     public func getRoot() -> CoreResult<FileMetadata> {
-        return CoreResult.success(FileMetadata(fileType: .Folder, id: rootUuid, parent: rootUuid, name: "first_file.md", owner: "root", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false))
+        return CoreResult.success(FileMetadata(fileType: .Folder, id: root.id, parent: root.id, name: "first_file.md", owner: "root", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false))
     }
     
     public func listFiles() -> CoreResult<[FileMetadata]> {
@@ -175,7 +175,7 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
         return CoreResult.success(FileMetadata(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", owner: username, contentVersion: UInt64(now), metadataVersion: UInt64(now), deleted: false))
     }
     
-    public func updateFile(id: UUID, content: String) -> CoreResult<Bool> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
@@ -187,8 +187,8 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
         "fake://fake.lockbook.fake"
     }
     
-    public let username: Account.Username = "tester"
-    public let rootUuid = UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped
+    public let username: Account.Username = "jeff"
+    public let root = FileMetadata(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false)
     public let fileMetas = [
         FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),

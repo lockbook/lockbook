@@ -163,6 +163,26 @@ final class SwiftLockbookCoreTests: XCTestCase {
             XCTFail(err.message())
         }
     }
+    
+    func test07UpdateFile() {
+         do {
+             let root = try SwiftLockbookCoreTests.core.getRoot().get()
+
+              let file = try SwiftLockbookCoreTests.core.createFile(name: "test_update.md", dirId: root.id, isFolder: false).get()
+
+              let update = SwiftLockbookCoreTests.core.updateFile(id: file.id, content: "Some new shit!")
+
+              if case .failure(let err) = update {
+                 XCTFail("Could not update file! \(err)")
+             }
+
+          } catch let err as ApplicationError {
+            XCTFail(err.message())
+        } catch {
+            XCTFail(error.localizedDescription)
+        }
+     }
+
 
     func test10FfiPerformance() {
         self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
@@ -191,6 +211,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
         ("test03Sync", test03Sync),
         ("test04ListFiles", test04ListFiles),
         ("test05CreateFile", test05CreateFile),
-        ("test06CalculateWork", test06CalculateWork)
+        ("test06CalculateWork", test06CalculateWork),
+        ("test07UpdateFile", test07UpdateFile)
     ]
 }

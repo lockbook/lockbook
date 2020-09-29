@@ -67,10 +67,10 @@ lib_c_for_swift_ios:
 	@mkdir -p ${swift_inc}
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblockbook_core.a || true
+	@rm ${swift_lib_ios}liblockbook_core.a || true
 	cargo lipo --release
-	@mkdir -p ${swift_lib}
-	cp target/universal/release/liblockbook_core.a ${swift_lib}
+	@mkdir -p ${swift_lib_ios}
+	cp target/universal/release/liblockbook_core.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift
 lib_c_for_swift:
@@ -82,9 +82,12 @@ lib_c_for_swift:
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
 	@rm ${swift_lib}liblockbook_core.a || true
-	cargo build
+	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp target/debug/liblockbook_core.a ${swift_lib}
+	cp target/release/liblockbook_core.a ${swift_lib}
+
+.PHONY: swift_libs
+swift_libs: lib_c_for_swift lib_c_for_swift_ios
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
@@ -95,3 +98,4 @@ windowsLibName = 'liblockbook_core.dll'
 # Swift Library Location
 swift_inc := ../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
 swift_lib := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
+swift_lib_ios := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
