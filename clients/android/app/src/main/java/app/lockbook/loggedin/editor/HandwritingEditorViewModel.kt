@@ -8,12 +8,16 @@ import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import kotlinx.coroutines.*
 import timber.log.Timber
 
 class HandwritingEditorViewModel(
     application: Application,
     private val id: String
 ) : AndroidViewModel(application) {
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    var lockBookDrawable: Drawing? = null
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private val _errorHasOccurred = MutableLiveData<String>()
 
@@ -45,29 +49,33 @@ class HandwritingEditorViewModel(
         return null
     }
 
-    fun savePath(drawable: Drawing) {
-        val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawable))
+    fun savePath(drawing: Drawing) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing))
 
-        if (writeToDocumentResult is Err) {
-            when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> {
-                    _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                }
-                is WriteToDocumentError.FileDoesNotExist -> {
-                    _errorHasOccurred.postValue("Error! File does not exist!")
-                }
-                is WriteToDocumentError.NoAccount -> {
-                    _errorHasOccurred.postValue("Error! No account!")
-                }
-                is WriteToDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        Messages.UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
-                else -> {
-                    Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(Messages.UNEXPECTED_ERROR_OCCURRED)
+                if (writeToDocumentResult is Err) {
+                    when (val error = writeToDocumentResult.error) {
+                        is WriteToDocumentError.FolderTreatedAsDocument -> {
+                            _errorHasOccurred.postValue("Error! Folder is treated as document!")
+                        }
+                        is WriteToDocumentError.FileDoesNotExist -> {
+                            _errorHasOccurred.postValue("Error! File does not exist!")
+                        }
+                        is WriteToDocumentError.NoAccount -> {
+                            _errorHasOccurred.postValue("Error! No account!")
+                        }
+                        is WriteToDocumentError.UnexpectedError -> {
+                            Timber.e("Unable to write document changes: ${error.error}")
+                            _errorHasOccurred.postValue(
+                                Messages.UNEXPECTED_ERROR_OCCURRED
+                            )
+                        }
+                        else -> {
+                            Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
+                            _errorHasOccurred.postValue(Messages.UNEXPECTED_ERROR_OCCURRED)
+                        }
+                    }
                 }
             }
         }
