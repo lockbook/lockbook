@@ -28,8 +28,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     lockBookDrawable.page.transformation.scale *= detector.scaleFactor
-                    lockBookDrawable.page.transformation.scale = 1f.coerceAtLeast(
-                        lockBookDrawable.page.transformation.scale.coerceAtMost(5.0f)
+                    lockBookDrawable.page.transformation.scale = 0.5f.coerceAtLeast(
+                        lockBookDrawable.page.transformation.scale.coerceAtMost(2.0f)
                     )
 
                     lockBookDrawable.page.transformation.translation.x = detector.focusX
@@ -138,13 +138,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(x: Float, y: Float, pressure: Float) {
         activePaint.strokeWidth = pressure * 7
         activePath.moveTo(
-            (viewPort.width() * (lastPoint.x / tempCanvas.clipBounds.width())) + viewPort.left,
-            (viewPort.height() * (lastPoint.y / tempCanvas.clipBounds.height())) + viewPort.top
+            (viewPort.width() * 2 * (lastPoint.x / tempCanvas.clipBounds.width())) + viewPort.left,
+            (viewPort.height() * 2 * (lastPoint.y / tempCanvas.clipBounds.height())) + viewPort.top
         )
 
         activePath.lineTo(
-            (viewPort.width() * (x / tempCanvas.clipBounds.width())) + viewPort.left,
-            (viewPort.height() * (y / tempCanvas.clipBounds.height())) + viewPort.top
+            (viewPort.width() * 2 * (x / tempCanvas.clipBounds.width())) + viewPort.left,
+            (viewPort.height() * 2 * (y / tempCanvas.clipBounds.height())) + viewPort.top
         )
 
         tempCanvas.drawPath(activePath, activePaint)
@@ -168,7 +168,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     fun setUpBitmapDrawable() {
         val canvas = holder.lockCanvas()
-        canvasBitmap = Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
+        canvasBitmap = Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
         viewPort.set(canvas.clipBounds)
         holder.unlockCanvasAndPost(canvas)
