@@ -111,7 +111,31 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun run() {
                     handler.post {
                         handwritingEditorViewModel.savePath(
-                            handwriting_editor.lockBookDrawable.deepCopy()
+                            Drawing(
+                                Page(
+                                    Transformation(
+                                        Point(
+                                            handwriting_editor.lockBookDrawable.page.transformation.translation.x,
+                                            handwriting_editor.lockBookDrawable.page.transformation.translation.y
+                                        ),
+                                        handwriting_editor.lockBookDrawable.page.transformation.scale,
+                                        handwriting_editor.lockBookDrawable.page.transformation.rotation
+                                    )
+                                ),
+                                handwriting_editor.lockBookDrawable.events.map { event ->
+                                    Event(
+                                        if (event.stroke == null) null else Stroke(
+                                            event.stroke.color,
+                                            event.stroke.points.map { point ->
+                                                PressurePoint(
+                                                    point.x,
+                                                    point.y,
+                                                    point.pressure
+                                                )
+                                            }.toMutableList())
+                                    )
+                                }.toMutableList()
+                            )
                         )
                     }
                 }
