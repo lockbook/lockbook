@@ -13,10 +13,13 @@ import app.lockbook.utils.ReadDocumentError
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import kotlinx.coroutines.*
 import timber.log.Timber
 
 class TextEditorViewModel(application: Application, private val id: String) :
     AndroidViewModel(application), TextWatcher {
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private var history = mutableListOf<String>()
     private var historyIndex = 0
@@ -110,29 +113,34 @@ class TextEditorViewModel(application: Application, private val id: String) :
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
     fun writeNewTextToDocument(content: String) {
-        val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
-        if (writeToDocumentResult is Err) {
-            when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> {
-                    _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                }
-                is WriteToDocumentError.FileDoesNotExist -> {
-                    _errorHasOccurred.postValue("Error! File does not exist!")
-                }
-                is WriteToDocumentError.NoAccount -> {
-                    _errorHasOccurred.postValue("Error! No account!")
-                }
-                is WriteToDocumentError.UnexpectedError -> {
-                    Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
-                    )
-                }
-                else -> {
-                    Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
+                if (writeToDocumentResult is Err) {
+                    when (val error = writeToDocumentResult.error) {
+                        is WriteToDocumentError.FolderTreatedAsDocument -> {
+                            _errorHasOccurred.postValue("Error! Folder is treated as document!")
+                        }
+                        is WriteToDocumentError.FileDoesNotExist -> {
+                            _errorHasOccurred.postValue("Error! File does not exist!")
+                        }
+                        is WriteToDocumentError.NoAccount -> {
+                            _errorHasOccurred.postValue("Error! No account!")
+                        }
+                        is WriteToDocumentError.UnexpectedError -> {
+                            Timber.e("Unable to write document changes: ${error.error}")
+                            _errorHasOccurred.postValue(
+                                UNEXPECTED_ERROR_OCCURRED
+                            )
+                        }
+                        else -> {
+                            Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        }
+                    }
                 }
             }
         }
+
     }
 }
