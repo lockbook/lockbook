@@ -8,7 +8,6 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
-import androidx.core.view.ViewCompat
 import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
@@ -20,6 +19,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val lastPoint = PointF()
     private val activePath = Path()
     private val viewPort = Rect()
+    private val bitmapPaint = Paint()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -29,7 +29,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     lockBookDrawable.page.transformation.scale *= detector.scaleFactor
-                    lockBookDrawable.page.transformation.scale = 0.5f.coerceAtLeast(
+                    lockBookDrawable.page.transformation.scale = 0.7f.coerceAtLeast(
                         lockBookDrawable.page.transformation.scale.coerceAtMost(2.0f)
                     )
 
@@ -52,6 +52,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             ): Boolean {
                 lockBookDrawable.page.transformation.translation.x += (-distanceX * 4 / lockBookDrawable.page.transformation.scale)
                 lockBookDrawable.page.transformation.translation.y += (-distanceY * 4 / lockBookDrawable.page.transformation.scale)
+
                 return true
             }
         }
@@ -64,22 +65,27 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         activePaint.color = Color.WHITE
         activePaint.strokeCap = Paint.Cap.ROUND
 
+        bitmapPaint.strokeCap = Paint.Cap.ROUND
+        bitmapPaint.strokeJoin = Paint.Join.ROUND
+
     }
 
     private fun drawBitmap(canvas: Canvas) {
         canvas.save()
-        canvas.scale(
-            lockBookDrawable.page.transformation.scale,
-            lockBookDrawable.page.transformation.scale,
+        canvas.translate(
             lockBookDrawable.page.transformation.translation.x,
             lockBookDrawable.page.transformation.translation.y
+        )
+        canvas.scale( // I need to use viewport to correctly scale from a pivot point
+            lockBookDrawable.page.transformation.scale,
+            lockBookDrawable.page.transformation.scale,
         )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
             Color.TRANSPARENT,
             PorterDuff.Mode.CLEAR
         )
-        canvas.drawBitmap(canvasBitmap, 0f, 0f, null)
+        canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
         canvas.restore()
     }
 
@@ -167,6 +173,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val canvas = holder.lockCanvas()
         canvasBitmap = Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
+        val currentPaint = Paint()
+        currentPaint.color = Color.WHITE
+        currentPaint.strokeWidth = 10f
+        currentPaint.style = Paint.Style.STROKE
+        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
         viewPort.set(canvas.clipBounds)
         holder.unlockCanvasAndPost(canvas)
     }
