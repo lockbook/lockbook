@@ -11,7 +11,7 @@ mod get_usage_tests {
     use lockbook_core::model::file_metadata::FileType;
 
     #[test]
-    fn report_no_usage() {
+    fn report_usage() {
         let config = &test_config();
         create_account(config, &random_username()).unwrap();
         let root = get_root(config).unwrap();
