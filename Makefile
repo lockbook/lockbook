@@ -46,6 +46,11 @@ server_lint: server
 server_test: server
 	docker run server:$(hash) cargo test
 
+.PHONY: server_tests_run
+integration_tests_run: server
+	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) up --exit-code-from=server_tests
+
 .PHONY: cli
 cli: is_docker_running
 	docker build -f containers/Dockerfile.cli . --tag cli:$(hash)
