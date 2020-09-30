@@ -39,7 +39,7 @@ jobs:
     - name: Build container
       run: make server
     - name: Compile and run tests
-      run: make server_test
+      run: make server_tests_run
     - name: Check Formatting
       run: make server_fmt
     - name: Lint
