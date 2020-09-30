@@ -62,15 +62,15 @@ with months as (
                 owner,
                 coalesce((select first_value(bytes) OVER (ORDER BY timestamp DESC)
                           from usage_ledger ul
-                          where ul.timestamp < wm.timestamp
+                          where ul.timestamp <= wm.timestamp
                             and ul.file_id = wm.file_id
                           limit 1), 0) bytes
          from with_months wm
          union
          select *
          from usage_ledger
-         where timestamp > $1
-         and timestamp < $2
+         where timestamp >= $1
+         and timestamp <= $2
          order by file_id, timestamp desc
      ),
      lagged as (
@@ -121,4 +121,62 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
             .map_err(UsageCalculateError::Postgres)?,
         secs: row.try_get("secs").map_err(UsageCalculateError::Postgres)?,
     })
+}
+
+#[cfg(test)]
+mod usage_service_tests {
+    use crate::config::IndexDbConfig;
+    use crate::file_index_repo;
+    use crate::usage_service::{calculate, UsageCalculateError};
+    use lockbook_core::model::api::FileUsage;
+    use std::str::FromStr;
+
+    #[test]
+    fn compute_usage() {
+        async fn do_stuff(config: &IndexDbConfig) -> Result<Vec<FileUsage>, UsageCalculateError> {
+            let mut pg_client = file_index_repo::connect(config).await.unwrap();
+
+            let transaction = pg_client.transaction().await.unwrap();
+
+            let date_start = chrono::NaiveDateTime::from_str("2000-10-01T00:00:00.000").unwrap();
+            let date_end = chrono::NaiveDateTime::from_str("2000-10-31T00:00:00.000").unwrap();
+
+            let _ = transaction
+                .execute(
+                    "INSERT INTO accounts (name, public_key) VALUES ('juicy', '');",
+                    &[],
+                )
+                .await
+                .unwrap();
+            let _ = transaction.execute("INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version) VALUES ('\"nice\"', '\"nice\"', '', false, 'good_file.md', 'juicy', '', false, 0, 0);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-09-15', 'juicy', 1000);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-01', 'juicy', 10000);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-15', 'juicy', 20000);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-31', 'juicy', 30000);", &[]).await.unwrap();
+
+            let res = calculate(&transaction, &"juicy".to_string(), date_start, date_end).await;
+
+            // transaction.commit().await.unwrap();
+
+            res
+        }
+
+        let fake_config = IndexDbConfig {
+            user: "postgres".to_string(),
+            pass: "postgres".to_string(),
+            host: "localhost".to_string(),
+            port: 5432,
+            db: "postgres".to_string(),
+            cert: "".to_string(),
+        };
+
+        let res = tokio_test::block_on(do_stuff(&fake_config)).unwrap();
+
+        let top_usage = res.get(0).unwrap();
+        assert_eq!(top_usage.file_id, "nice");
+        assert_eq!(
+            top_usage.byte_secs,
+            ((10000 * 24 * 3600 * 16) + (20000 * 24 * 3600 * 15))
+        );
+    }
 }
