@@ -23,8 +23,8 @@ services:
       '
 
   server_tests:
-    image: lockbook_server_tests:$HASH
-    container_name: lockbook_server_tests-server-$HASH
+    image: server_tests:$HASH
+    container_name: server_tests-server-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
