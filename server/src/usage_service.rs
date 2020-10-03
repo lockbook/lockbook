@@ -125,7 +125,7 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
 
 #[cfg(test)]
 mod usage_service_tests {
-    use crate::config::IndexDbConfig;
+    use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
     use lockbook_core::model::api::FileUsage;
@@ -161,16 +161,9 @@ mod usage_service_tests {
             res
         }
 
-        let fake_config = IndexDbConfig {
-            user: "postgres".to_string(),
-            pass: "postgres".to_string(),
-            host: "localhost".to_string(),
-            port: 5432,
-            db: "postgres".to_string(),
-            cert: "".to_string(),
-        };
+        let fake_config = config();
 
-        let res = tokio_test::block_on(do_stuff(&fake_config)).unwrap();
+        let res = tokio_test::block_on(do_stuff(&fake_config.index_db)).unwrap();
 
         let top_usage = res.get(0).unwrap();
         assert_eq!(top_usage.file_id, "nice");
