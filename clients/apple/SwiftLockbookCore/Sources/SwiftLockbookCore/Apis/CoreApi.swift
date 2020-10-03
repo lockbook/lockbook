@@ -9,6 +9,7 @@ public protocol LockbookApi {
     func createAccount(username: String) -> CoreResult<Account>
     func importAccount(accountString: String) -> CoreResult<Account>
     func exportAccount() -> CoreResult<String>
+    func getUsage() -> CoreResult<[FileUsage]>
     
     // Work
     func synchronize() -> CoreResult<Empty>
@@ -60,6 +61,10 @@ public struct CoreApi: LockbookApi {
     
     public func exportAccount() -> CoreResult<String> {
         fromPrimitiveResult(result: export_account(documentsDirectory))
+    }
+    
+    public func getUsage() -> CoreResult<[FileUsage]> {
+        fromPrimitiveResult(result: get_usage(documentsDirectory))
     }
     
     public func synchronize() -> CoreResult<Empty> {
@@ -135,6 +140,10 @@ public struct FakeApi: LockbookApi {
     }
     
     public func exportAccount() -> CoreResult<String> {
+        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+    }
+    
+    public func getUsage() -> CoreResult<[FileUsage]> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
