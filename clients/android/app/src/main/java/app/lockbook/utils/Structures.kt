@@ -1,9 +1,6 @@
 package app.lockbook.utils
 
 import java.util.*
-import kotlin.reflect.KClass
-import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.primaryConstructor
 
 data class FileMetadata(
     val id: String,
