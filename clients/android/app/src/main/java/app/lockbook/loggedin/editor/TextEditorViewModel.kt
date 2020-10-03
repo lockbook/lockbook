@@ -141,6 +141,5 @@ class TextEditorViewModel(application: Application, private val id: String) :
                 }
             }
         }
-
     }
 }

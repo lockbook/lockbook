@@ -16,12 +16,13 @@ import app.lockbook.utils.Stroke
 import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
-    SurfaceView(context, attributeSet) {
+    SurfaceView(context, attributeSet), Runnable {
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
     private val viewPort = Rect()
     private val bitmapPaint = Paint()
+    var isThreadRunning = false
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     var lockBookDrawable: Drawing = Drawing()
@@ -52,8 +53,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockBookDrawable.page.transformation.translation.x += -distanceX * 3 / lockBookDrawable.page.transformation.scale
-                lockBookDrawable.page.transformation.translation.y += -distanceY * 3 / lockBookDrawable.page.transformation.scale
+                lockBookDrawable.page.transformation.translation.x += (-distanceX / lockBookDrawable.page.transformation.scale) * 2
+                lockBookDrawable.page.transformation.translation.y += (-distanceY / lockBookDrawable.page.transformation.scale) * 2
 
                 return true
             }
@@ -94,8 +95,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun setColor(color: String) {
-        when(color) {
-            resources.getString(R.string.handwriting_editor_pallete_white) ->  activePaint.color = Color.WHITE
+        when (color) {
+            resources.getString(R.string.handwriting_editor_pallete_white) -> activePaint.color = Color.WHITE
             resources.getString(R.string.handwriting_editor_pallete_blue) -> activePaint.color = Color.BLUE
             resources.getString(R.string.handwriting_editor_pallete_red) -> activePaint.color = Color.RED
             resources.getString(R.string.handwriting_editor_pallete_yellow) -> activePaint.color = Color.YELLOW
@@ -125,12 +126,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun handleFingerEvent(event: MotionEvent) {
         scaleGestureDetector.onTouchEvent(event)
         gestureDetector.onTouchEvent(event)
-
-        Thread {
-            val canvas = holder.lockCanvas()
-            synchronized(holder) {drawBitmap(canvas)}
-            holder.unlockCanvasAndPost(canvas)
-        }.start()
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
@@ -167,12 +162,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         tempCanvas.drawPath(activePath, activePaint)
 
-        Thread {
-            val canvas = holder.lockCanvas()
-            synchronized(holder) {drawBitmap(canvas)}
-            holder.unlockCanvasAndPost(canvas)
-        }.start()
-
         activePath.reset()
         lastPoint.set(x, y)
         for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
@@ -199,11 +188,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun erase(x: Float, y: Float) {
         val color = canvasBitmap.getPixel(x.toInt(), y.toInt())
-        if(canvasBitmap.getPixel(x.toInt(), y.toInt()) != Color.TRANSPARENT) {
-            for(event in lockBookDrawable.events.reversed()) {
+        if (canvasBitmap.getPixel(x.toInt(), y.toInt()) != Color.TRANSPARENT) {
+            for (event in lockBookDrawable.events.reversed()) {
                 if (event.stroke is Stroke && event.stroke.color == color) { // TODO: Still need to delete off the old stroke
-                    for(point in event.stroke.points) {
-                        if((x <= point.x + point.pressure && x >= point.x - point.pressure)) {
+                    for (point in event.stroke.points) {
+                        if ((x <= point.x + point.pressure && x >= point.x - point.pressure)) {
                             eraseStroke(event.stroke)
                             return
                         }
@@ -236,12 +225,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 activePath.reset()
             }
         }
-
-        Thread {
-            val canvas = holder.lockCanvas()
-            synchronized(holder) { drawBitmap(canvas) }
-            holder.unlockCanvasAndPost(canvas)
-        }.start()
     }
 
     fun drawLockbookDrawable() {
@@ -272,12 +255,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 activePath.reset()
+            }
+        }
+    }
 
-                Thread {
-                    val canvas = holder.lockCanvas()
-                    synchronized(holder) { drawBitmap(canvas) }
-                    holder.unlockCanvasAndPost(canvas)
-                }.start()
+    override fun run() {
+        while (isThreadRunning) {
+            var canvas: Canvas? = null
+            try {
+                canvas = holder.lockCanvas(null)
+                drawBitmap(canvas)
+            } finally {
+                holder.unlockCanvasAndPost(canvas)
             }
         }
     }
