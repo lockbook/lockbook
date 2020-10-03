@@ -158,6 +158,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                             handwriting_editor.lockBookDrawable.page.transformation.translation.y
                                         ),
                                         handwriting_editor.lockBookDrawable.page.transformation.scale,
+                                        handwriting_editor.lockBookDrawable.page.transformation.scaleFocus,
                                         handwriting_editor.lockBookDrawable.page.transformation.rotation
                                     )
                                 ),
