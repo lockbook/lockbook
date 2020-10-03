@@ -3,12 +3,12 @@ version: '3'
 services:
   indexdb:
     image: postgres:12.3
-    container_name: indexdb-integration-$HASH
+    container_name: indexdb-server-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
   config_indexdb:
     image: postgres:12.3
-    container_name: config_indexdb-integration-$HASH
+    container_name: config_indexdb-server-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -23,12 +23,12 @@ services:
       '
 
   server_tests:
-    image: integration_tests:$HASH
-    container_name: integration_tests-integration-$HASH
+    image: lockbook_server_tests:$HASH
+    container_name: lockbook_server_tests-server-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
-      - lockbook_server
+      - indexdb
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
