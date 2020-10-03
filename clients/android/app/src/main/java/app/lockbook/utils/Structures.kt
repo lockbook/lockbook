@@ -119,6 +119,7 @@ data class Page(
 data class Transformation(
     var translation: Point = Point(0f, 0f),
     var scale: Float = 2f,
+    var scaleFocus: Point = Point(0f, 0f),
     var rotation: Float = 0f
 )
 
