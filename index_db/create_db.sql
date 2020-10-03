@@ -30,3 +30,15 @@ CREATE TABLE IF NOT EXISTS user_access_keys (
 	CONSTRAINT fk_user_access_keys_file_id_files_id			FOREIGN KEY (file_id) REFERENCES files(id),
 	CONSTRAINT fk_user_access_keys_sharee_id_accounts_name	FOREIGN KEY (sharee_id) REFERENCES accounts(name)
 );
+
+CREATE TABLE IF NOT EXISTS usage_ledger (
+	file_id			    TEXT NOT NULL,
+	timestamp           timestamptz NOT NULL,
+	owner			    TEXT NOT NULL,
+    bytes               BIGINT NOT NULL,
+	CONSTRAINT pk_usage_ledger                      PRIMARY KEY (file_id, timestamp),
+	CONSTRAINT fk_usage_ledger_file_id_files_id     FOREIGN KEY (file_id) REFERENCES files(id),
+	CONSTRAINT fk_usage_ledger_accounts_name        FOREIGN KEY (owner) REFERENCES accounts(name)
+);
+
+CREATE INDEX usage_ledger_owner_index ON usage_ledger(owner);

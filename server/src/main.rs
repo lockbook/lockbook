@@ -1,4 +1,5 @@
 extern crate base64;
+extern crate chrono;
 extern crate hyper;
 extern crate lockbook_core;
 extern crate tokio;
@@ -11,17 +12,22 @@ pub mod config;
 pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
+pub mod usage_service;
 pub mod utils;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Method, Request, Response, StatusCode};
+use lockbook_core::loggers;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::future::Future;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+static LOG_FILE: &str = "lockbook_server.log";
 
 pub struct ServerState {
     pub config: config::Config,
@@ -31,8 +37,17 @@ pub struct ServerState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    env_logger::init();
     let config = config();
+    loggers::init(
+        Path::new(&config.server.log_path),
+        LOG_FILE.to_string(),
+        true,
+    )
+    .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
+    .level(log::LevelFilter::Info)
+    .level_for("lockbook_server", log::LevelFilter::Debug)
+    .apply()
+    .expect("Failed setting logger!");
 
     info!("Connecting to index_db...");
     let index_db_client = file_index_repo::connect(&config.index_db)
@@ -126,6 +141,10 @@ async fn route(
         (&Method::POST, "/new-account") => {
             info!("Request matched POST /new-account");
             handle(&mut s, request, account_service::new_account).await
+        }
+        (&Method::GET, "/get-usage") => {
+            info!("Request matched GET /get-usage");
+            handle(&mut s, request, account_service::calculate_usage).await
         }
         _ => {
             warn!(
