@@ -3,6 +3,9 @@ package app.lockbook.loggedin.editor
 import android.os.Bundle
 import android.os.Handler
 import android.view.SurfaceHolder
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -22,12 +25,20 @@ class HandwritingEditorActivity : AppCompatActivity() {
         setContentView(R.layout.activity_handwriting_editor)
 
         val id = intent.getStringExtra("id")
+        val name = intent.getStringExtra("name")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
             finish()
             return
         }
+
+        if(name == null) {
+            errorHasOccurred("Unable to retrieve name.")
+            finish()
+            return
+        }
+        handwriting_editor_drawing_name.text = name
 
         handwritingEditorViewModel =
             ViewModelProvider(
@@ -45,6 +56,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         if (startUpDrawing(id)) return
 
         startBackgroundSave()
+        setUpHandwritingToolbar()
     }
 
     private fun startUpDrawing(id: String): Boolean {
@@ -105,6 +117,33 @@ class HandwritingEditorActivity : AppCompatActivity() {
         return false
     }
 
+    private fun setUpHandwritingToolbar() {
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.handwriting_editor_pallete_colors,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            handwriting_editor_pallete_spinner.adapter = adapter
+        }
+
+        handwriting_editor_pallete_spinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    handwriting_editor.setColor(parent?.getItemAtPosition(position).toString())
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+
+            }
+    }
+
+
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
         timer.schedule(
             object : TimerTask() {
@@ -132,7 +171,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                                     point.y,
                                                     point.pressure
                                                 )
-                                            }.toMutableList())
+                                            }.toMutableList()
+                                        )
                                     )
                                 }.toMutableList()
                             )
