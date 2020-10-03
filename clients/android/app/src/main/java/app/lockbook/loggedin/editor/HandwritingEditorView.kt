@@ -35,8 +35,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                         lockBookDrawable.page.transformation.scale.coerceAtMost(2.0f)
                     )
 
-                    lockBookDrawable.page.transformation.translation.x = detector.focusX
-                    lockBookDrawable.page.transformation.translation.y = detector.focusY
+                    lockBookDrawable.page.transformation.scaleFocus.x = detector.focusX
+                    lockBookDrawable.page.transformation.scaleFocus.y = detector.focusY
 
                     return true
                 }
@@ -73,11 +73,16 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun drawBitmap(canvas: Canvas) {
         canvas.save()
+        Timber.e("Translation: ${lockBookDrawable.page.transformation.translation.x}, ${lockBookDrawable.page.transformation.translation.y}| Focus: ${lockBookDrawable.page.transformation.scaleFocus.x}, ${lockBookDrawable.page.transformation.scaleFocus.y}")
+        canvas.translate(
+            lockBookDrawable.page.transformation.translation.x,
+            lockBookDrawable.page.transformation.translation.y
+        )
         canvas.scale( // I need to use viewport to correctly scale from a pivot point
             lockBookDrawable.page.transformation.scale,
             lockBookDrawable.page.transformation.scale,
-            lockBookDrawable.page.transformation.translation.x,
-            lockBookDrawable.page.transformation.translation.y
+            lockBookDrawable.page.transformation.scaleFocus.x,
+            lockBookDrawable.page.transformation.scaleFocus.y
         )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
