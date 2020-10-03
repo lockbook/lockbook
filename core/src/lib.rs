@@ -9,12 +9,13 @@ use serde::Serialize;
 pub use sled::Db;
 use uuid::Uuid;
 
-use crate::client::{ClientImpl, Error};
+use crate::client::{Client, ClientImpl, Error};
 use crate::model::account::Account;
+use crate::model::api;
 use crate::model::api::{
     ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, GetDocumentError, GetPublicKeyError, GetUpdatesError, MoveDocumentError,
-    MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
+    DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
+    MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
 };
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
@@ -57,20 +58,20 @@ use crate::CreateFileAtPathError::{
 use crate::GetFileByPathError::NoFileAtThatPath;
 use crate::ImportError::{AccountDoesNotExist, AccountStringCorrupted, UsernamePKMismatch};
 use crate::WriteToDocumentError::{FileDoesNotExist, FolderTreatedAsDocument};
+use std::str::FromStr;
 
 pub mod c_interface;
 pub mod client;
 pub mod java_interface;
+pub mod loggers;
 pub mod model;
 pub mod repo;
 pub mod service;
 
-mod loggers;
-
 static API_URL: &str = env!("API_URL");
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
-static LOG_FILE: &str = "output.log";
+static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;
@@ -117,9 +118,17 @@ pub enum InitLoggerError {
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
-    let print_debug = env::var("LOCKBOOK_DEBUG").is_ok();
-    let print_colors = env::var("LOCKBOOK_NO_COLOR").is_err();
-    loggers::init(log_path, print_debug, print_colors)
+    let print_colors = env::var("LOG_NO_COLOR").is_err();
+    let lockbook_log_level = env::var("LOG_LEVEL")
+        .ok()
+        .and_then(|s| log::LevelFilter::from_str(s.as_str()).ok())
+        .unwrap_or_else(|| log::LevelFilter::Debug);
+
+    loggers::init(log_path, LOG_FILE.to_string(), print_colors)
+        .map_err(|err| InitLoggerError::Unexpected(format!("IO Error: {:#?}", err)))?
+        .level(log::LevelFilter::Warn)
+        .level_for("lockbook_core", lockbook_log_level)
+        .apply()
         .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
@@ -1173,4 +1182,28 @@ pub fn get_last_synced(config: &Config) -> Result<u64, GetLastSyncedError> {
             }
         },
     }
+}
+
+#[derive(Debug, Serialize)]
+pub enum GetUsageError {
+    NoAccount,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+    UnexpectedError(String),
+}
+
+pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, GetUsageError> {
+    let db = connect_to_db(&config).map_err(GetUsageError::UnexpectedError)?;
+
+    let acc = DefaultAccountRepo::get_account(&db).map_err(|_| GetUsageError::NoAccount)?;
+
+    DefaultClient::get_usage(acc.username.as_str())
+        .map(|resp| resp.usages)
+        .map_err(|err| match err {
+            Error::Api(api::GetUsageError::ClientUpdateRequired) => {
+                GetUsageError::ClientUpdateRequired
+            }
+            Error::SendFailed(_) | Error::ReceiveFailed(_) => GetUsageError::CouldNotReachServer,
+            _ => GetUsageError::UnexpectedError(format!("{:#?}", err)),
+        })
 }
