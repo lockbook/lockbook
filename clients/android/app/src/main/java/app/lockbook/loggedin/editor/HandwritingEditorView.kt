@@ -8,10 +8,12 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import app.lockbook.R
 import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
+import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet) {
@@ -50,8 +52,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockBookDrawable.page.transformation.translation.x += (-distanceX * 4 / lockBookDrawable.page.transformation.scale)
-                lockBookDrawable.page.transformation.translation.y += (-distanceY * 4 / lockBookDrawable.page.transformation.scale)
+                lockBookDrawable.page.transformation.translation.x += -distanceX * 3 / lockBookDrawable.page.transformation.scale
+                lockBookDrawable.page.transformation.translation.y += -distanceY * 3 / lockBookDrawable.page.transformation.scale
 
                 return true
             }
@@ -67,18 +69,15 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         bitmapPaint.strokeCap = Paint.Cap.ROUND
         bitmapPaint.strokeJoin = Paint.Join.ROUND
-
     }
 
     private fun drawBitmap(canvas: Canvas) {
         canvas.save()
-        canvas.translate(
-            lockBookDrawable.page.transformation.translation.x,
-            lockBookDrawable.page.transformation.translation.y
-        )
         canvas.scale( // I need to use viewport to correctly scale from a pivot point
             lockBookDrawable.page.transformation.scale,
             lockBookDrawable.page.transformation.scale,
+            lockBookDrawable.page.transformation.translation.x,
+            lockBookDrawable.page.transformation.translation.y
         )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
@@ -89,10 +88,21 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         canvas.restore()
     }
 
+    fun setColor(color: String) {
+        when(color) {
+            resources.getString(R.string.handwriting_editor_pallete_white) ->  activePaint.color = Color.WHITE
+            resources.getString(R.string.handwriting_editor_pallete_blue) -> activePaint.color = Color.BLUE
+            resources.getString(R.string.handwriting_editor_pallete_red) -> activePaint.color = Color.RED
+            resources.getString(R.string.handwriting_editor_pallete_yellow) -> activePaint.color = Color.YELLOW
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
             for (point in 0 until event.pointerCount) {
+                Timber.e("Smail: ${event.getToolType(point)}")
+
                 if (event.getToolType(point) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(point) == MotionEvent.TOOL_TYPE_ERASER
                 ) {
@@ -182,6 +192,53 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         holder.unlockCanvasAndPost(canvas)
     }
 
+    private fun erase(x: Float, y: Float) {
+        val color = canvasBitmap.getPixel(x.toInt(), y.toInt())
+        if(canvasBitmap.getPixel(x.toInt(), y.toInt()) != Color.TRANSPARENT) {
+            for(event in lockBookDrawable.events.reversed()) {
+                if (event.stroke is Stroke && event.stroke.color == color) { // TODO: Still need to delete off the old stroke
+                    for(point in event.stroke.points) {
+                        if((x <= point.x + point.pressure && x >= point.x - point.pressure)) {
+                            eraseStroke(event.stroke)
+                            return
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun eraseStroke(stroke: Stroke) {
+        val currentPaint = Paint()
+        currentPaint.isAntiAlias = true
+        currentPaint.style = Paint.Style.STROKE
+        currentPaint.strokeJoin = Paint.Join.ROUND
+        currentPaint.strokeCap = Paint.Cap.ROUND
+        currentPaint.color = Color.TRANSPARENT
+
+        for (pointIndex in 0 until stroke.points.size) {
+            currentPaint.strokeWidth = stroke.points[pointIndex].pressure
+            if (pointIndex != 0) {
+                activePath.moveTo(
+                    stroke.points[pointIndex - 1].x,
+                    stroke.points[pointIndex - 1].y
+                )
+                activePath.lineTo(
+                    stroke.points[pointIndex].x,
+                    stroke.points[pointIndex].y
+                )
+                tempCanvas.drawPath(activePath, currentPaint)
+                activePath.reset()
+            }
+        }
+
+        Thread {
+            val canvas = holder.lockCanvas()
+            synchronized(holder) { drawBitmap(canvas) }
+            holder.unlockCanvasAndPost(canvas)
+        }.start()
+    }
+
     fun drawLockbookDrawable() {
         val currentPaint = Paint()
         currentPaint.isAntiAlias = true
@@ -189,21 +246,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         currentPaint.strokeJoin = Paint.Join.ROUND
         currentPaint.strokeCap = Paint.Cap.ROUND
 
-        for (eventIndex in 0 until lockBookDrawable.events.size) {
-            val currentEvent = lockBookDrawable.events[eventIndex]
-            if (currentEvent.stroke is Stroke) {
-                currentPaint.color = currentEvent.stroke.color
+        for (event in lockBookDrawable.events) {
+            if (event.stroke is Stroke) {
+                currentPaint.color = event.stroke.color
 
-                for (pointIndex in 0 until currentEvent.stroke.points.size) {
-                    currentPaint.strokeWidth = currentEvent.stroke.points[pointIndex].pressure
+                for (pointIndex in 0 until event.stroke.points.size) {
+                    currentPaint.strokeWidth = event.stroke.points[pointIndex].pressure
                     if (pointIndex != 0) {
                         activePath.moveTo(
-                            currentEvent.stroke.points[pointIndex - 1].x,
-                            currentEvent.stroke.points[pointIndex - 1].y
+                            event.stroke.points[pointIndex - 1].x,
+                            event.stroke.points[pointIndex - 1].y
                         )
                         activePath.lineTo(
-                            currentEvent.stroke.points[pointIndex].x,
-                            currentEvent.stroke.points[pointIndex].y
+                            event.stroke.points[pointIndex].x,
+                            event.stroke.points[pointIndex].y
                         )
                         tempCanvas.drawPath(activePath, currentPaint)
                         activePath.reset()
