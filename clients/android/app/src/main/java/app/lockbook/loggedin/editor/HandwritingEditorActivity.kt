@@ -33,7 +33,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             return
         }
 
-        if(name == null) {
+        if (name == null) {
             errorHasOccurred("Unable to retrieve name.")
             finish()
             return
@@ -63,7 +63,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         val contents = handwritingEditorViewModel.handleReadDocument(id)
 
         if (contents != null && contents.isNotEmpty()) {
-            val lockbookDrawable = if(handwritingEditorViewModel.lockBookDrawable == null) {
+            val lockbookDrawable = if (handwritingEditorViewModel.lockBookDrawable == null) {
 
                 Klaxon().parse<Drawing>(contents)
             } else {
@@ -80,6 +80,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
                     handwriting_editor.drawLockbookDrawable()
+                    handwriting_editor.isThreadRunning = true
                 }
 
                 override fun surfaceChanged(
@@ -93,12 +94,11 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
                 }
             })
-
-
         } else {
             handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
+                    handwriting_editor.isThreadRunning = true
                 }
 
                 override fun surfaceChanged(
@@ -139,10 +139,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
-
             }
     }
-
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
         timer.schedule(
