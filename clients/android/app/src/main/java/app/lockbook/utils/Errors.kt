@@ -4,6 +4,16 @@ sealed class InitLoggerError {
     data class Unexpected(val error: String) : InitLoggerError()
 }
 
+sealed class GetStateError {
+    data class UnexpectedError(val error: String) : GetStateError()
+}
+
+sealed class MigrationError {
+    object StateRequiresCleaning : MigrationError()
+    data class UnexpectedError(val error: String) : MigrationError()
+
+}
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
