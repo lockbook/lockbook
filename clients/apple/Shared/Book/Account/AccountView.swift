@@ -4,6 +4,7 @@ import SwiftLockbookCore
 struct AccountView: View {
     @ObservedObject var core: Core
     let account: Account
+    @State var showingUsage: Bool = false
     @State var showingCode: Bool = false
     @State var copiedString: Bool?
     @Environment(\.presentationMode) var presentationMode
@@ -16,26 +17,36 @@ struct AccountView: View {
         VStack(spacing: 50) {
             Text("\(account.username)'s Account")
                 .font(.title)
-            GroupBox(label: Text("Account String").padding(.bottom, 20)) {
+            GroupBox(label: Text("Account").padding(.bottom, 20)) {
                 VStack(spacing: 20) {
                     Button(action: { showingCode.toggle() }) {
                         Label("Show QR Code", systemImage: "qrcode")
                     }
-                    HStack {
-                        Button(action: copyAccountString ) {
-                            Label("Copy to Clipboard", systemImage: "pencil.and.ellipsis.rectangle")
-                        }
-                        copiedString.map { b in
-                            Button(action: hideMessage ) {
-                                if (b) {
-                                    Label("Copied!", systemImage: "checkmark.square").foregroundColor(.green)
-                                } else {
-                                    Label("Failed", systemImage: "exclamationmark.square").foregroundColor(.red)
-                                }
+                    NotificationButton(
+                        action: copyAccountString,
+                        label: Label("Copy String to Clipboard", systemImage: "pencil.and.ellipsis.rectangle"),
+                        successLabel: Label("Copied!", systemImage: "checkmark.square"),
+                        failureLabel: Label("Failed", systemImage: "exclamationmark.square")
+                    )
+                    DisclosureGroup(
+                        isExpanded: $showingUsage,
+                        content: { () -> AnyView in
+                            let usages = (try? core.api.getUsage().get()) ?? []
+                            let bytes = usages.map { $0.byteSecs }.reduce(0, +)
+                            return AnyView(
+                                ProgressView("\(bytes) bytes", value: 0.8, total: 1.0)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: .purple))
+                            )
+                        },
+                        label: {
+                            HStack {
+                                Spacer()
+                                Label("Current Usage", systemImage: "circle.grid.hex.fill")
+                                    .foregroundColor(.purple)
+                                Spacer()
                             }
-                            .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: hideMessage) }
                         }
-                    }
+                    )
                 }
             }
             GroupBox(label: Text("Debug").padding(.bottom, 20)) {
@@ -75,7 +86,7 @@ struct AccountView: View {
         return nil
     }
     
-    func copyAccountString() {
+    func copyAccountString() -> Result<Void, Error> {
         withAnimation {
             switch core.api.exportAccount() {
             case .success(let accountString):
@@ -86,11 +97,23 @@ struct AccountView: View {
                 NSPasteboard.general.setString(accountString, forType: .string)
                 #endif
                 copiedString = true
+                return .success(())
             case .failure(let err):
                 copiedString = false
                 core.displayError(error: err)
+                return .failure(err)
             }
         }
+    }
+    
+    func getUsage() {
+        showingUsage = true
+//        switch core.api.getUsage() {
+//        case .success(let usage):
+//            usage.forEach { print("\($0.fileId): \($0.byteSecs)/\($0.secs) byte/secs") }
+//        case .failure(let err):
+//            core.displayError(error: err)
+//        }
     }
     
     func purgeAndLogout() {
