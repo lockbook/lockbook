@@ -26,6 +26,55 @@ val initLoggerConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val getStateConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.obj("Ok")
+
+        if (okResult is JsonObject) {
+            return Ok(Klaxon().parseFromJsonObject<State>(okResult))
+        }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
+
+        if (unexpectedResult is String) {
+            return Err(GetStateError.UnexpectedError(unexpectedResult))
+        }
+
+        return Err(GetStateError.UnexpectedError("Unable to parse GetStateResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val migrateDBConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.containsKey("Ok")
+
+        if (okResult == true) {
+            return Ok(Unit)
+        }
+
+        if(jv.obj?.get("Err") == MigrationError.StateRequiresCleaning::class.simpleName) {
+
+        }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
+
+        if (unexpectedResult is String) {
+            return Err(MigrationError.UnexpectedError(unexpectedResult))
+        }
+
+        return Err(MigrationError.UnexpectedError("Unable to parse MigrateDBResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

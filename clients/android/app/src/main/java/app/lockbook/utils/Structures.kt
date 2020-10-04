@@ -80,6 +80,13 @@ data class WorkUnitMetadata(val metadata: FileMetadata)
 
 data class Config(val writeable_path: String)
 
+enum class State {
+    ReadyToUse,
+    Empty,
+    MigrationRequired,
+    StateRequiresClearing
+}
+
 data class EditableFile(
     val name: String,
     val id: String,
