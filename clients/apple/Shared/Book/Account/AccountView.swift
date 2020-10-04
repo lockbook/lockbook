@@ -108,6 +108,15 @@ struct AccountView: View {
     
     func getUsage() {
         showingUsage = true
+<<<<<<< HEAD
+=======
+//        switch core.api.getUsage() {
+//        case .success(let usage):
+//            usage.forEach { print("\($0.fileId): \($0.byteSecs)/\($0.secs) byte/secs") }
+//        case .failure(let err):
+//            core.displayError(error: err)
+//        }
+>>>>>>> 9c94ee1d... working commit of some usage stuff
     }
     
     func purgeAndLogout() {

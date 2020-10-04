@@ -52,18 +52,8 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "LOG_LEVEL"
-            value = "debug"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "LOG_NO_COLOR"
-            value = "1"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
             key = "API_URL"
-            value = "http://localhost:8000"
+            value = "http://qa.lockbook.app:8000"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

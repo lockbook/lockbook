@@ -87,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				EA08372A25198AC9008EA3F3 /* AccountView.swift */,
+				EA30B5452529563F00D2FE22 /* UsageView.swift */,
 			);
 			path = Account;
 			sourceTree = "<group>";
@@ -287,6 +288,7 @@
 				EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
+				EA30B5462529563F00D2FE22 /* UsageView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
@@ -317,6 +319,7 @@
 				EA04B3AE2519906A008598CB /* AccountView.swift in Sources */,
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EA30B5472529563F00D2FE22 /* UsageView.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
