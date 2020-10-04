@@ -14,9 +14,11 @@ import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
 import java.util.*
+import timber.log.Timber
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
+    private lateinit var handwritingThread: Thread
     private var timer: Timer = Timer()
     private val handler = Handler()
 
@@ -81,6 +83,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
                     handwriting_editor.setUpBitmapDrawable()
                     handwriting_editor.drawLockbookDrawable()
                     handwriting_editor.isThreadRunning = true
+                    handwritingThread = Thread(handwriting_editor)
+                    handwritingThread.start()
                 }
 
                 override fun surfaceChanged(
@@ -92,6 +96,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 }
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
+                    endHandwritingThread()
                 }
             })
         } else {
@@ -99,6 +104,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 override fun surfaceCreated(holder: SurfaceHolder?) {
                     handwriting_editor.setUpBitmapDrawable()
                     handwriting_editor.isThreadRunning = true
+                    handwritingThread = Thread(handwriting_editor)
+                    handwritingThread.start()
                 }
 
                 override fun surfaceChanged(
@@ -110,11 +117,24 @@ class HandwritingEditorActivity : AppCompatActivity() {
                 }
 
                 override fun surfaceDestroyed(holder: SurfaceHolder?) {
+                    endHandwritingThread()
                 }
             })
         }
 
         return false
+    }
+
+    private fun endHandwritingThread() {
+        var retry = true
+        handwriting_editor.isThreadRunning = false
+        while (retry) {
+            Timber.e("Trying..")
+            try {
+                handwritingThread.join()
+                retry = false
+            } catch (e: InterruptedException) {}
+        }
     }
 
     private fun setUpHandwritingToolbar() {
