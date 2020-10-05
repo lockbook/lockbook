@@ -144,7 +144,7 @@ public struct FakeApi: LockbookApi {
     }
     
     public func getUsage() -> CoreResult<[FileUsage]> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.success([FileUsage(fileId: .init(), byteSecs: UInt64(100), secs: UInt64(1))])
     }
     
     public func synchronize() -> CoreResult<Empty> {
