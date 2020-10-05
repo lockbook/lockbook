@@ -12,12 +12,15 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
+import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
@@ -26,23 +29,84 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(R.layout.splash_screen)
         Timber.plant(Timber.DebugTree())
 
-        val pref = PreferenceManager.getDefaultSharedPreferences(this)
+        handleOnDBState()
+    }
 
-        if (pref.getBoolean(LOGGED_IN_KEY, false)) {
-            if (!isBiometricsOptionsAvailable() && pref.getString(
-                    BIOMETRIC_OPTION_KEY,
-                    BIOMETRIC_NONE
-                ) != BIOMETRIC_NONE
-            ) {
-                pref.edit()
-                    .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
-                    .apply()
+    private fun handleOnDBState() {
+        when (val getDBStateResult = CoreModel.getDBState(Config(filesDir.absolutePath))) {
+            is Ok -> {
+                when(getDBStateResult.value) {
+                    State.Empty -> {
+                        startActivity(Intent(this, WelcomeActivity::class.java))
+                        finish()
+                    }
+                    State.ReadyToUse -> {
+                        val pref = PreferenceManager.getDefaultSharedPreferences(this)
+
+                        if (!isBiometricsOptionsAvailable() && pref.getString(
+                                BIOMETRIC_OPTION_KEY,
+                                BIOMETRIC_NONE
+                            ) != BIOMETRIC_NONE
+                        ) {
+                            pref.edit()
+                                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
+                                .apply()
+                        }
+                        performBiometricFlow(pref)
+                    }
+                    State.MigrationRequired -> {
+                        Toast.makeText(applicationContext, "Your lockbook data is old and will require migrating to use this version, please wait.", Toast.LENGTH_LONG).show()
+                    }
+                    State.StateRequiresClearing -> {
+                        Timber.e("DB state requires cleaning!")
+                        Toast.makeText(applicationContext, "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.", Toast.LENGTH_LONG).show()
+                    }
+                    else -> {
+                        Timber.e("State enum not matched: ${getDBStateResult.value::class.simpleName}")
+                        Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                            .show()
+                    }
+                }
             }
-            performBiometricFlow(pref)
-        } else {
-            startActivity(Intent(this, WelcomeActivity::class.java))
-            finish()
+            is Err -> when(val error = getDBStateResult.error) {
+                is GetStateError.UnexpectedError -> {
+                    Timber.e("Unable to get DB State: ${error.error}")
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        .show()
+                }
+                else -> {
+                    Timber.e("GetStateError not matched: ${error::class.simpleName}")
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
         }
+
+        finish()
+    }
+
+    private fun migrateDB() {
+        when(val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
+            is Ok -> return
+            is Err -> when(val error = migrateDBResult.error) {
+                is MigrationError.StateRequiresCleaning -> {
+                    Timber.e("DB state requires cleaning!")
+                    Toast.makeText(applicationContext, "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.", Toast.LENGTH_LONG).show()
+                }
+                is MigrationError.UnexpectedError -> {
+                    Timber.e("Unable to migrate DB: ${error.error}")
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        .show()
+                }
+                else -> {
+                    Timber.e("MigrationError not matched: ${error::class.simpleName}")
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
+        }
+
+        finish()
     }
 
     private fun launchListFilesActivity() {

@@ -59,7 +59,7 @@ val migrateDBConverter = object : Converter {
         }
 
         if(jv.obj?.get("Err") == MigrationError.StateRequiresCleaning::class.simpleName) {
-
+            return Err(MigrationError.StateRequiresCleaning)
         }
 
         val unexpectedResult = jv.obj?.get("UnexpectedError")
@@ -73,7 +73,6 @@ val migrateDBConverter = object : Converter {
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
-
 
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
