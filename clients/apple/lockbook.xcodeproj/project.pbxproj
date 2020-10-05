@@ -11,8 +11,6 @@
 		EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA08372A25198AC9008EA3F3 /* AccountView.swift */; };
 		EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E8182516643400B9158C /* SwiftLockbookCore */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
-		EA30B5462529563F00D2FE22 /* UsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B5452529563F00D2FE22 /* UsageView.swift */; };
-		EA30B5472529563F00D2FE22 /* UsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B5452529563F00D2FE22 /* UsageView.swift */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
@@ -44,7 +42,6 @@
 
 /* Begin PBXFileReference section */
 		EA08372A25198AC9008EA3F3 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
-		EA30B5452529563F00D2FE22 /* UsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageView.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
 		EA5C7D682516605F00F7F358 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
@@ -90,7 +87,6 @@
 			isa = PBXGroup;
 			children = (
 				EA08372A25198AC9008EA3F3 /* AccountView.swift */,
-				EA30B5452529563F00D2FE22 /* UsageView.swift */,
 			);
 			path = Account;
 			sourceTree = "<group>";
@@ -291,7 +287,6 @@
 				EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
-				EA30B5462529563F00D2FE22 /* UsageView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
@@ -322,7 +317,6 @@
 				EA04B3AE2519906A008598CB /* AccountView.swift in Sources */,
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
-				EA30B5472529563F00D2FE22 /* UsageView.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
