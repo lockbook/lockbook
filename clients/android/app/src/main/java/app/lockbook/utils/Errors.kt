@@ -11,7 +11,6 @@ sealed class GetStateError {
 sealed class MigrationError {
     object StateRequiresCleaning : MigrationError()
     data class UnexpectedError(val error: String) : MigrationError()
-
 }
 
 sealed class CreateAccountError {
