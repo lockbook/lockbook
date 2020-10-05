@@ -33,16 +33,16 @@ struct AccountView: View {
                         content: { () -> AnyView in
                             let usages = (try? core.api.getUsage().get()) ?? []
                             let bytes = usages.map { $0.byteSecs }.reduce(0, +)
-                            return AnyView(
-                                ProgressView("\(bytes) bytes", value: 0.8, total: 1.0)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .purple))
-                            )
+                            return AnyView(UsageIndicator(numerator: bytes*8/10, denominator: bytes, suffix: "Bytes").foregroundColor(.accentColor))
                         },
                         label: {
                             HStack {
                                 Spacer()
-                                Label("Current Usage", systemImage: "circle.grid.hex.fill")
-                                    .foregroundColor(.purple)
+                                Button(action: {
+                                    withAnimation(.linear) { showingUsage.toggle() }
+                                }, label: {
+                                    Label("Current Usage", systemImage: "circle.grid.hex.fill")
+                                })
                                 Spacer()
                             }
                         }
@@ -108,12 +108,6 @@ struct AccountView: View {
     
     func getUsage() {
         showingUsage = true
-//        switch core.api.getUsage() {
-//        case .success(let usage):
-//            usage.forEach { print("\($0.fileId): \($0.byteSecs)/\($0.secs) byte/secs") }
-//        case .failure(let err):
-//            core.displayError(error: err)
-//        }
     }
     
     func purgeAndLogout() {
