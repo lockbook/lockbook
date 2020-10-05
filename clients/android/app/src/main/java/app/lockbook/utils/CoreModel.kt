@@ -19,6 +19,30 @@ object CoreModel {
         return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
     }
 
+    fun getDBState(config: Config): Result<State, GetStateError> {
+        val getStateResult: Result<State, GetStateError>? =
+            Klaxon().converter(getStateConverter)
+                .parse(getDBState(Klaxon().toJsonString(config)))
+
+        if (getStateResult != null) {
+            return getStateResult
+        }
+
+        return Err(GetStateError.UnexpectedError("getStateConverter was unable to be called!"))
+    }
+
+    fun migrateDB(config: Config): Result<Unit, MigrationError> {
+        val migrateDBResult: Result<Unit, MigrationError>? =
+            Klaxon().converter(migrateDBConverter)
+                .parse(getDBState(Klaxon().toJsonString(config)))
+
+        if (migrateDBResult != null) {
+            return migrateDBResult
+        }
+
+        return Err(MigrationError.UnexpectedError("migrateDBConverter was unable to be called!"))
+    }
+
     fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
         val createAccountResult: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
