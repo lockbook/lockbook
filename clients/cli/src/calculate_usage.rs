@@ -1,6 +1,8 @@
-use crate::utils::{get_account_or_exit, get_config, exit_with, exit_with_upgrade_required, exit_with_offline};
-use lockbook_core::{get_usage, GetUsageError};
+use crate::utils::{
+    exit_with, exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
+};
 use crate::UNEXPECTED_ERROR;
+use lockbook_core::{get_usage, GetUsageError};
 
 const KILOBYTES: u64 = 1000;
 const MEGABYTES: u64 = 1000 * 1000;
@@ -18,8 +20,9 @@ pub fn calculate_usage(exact: bool) {
     let usages = get_usage(&get_config()).unwrap_or_else(|err| match err {
         GetUsageError::CouldNotReachServer => exit_with_offline(),
         GetUsageError::ClientUpdateRequired => exit_with_upgrade_required(),
-        GetUsageError::NoAccount |
-        GetUsageError::UnexpectedError(_) => exit_with(&format!("Unexpected Error: {:?}", err), UNEXPECTED_ERROR),
+        GetUsageError::NoAccount | GetUsageError::UnexpectedError(_) => {
+            exit_with(&format!("Unexpected Error: {:?}", err), UNEXPECTED_ERROR)
+        }
     });
 
     let usage_in_bytes: u64 = usages.into_iter().map(|usage| usage.byte_secs).sum();
@@ -29,10 +32,18 @@ pub fn calculate_usage(exact: bool) {
     } else {
         match usage_in_bytes {
             0..=KILOBYTES => println!("{} B", usage_in_bytes),
-            KILOBYTES_PLUS_ONE..=MEGABYTES => println!("{:.3} kB", usage_in_bytes as f64 / KILOBYTES as f64),
-            MEGABYTES_PLUS_ONE..=GIGABYTES => println!("{:.3} MB", usage_in_bytes as f64 / MEGABYTES as f64),
-            GIGABYTES_PLUS_ONE..=TERABYTES => println!("{:.3} GB", usage_in_bytes as f64 / GIGABYTES as f64),
-            TERABYTES_PLUS_ONE..=u64::MAX => println!("{:.3} TB", usage_in_bytes as f64 / TERABYTES as f64)
+            KILOBYTES_PLUS_ONE..=MEGABYTES => {
+                println!("{:.3} kB", usage_in_bytes as f64 / KILOBYTES as f64)
+            }
+            MEGABYTES_PLUS_ONE..=GIGABYTES => {
+                println!("{:.3} MB", usage_in_bytes as f64 / MEGABYTES as f64)
+            }
+            GIGABYTES_PLUS_ONE..=TERABYTES => {
+                println!("{:.3} GB", usage_in_bytes as f64 / GIGABYTES as f64)
+            }
+            TERABYTES_PLUS_ONE..=u64::MAX => {
+                println!("{:.3} TB", usage_in_bytes as f64 / TERABYTES as f64)
+            }
         }
     }
 }
