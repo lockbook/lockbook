@@ -21,6 +21,7 @@ mod status;
 mod sync;
 mod utils;
 mod whoami;
+mod calculate_usage;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -105,8 +106,15 @@ enum Lockbook {
     #[structopt(name = "whoami")]
     WhoAmI,
 
-    // Backup your Lockbook files and structure to the current directory
+    /// Backup your Lockbook files and structure to the current directory
     Backup,
+
+    /// Calculate how much space your Lockbook is occupying
+    GetUsage {
+        /// Show the amount in bytes, don't show a human readable interpretation
+        #[structopt(long)]
+        exact: bool,
+    },
 }
 
 fn main() {
@@ -137,6 +145,7 @@ fn main() {
         Lockbook::Sync => sync::sync(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
+        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact)
     }
 }
 
