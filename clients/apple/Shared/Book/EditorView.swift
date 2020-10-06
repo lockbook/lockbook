@@ -142,17 +142,6 @@ class ContentBuffer: ObservableObject {
                 self.status = .Succeeded
             })
             .store(in: &cancellables)
-     
-//        $title
-//            .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
-//            .removeDuplicates()
-//            .filter({ _ in self.succeeded })
-//            .receive(on: RunLoop.main)
-//            .sink(receiveValue: { title in
-//                print(self.core.api.renameFile(id: self.meta.id, name: title))
-////                self.core.updateFiles()
-//            })
-//            .store(in: &cancellables)
     }
     
     func save() -> Result<Void, ApplicationError> {
