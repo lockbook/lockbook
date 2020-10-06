@@ -28,7 +28,7 @@ namespace test {
             try {
                 Directory.Delete(lockbookDir, true);
             }
-            catch (System.IO.DirectoryNotFoundException e) { }
+            catch (DirectoryNotFoundException) { }
         }
 
         [TestMethod]
