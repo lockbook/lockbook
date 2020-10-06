@@ -30,6 +30,8 @@ public protocol LockbookApi {
 
 public struct CoreApi: LockbookApi {
     var documentsDirectory: String
+    // TODO: This has to be more configurable!
+    var apiUrl: String = ProcessInfo.processInfo.environment["API_URL"]!
     
     public init(documentsDirectory: String) {
         self.documentsDirectory = documentsDirectory
@@ -37,73 +39,73 @@ public struct CoreApi: LockbookApi {
     
     /// If this isn't called, the rust logger will not start!
     public func initializeLogger() -> Void {
-        init_logger_safely(documentsDirectory)
+        init_logger_safely(documentsDirectory, apiUrl)
     }
     
     public func getAccount() -> CoreResult<Account> {
-        fromPrimitiveResult(result: get_account(documentsDirectory))
+        fromPrimitiveResult(result: get_account(documentsDirectory, apiUrl))
     }
     
     public func createAccount(username: String) -> CoreResult<Account> {
-        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username))
+        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, apiUrl, username))
         
         return result.flatMap { print($0 as Any); return getAccount() }
     }
     
     public func importAccount(accountString: String) -> CoreResult<Account> {
-        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: import_account(documentsDirectory, apiUrl, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
         
         return result.flatMap { print($0 as Any); return getAccount() }
     }
     
     public func exportAccount() -> CoreResult<String> {
-        fromPrimitiveResult(result: export_account(documentsDirectory))
+        fromPrimitiveResult(result: export_account(documentsDirectory, apiUrl))
     }
     
     public func getUsage() -> CoreResult<[FileUsage]> {
-        fromPrimitiveResult(result: get_usage(documentsDirectory))
+        fromPrimitiveResult(result: get_usage(documentsDirectory, apiUrl))
     }
     
     public func synchronize() -> CoreResult<Empty> {
-        fromPrimitiveResult(result: sync_all(documentsDirectory))
+        fromPrimitiveResult(result: sync_all(documentsDirectory, apiUrl))
     }
     
     public func calculateWork() -> CoreResult<WorkMetadata> {
-        fromPrimitiveResult(result: calculate_work(documentsDirectory))
+        fromPrimitiveResult(result: calculate_work(documentsDirectory, apiUrl))
     }
     
     public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
         switch serialize(obj: work) {
         case .success(let workUnitStr):
-            return fromPrimitiveResult(result: execute_work(documentsDirectory, workUnitStr))
+            return fromPrimitiveResult(result: execute_work(documentsDirectory, apiUrl, workUnitStr))
         case .failure(let err):
             return CoreResult.failure(ApplicationError.General(err))
         }
     }
     
     public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
-        fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
+        fromPrimitiveResult(result: set_last_synced(documentsDirectory, apiUrl, lastSync))
     }
     
     public func getRoot() -> CoreResult<FileMetadata> {
-        fromPrimitiveResult(result: get_root(documentsDirectory))
+        fromPrimitiveResult(result: get_root(documentsDirectory, apiUrl))
     }
     
     public func listFiles() -> CoreResult<[FileMetadata]> {
-        fromPrimitiveResult(result: list_metadatas(documentsDirectory))
+        fromPrimitiveResult(result: list_metadatas(documentsDirectory, apiUrl))
     }
     
     public func getFile(id: UUID) -> CoreResult<DecryptedValue> {
-        fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: read_document(documentsDirectory, apiUrl, id.uuidString))
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
         let fileType = isFolder ? "Folder" : "Document"
-        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
+        return fromPrimitiveResult(result: create_file(documentsDirectory, apiUrl, name, dirId.uuidString, fileType))
     }
     
     public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
-        fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
+        fromPrimitiveResult(result: write_document(documentsDirectory, apiUrl, id.uuidString, content))
     }
     
     public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
