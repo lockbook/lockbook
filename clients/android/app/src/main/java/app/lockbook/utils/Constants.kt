@@ -47,4 +47,4 @@ object WorkManagerTags {
 }
 
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
-const val LOG_FILE_NAME = "output.log"
+const val LOG_FILE_NAME = "lockbook.log"
