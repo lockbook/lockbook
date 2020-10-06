@@ -25,7 +25,10 @@ namespace test {
 
         [TestInitialize]
         public void Init() {
-            Directory.Delete(lockbookDir, true);
+            try {
+                Directory.Delete(lockbookDir, true);
+            }
+            catch (System.IO.DirectoryNotFoundException e) { }
         }
 
         [TestMethod]
@@ -37,6 +40,7 @@ namespace test {
         public void AccountExistsTrue() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            //Console.WriteLine(((Core.CreateAccount.UnexpectedError)createAccountResult).errorMessage);
             Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
             Assert.IsTrue(CoreService.AccountExists());
         }
@@ -124,6 +128,23 @@ namespace test {
         }
 
         [TestMethod]
+        public void ImportAccountAccountStringCorrupted() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            // export account string
+            var accountString = "#######!!@$@%";
+
+            // delete directory to avoid AccountExistsAlready
+            Directory.Delete(lockbookDir, true);
+
+            // import account via string
+            var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
+            Assert.AreEqual(typeof(Core.ImportAccount.Success), importAccountResult.GetType());
+        }
+
+        [TestMethod]
         public void ListFileMetadata() {
             // create account
             var username = RandomUsername();
@@ -138,6 +159,11 @@ namespace test {
         [TestMethod]
         public void SyncAll() {
             // this one will be tricky let's tackle it later
+        }
+
+        [TestMethod]
+        public void CreateFileNoAccount() {
+            Assert.IsFalse(CoreService.AccountExists());
         }
     }
 }

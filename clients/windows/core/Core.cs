@@ -17,43 +17,43 @@ namespace lockbook {
 
         private static Mutex coreMutex = new Mutex();
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr get_api_loc();
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr create_account(string path, string username);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr get_account(string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr import_account(string path, string account_string);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr list_metadatas(string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr create_file(string path, string name, string parent, string file_type);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr rename_file(string path, string id, string new_name);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr move_file(string path, string id, string new_parent);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr sync_all(string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr read_document(string path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr write_document(string path, string id, string content);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private static extern IntPtr calculate_work(string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("C:\\Users\\hecke\\lockbook\\core\\target\\release\\lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
 
