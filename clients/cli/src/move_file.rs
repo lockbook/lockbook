@@ -1,6 +1,7 @@
 use crate::utils::{exit_with, exit_with_no_account, get_config};
 use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, UNEXPECTED_ERROR,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NO_ROOT_OPS,
+    UNEXPECTED_ERROR,
 };
 use lockbook_core::{get_file_by_path, GetFileByPathError, MoveFileError};
 use std::process::exit;
@@ -17,6 +18,9 @@ pub fn move_file(path1: &str, path2: &str) {
                     Ok(_) => exit(0),
                     Err(move_file_error) => match move_file_error {
                         MoveFileError::NoAccount => exit_with_no_account(),
+                        MoveFileError::CannotMoveRoot => {
+                            exit_with("Cannot move root directory!", NO_ROOT_OPS)
+                        }
                         MoveFileError::FileDoesNotExist => {
                             exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
                         }

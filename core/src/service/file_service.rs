@@ -1,4 +1,3 @@
-use serde::export::PhantomData;
 use sled::Db;
 use uuid::Uuid;
 
@@ -16,20 +15,21 @@ use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
-use crate::service::file_service::DocumentRenameError::FileDoesNotExist;
+use crate::service::file_service::DocumentRenameError::{CannotRenameRoot, FileDoesNotExist};
 use crate::service::file_service::DocumentUpdateError::{
     AccessInfoCreationError, CouldNotFindFile, DbError, DocumentWriteError, FetchOldVersionError,
     FolderTreatedAsDocument,
 };
 use crate::service::file_service::FileMoveError::{
-    FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE, TargetParentDoesNotExist,
+    CannotMoveRoot, FailedToDecryptKey, FailedToReEncryptKey, FileDoesNotExist as FileDNE,
+    TargetParentDoesNotExist,
 };
 use crate::service::file_service::NewFileError::{
     DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
-    FileNameNotAvailable, MetadataRepoError,
+    FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
-    FailedToCreateChild, FileAlreadyExists, NoRoot, PathDoesntStartWithRoot,
+    FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
@@ -45,6 +45,7 @@ pub enum NewFileError {
     FailedToRecordChange(local_changes_repo::DbError),
     FileNameNotAvailable,
     DocumentTreatedAsFolder,
+    FileNameEmpty,
     FileNameContainsSlash,
 }
 
@@ -53,6 +54,7 @@ pub enum NewFileFromPathError {
     DbError(file_metadata_repo::DbError),
     NoRoot,
     PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
     FailedToCreateChild(NewFileError),
     FailedToRecordChange(local_changes_repo::DbError),
     FileAlreadyExists,
@@ -87,8 +89,10 @@ pub enum ReadDocumentError {
 #[derive(Debug)]
 pub enum DocumentRenameError {
     FileDoesNotExist,
+    FileNameEmpty,
     FileNameContainsSlash,
     FileNameNotAvailable,
+    CannotRenameRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
 }
@@ -100,6 +104,7 @@ pub enum FileMoveError {
     FileDoesNotExist,
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
+    CannotMoveRoot,
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
     FailedToDecryptKey(KeyDecryptionFailure),
@@ -137,11 +142,11 @@ pub struct FileServiceImpl<
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
 > {
-    metadatas: PhantomData<FileMetadataDb>,
-    files: PhantomData<FileDb>,
-    changes_db: PhantomData<ChangesDb>,
-    account: PhantomData<AccountDb>,
-    file_crypto: PhantomData<FileCrypto>,
+    _metadatas: FileMetadataDb,
+    _files: FileDb,
+    _changes_db: ChangesDb,
+    _account: AccountDb,
+    _file_crypto: FileCrypto,
 }
 
 impl<
@@ -158,6 +163,10 @@ impl<
         parent: Uuid,
         file_type: FileType,
     ) -> Result<FileMetadata, NewFileError> {
+        if name.is_empty() {
+            return Err(FileNameEmpty);
+        }
+
         if name.contains('/') {
             return Err(FileNameContainsSlash);
         }
@@ -205,6 +214,10 @@ impl<
     }
 
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError> {
+        if path_and_name.contains("//") {
+            return Err(PathContainsEmptyFile);
+        }
+
         debug!("Creating path at: {}", path_and_name);
         let path_components: Vec<&str> = path_and_name
             .split('/')
@@ -327,6 +340,10 @@ impl<
     }
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError> {
+        if new_name.is_empty() {
+            return Err(DocumentRenameError::FileNameEmpty);
+        }
+
         if new_name.contains('/') {
             return Err(DocumentRenameError::FileNameContainsSlash);
         }
@@ -334,6 +351,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(DocumentRenameError::DbError)? {
             None => Err(FileDoesNotExist),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotRenameRoot);
+                }
+
                 let siblings = FileMetadataDb::get_children(&db, file.parent)
                     .map_err(DocumentRenameError::DbError)?;
 
@@ -361,6 +382,10 @@ impl<
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
+                if file.id == file.parent {
+                    return Err(CannotMoveRoot);
+                }
+
                 match FileMetadataDb::maybe_get(&db, new_parent).map_err(FileMoveError::DbError)? {
                     None => Err(TargetParentDoesNotExist),
                     Some(parent_metadata) => {
@@ -448,88 +473,93 @@ mod unit_tests {
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
-    use crate::service::file_service::FileService;
+    use crate::service::file_service::{
+        DocumentRenameError, FileMoveError, FileService, NewFileError,
+    };
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use uuid::Uuid;
 
+    type DefaultDbProvider = TempBackedDB;
+
+    macro_rules! assert_no_metadata_problems (
+        ($db:expr) => {
+            assert!(DefaultFileMetadataRepo::test_repo_integrity($db)
+                .unwrap()
+                .is_empty());
+        }
+    );
+
+    macro_rules! assert_total_local_changes (
+        ($db:expr, $total:literal) => {
+            assert_eq!(
+                DefaultLocalChangesRepo::get_all_local_changes($db)
+                    .unwrap()
+                    .len(),
+                $total
+            );
+        }
+    );
+
+    macro_rules! assert_total_filtered_paths (
+        ($db:expr, $filter:expr, $total:literal) => {
+            assert_eq!(
+                DefaultFileMetadataRepo::get_all_paths($db, $filter)
+                    .unwrap()
+                    .len(),
+                $total
+            );
+        }
+    );
+
+    fn test_account() -> Account {
+        Account {
+            username: String::from("username"),
+            keys: DefaultCrypto::generate_key().unwrap(),
+        }
+    }
+
     #[test]
     fn file_service_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
-
         assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_none());
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
         assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_some());
+        assert_no_metadata_problems!(&db);
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert!(matches!(
+            DefaultFileService::create(&db, "", root.id, Document).unwrap_err(),
+            NewFileError::FileNameEmpty
+        ));
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder3 = DefaultFileService::create(&db, "TestFolder3", folder2.id, Folder).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder4 = DefaultFileService::create(&db, "TestFolder4", folder3.id, Folder).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder5 = DefaultFileService::create(&db, "TestFolder5", folder4.id, Folder).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let file = DefaultFileService::create(&db, "test.text", folder5.id, Document).unwrap();
+        assert_no_metadata_problems!(&db);
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
-
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
-                .unwrap()
-                .len(),
-            6
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
-                .unwrap()
-                .len(),
-            1
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_filtered_paths!(&db, Some(FoldersOnly), 6);
+        assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 1);
+        assert_total_filtered_paths!(&db, Some(DocumentsOnly), 1);
 
         DefaultFileService::write_document(
             &db,
@@ -547,35 +577,20 @@ mod unit_tests {
             "5 folders deep".to_string()
         );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn path_calculations_runthrough() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        assert_total_filtered_paths!(&db, None, 0);
 
-        assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
-            .unwrap()
-            .is_empty());
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_filtered_paths!(&db, None, 1);
         assert_eq!(
             DefaultFileMetadataRepo::get_all_paths(&db, None)
                 .unwrap()
@@ -584,17 +599,10 @@ mod unit_tests {
             "username/"
         );
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder1 = DefaultFileService::create(&db, "TestFolder1", root.id, Folder).unwrap();
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            2
-        );
+        assert_total_filtered_paths!(&db, None, 2);
         assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
             .unwrap()
             .contains(&"username/".to_string()));
@@ -602,9 +610,7 @@ mod unit_tests {
             .unwrap()
             .contains(&"username/TestFolder1/".to_string()));
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         let folder2 = DefaultFileService::create(&db, "TestFolder2", folder1.id, Folder).unwrap();
         let folder3 = DefaultFileService::create(&db, "TestFolder3", folder2.id, Folder).unwrap();
@@ -616,10 +622,7 @@ mod unit_tests {
         DefaultFileService::create(&db, "test3.text", folder2.id, Document).unwrap();
         DefaultFileService::create(&db, "test4.text", folder2.id, Document).unwrap();
         DefaultFileService::create(&db, "test5.text", folder2.id, Document).unwrap();
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         assert!(DefaultFileMetadataRepo::get_all_paths(&db, None)
             .unwrap()
@@ -633,15 +636,9 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
@@ -686,70 +683,47 @@ mod unit_tests {
                     .unwrap()
                     .is_some())
             });
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn test_arbitrary_path_file_creation() {
-        init_logger(dummy_config().path());
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
+        init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
+        let paths_with_empties = ["username//", "username/path//to///file.md"];
+        for path in &paths_with_empties {
+            let err = DefaultFileService::create_at_path(&db, path).unwrap_err();
+            assert!(
+                matches!(err, NewFileFromPathError::PathContainsEmptyFile),
+                "Expected path \"{}\" to return PathContainsEmptyFile but instead it was {:?}",
+                path,
+                err
+            );
+        }
+
         assert!(DefaultFileService::create_at_path(&db, "garbage").is_err());
         assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
         assert!(DefaultFileService::create_at_path(&db, "username/").is_err());
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_filtered_paths!(&db, None, 1);
+
         assert_eq!(
             DefaultFileService::create_at_path(&db, "username/test.txt")
                 .unwrap()
                 .name,
             "test.txt"
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            2
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
-                .unwrap()
-                .len(),
-            1
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
-                .unwrap()
-                .len(),
-            1
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
-                .unwrap()
-                .len(),
-            1
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_filtered_paths!(&db, None, 2);
+        assert_total_filtered_paths!(&db, Some(DocumentsOnly), 1);
+        assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 1);
+        assert_total_filtered_paths!(&db, Some(FoldersOnly), 1);
+        assert_no_metadata_problems!(&db);
 
         assert_eq!(
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/folder3/test2.txt")
@@ -757,28 +731,10 @@ mod unit_tests {
                 .name,
             "test2.txt"
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            6
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
-                .unwrap()
-                .len(),
-            2
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
-                .unwrap()
-                .len(),
-            2
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_filtered_paths!(&db, None, 6);
+        assert_total_filtered_paths!(&db, Some(DocumentsOnly), 2);
+        assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 2);
+        assert_no_metadata_problems!(&db);
 
         println!(
             "{:?}",
@@ -790,12 +746,7 @@ mod unit_tests {
             "{:?}",
             DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, None)
-                .unwrap()
-                .len(),
-            7
-        );
+        assert_total_filtered_paths!(&db, None, 7);
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
             DefaultFileMetadataRepo::get(&db, file.parent).unwrap().name,
@@ -807,18 +758,8 @@ mod unit_tests {
                 .file_type,
             Folder
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
-                .unwrap()
-                .len(),
-            3
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
-                .unwrap()
-                .len(),
-            3
-        );
+        assert_total_filtered_paths!(&db, Some(DocumentsOnly), 3);
+        assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 3);
 
         assert_eq!(
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/folder3/folder4/")
@@ -826,156 +767,105 @@ mod unit_tests {
                 .file_type,
             Folder
         );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(DocumentsOnly))
-                .unwrap()
-                .len(),
-            3
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(LeafNodesOnly))
-                .unwrap()
-                .len(),
-            4
-        );
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(&db, Some(FoldersOnly))
-                .unwrap()
-                .len(),
-            5
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_filtered_paths!(&db, Some(DocumentsOnly), 3);
+        assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 4);
+        assert_total_filtered_paths!(&db, Some(FoldersOnly), 5);
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn ensure_no_duplicate_files_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(&db, "username/test.txt").is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn ensure_no_duplicate_files_via_create() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(&db, "test.txt", file.parent, Document).is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn ensure_no_document_has_children_via_path() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(&db, "username/test.txt/oops.txt").is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn ensure_no_document_has_children() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(&db, "oops.txt", file.id, Document).is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn ensure_no_bad_names() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
-
         assert!(DefaultFileService::create(&db, "oops/txt", root.id, Document).is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn rename_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+        assert_no_metadata_problems!(&db);
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert!(matches!(
+            DefaultFileService::rename_file(&db, root.id, "newroot").unwrap_err(),
+            DocumentRenameError::CannotRenameRoot
+        ));
 
         let file = DefaultFileService::create_at_path(&db, "username/folder1/file1.txt").unwrap();
         assert!(
@@ -990,25 +880,12 @@ mod unit_tests {
                 .unwrap()
                 .new
         );
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            2
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_local_changes!(&db, 2);
+        assert_no_metadata_problems!(&db);
 
         DefaultLocalChangesRepo::untrack_new_file(&db, file.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file.parent).unwrap();
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
 
         DefaultFileService::rename_file(&db, file.id, "file2.txt").unwrap();
         assert_eq!(
@@ -1021,17 +898,10 @@ mod unit_tests {
             "file1.txt"
         );
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         DefaultFileService::rename_file(&db, file.id, "file23.txt").unwrap();
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
         assert_eq!(
             DefaultLocalChangesRepo::get_local_changes(&db, file.id)
                 .unwrap()
@@ -1041,33 +911,15 @@ mod unit_tests {
                 .old_value,
             "file1.txt"
         );
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         DefaultFileService::rename_file(&db, file.id, "file1.txt").unwrap();
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_local_changes!(&db, 0);
+        assert_no_metadata_problems!(&db);
 
         assert!(DefaultFileService::rename_file(&db, Uuid::new_v4(), "not_used").is_err());
         assert!(DefaultFileService::rename_file(&db, file.id, "file/1.txt").is_err());
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
         assert_eq!(
             DefaultFileMetadataRepo::get(&db, file.id).unwrap().name,
             "file1.txt"
@@ -1079,29 +931,24 @@ mod unit_tests {
             "file2.txt"
         );
         assert!(DefaultFileService::rename_file(&db, file2.id, "file1.txt").is_err());
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn move_runthrough() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+        assert_no_metadata_problems!(&db);
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert!(matches!(
+            DefaultFileService::move_file(&db, root.id, Uuid::new_v4()).unwrap_err(),
+            FileMoveError::CannotMoveRoot
+        ));
 
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
@@ -1113,34 +960,18 @@ mod unit_tests {
         )
         .is_err());
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         DefaultFileService::write_document(&db, file1.id, &DecryptedValue::from("nice doc ;)"))
             .unwrap();
 
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            3
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_local_changes!(&db, 3);
+        assert_no_metadata_problems!(&db);
 
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.id).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, file1.parent).unwrap();
         DefaultLocalChangesRepo::untrack_new_file(&db, folder1.id).unwrap();
-
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_total_local_changes!(&db, 0);
 
         DefaultFileService::move_file(&db, file1.id, folder1.id).unwrap();
 
@@ -1151,56 +982,32 @@ mod unit_tests {
             "nice doc ;)"
         );
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_no_metadata_problems!(&db);
 
         assert_eq!(
             DefaultFileMetadataRepo::get(&db, file1.id).unwrap().parent,
             folder1.id
         );
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_total_local_changes!(&db, 1);
 
         let file2 = DefaultFileService::create_at_path(&db, "username/folder3/file.txt").unwrap();
         assert!(DefaultFileService::move_file(&db, file1.id, file2.parent).is_err());
         assert!(DefaultFileService::move_file(&db, Uuid::new_v4(), file2.parent).is_err());
         assert!(DefaultFileService::move_file(&db, file1.id, Uuid::new_v4()).is_err());
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            3
-        );
+        assert_total_local_changes!(&db, 3);
 
         DefaultFileService::move_file(&db, file1.id, og_folder).unwrap();
-        assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(&db)
-                .unwrap()
-                .len(),
-            2
-        );
-
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_local_changes!(&db, 2);
+        assert_no_metadata_problems!(&db);
     }
 
     #[test]
     fn test_keeping_track_of_edits() {
-        let db = TempBackedDB::connect_to_db(&dummy_config()).unwrap();
-        let keys = DefaultCrypto::generate_key().unwrap();
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
-        let account = Account {
-            username: String::from("username"),
-            keys,
-        };
-
+        let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -1219,9 +1026,7 @@ mod unit_tests {
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .is_none());
-        assert!(DefaultLocalChangesRepo::get_all_local_changes(&db)
-            .unwrap()
-            .is_empty());
+        assert_total_local_changes!(&db, 0);
 
         DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content2"))
             .unwrap();

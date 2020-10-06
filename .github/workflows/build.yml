@@ -1,4 +1,4 @@
-name: Github Actions
+name: Checks
 
 on:
   push:
@@ -9,6 +9,11 @@ on:
     branches: [ master ]
 
 jobs:
+  Clean:
+    runs-on: self-hosted
+    steps:
+    - name: Clean
+      run: make clean
   Core:
     runs-on: self-hosted
     env:
@@ -24,37 +29,6 @@ jobs:
       run: make core_fmt
     - name: Lint
       run: make core_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Core - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
-  Server:
-    runs-on: self-hosted
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: make server
-    - name: Compile and run tests
-      run: make server_test
-    - name: Check Formatting
-      run: make server_fmt
-    - name: Lint
-      run: make server_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Server - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Cli:
     runs-on: self-hosted
     env:
@@ -70,14 +44,6 @@ jobs:
       run: make cli_fmt
     - name: Lint
       run: make cli_lint
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Build Cli - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
   Android:
     runs-on: self-hosted
     env:
@@ -91,14 +57,6 @@ jobs:
         run: make android_fmt
       - name: Lint
         run: make android_lint
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: Build Android - ${{ job.status }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-        if: always()
   Integration-Tests:
     runs-on: self-hosted
     env:
@@ -112,11 +70,42 @@ jobs:
       run: make integration_tests
     - name: Compile and run tests
       run: make integration_tests_run
-    - name: Notify Slack
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Test - ${{ job.status }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
+  Server-Integration-Tests:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build server container
+        run: make server
+      - name: Build test container
+        run: make server_tests
+      - name: Compile and run tests
+        run: make server_tests_run
+  Kotlin-Interface-Tests:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build server container
+      run: make server
+    - name: Build test container
+      run: make kotlin_interface_tests
+    - name: Compile and run tests
+      run: make kotlin_interface_tests_run
+  Swift-Interface-Tests:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build server container
+        run: make server
+      - name: Build test container
+        run: make swift_interface_tests
+      - name: Compile and run tests
+        run: make swift_interface_tests_run
