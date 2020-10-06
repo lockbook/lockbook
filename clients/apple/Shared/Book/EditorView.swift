@@ -27,6 +27,15 @@ struct EditorView: View, Equatable {
                     buffer.succeeded = false
                 }
             }
+            .onDisappear {
+                switch buffer.save() {
+                case .success(_):
+                    buffer.succeeded = true
+                case .failure(let err):
+                    core.displayError(error: err)
+                    buffer.succeeded = false
+                }
+            }
         
         
         #if os(iOS)
@@ -75,12 +84,14 @@ struct EditorView_Previews: PreviewProvider {
 class Buffer: ObservableObject {
     let meta: FileMetadata
     private var cancellables: Set<AnyCancellable> = []
+    let core: Core
     @Published var content: String
     @Published var succeeded: Bool = false
     @Published var status: SaveStatus = .Inactive
     
     init(meta: FileMetadata, initialContent: String, core: Core) {
         self.meta = meta
+        self.core = core
         self.content = initialContent
         
         $content
@@ -93,14 +104,9 @@ class Buffer: ObservableObject {
         $content
             .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
             .filter({ _ in self.succeeded })
-            .flatMap { input in
+            .flatMap { _ in
                 Future<Void, ApplicationError> { promise in
-                    switch core.api.updateFile(id: meta.id, content: input) {
-                    case .success(_):
-                        promise(.success(()))
-                    case .failure(let err):
-                        promise(.failure(err))
-                    }
+                    promise(self.save())
                 }
             }
             .eraseToAnyPublisher()
@@ -112,6 +118,15 @@ class Buffer: ObservableObject {
             })
             .store(in: &cancellables)
         
+    }
+    
+    func save() -> Result<Void, ApplicationError> {
+        switch core.api.updateFile(id: meta.id, content: content) {
+        case .success(_):
+            return .success(())
+        case .failure(let err):
+            return .failure(err)
+        }
     }
 }
 
