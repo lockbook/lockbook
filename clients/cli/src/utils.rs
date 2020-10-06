@@ -85,7 +85,7 @@ pub fn get_config() -> Config {
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
         _ => exit_with("Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder", NO_CLI_LOCATION)
     };
-    let api_url = env::var("LOCKBOOK_API_URL").unwrap_or(LOCKBOOK_PROD.to_string());
+    let api_url = env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| LOCKBOOK_PROD.to_string());
 
     Config {
         writeable_path: path,
