@@ -15,8 +15,8 @@ impl Config {
 
 pub fn dummy_config() -> Config {
     Config {
-        writeable_path: "ignored".to_string(),
-        api_url: "motherfucker".to_string(),
+        writeable_path: "ignored writable path".to_string(),
+        api_url: "ignored api url".to_string(),
     }
 }
 
