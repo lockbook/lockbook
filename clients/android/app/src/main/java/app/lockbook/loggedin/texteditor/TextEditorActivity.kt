@@ -90,7 +90,8 @@ class TextEditorActivity : AppCompatActivity() {
                     }
                 }
             },
-            1000, TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+            1000,
+            TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
     }
 

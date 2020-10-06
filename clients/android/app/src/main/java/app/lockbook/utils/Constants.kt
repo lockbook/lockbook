@@ -22,12 +22,17 @@ object SharedPreferences {
     const val BACKGROUND_SYNC_PERIOD_KEY = "background_sync_period"
     const val BACKGROUND_SYNC_ENABLED_KEY = "background_sync_enabled"
     const val SYNC_AUTOMATICALLY_KEY = "sync_automatically_in_app"
+
+    const val VIEW_LOGS_TITLE_KEY = "view_logs_title"
+    const val VIEW_LOGS_KEY = "view_logs"
+    const val CLEAR_LOGS_KEY = "clear_logs"
+
+    const val IS_THIS_AN_IMPORT_KEY = "import"
 }
 
 object RequestResultCodes {
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
-
 
     const val RENAME_RESULT_CODE: Int = 201
     const val DELETE_RESULT_CODE: Int = 202
@@ -42,3 +47,4 @@ object WorkManagerTags {
 }
 
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
+const val LOG_FILE_NAME = "output.log"
