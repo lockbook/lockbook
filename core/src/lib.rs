@@ -111,10 +111,6 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
-pub fn api_url() -> String {
-    env::var("API_URL").expect("Must set API_URL")
-}
-
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {
     Unexpected(String),
@@ -197,7 +193,7 @@ pub enum CreateAccountError {
 pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccountError> {
     let db = connect_to_db(&config).map_err(CreateAccountError::UnexpectedError)?;
 
-    match DefaultAccountService::create_account(&db, username) {
+    match DefaultAccountService::create_account(&config.api_url, &db, username) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             AccountCreationError::AccountExistsAlready => {
@@ -251,7 +247,7 @@ pub enum ImportError {
 pub fn import_account(config: &Config, account_string: &str) -> Result<(), ImportError> {
     let db = connect_to_db(&config).map_err(ImportError::UnexpectedError)?;
 
-    match DefaultAccountService::import_account(&db, account_string) {
+    match DefaultAccountService::import_account(&config.api_url, &db, account_string) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             AccountImportError::AccountStringCorrupted(_)
@@ -711,7 +707,7 @@ pub enum SyncAllError {
 pub fn sync_all(config: &Config) -> Result<(), SyncAllError> {
     let db = connect_to_db(&config).map_err(SyncAllError::UnexpectedError)?;
 
-    match DefaultSyncService::sync(&db) {
+    match DefaultSyncService::sync(&config.api_url, &db) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             SyncError::AccountRetrievalError(err) => match err {
@@ -869,7 +865,7 @@ pub enum CalculateWorkError {
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
     let db = connect_to_db(&config).map_err(CalculateWorkError::UnexpectedError)?;
 
-    match DefaultSyncService::calculate_work(&db) {
+    match DefaultSyncService::calculate_work(&config.api_url, &db) {
         Ok(work) => Ok(work),
         Err(err) => match err {
             SSCalculateWorkError::LocalChangesRepoError(_)
@@ -921,7 +917,7 @@ pub fn execute_work(
 ) -> Result<(), ExecuteWorkError> {
     let db = connect_to_db(&config).map_err(ExecuteWorkError::UnexpectedError)?;
 
-    match DefaultSyncService::execute_work(&db, &account, wu) {
+    match DefaultSyncService::execute_work(&config.api_url, &db, &account, wu) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             WorkExecutionError::DocumentGetError(api) => match api {
@@ -1200,7 +1196,7 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, GetUsageError> {
 
     let acc = DefaultAccountRepo::get_account(&db).map_err(|_| GetUsageError::NoAccount)?;
 
-    DefaultClient::get_usage(acc.username.as_str())
+    DefaultClient::get_usage(&config.api_url, acc.username.as_str())
         .map(|resp| resp.usages)
         .map_err(|err| match err {
             Error::Api(api::GetUsageError::ClientUpdateRequired) => {

@@ -82,19 +82,26 @@ pub enum SyncError {
 }
 
 pub trait SyncService {
-    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
-    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError>;
+    fn calculate_work(api_url: &str, db: &Db) -> Result<WorkCalculated, CalculateWorkError>;
+    fn execute_work(
+        api_url: &str,
+        db: &Db,
+        account: &Account,
+        work: WorkUnit,
+    ) -> Result<(), WorkExecutionError>;
     fn handle_server_change(
+        api_url: &str,
         db: &Db,
         account: &Account,
         local_change: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError>;
     fn handle_local_change(
+        api_url: &str,
         db: &Db,
         account: &Account,
         local_change: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError>;
-    fn sync(db: &Db) -> Result<(), SyncError>;
+    fn sync(api_url: &str, db: &Db) -> Result<(), SyncError>;
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -144,7 +151,7 @@ impl<
         Auth,
     >
 {
-    fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
+    fn calculate_work(api_url: &str, db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
 
@@ -152,6 +159,7 @@ impl<
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::get_updates(
+            api_url,
             &account.username,
             &SignedValue {
                 content: String::default(),
@@ -193,18 +201,24 @@ impl<
         })
     }
 
-    fn execute_work(db: &Db, account: &Account, work: WorkUnit) -> Result<(), WorkExecutionError> {
+    fn execute_work(
+        api_url: &str,
+        db: &Db,
+        account: &Account,
+        work: WorkUnit,
+    ) -> Result<(), WorkExecutionError> {
         match work {
             WorkUnit::LocalChange { mut metadata } => {
-                Self::handle_local_change(&db, &account, &mut metadata)
+                Self::handle_local_change(api_url, &db, &account, &mut metadata)
             }
             WorkUnit::ServerChange { mut metadata } => {
-                Self::handle_server_change(&db, &account, &mut metadata)
+                Self::handle_server_change(api_url, &db, &account, &mut metadata)
             }
         }
     }
 
     fn handle_server_change(
+        api_url: &str,
         db: &Db,
         account: &Account,
         metadata: &mut FileMetadata,
@@ -240,7 +254,7 @@ impl<
                         .map_err(WorkExecutionError::MetadataRepoError)?;
                     if metadata.file_type == Document {
                         let document =
-                            ApiClient::get_document(metadata.id, metadata.content_version)
+                            ApiClient::get_document(api_url, metadata.id, metadata.content_version)
                                 .map_err(DocumentGetError)?;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
@@ -273,9 +287,12 @@ impl<
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
-                                let document =
-                                    ApiClient::get_document(metadata.id, metadata.content_version)
-                                        .map_err(DocumentGetError)?;
+                                let document = ApiClient::get_document(
+                                    api_url,
+                                    metadata.id,
+                                    metadata.content_version,
+                                )
+                                .map_err(DocumentGetError)?;
 
                                 DocsDb::insert(&db, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
@@ -345,6 +362,7 @@ impl<
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
+                                                api_url,
                                                 metadata.id,
                                                 metadata.content_version,
                                             )
@@ -409,6 +427,7 @@ impl<
 
                                         // Overwrite local file with server copy
                                         let new_content = ApiClient::get_document(
+                                            api_url,
                                             metadata.id,
                                             metadata.content_version,
                                         )
@@ -462,6 +481,7 @@ impl<
     }
 
     fn handle_local_change(
+        api_url: &str,
         db: &Db,
         account: &Account,
         metadata: &mut FileMetadata,
@@ -483,6 +503,7 @@ impl<
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::create_document(
+                            api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -501,6 +522,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::create_folder(
+                            api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -521,6 +543,7 @@ impl<
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::rename_document(
+                                api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -528,6 +551,7 @@ impl<
                                 .map_err(DocumentRenameError)?
                         } else {
                             ApiClient::rename_folder(
+                                api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -543,6 +567,7 @@ impl<
                     if local_change.moved.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::move_document(
+                                            api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -551,6 +576,7 @@ impl<
                             ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
+                                            api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -567,6 +593,7 @@ impl<
 
                     if local_change.content_edited.is_some() && metadata.file_type == Document {
                         let version = ApiClient::change_document_content(
+                            api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -583,6 +610,7 @@ impl<
                 } else { // not new and deleted
                     if metadata.file_type == Document {
                         ApiClient::delete_document(
+                            api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -596,6 +624,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         ApiClient::delete_folder(
+                            api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -613,20 +642,20 @@ impl<
         Ok(())
     }
 
-    fn sync(db: &Db) -> Result<(), SyncError> {
+    fn sync(api_url: &str, db: &Db) -> Result<(), SyncError> {
         let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
 
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
         let mut work_calculated =
-            Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+            Self::calculate_work(api_url, &db).map_err(SyncError::CalculateWorkError)?;
 
         for _ in 0..10 {
             // Retry sync n times
             info!("Syncing");
 
             for work_unit in work_calculated.work_units {
-                match Self::execute_work(&db, &account, work_unit.clone()) {
+                match Self::execute_work(api_url, &db, &account, work_unit.clone()) {
                     Ok(_) => {
                         sync_errors.remove(&work_unit.get_metadata().id);
                         debug!("{:#?} executed successfully", work_unit)
@@ -638,7 +667,8 @@ impl<
                 }
             }
 
-            work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+            work_calculated =
+                Self::calculate_work(api_url, &db).map_err(SyncError::CalculateWorkError)?;
         }
 
         if sync_errors.is_empty() {

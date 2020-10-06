@@ -26,9 +26,10 @@ unsafe fn str_from_ptr(s: *const c_char) -> String {
         .to_string()
 }
 
-unsafe fn config_from_ptr(s: *const c_char) -> Config {
+unsafe fn config_from_ptr(s: *const c_char, api_url: *const c_char) -> Config {
     Config {
         writeable_path: str_from_ptr(s),
+        api_url: str_from_ptr(api_url),
     }
 }
 
@@ -57,8 +58,8 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
-    if crate::init_logger(&config_from_ptr(writeable_path).path()).is_ok() {
+pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char, api_url: *const c_char) {
+    if crate::init_logger(&config_from_ptr(writeable_path, api_url).path()).is_ok() {
         debug!("Logger initialized!");
     }
 }
@@ -66,10 +67,11 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     username: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::create_account(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         &str_from_ptr(username),
     ))
 }
@@ -77,35 +79,45 @@ pub unsafe extern "C" fn create_account(
 #[no_mangle]
 pub unsafe extern "C" fn import_account(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     account_string: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::import_account(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         &str_from_ptr(account_string),
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn export_account(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::export_account(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn export_account(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::export_account(&config_from_ptr(
+        writeable_path,
+        api_url,
+    )))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::get_account(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn get_account(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::get_account(&config_from_ptr(
+        writeable_path,
+        api_url,
+    )))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     path_and_name: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::create_file_at_path(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         &str_from_ptr(path_and_name),
     ))
 }
@@ -113,11 +125,12 @@ pub unsafe extern "C" fn create_file_at_path(
 #[no_mangle]
 pub unsafe extern "C" fn write_document(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     id: *const c_char,
     content: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::write_document(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         Uuid::from_str(&str_from_ptr(id)).expect("Could not String -> Uuid"),
         &DecryptedValue {
             secret: str_from_ptr(content),
@@ -128,12 +141,13 @@ pub unsafe extern "C" fn write_document(
 #[no_mangle]
 pub unsafe extern "C" fn create_file(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     name: *const c_char,
     parent: *const c_char,
     file_type: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::create_file(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         &str_from_ptr(name),
         uuid_from_ptr(parent),
         file_type_from_ptr(file_type),
@@ -141,19 +155,21 @@ pub unsafe extern "C" fn create_file(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::get_root(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn get_root(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::get_root(&config_from_ptr(writeable_path, api_url)))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_file_by_path(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     path: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::get_file_by_path(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         &str_from_ptr(path),
     ))
 }
@@ -161,10 +177,11 @@ pub unsafe extern "C" fn get_file_by_path(
 #[no_mangle]
 pub unsafe extern "C" fn read_document(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::read_document(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         uuid_from_ptr(id),
     ))
 }
@@ -172,10 +189,11 @@ pub unsafe extern "C" fn read_document(
 #[no_mangle]
 pub unsafe extern "C" fn list_paths(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     filter: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::list_paths(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         filter_from_ptr(filter),
     ))
 }
@@ -183,47 +201,60 @@ pub unsafe extern "C" fn list_paths(
 #[no_mangle]
 pub unsafe extern "C" fn rename_file(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     id: *const c_char,
     new_name: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::rename_file(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         uuid_from_ptr(id),
         &str_from_ptr(new_name),
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn list_metadatas(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::list_metadatas(&config_from_ptr(writeable_path)))
+pub unsafe extern "C" fn list_metadatas(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::list_metadatas(&config_from_ptr(
+        writeable_path,
+        api_url,
+    )))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn move_file(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     id: *const c_char,
     new_parent: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::move_file(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         uuid_from_ptr(id),
         uuid_from_ptr(new_parent),
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::calculate_work(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn calculate_work(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::calculate_work(&config_from_ptr(
+        writeable_path,
+        api_url,
+    )))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn execute_work(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     work_unit: *const c_char,
 ) -> *const c_char {
-    let config = &config_from_ptr(writeable_path);
+    let config = &config_from_ptr(writeable_path, api_url);
     json_c_string(
         crate::get_account(config) // FIXME: @raayan Temporary to avoid passing key through FFI
             .map_err(ExecuteWorkError::BadAccount)
@@ -232,32 +263,41 @@ pub unsafe extern "C" fn execute_work(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
-    let config = &config_from_ptr(writeable_path);
+pub unsafe extern "C" fn sync_all(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    let config = &config_from_ptr(writeable_path, api_url);
     json_c_string(crate::sync_all(config))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn set_last_synced(
     writeable_path: *const c_char,
+    api_url: *const c_char,
     last_sync: u64,
 ) -> *const c_char {
     json_c_string(crate::set_last_synced(
-        &config_from_ptr(writeable_path),
+        &config_from_ptr(writeable_path, api_url),
         last_sync,
     ))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::get_last_synced(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn get_last_synced(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::get_last_synced(&config_from_ptr(
+        writeable_path,
+        api_url,
+    )))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_char {
-    json_c_string(crate::get_usage(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    }))
+pub unsafe extern "C" fn get_usage(
+    writeable_path: *const c_char,
+    api_url: *const c_char,
+) -> *const c_char {
+    json_c_string(crate::get_usage(&config_from_ptr(writeable_path, api_url)))
 }
