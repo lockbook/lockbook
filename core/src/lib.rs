@@ -71,6 +71,7 @@ pub mod service;
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
+pub static LOCKBOOK_PROD: &str = "http://api.lockbook.app:8000";
 
 pub type DefaultCrypto = RsaImpl;
 pub type DefaultSymmetric = AesImpl;

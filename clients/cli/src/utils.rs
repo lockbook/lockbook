@@ -7,7 +7,7 @@ use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{
     get_account, get_db_state, init_logger, migrate_db, GetAccountError, GetStateError,
-    MigrationError,
+    MigrationError, LOCKBOOK_PROD,
 };
 use lockbook_core::{get_last_synced, DefaultClock};
 
@@ -85,9 +85,11 @@ pub fn get_config() -> Config {
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
         _ => exit_with("Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder", NO_CLI_LOCATION)
     };
+    let api_url = env::var("LOCKBOOK_API_URL").unwrap_or(LOCKBOOK_PROD.to_string());
 
     Config {
         writeable_path: path,
+        api_url,
     }
 }
 
