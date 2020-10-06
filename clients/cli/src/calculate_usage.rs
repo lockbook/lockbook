@@ -2,10 +2,10 @@ use crate::utils::{get_account_or_exit, get_config, exit_with, exit_with_upgrade
 use lockbook_core::{get_usage, GetUsageError};
 use crate::UNEXPECTED_ERROR;
 
-const KILOBYTES: u64 = 1024;
-const MEGABYTES: u64 = 1024 * 1024;
-const GIGABYTES: u64 = 1024 * 1024 * 1024;
-const TERABYTES: u64 = 1024 * 1024 * 1024 * 1024;
+const KILOBYTES: u64 = 1000;
+const MEGABYTES: u64 = 1000 * 1000;
+const GIGABYTES: u64 = 1000 * 1000 * 1000;
+const TERABYTES: u64 = 1000 * 1000 * 1000 * 1000;
 
 const KILOBYTES_PLUS_ONE: u64 = KILOBYTES + 1;
 const MEGABYTES_PLUS_ONE: u64 = MEGABYTES + 1;
@@ -29,10 +29,10 @@ pub fn calculate_usage(exact: bool) {
     } else {
         match usage_in_bytes {
             0..=KILOBYTES => println!("{} B", usage_in_bytes),
-            KILOBYTES_PLUS_ONE..=MEGABYTES => println!("{:.3} KiB", usage_in_bytes as f64 / KILOBYTES as f64),
-            MEGABYTES_PLUS_ONE..=GIGABYTES => println!("{:.3} MiB", usage_in_bytes as f64 / MEGABYTES as f64),
-            GIGABYTES_PLUS_ONE..=TERABYTES => println!("{:.3} GiB", usage_in_bytes as f64 / GIGABYTES as f64),
-            TERABYTES_PLUS_ONE..=u64::MAX => println!("{:.3} TiB", usage_in_bytes as f64 / TERABYTES as f64)
+            KILOBYTES_PLUS_ONE..=MEGABYTES => println!("{:.3} kB", usage_in_bytes as f64 / KILOBYTES as f64),
+            MEGABYTES_PLUS_ONE..=GIGABYTES => println!("{:.3} MB", usage_in_bytes as f64 / MEGABYTES as f64),
+            GIGABYTES_PLUS_ONE..=TERABYTES => println!("{:.3} GB", usage_in_bytes as f64 / GIGABYTES as f64),
+            TERABYTES_PLUS_ONE..=u64::MAX => println!("{:.3} TB", usage_in_bytes as f64 / TERABYTES as f64)
         }
     }
 }
