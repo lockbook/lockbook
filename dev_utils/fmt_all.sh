@@ -10,3 +10,6 @@ cargo fmt
 
 cd ../clients/cli
 cargo fmt
+
+cd ../android
+./gradlew formatKotlin

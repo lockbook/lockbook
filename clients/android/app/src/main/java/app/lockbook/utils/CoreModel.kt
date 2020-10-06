@@ -3,135 +3,185 @@ package app.lockbook.utils
 import app.lockbook.core.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import timber.log.Timber
 
-class CoreModel(config: Config) {
-    private val config = Klaxon().toJsonString(config)
-    lateinit var parentFileMetadata: FileMetadata
-    lateinit var lastDocumentAccessed: FileMetadata
+object CoreModel {
+    fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
+        val initLoggerResult: Result<Unit, InitLoggerError>? =
+            Klaxon().converter(initLoggerConverter)
+                .parse(initLogger(path))
 
-    fun setParentToRoot(): Result<Unit, GetRootError> {
-        val root: Result<FileMetadata, GetRootError>? =
-            Klaxon().converter(getRootConverter).parse(getRoot(config))
+        if (initLoggerResult != null) {
+            return initLoggerResult
+        }
 
-        root?.let { rootResult ->
-            return when (rootResult) {
-                is Ok -> {
-                    parentFileMetadata = rootResult.value
-                    Ok(Unit)
-                }
-                is Err -> Err(rootResult.error)
-            }
+        return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
+    }
+
+    fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
+        val createAccountResult: Result<Unit, CreateAccountError>? =
+            Klaxon().converter(createAccountConverter)
+                .parse(createAccount(Klaxon().toJsonString(config), account))
+
+        if (createAccountResult != null) {
+            return createAccountResult
+        }
+
+        return Err(CreateAccountError.UnexpectedError("createAccountConverter was unable to be called!"))
+    }
+
+    fun importAccount(config: Config, account: String): Result<Unit, ImportError> {
+        val importResult: Result<Unit, ImportError>? =
+            Klaxon().converter(importAccountConverter)
+                .parse(importAccount(Klaxon().toJsonString(config), account))
+
+        if (importResult != null) {
+            return importResult
+        }
+
+        return Err(ImportError.UnexpectedError("importAccountConverter was unable to be called!"))
+    }
+
+    fun exportAccount(config: Config): Result<String, AccountExportError> {
+        val exportResult: Result<String, AccountExportError>? =
+            Klaxon().converter(exportAccountConverter)
+                .parse(exportAccount(Klaxon().toJsonString(config)))
+
+        if (exportResult != null) {
+            return exportResult
+        }
+
+        return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
+    }
+
+    fun syncAllFiles(config: Config): Result<Unit, SyncAllError> {
+        val syncResult: Result<Unit, SyncAllError>? =
+            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
+
+        if (syncResult != null) {
+            return syncResult
+        }
+
+        return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
+    }
+
+    fun writeContentToDocument(
+        config: Config,
+        id: String,
+        content: String
+    ): Result<Unit, WriteToDocumentError> {
+        val writeResult: Result<Unit, WriteToDocumentError>? =
+            Klaxon().converter(writeDocumentConverter).parse(
+                writeDocument(
+                    Klaxon().toJsonString(config),
+                    id,
+                    Klaxon().toJsonString(DecryptedValue(content))
+                )
+            )
+
+        if (writeResult != null) {
+            return writeResult
+        }
+
+        return Err(WriteToDocumentError.UnexpectedError("writeDocument was unable to be called!"))
+    }
+
+    fun getRoot(config: Config): Result<FileMetadata, GetRootError> {
+        val getRootResult: Result<FileMetadata, GetRootError>? =
+            Klaxon().converter(getRootConverter).parse(getRoot(Klaxon().toJsonString(config)))
+
+        if (getRootResult != null) {
+            return getRootResult
         }
 
         return Err(GetRootError.UnexpectedError("getRootConverter was unable to be called!"))
     }
 
-    fun getAccount(): Result<Account, GetAccountError> {
-        val account: Result<Account, GetAccountError>? =
-            Klaxon().converter(getAccountConverter).parse(getAccount(config))
+    fun getAccount(config: Config): Result<Account, GetAccountError> {
+        val getAccountResult: Result<Account, GetAccountError>? =
+            Klaxon().converter(getAccountConverter)
+                .parse(getAccount(Klaxon().toJsonString(config)))
 
-        account?.let { accountResult ->
-            return when (accountResult) {
-                is Ok -> Ok(accountResult.value)
-                is Err -> Err(accountResult.error)
-            }
+        if (getAccountResult != null) {
+            return getAccountResult
         }
 
         return Err(GetAccountError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun setLastSynced(lastSyncedDuration: Long): Result<Unit, SetLastSyncedError> {
-        val lastSynced: Result<Unit, SetLastSyncedError>? =
-            Klaxon().converter(setLastSyncedConverter).parse(setLastSynced(config, lastSyncedDuration))
+    fun setLastSynced(
+        config: Config,
+        lastSyncedDuration: Long
+    ): Result<Unit, SetLastSyncedError> {
+        val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
+            Klaxon().converter(setLastSyncedConverter)
+                .parse(setLastSynced(Klaxon().toJsonString(config), lastSyncedDuration))
 
-        lastSynced?.let { lastSyncedResult ->
-            return when (lastSyncedResult) {
-                is Ok -> Ok(lastSyncedResult.value)
-                is Err -> Err(lastSyncedResult.error)
-            }
+        if (setLastSyncedResult != null) {
+            return setLastSyncedResult
         }
 
         return Err(SetLastSyncedError.UnexpectedError("setLastSyncedConverter was unable to be called!"))
     }
 
-    fun getChildrenOfParent(): Result<List<FileMetadata>, GetChildrenError> {
-        val children: Result<List<FileMetadata>, GetChildrenError>? =
+    fun getChildren(
+        config: Config,
+        parentId: String
+    ): Result<List<FileMetadata>, GetChildrenError> {
+        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
-                .parse(getChildren(config, parentFileMetadata.id))
+                .parse(getChildren(Klaxon().toJsonString(config), parentId))
 
-        children?.let { childrenResult ->
-            return when (childrenResult) {
-                is Ok -> Ok(childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
-                is Err -> Err(childrenResult.error)
-            }
+        if (getChildrenResult != null) {
+            return getChildrenResult
         }
 
         return Err(GetChildrenError.UnexpectedError("getChildrenConverter was unable to be called!"))
     }
 
-    fun getSiblingsOfParent(): Result<List<FileMetadata>, GetChildrenError> {
-        val children: Result<List<FileMetadata>, GetChildrenError>? =
-            Klaxon().converter(getChildrenConverter)
-                .parse(getChildren(config, parentFileMetadata.parent))
-
-        children?.let { childrenResult ->
-            return when (childrenResult) {
-                is Ok -> {
-                    val editedChildren =
-                        childrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted }
-                    Ok(editedChildren)
-                }
-                is Err -> Err(childrenResult.error)
-            }
-        }
-
-        return Err(GetChildrenError.UnexpectedError("getChildrenConverter was unable to be called!"))
-    }
-
-    fun getParentOfParent(): Result<Unit, GetFileByIdError> {
-        val parent: Result<FileMetadata, GetFileByIdError>? =
+    fun getFileById(
+        config: Config,
+        fileId: String
+    ): Result<FileMetadata, GetFileByIdError> {
+        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
-            ).parse(getFileById(config, parentFileMetadata.parent))
+            ).parse(getFileById(Klaxon().toJsonString(config), fileId))
 
-        parent?.let { parentResult ->
-            return when (parentResult) {
-                is Ok -> {
-                    parentFileMetadata = parentResult.value
-                    Ok(Unit)
-                }
-                is Err -> Err(parentResult.error)
-            }
+        if (getFileByIdResult != null) {
+            return getFileByIdResult
         }
+
         return Err(GetFileByIdError.UnexpectedError("getFileByIdConverter was unable to be called!"))
     }
 
-    fun getDocumentContent(fileUuid: String): Result<String, ReadDocumentError> { // return result instead
-        val document: Result<DecryptedValue, ReadDocumentError>? =
-            Klaxon().converter(readDocumentConverter).parse(readDocument(config, fileUuid))
+    fun getDocumentContent(
+        config: Config,
+        fileId: String
+    ): Result<DecryptedValue, ReadDocumentError> {
+        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
+            Klaxon().converter(readDocumentConverter)
+                .parse(readDocument(Klaxon().toJsonString(config), fileId))
 
-        document?.let { documentResult ->
-            return when (documentResult) {
-                is Ok -> Ok(documentResult.value.secret)
-                is Err -> Err(documentResult.error)
-            }
+        if (getDocumentResult != null) {
+            return getDocumentResult
         }
 
         return Err(ReadDocumentError.UnexpectedError("readDocumentConverter was unable to be called!"))
     }
 
     fun createFile(
+        config: Config,
+        parentId: String,
         name: String,
         fileType: String
     ): Result<FileMetadata, CreateFileError> {
         val createFileResult: Result<FileMetadata, CreateFileError>? =
             Klaxon().converter(createFileConverter)
-                .parse(createFile(config, name, parentFileMetadata.id, fileType))
+                .parse(createFile(Klaxon().toJsonString(config), name, parentId, fileType))
 
-        createFileResult?.let {
+        if (createFileResult != null) {
             return createFileResult
         }
 
@@ -139,13 +189,19 @@ class CoreModel(config: Config) {
     }
 
     fun insertFile(
+        config: Config,
         fileMetadata: FileMetadata
     ): Result<Unit, InsertFileError> {
         val insertResult: Result<Unit, InsertFileError>? =
             Klaxon().converter(insertFileConverter)
-                .parse(insertFile(config, Klaxon().toJsonString(fileMetadata)))
+                .parse(
+                    insertFile(
+                        Klaxon().toJsonString(config),
+                        Klaxon().toJsonString(fileMetadata)
+                    )
+                )
 
-        insertResult?.let {
+        if (insertResult != null) {
             return insertResult
         }
 
@@ -153,12 +209,14 @@ class CoreModel(config: Config) {
     }
 
     fun deleteFile(
+        config: Config,
         id: String
     ): Result<Unit, DeleteFileError> {
         val deleteFile: Result<Unit, DeleteFileError>? =
-            Klaxon().converter(deleteFileConverter).parse(deleteFile(config, id))
+            Klaxon().converter(deleteFileConverter)
+                .parse(deleteFile(Klaxon().toJsonString(config), id))
 
-        deleteFile?.let {
+        if (deleteFile != null) {
             return deleteFile
         }
 
@@ -166,13 +224,15 @@ class CoreModel(config: Config) {
     }
 
     fun renameFile(
+        config: Config,
         id: String,
         name: String
     ): Result<Unit, RenameFileError> {
         val renameResult: Result<Unit, RenameFileError>? =
-            Klaxon().converter(renameFileConverter).parse(renameFile(config, id, name))
+            Klaxon().converter(renameFileConverter)
+                .parse(renameFile(Klaxon().toJsonString(config), id, name))
 
-        renameResult?.let {
+        if (renameResult != null) {
             return renameResult
         }
 
@@ -180,114 +240,52 @@ class CoreModel(config: Config) {
     }
 
     fun moveFile(
+        config: Config,
         id: String,
         parentId: String
     ): Result<Unit, MoveFileError> {
         val moveResult: Result<Unit, MoveFileError>? =
-            Klaxon().converter(moveFileConverter).parse(moveFile(config, id, parentId))
+            Klaxon().converter(moveFileConverter)
+                .parse(moveFile(Klaxon().toJsonString(config), id, parentId))
 
-        moveResult?.let {
+        if (moveResult != null) {
             return moveResult
         }
 
         return Err(MoveFileError.UnexpectedError("moveFileConverter was unable to be called!"))
     }
 
-    fun calculateFileSyncWork(): Result<WorkCalculated, CalculateWorkError> {
+    fun calculateFileSyncWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
-            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(config))
+            Klaxon().converter(calculateSyncWorkConverter)
+                .parse(calculateSyncWork(Klaxon().toJsonString(config)))
 
-        calculateSyncWorkResult?.let {
+        if (calculateSyncWorkResult != null) {
             return calculateSyncWorkResult
         }
 
         return Err(CalculateWorkError.UnexpectedError("calculateSyncWorkConverter was unable to be called!"))
     }
 
-    fun executeFileSyncWork(account: Account, workUnit: WorkUnit): Result<Unit, ExecuteWorkError> {
+    fun executeFileSyncWork(
+        config: Config,
+        account: Account,
+        workUnit: WorkUnit
+    ): Result<Unit, ExecuteWorkError> {
+        Timber.e("${Klaxon().toJsonString(workUnit)}, ${config.writeable_path}")
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
                 executeSyncWork(
-                    config,
+                    Klaxon().toJsonString(config),
                     Klaxon().toJsonString(account),
                     Klaxon().toJsonString(workUnit)
                 )
             )
 
-        executeSyncWorkResult?.let {
+        if (executeSyncWorkResult != null) {
             return executeSyncWorkResult
         }
 
         return Err(ExecuteWorkError.UnexpectedError("executeSyncWorkConverter was unable to be called!"))
-    }
-
-    companion object {
-        fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
-            val createResult: Result<Unit, CreateAccountError>? =
-                Klaxon().converter(createAccountConverter)
-                    .parse(createAccount(Klaxon().toJsonString(config), account))
-
-            createResult?.let {
-                return createResult
-            }
-
-            return Err(CreateAccountError.UnexpectedError("createAccountConverter was unable to be called!"))
-        }
-
-        fun importAccount(config: Config, account: String): Result<Unit, ImportError> {
-            val importResult: Result<Unit, ImportError>? =
-                Klaxon().converter(importAccountConverter)
-                    .parse(importAccount(Klaxon().toJsonString(config), account))
-
-            importResult?.let {
-                return importResult
-            }
-
-            return Err(ImportError.UnexpectedError("importAccountConverter was unable to be called!"))
-        }
-
-        fun exportAccount(config: Config): Result<String, AccountExportError> {
-            val exportResult: Result<String, AccountExportError>? =
-                Klaxon().converter(exportAccountConverter)
-                    .parse(exportAccount(Klaxon().toJsonString(config)))
-
-            exportResult?.let {
-                return exportResult
-            }
-
-            return Err(AccountExportError.UnexpectedError("exportAccountConverter was unable to be called!"))
-        }
-
-        fun syncAllFiles(config: Config): Result<Unit, SyncAllError> {
-            val syncResult: Result<Unit, SyncAllError>? =
-                Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
-
-            syncResult?.let {
-                return syncResult
-            }
-
-            return Err(SyncAllError.UnexpectedError("syncAllConverter was unable to be called!"))
-        }
-
-        fun writeContentToDocument(
-            config: Config,
-            id: String,
-            content: String
-        ): Result<Unit, WriteToDocumentError> {
-            val writeResult: Result<Unit, WriteToDocumentError>? =
-                Klaxon().converter(writeDocumentConverter).parse(
-                    writeDocument(
-                        Klaxon().toJsonString(config),
-                        id,
-                        Klaxon().toJsonString(DecryptedValue(content))
-                    )
-                )
-
-            writeResult?.let {
-                return writeResult
-            }
-
-            return Err(WriteToDocumentError.UnexpectedError("writeDocument was unable to be called!"))
-        }
     }
 }

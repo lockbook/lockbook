@@ -33,14 +33,8 @@ android {
     }
 
     kotlinter {
-        disabledRules = ["no-wildcard-imports"]
+        disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
     }
-
-    lint.enabled(false)
-    lintKotlinAndroidTest.enabled(false)
-    lintKotlinAndroidTestDebug.enabled(false)
-    lintKotlinDebug.enabled(false)
-    lintKotlinMain.enabled(false)
 }
 
 dependencies {

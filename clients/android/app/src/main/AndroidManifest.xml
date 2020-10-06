@@ -29,7 +29,7 @@
         <activity
             android:name=".InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:screenOrientation="portrait"
+
             android:theme="@style/DarkBlue.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -38,28 +38,21 @@
         </activity>
         <activity
             android:name=".login.WelcomeActivity"
-            android:screenOrientation="portrait"
+
             android:theme="@style/DarkBlue.NoActionBar" />
-        <activity
-            android:name=".loggedin.listfiles.ListFilesActivity"
-            android:screenOrientation="portrait" />
+        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
             android:name=".login.NewAccountActivity"
-            android:screenOrientation="portrait"
+
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
             android:name=".login.ImportAccountActivity"
-            android:screenOrientation="portrait"
+
             android:theme="@style/DarkBlue.NoActionBar" />
-        <activity
-            android:name=".loggedin.settings.SettingsActivity"
-            android:screenOrientation="portrait" />
-        <activity
-            android:name=".loggedin.popupinfo.PopUpInfoActivity"
-            android:screenOrientation="portrait" />
-        <activity
-            android:name=".loggedin.texteditor.TextEditorActivity"
-            android:screenOrientation="portrait" />
+        <activity android:name=".loggedin.settings.SettingsActivity" />
+        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
+        <activity android:name=".loggedin.texteditor.TextEditorActivity" />
+        <activity android:name=".loggedin.logs.LogActivity" />
     </application>
 
 </manifest>
