@@ -1,27 +1,15 @@
-use crate::LOG_FILE;
 use fern::colors::{Color, ColoredLevelConfig};
+use fern::Dispatch;
 use std::path::Path;
 use std::{fs, io};
 
-#[derive(Debug)]
-pub enum LoggersError {
-    File(io::Error),
-    Set(log::SetLoggerError),
-}
-
-pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), LoggersError> {
+pub fn init(log_path: &Path, log_name: String, std_colors: bool) -> Result<Dispatch, io::Error> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
         .info(Color::Green)
         .debug(Color::Blue)
         .trace(Color::Black);
-
-    let stdout_lb_level = if std_enabled {
-        log::LevelFilter::Debug
-    } else {
-        log::LevelFilter::Off
-    };
 
     let stdout_logger = fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -44,11 +32,10 @@ pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), 
             }
         })
         .chain(std::io::stdout())
-        .level(log::LevelFilter::Off)
-        .level_for("lockbook_core", stdout_lb_level);
+        .level(log::LevelFilter::Warn);
 
-    let _ = fs::create_dir_all(log_path).map_err(LoggersError::File)?;
-    let log_file = fern::log_file(log_path.join(LOG_FILE)).map_err(LoggersError::File)?;
+    let _ = fs::create_dir_all(log_path)?;
+    let log_file = fern::log_file(log_path.join(log_name))?;
 
     let file_logger = fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -60,13 +47,9 @@ pub fn init(log_path: &Path, std_enabled: bool, std_colors: bool) -> Result<(), 
                 message = message.clone(),
             ))
         })
-        .chain(log_file)
-        .level(log::LevelFilter::Warn)
-        .level_for("lockbook_core", log::LevelFilter::Trace);
+        .chain(log_file);
 
-    fern::Dispatch::new()
+    Ok(fern::Dispatch::new()
         .chain(stdout_logger)
-        .chain(file_logger)
-        .apply()
-        .map_err(LoggersError::Set)
+        .chain(file_logger))
 }

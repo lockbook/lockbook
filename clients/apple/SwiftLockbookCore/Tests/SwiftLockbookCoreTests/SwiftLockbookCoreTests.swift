@@ -182,6 +182,29 @@ final class SwiftLockbookCoreTests: XCTestCase {
             XCTFail(error.localizedDescription)
         }
      }
+    
+    func test08GetUsage() {
+        do {
+            let root = try SwiftLockbookCoreTests.core.getRoot().get()
+
+            let file = try SwiftLockbookCoreTests.core.createFile(name: "test_usage.md", dirId: root.id, isFolder: false).get()
+
+            let _ = try SwiftLockbookCoreTests.core.updateFile(id: file.id, content: "Some new shit!").get()
+
+            let _ = try SwiftLockbookCoreTests.core.synchronize().get()
+            
+            switch SwiftLockbookCoreTests.core.getUsage() {
+            case .success(let usage):
+                XCTAssertEqual(usage.count, 4)
+            case .failure(let err):
+                XCTFail("Coult not get usage \(err)")
+            }
+        } catch let err as ApplicationError {
+            XCTFail(err.message())
+        } catch {
+            XCTFail(error.localizedDescription)
+        }
+    }
 
 
     func test10FfiPerformance() {
@@ -193,11 +216,11 @@ final class SwiftLockbookCoreTests: XCTestCase {
                     return XCTFail("Could not create account! \(err)")
                 }
             }
-            
+
             startMeasuring()
             let result = SwiftLockbookCoreTests.core.calculateWork()
             stopMeasuring()
-            
+
             if case .failure(let err) = result {
                 return XCTFail("Didn't calculate any work! \(err)")
             }
@@ -212,6 +235,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
         ("test04ListFiles", test04ListFiles),
         ("test05CreateFile", test05CreateFile),
         ("test06CalculateWork", test06CalculateWork),
-        ("test07UpdateFile", test07UpdateFile)
+        ("test07UpdateFile", test07UpdateFile),
+        ("test08GetUsage", test08GetUsage)
     ]
 }

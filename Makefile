@@ -42,9 +42,14 @@ server_fmt: server
 server_lint: server
 	docker run server:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
-.PHONY: server_test
-server_test: server
-	docker run server:$(hash) cargo test
+.PHONY: server_tests
+server_tests: is_docker_running
+	docker build -f containers/Dockerfile.server . --tag server_tests:$(hash)
+
+.PHONY: server_tests_run
+server_tests_run: server server_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) up --exit-code-from=server_tests
 
 .PHONY: cli
 cli: is_docker_running
