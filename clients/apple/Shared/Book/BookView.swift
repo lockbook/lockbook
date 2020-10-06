@@ -48,12 +48,6 @@ struct FileListView: View {
     @State var showingCreate: Bool = false
     @State var showingAccount: Bool = false
     
-//    init(core: Core, account: Account, root: FileMetadataWithChildren) {
-//        self.core = core
-//        self.account = account
-//        self.selectedFolder = root
-//    }
-    
     var body: some View {
         let baseView = List {
             OutlineGroup(core.grouped, children: \.children) { meta in
