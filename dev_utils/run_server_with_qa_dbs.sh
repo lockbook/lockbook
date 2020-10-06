@@ -3,4 +3,4 @@
 set -a
 . ../containers/qa.env
 cd ../server
-RUST_LOG=info cargo run
+RUST_LOG=debug cargo run

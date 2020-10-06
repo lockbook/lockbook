@@ -22,6 +22,7 @@ pub struct FilesDbConfig {
 pub struct ServerConfig {
     pub port: u16,
     pub max_auth_delay: u128,
+    pub log_path: String,
 }
 
 pub struct Config {
@@ -52,6 +53,7 @@ pub fn config() -> Config {
         server: ServerConfig {
             port: env_or_panic("SERVER_PORT").parse().unwrap(),
             max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
+            log_path: env_or_panic("LOG_PATH").parse().unwrap(),
         },
     }
 }
