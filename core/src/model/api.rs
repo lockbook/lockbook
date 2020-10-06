@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub struct ChangeDocumentContentRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_content: EncryptedValueWithNonce,
@@ -31,12 +32,14 @@ pub enum ChangeDocumentContentError {
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -60,12 +63,14 @@ pub enum CreateDocumentError {
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -86,12 +91,14 @@ pub enum DeleteDocumentError {
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveDocumentRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -115,12 +122,14 @@ pub enum MoveDocumentError {
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -143,12 +152,14 @@ pub enum RenameDocumentError {
     DocumentDeleted,
     EditConflict,
     DocumentPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentRequest {
     pub id: Uuid,
     pub content_version: u64,
+    pub client_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -160,12 +171,14 @@ pub struct GetDocumentResponse {
 pub enum GetDocumentError {
     InternalError,
     DocumentNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -187,12 +200,14 @@ pub enum CreateFolderError {
     UserNotFound,
     FileIdTaken,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -213,12 +228,14 @@ pub enum DeleteFolderError {
     FolderNotFound,
     EditConflict,
     FolderDeleted,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveFolderRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -242,12 +259,14 @@ pub enum MoveFolderError {
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -270,11 +289,13 @@ pub enum RenameFolderError {
     FolderDeleted,
     EditConflict,
     FolderPathTaken,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyRequest {
     pub username: String,
+    pub client_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -287,12 +308,40 @@ pub enum GetPublicKeyError {
     InternalError,
     InvalidUsername,
     UserNotFound,
+    ClientUpdateRequired,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUsageRequest {
+    pub username: String,
+    pub client_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUsageResponse {
+    pub usages: Vec<FileUsage>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct FileUsage {
+    pub file_id: String,
+    pub byte_secs: i64,
+    pub secs: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetUsageError {
+    InternalError,
+    InvalidUsername,
+    UserNotFound,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
     pub signature: SignedValue,
+    pub client_version: String,
     pub since_metadata_version: u64,
 }
 
@@ -309,12 +358,14 @@ pub enum GetUpdatesError {
     NotPermissioned,
     UserNotFound,
     InvalidUsername,
+    ClientUpdateRequired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
     pub signature: SignedValue,
+    pub client_version: String,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: FolderAccessInfo,
@@ -336,4 +387,5 @@ pub enum NewAccountError {
     InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
+    ClientUpdateRequired,
 }

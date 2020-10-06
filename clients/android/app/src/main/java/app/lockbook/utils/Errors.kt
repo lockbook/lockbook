@@ -1,5 +1,9 @@
 package app.lockbook.utils
 
+sealed class InitLoggerError {
+    data class Unexpected(val error: String) : InitLoggerError()
+}
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
@@ -44,6 +48,7 @@ sealed class CreateFileError {
     object CouldNotFindAParent : CreateFileError()
     object FileNameNotAvailable : CreateFileError()
     object FileNameContainsSlash : CreateFileError()
+    object FileNameEmpty : CreateFileError()
     data class UnexpectedError(val error: String) : CreateFileError()
 }
 
@@ -81,6 +86,8 @@ sealed class RenameFileError {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()
     object FileNameNotAvailable : RenameFileError()
+    object NewNameEmpty : RenameFileError()
+    object CannotRenameRoot : RenameFileError()
     data class UnexpectedError(val error: String) : RenameFileError()
 }
 
@@ -90,6 +97,7 @@ sealed class MoveFileError {
     object DocumentTreatedAsFolder : MoveFileError()
     object TargetParentDoesNotExist : MoveFileError()
     object TargetParentHasChildNamedThat : MoveFileError()
+    object CannotMoveRoot : MoveFileError()
     data class UnexpectedError(val error: String) : MoveFileError()
 }
 
