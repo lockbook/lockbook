@@ -11,7 +11,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
@@ -26,7 +25,6 @@ import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
-
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -69,6 +67,7 @@ class ListFilesFragment : Fragment() {
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
+    private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -76,7 +75,10 @@ class ListFilesFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
-            inflater, R.layout.fragment_list_files, container, false
+            inflater,
+            R.layout.fragment_list_files,
+            container,
+            false
         )
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
@@ -95,100 +97,126 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onSwipeToRefresh()
         }
 
-        listFilesViewModel.fileModel.files.observe(
+        listFilesViewModel.files.observe(
             viewLifecycleOwner,
-            Observer { files ->
+            { files ->
                 updateRecyclerView(files, adapter)
             }
         )
 
-        listFilesViewModel.earlyStopSyncSnackBar.observe(
+        listFilesViewModel.stopSyncSnackBar.observe(
             viewLifecycleOwner,
-            Observer {
+            {
                 earlyStopSyncSnackBar()
             }
         )
 
         listFilesViewModel.stopProgressSpinner.observe(
             viewLifecycleOwner,
-            Observer {
+            {
                 list_files_refresh.isRefreshing = false
             }
         )
 
         listFilesViewModel.showSyncSnackBar.observe(
             viewLifecycleOwner,
-            Observer { maxProgress ->
+            { maxProgress ->
                 showSyncSnackBar(maxProgress)
             }
         )
 
         listFilesViewModel.showPreSyncSnackBar.observe(
             viewLifecycleOwner,
-            Observer { amountToSync ->
+            { amountToSync ->
                 showPreSyncSnackBar(amountToSync)
             }
         )
 
         listFilesViewModel.showOfflineSnackBar.observe(
             viewLifecycleOwner,
-            Observer {
+            {
                 showOfflineSnackBar()
             }
         )
 
         listFilesViewModel.updateProgressSnackBar.observe(
             viewLifecycleOwner,
-            Observer { progress ->
+            { progress ->
                 updateProgressSnackBar(progress)
             }
         )
 
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
-            Observer { editableFile ->
+            { editableFile ->
                 navigateToFileEditor(editableFile)
             }
         )
 
         listFilesViewModel.navigateToPopUpInfo.observe(
             viewLifecycleOwner,
-            Observer { fileMetadata ->
+            { fileMetadata ->
                 navigateToPopUpInfo(fileMetadata)
             }
         )
 
         listFilesViewModel.collapseExpandFAB.observe(
             viewLifecycleOwner,
-            Observer {
-                onFABClicked()
+            { isFABOpen ->
+                collapseExpandFAB(isFABOpen)
             }
         )
 
         listFilesViewModel.createFileNameDialog.observe(
             viewLifecycleOwner,
-            Observer {
-                createFileNameDialog()
+            {
+                createFileNameDialog("")
             }
         )
 
-        listFilesViewModel.fileModel.errorHasOccurred.observe(
+        listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
-            Observer { errorText ->
+            { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
-            Observer { errorText ->
+            { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
-        listFilesViewModel.startUpFiles()
-
         return binding.root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        setUpAfterConfigChange()
+    }
+
+    private fun setUpAfterConfigChange() {
+        collapseExpandFAB(listFilesViewModel.isFABOpen)
+        if (listFilesViewModel.isDialogOpen) {
+            Timber.e(listFilesViewModel.alertDialogFileName)
+            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        }
+        if (listFilesViewModel.syncingStatus.isSyncing) {
+            showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        setUpBeforeConfigChange()
+    }
+
+    private fun setUpBeforeConfigChange() {
+        if (listFilesViewModel.isDialogOpen) {
+            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+            alertDialog.dismiss()
+        }
     }
 
     private fun earlyStopSyncSnackBar() {
@@ -196,38 +224,27 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun updateProgressSnackBar(progress: Int) {
-        if(progress > listFilesViewModel.syncMaxProgress) {
-            snackProgressBarManager.updateTo(syncSnackProgressBar.setProgressMax(progress))
-        }
         snackProgressBarManager.setProgress(progress)
-
-        if (progress == listFilesViewModel.syncMaxProgress) {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
-        }
     }
 
     private fun showSyncSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
-        if (maxProgress != 0) {
-            syncSnackProgressBar.setProgressMax(maxProgress)
-            syncSnackProgressBar.setMessage(
-                resources.getString(
-                    R.string.list_files_sync_snackbar,
-                    maxProgress.toString()
-                )
+        syncSnackProgressBar.setProgressMax(maxProgress)
+        syncSnackProgressBar.setMessage(
+            resources.getString(
+                R.string.list_files_sync_snackbar,
+                maxProgress.toString()
             )
-            snackProgressBarManager.show(
-                syncSnackProgressBar,
-                SnackProgressBarManager.LENGTH_INDEFINITE
-            )
-        } else {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
-        }
+        )
+        snackProgressBarManager.show(
+            syncSnackProgressBar,
+            SnackProgressBarManager.LENGTH_INDEFINITE
+        )
     }
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
-        if(amountToSync == 0) {
+        if (amountToSync == 0) {
             snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
         } else {
             snackProgressBarManager.show(
@@ -247,8 +264,8 @@ class ListFilesFragment : Fragment() {
         snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
     }
 
-    private fun onFABClicked() {
-        if (!listFilesViewModel.isFABOpen) {
+    private fun collapseExpandFAB(isFABOpen: Boolean) {
+        if (isFABOpen) {
             showFABMenu()
         } else {
             closeFABMenu()
@@ -262,7 +279,6 @@ class ListFilesFragment : Fragment() {
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
         list_files_layout.isClickable = false
-        listFilesViewModel.isFABOpen = false
     }
 
     private fun showFABMenu() {
@@ -273,15 +289,14 @@ class ListFilesFragment : Fragment() {
         list_files_refresh.alpha = 0.7f
         list_files_layout.isClickable = true
         list_files_layout.setOnClickListener {
-            closeFABMenu()
+            listFilesViewModel.collapseExpandFAB()
         }
-        listFilesViewModel.isFABOpen = true
     }
 
-    private fun createFileNameDialog() {
+    private fun createFileNameDialog(originalFileName: String) {
         val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
 
-        dialogBuilder.setView(
+        alertDialog = dialogBuilder.setView(
             layoutInflater.inflate(
                 R.layout.dialog_create_file_name,
                 view as ViewGroup,
@@ -290,21 +305,24 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
+                listFilesViewModel.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
+                listFilesViewModel.isDialogOpen = false
             }
             .create()
 
-        dialogBuilder.show()
+        alertDialog.show()
+        alertDialog.findViewById<EditText>(R.id.new_file_username)?.setText(originalFileName)
     }
 
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
     ) {
-        adapter.files = if (files.isEmpty()) listOf() else files
+        adapter.files = files
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {

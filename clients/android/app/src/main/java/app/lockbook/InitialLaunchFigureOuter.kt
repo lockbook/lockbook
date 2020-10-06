@@ -10,7 +10,6 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
-import app.lockbook.core.loadLockbookCore
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
@@ -25,16 +24,15 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.splash_screen)
-        loadLockbookCore()
         Timber.plant(Timber.DebugTree())
 
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
 
         if (pref.getBoolean(LOGGED_IN_KEY, false)) {
             if (!isBiometricsOptionsAvailable() && pref.getString(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            ) != BIOMETRIC_NONE
+                    BIOMETRIC_OPTION_KEY,
+                    BIOMETRIC_NONE
+                ) != BIOMETRIC_NONE
             ) {
                 pref.edit()
                     .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
@@ -62,7 +60,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     private fun performBiometricFlow(pref: SharedPreferences) {
         when (
             val optionValue = pref.getString(
-                BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
             )
         ) {
             BIOMETRIC_STRICT -> {
@@ -77,7 +76,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
                 val executor = ContextCompat.getMainExecutor(this)
                 val biometricPrompt = BiometricPrompt(
-                    this, executor,
+                    this,
+                    executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
                             errorCode: Int,
@@ -89,7 +89,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                     Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         applicationContext,
-                                        UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_SHORT
+                                        UNEXPECTED_ERROR_OCCURRED,
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                     finish()
@@ -97,7 +98,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
                                     Toast.makeText(
                                         applicationContext,
-                                        "Too many tries, try again later!", Toast.LENGTH_SHORT
+                                        "Too many tries, try again later!",
+                                        Toast.LENGTH_SHORT
                                     )
                                         .show()
                                 else -> finish()

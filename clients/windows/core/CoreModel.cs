@@ -114,7 +114,8 @@ namespace Core {
             DocumentTreatedAsFolder,
             CouldNotFindAParent,
             FileNameNotAvailable,
-            FileNameContainsSlash
+            FileNameContainsSlash,
+            FileNameEmpty,
         }
         public class ExpectedError : Result {
             public PossibleErrors error;
@@ -194,6 +195,8 @@ namespace Core {
             FileDoesNotExist,
             NewNameContainsSlash,
             FileNameNotAvailable,
+            NewNameEmpty,
+            CannotRenameRoot
         }
         public class ExpectedError : Result {
             public PossibleErrors error;
@@ -215,6 +218,7 @@ namespace Core {
             DocumentTreatedAsFolder,
             TargetParentHasChildNamedThat,
             TargetParentDoesNotExist,
+            CannotMoveRoot,
 
         }
         public class ExpectedError : Result {

@@ -3,7 +3,7 @@ use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 
 use crate::model::file_metadata::FileMetadata;
-use crate::API_URL;
+use crate::{API_URL, CORE_CODE_VERSION};
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use reqwest::Method;
@@ -121,6 +121,7 @@ pub trait Client {
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>>;
+    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>>;
 }
 
 pub struct ClientImpl;
@@ -131,6 +132,7 @@ impl Client for ClientImpl {
             "get-document",
             &GetDocumentRequest {
                 id: id,
+                client_version: CORE_CODE_VERSION.to_string(),
                 content_version: content_version,
             },
         )
@@ -149,6 +151,7 @@ impl Client for ClientImpl {
             &ChangeDocumentContentRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_content: new_content,
@@ -171,6 +174,7 @@ impl Client for ClientImpl {
             &CreateDocumentRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 name: String::from(name),
                 parent: parent,
@@ -192,6 +196,7 @@ impl Client for ClientImpl {
             &DeleteDocumentRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -212,6 +217,7 @@ impl Client for ClientImpl {
             &MoveDocumentRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -233,6 +239,7 @@ impl Client for ClientImpl {
             &RenameDocumentRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
@@ -254,6 +261,7 @@ impl Client for ClientImpl {
             &CreateFolderRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 name: String::from(name),
                 parent: parent,
@@ -274,6 +282,7 @@ impl Client for ClientImpl {
             &DeleteFolderRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
@@ -294,6 +303,7 @@ impl Client for ClientImpl {
             &MoveFolderRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_parent: new_parent,
@@ -315,6 +325,7 @@ impl Client for ClientImpl {
             &RenameFolderRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
@@ -328,6 +339,7 @@ impl Client for ClientImpl {
             "get-public-key",
             &GetPublicKeyRequest {
                 username: String::from(username),
+                client_version: CORE_CODE_VERSION.to_string(),
             },
         )
         .map(|r: GetPublicKeyResponse| r.key)
@@ -343,6 +355,7 @@ impl Client for ClientImpl {
             &GetUpdatesRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 since_metadata_version: since_metadata_version,
             },
         )
@@ -362,6 +375,7 @@ impl Client for ClientImpl {
             &NewAccountRequest {
                 username: String::from(username),
                 signature: signature.clone(),
+                client_version: CORE_CODE_VERSION.to_string(),
                 public_key: public_key,
                 folder_id: folder_id,
                 parent_access_key: parent_access_key,
@@ -369,5 +383,15 @@ impl Client for ClientImpl {
             },
         )
         .map(|r: NewAccountResponse| r.folder_metadata_version)
+    }
+    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>> {
+        api_request(
+            Method::GET,
+            "get-usage",
+            &GetUsageRequest {
+                username: String::from(username),
+                client_version: CORE_CODE_VERSION.to_string(),
+            },
+        )
     }
 }

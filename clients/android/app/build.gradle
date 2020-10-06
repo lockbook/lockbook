@@ -14,7 +14,7 @@ android {
         minSdkVersion 22
         targetSdkVersion 29
         versionCode 1
-        versionName "0.1.3"
+        versionName "0.1.4"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,14 +47,15 @@ android {
     }
 
     kotlinter {
-        disabledRules = ["no-wildcard-imports"]
+        disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
     }
 
-    lint.enabled(false)
-    lintKotlinAndroidTest.enabled(false)
-    lintKotlinAndroidTestDebug.enabled(false)
-    lintKotlinDebug.enabled(false)
-    lintKotlinMain.enabled(false)
+    testOptions {
+        unitTests.all {
+            jvmArgs '-Djava.library.path=../core/src/main/jniLibs/desktop'
+        }
+    }
+
     android.buildFeatures.dataBinding = true
 }
 
@@ -83,6 +84,8 @@ dependencies {
     testImplementation "junit:junit:$junit_version"
     androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
     androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
+    androidTestImplementation "androidx.test:runner:$test_runner_version"
+    androidTestImplementation "androidx.test:rules:$test_runner_version"
 
     // Coroutines
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutine_version"

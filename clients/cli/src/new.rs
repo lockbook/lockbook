@@ -5,25 +5,20 @@ use std::path::Path;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
-    create_file_at_path, get_account, write_document, CreateFileAtPathError, GetAccountError,
-    WriteToDocumentError,
+    create_file_at_path, write_document, CreateFileAtPathError, WriteToDocumentError,
 };
 use uuid::Uuid;
 
-use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_config};
+use crate::utils::{
+    edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
+};
 use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_NO_ROOT, SUCCESS,
-    UNEXPECTED_ERROR,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
+    PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn new(file_name: &str) {
-    match get_account(&get_config()) {
-        Ok(_) => {}
-        Err(err) => match err {
-            GetAccountError::NoAccount => exit_with_no_account(),
-            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    get_account_or_exit();
 
     let file_metadata = match create_file_at_path(&get_config(), &file_name) {
         Ok(file_metadata) => file_metadata,
@@ -34,6 +29,9 @@ pub fn new(file_name: &str) {
             CreateFileAtPathError::NoAccount => exit_with_no_account(),
             CreateFileAtPathError::NoRoot => {
                 exit_with("No root folder, have you synced yet?", NO_ROOT)
+            }
+            CreateFileAtPathError::PathContainsEmptyFile => {
+                exit_with("Path contains an empty file.", PATH_CONTAINS_EMPTY_FILE)
             }
             CreateFileAtPathError::PathDoesntStartWithRoot => {
                 exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)

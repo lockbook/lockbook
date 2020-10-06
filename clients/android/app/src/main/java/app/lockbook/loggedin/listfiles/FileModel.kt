@@ -16,10 +16,11 @@ import com.github.michaelbull.result.Result
 import timber.log.Timber
 
 class FileModel(path: String) {
-    val coreModel = CoreModel(Config(path))
-
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _errorHasOccurred = MutableLiveData<String>()
+    private val _errorHasOccurred = SingleMutableLiveData<String>()
+    private lateinit var parentFileMetadata: FileMetadata
+    private lateinit var lastDocumentAccessed: FileMetadata
+    val config = Config(path)
 
     val files: LiveData<List<FileMetadata>>
         get() = _files
@@ -28,7 +29,7 @@ class FileModel(path: String) {
         get() = _errorHasOccurred
 
     fun syncWorkAvailable(): Boolean {
-        when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
+        when (val syncWorkResult = CoreModel.calculateFileSyncWork(config)) {
             is Ok -> return true
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> {
@@ -53,13 +54,22 @@ class FileModel(path: String) {
         return false
     }
 
-    fun isAtRoot(): Boolean = coreModel.parentFileMetadata.id == coreModel.parentFileMetadata.parent
+    fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
 
     fun upADirectory() {
-        when (val getSiblingsOfParentResult = coreModel.getSiblingsOfParent()) {
+        when (
+            val getSiblingsOfParentResult =
+                CoreModel.getChildren(config, parentFileMetadata.parent)
+        ) {
             is Ok -> {
-                when (val getParentOfParentResult = coreModel.getParentOfParent()) {
-                    is Ok -> matchToDefaultSortOption(getSiblingsOfParentResult.value)
+                when (
+                    val getParentOfParentResult =
+                        CoreModel.getFileById(config, parentFileMetadata.parent)
+                ) {
+                    is Ok -> {
+                        parentFileMetadata = getParentOfParentResult.value
+                        matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                    }
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
                         is GetFileByIdError.UnexpectedError -> {
@@ -89,12 +99,14 @@ class FileModel(path: String) {
     }
 
     fun renameRefreshFiles(id: String, newName: String) {
-        when (val renameFileResult = coreModel.renameFile(id, newName)) {
+        when (val renameFileResult = CoreModel.renameFile(config, id, newName)) {
             is Ok -> refreshFiles()
             is Err -> when (val error = renameFileResult.error) {
                 is RenameFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 is RenameFileError.NewNameContainsSlash -> _errorHasOccurred.postValue("Error! New name contains slash!")
                 is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
+                is RenameFileError.NewNameEmpty -> _errorHasOccurred.postValue("Error! New file name cannot be empty!")
+                is RenameFileError.CannotRenameRoot -> _errorHasOccurred.postValue("Error! Cannot rename root!")
                 is RenameFileError.UnexpectedError -> {
                     Timber.e("Unable to rename file: ${error.error}")
                     _errorHasOccurred.postValue(
@@ -110,7 +122,7 @@ class FileModel(path: String) {
     }
 
     fun deleteRefreshFiles(id: String) {
-        when (val deleteFileResult = coreModel.deleteFile(id)) {
+        when (val deleteFileResult = CoreModel.deleteFile(config, id)) {
             is Ok -> refreshFiles()
             is Err -> when (val error = deleteFileResult.error) {
                 is DeleteFileError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
@@ -129,10 +141,10 @@ class FileModel(path: String) {
     }
 
     fun handleReadDocument(fileMetadata: FileMetadata): EditableFile? {
-        when (val documentResult = coreModel.getDocumentContent(fileMetadata.id)) {
+        when (val documentResult = CoreModel.getDocumentContent(config, fileMetadata.id)) {
             is Ok -> {
-                coreModel.lastDocumentAccessed = fileMetadata
-                return EditableFile(fileMetadata.name, fileMetadata.id, documentResult.value)
+                lastDocumentAccessed = fileMetadata
+                return EditableFile(fileMetadata.name, fileMetadata.id, documentResult.value.secret)
             }
             is Err -> when (val error = documentResult.error) {
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
@@ -155,14 +167,17 @@ class FileModel(path: String) {
     }
 
     fun intoFolder(fileMetadata: FileMetadata) {
-        coreModel.parentFileMetadata = fileMetadata
+        parentFileMetadata = fileMetadata
         refreshFiles()
     }
 
     fun startUpInRoot() {
-        when (val result = coreModel.setParentToRoot()) {
-            is Ok -> refreshFiles()
-            is Err -> when (val error = result.error) {
+        when (val getRootResult = CoreModel.getRoot(config)) {
+            is Ok -> {
+                parentFileMetadata = getRootResult.value
+                refreshFiles()
+            }
+            is Err -> when (val error = getRootResult.error) {
                 is GetRootError.NoRoot -> _errorHasOccurred.postValue("No root!")
                 is GetRootError.UnexpectedError -> {
                     Timber.e("Unable to set parent to root: ${error.error}")
@@ -179,9 +194,12 @@ class FileModel(path: String) {
     }
 
     fun createInsertRefreshFiles(name: String, fileType: String) {
-        when (val createFileResult = coreModel.createFile(name, fileType)) {
+        when (
+            val createFileResult =
+                CoreModel.createFile(config, parentFileMetadata.id, name, fileType)
+        ) {
             is Ok -> {
-                val insertFileResult = coreModel.insertFile(createFileResult.value)
+                val insertFileResult = CoreModel.insertFile(config, createFileResult.value)
                 if (insertFileResult is Err) {
                     when (val error = insertFileResult.error) {
                         is InsertFileError.UnexpectedError -> {
@@ -203,6 +221,7 @@ class FileModel(path: String) {
                 is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
                 is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
+                is CreateFileError.FileNameEmpty -> _errorHasOccurred.postValue("Error! File cannot be empty!")
                 is CreateFileError.UnexpectedError -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _errorHasOccurred.postValue(
@@ -218,9 +237,9 @@ class FileModel(path: String) {
     }
 
     fun refreshFiles() {
-        when (val getChildrenResult = coreModel.getChildrenOfParent()) {
+        when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
-                matchToDefaultSortOption(getChildrenResult.value)
+                matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
             }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.UnexpectedError -> {
@@ -294,7 +313,7 @@ class FileModel(path: String) {
         when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
-            ) {
+        ) {
             SharedPreferences.SORT_FILES_A_Z -> sortFilesAlpha(files, false)
             SharedPreferences.SORT_FILES_Z_A -> sortFilesAlpha(files, true)
             SharedPreferences.SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
@@ -308,7 +327,7 @@ class FileModel(path: String) {
     }
 
     fun determineSizeOfSyncWork(): Result<Int, CalculateWorkError> {
-        when (val syncWorkResult = coreModel.calculateFileSyncWork()) {
+        when (val syncWorkResult = CoreModel.calculateFileSyncWork(config)) {
             is Ok -> return Ok(syncWorkResult.value.work_units.size)
             is Err -> {
                 when (val error = syncWorkResult.error) {

@@ -1,20 +1,19 @@
-use crate::files_db;
-use crate::index_db;
+use crate::file_content_client;
+use crate::file_index_repo;
+use crate::usage_service;
+use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
 use lockbook_core::model::api::*;
 use lockbook_core::model::file_metadata::FileType;
-
-pub fn username_is_valid(username: &str) -> bool {
-    username
-        .to_lowercase()
-        .chars()
-        .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-}
 
 pub async fn change_document_content(
     server_state: &mut ServerState,
     request: ChangeDocumentContentRequest,
 ) -> Result<ChangeDocumentContentResponse, ChangeDocumentContentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(ChangeDocumentContentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(ChangeDocumentContentError::InvalidUsername);
     }
@@ -26,16 +25,17 @@ pub async fn change_document_content(
         }
     };
 
-    let result = index_db::change_document_content_version(
+    let result = file_index_repo::change_document_content_version(
         &transaction,
         request.id,
         request.old_metadata_version,
     )
     .await;
+
     let (old_content_version, new_version) = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
-        index_db::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
+        file_index_repo::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
+        file_index_repo::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot change document content version in Postgres: {:?}",
@@ -45,7 +45,19 @@ pub async fn change_document_content(
         }
     })?;
 
-    let create_result = files_db::create(
+    usage_service::track(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.new_content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        ChangeDocumentContentError::InternalError
+    })?;
+
+    let create_result = file_content_client::create(
         &server_state.files_db_client,
         request.id,
         new_version,
@@ -60,7 +72,7 @@ pub async fn change_document_content(
         return Err(ChangeDocumentContentError::InternalError);
     };
 
-    let delete_result = files_db::delete(
+    let delete_result = file_content_client::delete(
         &server_state.files_db_client,
         request.id,
         old_content_version,
@@ -89,6 +101,10 @@ pub async fn create_document(
     server_state: &mut ServerState,
     request: CreateDocumentRequest,
 ) -> Result<CreateDocumentResponse, CreateDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(CreateDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(CreateDocumentError::InvalidUsername);
     }
@@ -100,7 +116,7 @@ pub async fn create_document(
         }
     };
 
-    let index_result = index_db::create_file(
+    let index_result = file_index_repo::create_file(
         &transaction,
         request.id,
         request.parent,
@@ -112,10 +128,10 @@ pub async fn create_document(
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
-        index_db::FileError::IdTaken => CreateDocumentError::FileIdTaken,
-        index_db::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
-        index_db::FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
-        index_db::FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
+        file_index_repo::FileError::IdTaken => CreateDocumentError::FileIdTaken,
+        file_index_repo::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
+        file_index_repo::FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
+        file_index_repo::FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
         _ => {
             error!(
                 "Internal server error! Cannot create document in Postgres: {:?}",
@@ -125,13 +141,26 @@ pub async fn create_document(
         }
     })?;
 
-    let files_result = files_db::create(
+    usage_service::track(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        CreateDocumentError::InternalError
+    })?;
+
+    let files_result = file_content_client::create(
         &server_state.files_db_client,
         request.id,
         new_version,
         &request.content,
     )
     .await;
+
     if files_result.is_err() {
         error!(
             "Internal server error! Cannot create file in S3: {:?}",
@@ -155,6 +184,10 @@ pub async fn delete_document(
     server_state: &mut ServerState,
     request: DeleteDocumentRequest,
 ) -> Result<DeleteDocumentResponse, DeleteDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(DeleteDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(DeleteDocumentError::InvalidUsername);
     }
@@ -166,7 +199,7 @@ pub async fn delete_document(
         }
     };
 
-    let index_result = index_db::delete_file(
+    let index_result = file_index_repo::delete_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -174,9 +207,9 @@ pub async fn delete_document(
     )
     .await;
     let (old_content_version, new_version) = index_result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
-        index_db::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
+        file_index_repo::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
+        file_index_repo::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot delete document in Postgres: {:?}",
@@ -186,7 +219,7 @@ pub async fn delete_document(
         }
     })?;
 
-    let files_result = files_db::delete(
+    let files_result = file_content_client::delete(
         &server_state.files_db_client,
         request.id,
         old_content_version,
@@ -215,6 +248,10 @@ pub async fn move_document(
     server_state: &mut ServerState,
     request: MoveDocumentRequest,
 ) -> Result<MoveDocumentResponse, MoveDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(MoveDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(MoveDocumentError::InvalidUsername);
     }
@@ -226,7 +263,7 @@ pub async fn move_document(
         }
     };
 
-    let result = index_db::move_file(
+    let result = file_index_repo::move_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -236,10 +273,10 @@ pub async fn move_document(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
-        index_db::FileError::Deleted => MoveDocumentError::DocumentDeleted,
-        index_db::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
+        file_index_repo::FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
+        file_index_repo::FileError::Deleted => MoveDocumentError::DocumentDeleted,
+        file_index_repo::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot move document in Postgres: {:?}",
@@ -264,6 +301,10 @@ pub async fn rename_document(
     server_state: &mut ServerState,
     request: RenameDocumentRequest,
 ) -> Result<RenameDocumentResponse, RenameDocumentError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(RenameDocumentError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(RenameDocumentError::InvalidUsername);
     }
@@ -275,7 +316,7 @@ pub async fn rename_document(
         }
     };
 
-    let result = index_db::rename_file(
+    let result = file_index_repo::rename_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -284,10 +325,10 @@ pub async fn rename_document(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
-        index_db::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
-        index_db::FileError::Deleted => RenameDocumentError::DocumentDeleted,
-        index_db::FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
+        file_index_repo::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
+        file_index_repo::FileError::Deleted => RenameDocumentError::DocumentDeleted,
+        file_index_repo::FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename document in Postgres: {:?}",
@@ -312,7 +353,11 @@ pub async fn get_document(
     server_state: &mut ServerState,
     request: GetDocumentRequest,
 ) -> Result<GetDocumentResponse, GetDocumentError> {
-    let files_result = files_db::get(
+    if !version_is_supported(&request.client_version) {
+        return Err(GetDocumentError::ClientUpdateRequired);
+    }
+
+    let files_result = file_content_client::get(
         &server_state.files_db_client,
         request.id,
         request.content_version,
@@ -320,7 +365,7 @@ pub async fn get_document(
     .await;
     match files_result {
         Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(files_db::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
+        Err(file_content_client::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
         Err(e) => {
             error!("Internal server error! Cannot get file from S3: {:?}", e);
             Err(GetDocumentError::InternalError)
@@ -332,6 +377,10 @@ pub async fn create_folder(
     server_state: &mut ServerState,
     request: CreateFolderRequest,
 ) -> Result<CreateFolderResponse, CreateFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(CreateFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(CreateFolderError::InvalidUsername);
     }
@@ -343,7 +392,7 @@ pub async fn create_folder(
         }
     };
 
-    let result = index_db::create_file(
+    let result = file_index_repo::create_file(
         &transaction,
         request.id,
         request.parent,
@@ -355,8 +404,8 @@ pub async fn create_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        index_db::FileError::IdTaken => CreateFolderError::FileIdTaken,
-        index_db::FileError::PathTaken => CreateFolderError::FolderPathTaken,
+        file_index_repo::FileError::IdTaken => CreateFolderError::FileIdTaken,
+        file_index_repo::FileError::PathTaken => CreateFolderError::FolderPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot create folder in Postgres: {:?}",
@@ -381,6 +430,10 @@ pub async fn delete_folder(
     server_state: &mut ServerState,
     request: DeleteFolderRequest,
 ) -> Result<DeleteFolderResponse, DeleteFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(DeleteFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(DeleteFolderError::InvalidUsername);
     }
@@ -392,7 +445,7 @@ pub async fn delete_folder(
         }
     };
 
-    let result = index_db::delete_file(
+    let result = file_index_repo::delete_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -400,9 +453,9 @@ pub async fn delete_folder(
     )
     .await;
     let (_, new_version) = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
-        index_db::FileError::Deleted => DeleteFolderError::FolderDeleted,
+        file_index_repo::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
+        file_index_repo::FileError::Deleted => DeleteFolderError::FolderDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot delete folder in Postgres: {:?}",
@@ -427,6 +480,10 @@ pub async fn move_folder(
     server_state: &mut ServerState,
     request: MoveFolderRequest,
 ) -> Result<MoveFolderResponse, MoveFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(MoveFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(MoveFolderError::InvalidUsername);
     }
@@ -438,7 +495,7 @@ pub async fn move_folder(
         }
     };
 
-    let result = index_db::move_file(
+    let result = file_index_repo::move_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -448,10 +505,10 @@ pub async fn move_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => MoveFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion => MoveFolderError::EditConflict,
-        index_db::FileError::Deleted => MoveFolderError::FolderDeleted,
-        index_db::FileError::PathTaken => MoveFolderError::FolderPathTaken,
+        file_index_repo::FileError::DoesNotExist => MoveFolderError::FolderNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => MoveFolderError::EditConflict,
+        file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
+        file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot move folder in Postgres: {:?}",
@@ -476,6 +533,10 @@ pub async fn rename_folder(
     server_state: &mut ServerState,
     request: RenameFolderRequest,
 ) -> Result<RenameFolderResponse, RenameFolderError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(RenameFolderError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(RenameFolderError::InvalidUsername);
     }
@@ -487,7 +548,7 @@ pub async fn rename_folder(
         }
     };
 
-    let result = index_db::rename_file(
+    let result = file_index_repo::rename_file(
         &transaction,
         request.id,
         request.old_metadata_version,
@@ -496,10 +557,10 @@ pub async fn rename_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        index_db::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
-        index_db::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
-        index_db::FileError::Deleted => RenameFolderError::FolderDeleted,
-        index_db::FileError::PathTaken => RenameFolderError::FolderPathTaken,
+        file_index_repo::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
+        file_index_repo::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
+        file_index_repo::FileError::Deleted => RenameFolderError::FolderDeleted,
+        file_index_repo::FileError::PathTaken => RenameFolderError::FolderPathTaken,
         _ => {
             error!(
                 "Internal server error! Cannot rename folder in Postgres: {:?}",
@@ -524,6 +585,10 @@ pub async fn get_updates(
     server_state: &mut ServerState,
     request: GetUpdatesRequest,
 ) -> Result<GetUpdatesResponse, GetUpdatesError> {
+    if !version_is_supported(&request.client_version) {
+        return Err(GetUpdatesError::ClientUpdateRequired);
+    }
+
     if !username_is_valid(&request.username) {
         return Err(GetUpdatesError::InvalidUsername);
     }
@@ -534,7 +599,7 @@ pub async fn get_updates(
             return Err(GetUpdatesError::InternalError);
         }
     };
-    let result = index_db::get_updates(
+    let result = file_index_repo::get_updates(
         &transaction,
         &request.username,
         request.since_metadata_version,
@@ -555,126 +620,6 @@ pub async fn get_updates(
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
             Err(GetUpdatesError::InternalError)
-        }
-    }
-}
-
-pub async fn new_account(
-    server_state: &mut ServerState,
-    request: NewAccountRequest,
-) -> Result<NewAccountResponse, NewAccountError> {
-    // let auth = serde_json::from_str::<SignedValue>(&request.auth)
-    //     .map_err(|_| NewAccountError::InvalidAuth)?;
-    // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
-    if !username_is_valid(&request.username) {
-        debug!("{} is not a valid username", request.username);
-        return Err(NewAccountError::InvalidUsername);
-    }
-    let transaction = match server_state.index_db_client.transaction().await {
-        Ok(t) => t,
-        Err(e) => {
-            error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(NewAccountError::InternalError);
-        }
-    };
-
-    let new_account_result = index_db::new_account(
-        &transaction,
-        &request.username,
-        &serde_json::to_string(&request.public_key)
-            .map_err(|_| NewAccountError::InvalidPublicKey)?,
-    )
-    .await;
-    new_account_result.map_err(|e| match e {
-        index_db::AccountError::UsernameTaken => NewAccountError::UsernameTaken,
-        _ => {
-            error!(
-                "Internal server error! Cannot create account in Postgres: {:?}",
-                e
-            );
-            NewAccountError::InternalError
-        }
-    })?;
-
-    let create_folder_result = index_db::create_file(
-        &transaction,
-        request.folder_id,
-        request.folder_id,
-        FileType::Folder,
-        &request.username,
-        &request.username,
-        &request.signature,
-        &request.parent_access_key,
-    )
-    .await;
-    let new_version = create_folder_result.map_err(|e| match e {
-        index_db::FileError::IdTaken => NewAccountError::FileIdTaken,
-        _ => {
-            error!(
-                "Internal server error! Cannot create account root folder in Postgres: {:?}",
-                e
-            );
-            NewAccountError::InternalError
-        }
-    })?;
-    let new_user_access_key_result = index_db::create_user_access_key(
-        &transaction,
-        &request.username,
-        request.folder_id,
-        &serde_json::to_string(&request.user_access_key)
-            .map_err(|_| NewAccountError::InvalidUserAccessKey)?,
-    )
-    .await;
-    new_user_access_key_result.map_err(|e| {
-        error!(
-            "Internal server error! Cannot create access keys for user in Postgres: {:?}",
-            e
-        );
-        NewAccountError::InternalError
-    })?;
-
-    match transaction.commit().await {
-        Ok(()) => Ok(NewAccountResponse {
-            folder_metadata_version: new_version,
-        }),
-        Err(e) => {
-            error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(NewAccountError::InternalError)
-        }
-    }
-}
-
-pub async fn get_public_key(
-    server_state: &mut ServerState,
-    request: GetPublicKeyRequest,
-) -> Result<GetPublicKeyResponse, GetPublicKeyError> {
-    if !username_is_valid(&request.username) {
-        return Err(GetPublicKeyError::InvalidUsername);
-    }
-    let transaction = match server_state.index_db_client.transaction().await {
-        Ok(t) => t,
-        Err(e) => {
-            error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(GetPublicKeyError::InternalError);
-        }
-    };
-    let result = index_db::get_public_key(&transaction, &request.username).await;
-    let key = result.map_err(|e| match e {
-        index_db::PublicKeyError::UserNotFound => GetPublicKeyError::UserNotFound,
-        _ => {
-            error!(
-                "Internal server error! Cannot get public key from Postgres: {:?}",
-                e
-            );
-            GetPublicKeyError::InternalError
-        }
-    })?;
-
-    match transaction.commit().await {
-        Ok(()) => Ok(GetPublicKeyResponse { key: key }),
-        Err(e) => {
-            error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(GetPublicKeyError::InternalError)
         }
     }
 }

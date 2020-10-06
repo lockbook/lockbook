@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::marker::PhantomData;
 
 use serde::Serialize;
 use sled::Db;
@@ -114,14 +113,14 @@ pub struct FileSyncService<
     FileCrypto: FileEncryptionService,
     Auth: AuthService,
 > {
-    metadatas: PhantomData<FileMetadataDb>,
-    changes: PhantomData<ChangeDb>,
-    docs: PhantomData<DocsDb>,
-    accounts: PhantomData<AccountDb>,
-    client: PhantomData<ApiClient>,
-    file: PhantomData<Files>,
-    file_crypto: PhantomData<FileCrypto>,
-    auth: PhantomData<Auth>,
+    _metadatas: FileMetadataDb,
+    _changes: ChangeDb,
+    _docs: DocsDb,
+    _accounts: AccountDb,
+    _client: ApiClient,
+    _file: Files,
+    _file_crypto: FileCrypto,
+    _auth: Auth,
 }
 
 impl<
