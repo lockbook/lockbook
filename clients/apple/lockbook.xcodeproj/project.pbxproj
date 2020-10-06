@@ -119,6 +119,7 @@
 				EAEDCD092516FBA200EBE313 /* Book */,
 				EAEDCD072516FB5A00EBE313 /* Onboarding */,
 				EA5C7D682516605F00F7F358 /* LockbookApp.swift */,
+				1F7E4FBE2521297D0045F606 /* Colors.swift */,
 				EAB4B4FF25167AF50071D1CD /* Core.swift */,
 				EA5C7D6A2516606000F7F358 /* Assets.xcassets */,
 			);
@@ -158,7 +159,6 @@
 				EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */,
 				EAC3DA3F251EEB45009499BA /* SyncIndicator.swift */,
 				1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */,
-				1F7E4FBE2521297D0045F606 /* Colors.swift */,
 				1F7E4FC425212E5F0045F606 /* ContentEditor.swift */,
 			);
 			path = Components;
