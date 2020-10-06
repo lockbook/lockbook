@@ -6,6 +6,7 @@ use structopt::StructOpt;
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 
 mod backup;
+mod calculate_usage;
 mod copy;
 mod edit;
 mod export_private_key;
@@ -21,7 +22,6 @@ mod status;
 mod sync;
 mod utils;
 mod whoami;
-mod calculate_usage;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -42,9 +42,7 @@ enum Lockbook {
     },
 
     /// Open a document for editing
-    Edit {
-        path: String,
-    },
+    Edit { path: String },
 
     /// Export your private key
     ExportPrivateKey,
@@ -70,31 +68,19 @@ enum Lockbook {
 
     /// Move a specified file such that it has the target parent (list-all for first parameter
     /// list-folders for second parameter)
-    Move {
-        target: String,
-        new_parent: String,
-    },
+    Move { target: String, new_parent: String },
 
     /// Create a new document or folder
-    New {
-        path: String,
-    },
+    New { path: String },
 
     /// Print the contents of a file
-    Print {
-        path: String,
-    },
+    Print { path: String },
 
     /// Rename a file at a path to a target value
-    Rename {
-        path: String,
-        name: String,
-    },
+    Rename { path: String, name: String },
 
     /// Move a file to trash TODO
-    Remove {
-        path: String,
-    },
+    Remove { path: String },
 
     /// What operations a sync would perform
     Status,
@@ -145,7 +131,7 @@ fn main() {
         Lockbook::Sync => sync::sync(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
-        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact)
+        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
     }
 }
 
