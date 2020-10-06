@@ -3,6 +3,9 @@ package app.lockbook
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.RelativeLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
@@ -18,12 +21,15 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
-import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 
+
 class InitialLaunchFigureOuter : AppCompatActivity() {
+    private lateinit var progressBar: ProgressBar
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.splash_screen)
@@ -35,7 +41,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     private fun handleOnDBState() {
         when (val getDBStateResult = CoreModel.getDBState(Config(filesDir.absolutePath))) {
             is Ok -> {
-                when(getDBStateResult.value) {
+                when (getDBStateResult.value) {
                     State.Empty -> {
                         startActivity(Intent(this, WelcomeActivity::class.java))
                         finish()
@@ -55,20 +61,42 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         performBiometricFlow(pref)
                     }
                     State.MigrationRequired -> {
-                        Toast.makeText(applicationContext, "Your lockbook data is old and will require migrating to use this version, please wait.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            applicationContext,
+                            "Your Lockbook data is old and will require migrating to use this version, please wait...",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        progressBar = ProgressBar(
+                            applicationContext,
+                            null,
+                            android.R.attr.progressBarStyleLarge
+                        )
+                        val layoutParams = RelativeLayout.LayoutParams(100, 100)
+                        layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT)
+                        splash_screen.addView(progressBar, layoutParams)
+                        progressBar.visibility = View.VISIBLE
+                        migrateDB()
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
-                        Toast.makeText(applicationContext, "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            applicationContext,
+                            "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                     else -> {
                         Timber.e("State enum not matched: ${getDBStateResult.value::class.simpleName}")
-                        Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        Toast.makeText(
+                            applicationContext,
+                            UNEXPECTED_ERROR_OCCURRED,
+                            Toast.LENGTH_LONG
+                        )
                             .show()
                     }
                 }
             }
-            is Err -> when(val error = getDBStateResult.error) {
+            is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.UnexpectedError -> {
                     Timber.e("Unable to get DB State: ${error.error}")
                     Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
@@ -87,11 +115,18 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun migrateDB() {
         when(val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
-            is Ok -> return
-            is Err -> when(val error = migrateDBResult.error) {
+            is Ok -> {
+                progressBar.visibility = View.GONE
+                return
+            }
+            is Err -> when (val error = migrateDBResult.error) {
                 is MigrationError.StateRequiresCleaning -> {
                     Timber.e("DB state requires cleaning!")
-                    Toast.makeText(applicationContext, "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
                 is MigrationError.UnexpectedError -> {
                     Timber.e("Unable to migrate DB: ${error.error}")
@@ -105,6 +140,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
             }
         }
+
 
         finish()
     }
@@ -130,7 +166,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)

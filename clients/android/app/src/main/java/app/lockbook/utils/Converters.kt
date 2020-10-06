@@ -3,6 +3,7 @@ package app.lockbook.utils
 import com.beust.klaxon.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import timber.log.Timber
 
 val initLoggerConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
@@ -30,10 +31,13 @@ val getStateConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        val okResult = jv.obj?.obj("Ok")
 
-        if (okResult is JsonObject) {
-            return Ok(Klaxon().parseFromJsonObject<State>(okResult))
+        Timber.e("${jv.obj?.string("Ok")}, ${State.Empty::class.simpleName}, ${State.Empty.name}")
+        when(jv.obj?.string("Ok")) {
+            State.MigrationRequired.name -> return Ok(State.MigrationRequired)
+            State.StateRequiresClearing.name -> return Ok(State.StateRequiresClearing)
+            State.ReadyToUse.name -> return Ok(State.ReadyToUse)
+            State.Empty.name -> return Ok(State.Empty)
         }
 
         val unexpectedResult = jv.obj?.get("UnexpectedError")
