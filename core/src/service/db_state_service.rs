@@ -6,8 +6,8 @@ use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
 use crate::CORE_CODE_VERSION;
-use sled::Db;
 use serde::Serialize;
+use sled::Db;
 
 #[derive(Debug, PartialEq, Serialize)]
 pub enum State {
