@@ -12,6 +12,7 @@ use lockbook_core::service::crypto_service::{
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
+use std::env;
 use uuid::Uuid;
 
 #[macro_export]
@@ -58,6 +59,7 @@ pub fn random_filename() -> String {
 pub fn generate_account() -> Account {
     Account {
         username: random_username(),
+        api_url: env::var("API_URL").expect("API_URL must be defined!"),
         keys: RsaImpl::generate_key().unwrap(),
     }
 }

@@ -22,6 +22,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -41,6 +42,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -65,6 +67,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -84,6 +87,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -101,6 +105,7 @@ mod create_document_tests {
         // create document with same id and key
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -127,6 +132,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -147,6 +153,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -167,6 +174,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -193,6 +201,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -215,6 +224,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,

@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod db_state_service_tests {
-    use crate::integration_test::{random_username, test_config};
+    use crate::integration_test::{generate_account, test_config};
     use lockbook_core::repo::db_version_repo::DbVersionRepo;
     use lockbook_core::service::db_state_service::DbStateService;
     use lockbook_core::service::db_state_service::State::{Empty, MigrationRequired, ReadyToUse};
@@ -14,9 +14,15 @@ mod db_state_service_tests {
     #[test]
     fn initial_state() {
         let cfg = test_config();
+        let generated_account = generate_account();
         assert_eq!(get_db_state(&cfg).unwrap(), Empty);
         assert_eq!(get_db_state(&cfg).unwrap(), Empty);
-        create_account(&cfg, &random_username()).unwrap();
+        create_account(
+            &cfg,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         assert_eq!(get_db_state(&cfg).unwrap(), ReadyToUse);
 
         let db = connect_to_db(&cfg).unwrap();

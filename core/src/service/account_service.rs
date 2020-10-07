@@ -1,5 +1,6 @@
 use sled::Db;
 
+use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api::{GetPublicKeyError, NewAccountError};
@@ -17,7 +18,6 @@ use crate::service::account_service::AccountImportError::{
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::{client, API_URL};
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -51,7 +51,11 @@ pub enum AccountExportError {
 }
 
 pub trait AccountService {
-    fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError>;
+    fn create_account(
+        db: &Db,
+        username: &str,
+        api_url: &str,
+    ) -> Result<Account, AccountCreationError>;
     fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError>;
     fn export_account(db: &Db) -> Result<String, AccountExportError>;
 }
@@ -82,7 +86,11 @@ impl<
     > AccountService
     for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetadata>
 {
-    fn create_account(db: &Db, username: &str) -> Result<Account, AccountCreationError> {
+    fn create_account(
+        db: &Db,
+        username: &str,
+        api_url: &str,
+    ) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
         if AccountDb::maybe_get_account(&db)
             .map_err(AccountRepoDbError)?
@@ -98,6 +106,7 @@ impl<
 
         let account = Account {
             username: String::from(username),
+            api_url: api_url.to_string(),
             keys,
         };
 
@@ -112,6 +121,7 @@ impl<
         };
 
         let version = ApiClient::new_account(
+            api_url,
             &account.username,
             &auth,
             account.keys.to_public_key(),
@@ -171,9 +181,9 @@ impl<
 
         info!(
             "Checking this username, public_key pair exists at {}",
-            API_URL
+            account.api_url
         );
-        let server_public_key = ApiClient::get_public_key(&account.username)
+        let server_public_key = ApiClient::get_public_key(&account.api_url, &account.username)
             .map_err(FailedToVerifyAccountServerSide)?;
         if account.keys.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
