@@ -13,7 +13,6 @@ struct CreateAccountView: View {
                 Label("Create", systemImage: "person.crop.circle.badge.plus")
             })
         }
-        .navigationTitle("Create")
     }
     
     func handleCreate() {
