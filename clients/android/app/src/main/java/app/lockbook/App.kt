@@ -1,7 +1,6 @@
 package app.lockbook
 
 import android.app.Application
-import android.widget.Toast
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
@@ -18,7 +17,6 @@ import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
-import com.github.michaelbull.result.Ok
 import java.util.concurrent.TimeUnit
 
 class App : Application() {

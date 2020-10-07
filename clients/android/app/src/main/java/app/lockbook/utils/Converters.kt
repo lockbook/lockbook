@@ -33,7 +33,7 @@ val getStateConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
 
         Timber.e("${jv.obj?.string("Ok")}, ${State.Empty::class.simpleName}, ${State.Empty.name}")
-        when(jv.obj?.string("Ok")) {
+        when (jv.obj?.string("Ok")) {
             State.MigrationRequired.name -> return Ok(State.MigrationRequired)
             State.StateRequiresClearing.name -> return Ok(State.StateRequiresClearing)
             State.ReadyToUse.name -> return Ok(State.ReadyToUse)
@@ -62,7 +62,7 @@ val migrateDBConverter = object : Converter {
             return Ok(Unit)
         }
 
-        if(jv.obj?.get("Err") == MigrationError.StateRequiresCleaning::class.simpleName) {
+        if (jv.obj?.get("Err") == MigrationError.StateRequiresCleaning::class.simpleName) {
             return Err(MigrationError.StateRequiresCleaning)
         }
 

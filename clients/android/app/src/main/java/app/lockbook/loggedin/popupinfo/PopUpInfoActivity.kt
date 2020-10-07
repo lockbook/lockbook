@@ -63,7 +63,6 @@ class PopUpInfoActivity : Activity() {
         popup_info_id.text = getString(R.string.popup_info_id, id)
         popup_info_file_type.text =
             getString(R.string.popup_info_file_type, fileType)
-
     }
 
     private fun rename() {
