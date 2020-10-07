@@ -17,7 +17,6 @@ struct OnboardingView: View {
                         }
                     }
                 }
-                .navigationTitle("Account")
                 
                 // For iPad and macOS
                 Text("You need an account!")
