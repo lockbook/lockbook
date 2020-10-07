@@ -25,7 +25,6 @@ struct ImportAccountView: View {
                 failureLabel: Label("Failure", systemImage: "exclamationmark.square")
             )
         }
-        .navigationTitle("Import")
         .sheet(isPresented: self.$isScanning, content: {
             #if os(iOS)
             CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
