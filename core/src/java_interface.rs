@@ -94,7 +94,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
     serialize_to_jstring(
         &env,
-        create_account(&deserialized_config, username.as_str()),
+        create_account(
+            &deserialized_config,
+            username.as_str(),
+            "ftp://beanmaster.net", //FIXME: @SmailBarkouch ploz fix
+        ),
     )
 }
 

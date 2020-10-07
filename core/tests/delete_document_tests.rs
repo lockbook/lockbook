@@ -22,6 +22,7 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,6 +40,7 @@ mod delete_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -54,7 +56,13 @@ mod delete_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version,
+            ),
             Ok(_)
         );
     }
@@ -68,6 +76,7 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -83,7 +92,13 @@ mod delete_document_tests {
 
         // delete document that wasn't created
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), Uuid::new_v4(), 0,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                Uuid::new_v4(),
+                0,
+            ),
             Err(Error::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentNotFound
             ))
@@ -99,6 +114,7 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -116,6 +132,7 @@ mod delete_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -131,13 +148,25 @@ mod delete_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version,
+            ),
             Ok(_)
         );
 
         // delete document again
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version,
+            ),
             Err(Error::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentDeleted
             ))
@@ -153,6 +182,7 @@ mod delete_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -170,6 +200,7 @@ mod delete_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -185,7 +216,13 @@ mod delete_document_tests {
 
         // delete document with wrong version
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version - 1,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version - 1,
+            ),
             Err(Error::<DeleteDocumentError>::Api(
                 DeleteDocumentError::EditConflict
             ))

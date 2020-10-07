@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use crate::integration_test::{random_username, test_db};
+    use crate::integration_test::{generate_account, test_db};
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -15,8 +15,14 @@ mod sync_tests {
 
     #[test]
     fn test_create_files_and_folders_sync() {
+        let generated_account = generate_account();
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        let account = DefaultAccountService::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -74,8 +80,14 @@ mod sync_tests {
 
     #[test]
     fn test_edit_document_sync() {
+        let generated_account = generate_account();
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        let account = DefaultAccountService::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -197,7 +209,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -282,7 +300,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -341,7 +365,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -388,7 +418,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -436,7 +472,13 @@ mod sync_tests {
     fn move_then_edit() {
         let db1 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
@@ -458,7 +500,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
                 .unwrap();
@@ -523,7 +571,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/a/test.txt", account.username))
                 .unwrap();
@@ -604,7 +658,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.bin", account.username))
                 .unwrap();
@@ -668,7 +728,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -724,7 +790,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -784,7 +856,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -844,7 +922,13 @@ mod sync_tests {
         let db1 = test_db();
         let db2 = test_db();
 
-        let account = DefaultAccountService::create_account(&db1, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -902,7 +986,13 @@ mod sync_tests {
     #[test]
     fn test_not_really_editing_should_not_cause_work() {
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
@@ -933,7 +1023,13 @@ mod sync_tests {
     #[test]
     fn test_not_really_renaming_should_not_cause_work() {
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
@@ -952,7 +1048,13 @@ mod sync_tests {
     #[test]
     fn test_not_really_moving_should_not_cause_work() {
         let db = test_db();
-        let account = DefaultAccountService::create_account(&db, &random_username()).unwrap();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
