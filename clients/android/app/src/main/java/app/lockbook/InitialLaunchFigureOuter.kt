@@ -26,7 +26,6 @@ import com.github.michaelbull.result.Ok
 import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 
-
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
 
@@ -114,7 +113,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     }
 
     private fun migrateDB() {
-        when(val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
+        when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
             is Ok -> {
                 progressBar.visibility = View.GONE
                 return
@@ -141,7 +140,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
         }
 
-
         finish()
     }
 
@@ -166,7 +164,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
