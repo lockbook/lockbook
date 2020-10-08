@@ -75,12 +75,9 @@ public struct CoreApi: LockbookApi {
     }
     
     public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
-        switch serialize(obj: work) {
-        case .success(let workUnitStr):
-            return fromPrimitiveResult(result: execute_work(documentsDirectory, workUnitStr))
-        case .failure(let err):
-            return CoreResult.failure(ApplicationError.General(err))
-        }
+        serialize(obj: work).flatMap({
+            fromPrimitiveResult(result: execute_work(documentsDirectory, $0))
+        })
     }
     
     public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
@@ -109,7 +106,7 @@ public struct CoreApi: LockbookApi {
     }
     
     public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func renameFile(id: UUID, name: String) -> CoreResult<Empty> {
@@ -124,19 +121,19 @@ public struct FakeApi: LockbookApi {
     }
     
     public func getAccount() -> CoreResult<Account> {
-        CoreResult.success(Account(username: username))
+        CoreResult.success(.fake(username: username))
     }
     
     public func createAccount(username: String, apiLocation: String) -> CoreResult<Account> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func importAccount(accountString: String) -> CoreResult<Account> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func exportAccount() -> CoreResult<String> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func getUsage() -> CoreResult<[FileUsage]> {
@@ -144,19 +141,19 @@ public struct FakeApi: LockbookApi {
     }
     
     public func synchronize() -> CoreResult<Empty> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func calculateWork() -> CoreResult<WorkMetadata> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func getRoot() -> CoreResult<FileMetadata> {
@@ -181,15 +178,15 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
     }
     
     public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public func renameFile(id: UUID, name: String) -> CoreResult<Empty> {
-        CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
+        CoreResult.failure(ApplicationError.lazy())
     }
     
     public let username: Account.Username = "jeff"
