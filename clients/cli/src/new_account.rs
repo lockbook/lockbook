@@ -16,9 +16,25 @@ pub fn new_account() {
         .expect("Failed to read from stdin");
     username.retain(|c| c != '\n');
 
+    print!(
+        "Enter an API Location [default={}]: ",
+        lockbook_core::DEFAULT_API_LOCATION
+    );
+    io::stdout().flush().unwrap();
+
+    let mut api_location_input = String::new();
+    io::stdin()
+        .read_line(&mut api_location_input)
+        .expect("Failed to read from stdin");
+    api_location_input.retain(|c| c != '\n');
+
+    let api_location = Some(api_location_input)
+        .filter(|x| !x.is_empty())
+        .unwrap_or(lockbook_core::DEFAULT_API_LOCATION.to_string());
+
     println!("Generating keys and checking for username availability...");
 
-    match create_account(&get_config(), &username) {
+    match create_account(&get_config(), username.as_str(), api_location.as_str()) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
         Err(error) => match error {
             CreateAccountError::UsernameTaken => exit_with("Username taken.", USERNAME_TAKEN),
