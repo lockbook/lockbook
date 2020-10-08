@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F7E4FBC252122450045F606 /* TitleFieldStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */; };
+		1F7E4FBD252122450045F606 /* TitleFieldStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */; };
+		1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
+		1F7E4FC02521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
+		1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
+		1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
 		EA04B3AE2519906A008598CB /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA08372A25198AC9008EA3F3 /* AccountView.swift */; };
 		EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA08372A25198AC9008EA3F3 /* AccountView.swift */; };
 		EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E8182516643400B9158C /* SwiftLockbookCore */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
+		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
+		EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
 		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
 		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
@@ -26,6 +34,8 @@
 		EAC3DA38251ED7B3009499BA /* FlipToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */; };
 		EAC3DA40251EEB45009499BA /* SyncIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA3F251EEB45009499BA /* SyncIndicator.swift */; };
 		EAC3DA41251EEB45009499BA /* SyncIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA3F251EEB45009499BA /* SyncIndicator.swift */; };
+		EAC3DA51251FB8ED009499BA /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA50251FB8ED009499BA /* NotificationButton.swift */; };
+		EAC3DA52251FB8ED009499BA /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC3DA50251FB8ED009499BA /* NotificationButton.swift */; };
 		EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */; };
@@ -37,7 +47,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleFieldStyle.swift; sourceTree = "<group>"; };
+		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
+		1F7E4FC425212E5F0045F606 /* ContentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentEditor.swift; sourceTree = "<group>"; };
 		EA08372A25198AC9008EA3F3 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
 		EA5C7D682516605F00F7F358 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
 		EA5C7D6A2516606000F7F358 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -51,6 +65,7 @@
 		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipToggleStyle.swift; sourceTree = "<group>"; };
 		EAC3DA3F251EEB45009499BA /* SyncIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncIndicator.swift; sourceTree = "<group>"; };
+		EAC3DA50251FB8ED009499BA /* NotificationButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationButton.swift; sourceTree = "<group>"; };
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
@@ -110,6 +125,7 @@
 				EAEDCD092516FBA200EBE313 /* Book */,
 				EAEDCD072516FB5A00EBE313 /* Onboarding */,
 				EA5C7D682516605F00F7F358 /* LockbookApp.swift */,
+				1F7E4FBE2521297D0045F606 /* Colors.swift */,
 				EAB4B4FF25167AF50071D1CD /* Core.swift */,
 				EA5C7D6A2516606000F7F358 /* Assets.xcassets */,
 			);
@@ -148,6 +164,10 @@
 			children = (
 				EAC3DA36251ED7B3009499BA /* FlipToggleStyle.swift */,
 				EAC3DA3F251EEB45009499BA /* SyncIndicator.swift */,
+				1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */,
+				1F7E4FC425212E5F0045F606 /* ContentEditor.swift */,
+				EAC3DA50251FB8ED009499BA /* NotificationButton.swift */,
+				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -279,15 +299,20 @@
 				EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
+				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
+				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				EAC3DA37251ED7B3009499BA /* FlipToggleStyle.swift in Sources */,
 				EAB4B50025167AF50071D1CD /* Core.swift in Sources */,
 				EAEDCD122517193500EBE313 /* EditorView.swift in Sources */,
 				EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */,
 				EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EAC3DA51251FB8ED009499BA /* NotificationButton.swift in Sources */,
 				EAC3DA40251EEB45009499BA /* SyncIndicator.swift in Sources */,
+				1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */,
+				1F7E4FBC252122450045F606 /* TitleFieldStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,12 +325,17 @@
 				EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */,
 				EAC3DA41251EEB45009499BA /* SyncIndicator.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
+				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				EAB4B5082516924F0071D1CD /* OnboardingView.swift in Sources */,
+				EAC3DA52251FB8ED009499BA /* NotificationButton.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				EA04B3AE2519906A008598CB /* AccountView.swift in Sources */,
+				1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */,
+				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
+				1F7E4FBD252122450045F606 /* TitleFieldStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
