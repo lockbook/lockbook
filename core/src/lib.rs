@@ -114,7 +114,7 @@ pub type DefaultFileService = FileServiceImpl<
 
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {
-    Unexpected(String),
+    UnexpectedError(String),
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
@@ -125,11 +125,11 @@ pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
         .unwrap_or_else(|| log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
-        .map_err(|err| InitLoggerError::Unexpected(format!("IO Error: {:#?}", err)))?
+        .map_err(|err| InitLoggerError::UnexpectedError(format!("IO Error: {:#?}", err)))?
         .level(log::LevelFilter::Warn)
         .level_for("lockbook_core", lockbook_log_level)
         .apply()
-        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
+        .map_err(|err| InitLoggerError::UnexpectedError(format!("{:#?}", err)))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
 }
