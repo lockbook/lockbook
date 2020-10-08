@@ -9,8 +9,12 @@ final class SwiftLockbookCoreTests: XCTestCase {
     // CoreApi(documentsDirectory: "~/.lockbook")
     static let core = CoreApi(documentsDirectory: SwiftLockbookCoreTests.tempDir)
     
+    static let API_URL = "API_URL"
     static func getApiLocation() -> String {
-        ProcessInfo.processInfo.environment["API_URL"]!
+        guard let apiUrl = ProcessInfo.processInfo.environment[API_URL] else {
+            fatalError("You must define \(API_URL)")
+        }
+        return apiUrl
     }
     
     override class func setUp() {
