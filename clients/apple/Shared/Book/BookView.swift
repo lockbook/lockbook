@@ -139,9 +139,9 @@ struct FileListView: View {
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            BookView(core: Core(), account: Account(username: "test"))
+            BookView(core: Core(), account: .fake(username: "test"))
                 .ignoresSafeArea()
-            BookView(core: Core(), account: Account(username: "test"))
+            BookView(core: Core(), account: .fake(username: "test"))
                 .ignoresSafeArea()
                 .preferredColorScheme(.dark)
         }

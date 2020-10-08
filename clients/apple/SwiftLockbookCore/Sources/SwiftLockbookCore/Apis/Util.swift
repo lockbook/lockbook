@@ -8,16 +8,15 @@ public func intEpochToString(epoch: UInt64) -> String {
     return formatter.string(from: date)
 }
 
-func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
+func serialize<T: Encodable>(obj: T) -> Result<String, ApplicationError> {
     let encoder = JSONEncoder.init()
     encoder.keyEncodingStrategy = .convertToSnakeCase
     do {
         let data = try encoder.encode(obj)
         let output = String(data: data, encoding: .utf8) ?? ""
-//        print("Outgoing JSON \(output)")
         return Result.success(output)
     } catch let error {
-        return Result.failure(error)
+        return Result.failure(ApplicationError.Serialization("Failed serializing! \(error)"))
     }
 }
 
@@ -34,27 +33,29 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
 }
 
 func deserializeResult<T: Decodable>(jsonResultStr: String) -> Result<T, ApplicationError> {
-//    print("Incoming JSON \(jsonResultStr)")
     guard let dict = try? JSONSerialization.jsonObject(with: Data(jsonResultStr.utf8), options: []) as? [String: Any] else {
-        return Result.failure(ApplicationError.Serialization("Couldn't deserialize dict!"))
+        return Result.failure(ApplicationError.Deserialization("Couldn't deserialize dict!", jsonResultStr))
     }
     
     if let ok = dict["Ok"] {
         guard let data = try? JSONSerialization.data(withJSONObject: ok, options: .fragmentsAllowed) else {
-            return Result.failure(ApplicationError.Serialization("Not valid JSON!"))
+            return Result.failure(ApplicationError.Deserialization("Not valid JSON!", jsonResultStr))
         }
-        return deserialize(data: data).mapError { ApplicationError.General($0) }
+        return deserialize(data: data).mapError { ApplicationError.Deserialization("Failed deserializing! \($0)", jsonResultStr) }
     } else {
         if let err = dict["Err"] {
             guard let data = try? JSONSerialization.data(withJSONObject: err, options: .fragmentsAllowed) else {
-                return Result.failure(ApplicationError.Serialization("Not valid JSON!"))
+                return Result.failure(ApplicationError.Deserialization("Not valid JSON!", jsonResultStr))
             }
-            guard let errMsg = String.init(data: data, encoding: .utf8) else {
-                return Result.failure(ApplicationError.Serialization("Err was not a UTF-8 string!"))
+            let coreErrorRes: Result<CoreError, Error> = deserialize(data: data)
+            switch coreErrorRes {
+            case .success(let coreError):
+                return .failure(.Lockbook(coreError))
+            case .failure(let err):
+                return .failure(ApplicationError.Deserialization("Failed deserializing! \(err)", jsonResultStr))
             }
-            return Result.failure(ApplicationError.Lockbook(CoreError.init(message: errMsg, type: .Unhandled)))
         } else {
-            return Result.failure(ApplicationError.Serialization("Could not find Ok or Err!"))
+            return Result.failure(ApplicationError.Deserialization("Could not find Ok or Err!", jsonResultStr))
         }
     }
 }
