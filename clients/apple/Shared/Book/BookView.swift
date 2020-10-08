@@ -44,22 +44,16 @@ struct FileCell: View {
 struct FileListView: View {
     @ObservedObject var core: Core
     let account: Account
-    @State var selectedFolder: FileMetadataWithChildren
+    @State var selectedFolder: FileMetadataWithChildren?
     @State var showingCreate: Bool = false
     @State var showingAccount: Bool = false
-    
-//    init(core: Core, account: Account, root: FileMetadataWithChildren) {
-//        self.core = core
-//        self.account = account
-//        self.selectedFolder = root
-//    }
     
     var body: some View {
         let baseView = List {
             OutlineGroup(core.grouped, children: \.children) { meta in
                 if meta.meta.fileType == .Folder {
                     FileCell(meta: meta.meta)
-                        .foregroundColor(meta.id == selectedFolder.id ? .accentColor : .primary)
+                        .foregroundColor(selectedFolder.map({ $0.id == meta.id }) ?? false ? .accentColor : .primary)
                         .onTapGesture {
                             selectedFolder = meta
                         }
