@@ -5,6 +5,7 @@ struct AccountView: View {
     @ObservedObject var core: Core
     let account: Account
     @State var showingUsage: Bool = false
+    @State var showingAccount: Bool = false
     @State var showingCode: Bool = false
     @State var copiedString: Bool?
     @Environment(\.presentationMode) var presentationMode
@@ -33,7 +34,8 @@ struct AccountView: View {
                         content: { () -> AnyView in
                             let usages = (try? core.api.getUsage().get()) ?? []
                             let bytes = usages.map { $0.byteSecs }.reduce(0, +)
-                            return AnyView(UsageIndicator(numerator: bytes*8/10, denominator: bytes, suffix: "Bytes").foregroundColor(.accentColor))
+                            return AnyView(UsageIndicator(numerator: bytes*8/10, denominator: bytes, suffix: "Bytes")
+                                            .foregroundColor(.accentColor))
                         },
                         label: {
                             HStack {
@@ -47,12 +49,32 @@ struct AccountView: View {
                             }
                         }
                     )
+                    DisclosureGroup(
+                        isExpanded: $showingAccount,
+                        content: {
+                            Text("\(account.qualified())")
+                                .font(.subheadline)
+                                .padding(.vertical, 10)
+                                .foregroundColor(.accentColor)
+                        },
+                        label: {
+                            HStack {
+                                Spacer()
+                                Button(action: { showingAccount.toggle() }, label: {
+                                    Label("Location", systemImage: "rectangle.grid.1x2.fill")
+                                })
+                                Spacer()
+                            }
+                        }
+                    )
                 }
             }
             GroupBox(label: Text("Debug").padding(.bottom, 20)) {
-                Button(action: purgeAndLogout) {
-                    Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
-                        .foregroundColor(.red)
+                VStack(spacing: 20) {
+                    Button(action: purgeAndLogout) {
+                        Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
+                            .foregroundColor(.red)
+                    }
                 }
             }
         }
@@ -118,6 +140,6 @@ struct AccountView: View {
 
 struct AccountView_Previews: PreviewProvider {
     static var previews: some View {
-        AccountView(core: Core(), account: Account(username: "test"))
+        AccountView(core: Core(), account: .fake(username: "test"))
     }
 }
