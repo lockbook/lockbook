@@ -68,6 +68,7 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
+pub static DEFAULT_API_LOCATION: &str = "http://qa.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
