@@ -44,6 +44,12 @@
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD122517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
 		EAEDCD132517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
+		EAF96D06252E8E6900AA1A14 /* Development.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = EAF96D05252E8E6900AA1A14 /* Development.xcconfig */; };
+		EAF96D07252E8E6900AA1A14 /* Development.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = EAF96D05252E8E6900AA1A14 /* Development.xcconfig */; };
+		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
+		EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
+		EAF96D13252E8F3000AA1A14 /* Production.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = EAF96D12252E8F3000AA1A14 /* Production.xcconfig */; };
+		EAF96D14252E8F3000AA1A14 /* Production.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = EAF96D12252E8F3000AA1A14 /* Production.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +76,9 @@
 		EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
 		EAEDCD112517193500EBE313 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		EAF96D05252E8E6900AA1A14 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Development.xcconfig; path = Shared/Config/Development.xcconfig; sourceTree = SOURCE_ROOT; };
+		EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigHelper.swift; sourceTree = "<group>"; };
+		EAF96D12252E8F3000AA1A14 /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Production.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +130,7 @@
 		EA5C7D672516605F00F7F358 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				EAF96D0A252E8EB200AA1A14 /* Config */,
 				EAC3DA35251ED797009499BA /* Components */,
 				EAEDCD092516FBA200EBE313 /* Book */,
 				EAEDCD072516FB5A00EBE313 /* Onboarding */,
@@ -191,6 +201,16 @@
 				EA77C34F2519AC70006B5247 /* CreateFileView.swift */,
 			);
 			path = Book;
+			sourceTree = "<group>";
+		};
+		EAF96D0A252E8EB200AA1A14 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				EAF96D05252E8E6900AA1A14 /* Development.xcconfig */,
+				EAF96D12252E8F3000AA1A14 /* Production.xcconfig */,
+				EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -277,7 +297,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EAF96D06252E8E6900AA1A14 /* Development.xcconfig in Resources */,
 				EA5C7D7F2516606100F7F358 /* Assets.xcassets in Resources */,
+				EAF96D13252E8F3000AA1A14 /* Production.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,7 +307,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EAF96D07252E8E6900AA1A14 /* Development.xcconfig in Resources */,
 				EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */,
+				EAF96D14252E8F3000AA1A14 /* Production.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,6 +333,7 @@
 				EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */,
 				EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				EAC3DA51251FB8ED009499BA /* NotificationButton.swift in Sources */,
 				EAC3DA40251EEB45009499BA /* SyncIndicator.swift in Sources */,
 				1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */,
@@ -336,6 +361,7 @@
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				1F7E4FBD252122450045F606 /* TitleFieldStyle.swift in Sources */,
+				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -344,6 +370,7 @@
 /* Begin XCBuildConfiguration section */
 		EA5C7D812516606100F7F358 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EAF96D05252E8E6900AA1A14 /* Development.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -403,6 +430,7 @@
 		};
 		EA5C7D822516606100F7F358 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = EAF96D12252E8F3000AA1A14 /* Production.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
