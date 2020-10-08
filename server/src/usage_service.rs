@@ -117,9 +117,11 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
         )
         .map_err(UsageCalculateError::Serialize)?,
         byte_secs: row
-            .try_get("byte_secs")
-            .map_err(UsageCalculateError::Postgres)?,
-        secs: row.try_get("secs").map_err(UsageCalculateError::Postgres)?,
+            .try_get::<&str, i64>("byte_secs")
+            .map_err(UsageCalculateError::Postgres)? as u64,
+        secs: row
+            .try_get::<&str, i64>("secs")
+            .map_err(UsageCalculateError::Postgres)? as u64,
     })
 }
 
