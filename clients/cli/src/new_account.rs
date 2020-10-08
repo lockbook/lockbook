@@ -1,5 +1,5 @@
-use std::io;
 use std::io::Write;
+use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError};
 
@@ -16,21 +16,8 @@ pub fn new_account() {
         .expect("Failed to read from stdin");
     username.retain(|c| c != '\n');
 
-    print!(
-        "Enter an API Location [default={}]: ",
-        lockbook_core::DEFAULT_API_LOCATION
-    );
-    io::stdout().flush().unwrap();
-
-    let mut api_location_input = String::new();
-    io::stdin()
-        .read_line(&mut api_location_input)
-        .expect("Failed to read from stdin");
-    api_location_input.retain(|c| c != '\n');
-
-    let api_location = Some(api_location_input)
-        .filter(|x| !x.is_empty())
-        .unwrap_or_else(|| lockbook_core::DEFAULT_API_LOCATION.to_string());
+    let api_location =
+        env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string());
 
     println!("Generating keys and checking for username availability...");
 
