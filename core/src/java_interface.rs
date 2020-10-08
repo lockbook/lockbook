@@ -40,7 +40,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                InitLoggerError::Unexpected("Couldn't get path out of JNI!".to_string()),
+                InitLoggerError::UnexpectedError("Couldn't get path out of JNI!".to_string()),
             );
         }
     }
