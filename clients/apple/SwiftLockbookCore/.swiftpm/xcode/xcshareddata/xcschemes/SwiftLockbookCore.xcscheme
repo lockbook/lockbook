@@ -51,6 +51,11 @@
                BlueprintName = "SwiftLockbookCoreTests"
                ReferencedContainer = "container:">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "SwiftLockbookCoreTests/test10FfiPerformance()">
+               </Test>
+            </SkippedTests>
          </TestableReference>
       </Testables>
    </TestAction>

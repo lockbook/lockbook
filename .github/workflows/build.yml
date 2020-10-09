@@ -29,21 +29,6 @@ jobs:
       run: make core_fmt
     - name: Lint
       run: make core_lint
-  Server:
-    runs-on: self-hosted
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: make server
-    - name: Compile and run tests
-      run: make server_test
-    - name: Check Formatting
-      run: make server_fmt
-    - name: Lint
-      run: make server_lint
   Cli:
     runs-on: self-hosted
     env:
@@ -85,6 +70,19 @@ jobs:
       run: make integration_tests
     - name: Compile and run tests
       run: make integration_tests_run
+  Server-Integration-Tests:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build server container
+        run: make server
+      - name: Build test container
+        run: make server_tests
+      - name: Compile and run tests
+        run: make server_tests_run
   Kotlin-Interface-Tests:
     runs-on: self-hosted
     env:
