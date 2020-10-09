@@ -276,17 +276,18 @@ mod account_tests {
         let bad_account_string = {
             let db1 = test_db();
             let db2 = test_db();
-            let generated_account = generate_account();
+            let generated_account1 = generate_account();
+            let generated_account2 = generate_account();
             let account1 = DefaultAccountService::create_account(
                 &db1,
-                &generated_account.username,
-                &generated_account.api_url,
+                &generated_account1.username,
+                &generated_account1.api_url,
             )
             .unwrap();
             let mut account2 = DefaultAccountService::create_account(
                 &db2,
-                &generated_account.username,
-                &generated_account.api_url,
+                &generated_account2.username,
+                &generated_account2.api_url,
             )
             .unwrap();
             account2.username = account1.username;
