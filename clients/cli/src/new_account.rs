@@ -21,7 +21,7 @@ pub fn new_account() {
 
     println!("Generating keys and checking for username availability...");
 
-    match create_account(&get_config(), username.as_str(), api_location.as_str()) {
+    match create_account(&get_config(), &username, &api_location) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
         Err(error) => match error {
             CreateAccountError::UsernameTaken => exit_with("Username taken.", USERNAME_TAKEN),
