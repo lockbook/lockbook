@@ -3,7 +3,11 @@ import SwiftLockbookCore
 
 @main
 struct LockbookApp: App {
+    #if os(macOS)
+    @StateObject var core = Core(documenstDirectory: FileManager.default.homeDirectoryForCurrentUser.path + "/.lockbook")
+    #else
     @StateObject var core = Core(documenstDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
+    #endif
     
     var body: some Scene {
         #if os(macOS)
