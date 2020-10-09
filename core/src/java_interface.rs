@@ -2,25 +2,25 @@
 
 use std::path::Path;
 
-use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::{jlong, jstring};
+use jni::JNIEnv;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{
-    AccountExportError, calculate_work, create_account, create_file, CreateAccountError, CreateFileError,
-    delete_file, DeleteFileError, execute_work, export_account, get_account, get_children, get_file_by_id,
-    get_root, GetAccountError, GetChildrenError, GetFileByIdError, GetRootError, import_account,
-    ImportError, init_logger, InitLoggerError, insert_file, InsertFileError,
-    move_file, read_document, ReadDocumentError, rename_file, RenameFileError,
-    set_last_synced, SetLastSyncedError, sync_all, write_document, WriteToDocumentError,
-};
 use crate::model::account::Account;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
+use crate::{
+    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
+    get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file,
+    move_file, read_document, rename_file, set_last_synced, sync_all, write_document,
+    AccountExportError, CreateAccountError, CreateFileError, DeleteFileError, GetAccountError,
+    GetChildrenError, GetFileByIdError, GetRootError, ImportError, InitLoggerError,
+    InsertFileError, ReadDocumentError, RenameFileError, SetLastSyncedError, WriteToDocumentError,
+};
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -45,7 +45,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
             );
         }
     }
-        .into();
+    .into();
 
     let path = Path::new(&absolute_path);
 
@@ -69,7 +69,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let username: String = match env.get_string(jusername) {
         Ok(ok) => ok,
@@ -82,20 +82,18 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let api_url: String = match env.get_string(japi_url) {
         Ok(ok) => ok,
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateAccountError::UnexpectedError(
-                    "Couldn't get api_url out of JNI!".to_string(),
-                ),
+                CreateAccountError::UnexpectedError("Couldn't get api_url out of JNI!".to_string()),
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -109,11 +107,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
     serialize_to_jstring(
         &env,
-        create_account(
-            &deserialized_config,
-            &username,
-            &api_url,
-        ),
+        create_account(&deserialized_config, &username, &api_url),
     )
 }
 
@@ -133,7 +127,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_account: String = match env.get_string(jaccount) {
         Ok(ok) => ok,
@@ -144,7 +138,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -177,7 +171,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -207,7 +201,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -238,7 +232,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -271,7 +265,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -302,7 +296,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -313,7 +307,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -354,7 +348,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -365,7 +359,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -406,7 +400,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_file_metadata: String = match env.get_string(jfilemetadata) {
         Ok(ok) => ok,
@@ -419,7 +413,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -467,7 +461,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -478,7 +472,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
             );
         }
     }
-        .into();
+    .into();
 
     let name: String = match env.get_string(jname) {
         Ok(ok) => ok,
@@ -489,7 +483,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -535,7 +529,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
             );
         }
     }
-        .into();
+    .into();
 
     let name: String = match env.get_string(jname) {
         Ok(ok) => ok,
@@ -546,7 +540,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -557,7 +551,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_filetype: String = match env.get_string(jfiletype) {
         Ok(ok) => ok,
@@ -568,7 +562,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -627,7 +621,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -638,7 +632,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -679,7 +673,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -690,7 +684,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -734,7 +728,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -745,7 +739,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_content: String = match env.get_string(jcontent) {
         Ok(ok) => ok,
@@ -758,7 +752,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -815,7 +809,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_id: String = match env.get_string(jid) {
         Ok(ok) => ok,
@@ -826,7 +820,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_parent_id: String = match env.get_string(jparentid) {
         Ok(ok) => ok,
@@ -837,7 +831,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -896,7 +890,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -928,7 +922,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -962,7 +956,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_account: String = match env.get_string(jaccount) {
         Ok(ok) => ok,
@@ -975,7 +969,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
             );
         }
     }
-        .into();
+    .into();
 
     let serialized_work_unit: String = match env.get_string(jworkunit) {
         Ok(ok) => ok,
@@ -988,7 +982,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
