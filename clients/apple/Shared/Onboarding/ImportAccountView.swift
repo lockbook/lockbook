@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftLockbookCore
 
 struct ImportAccountView: View {
     @ObservedObject var core: Core
@@ -17,11 +18,13 @@ struct ImportAccountView: View {
             TextField("Account String", text: self.$accountKey)
                 .disableAutocorrection(true)
                 .padding(.all, 40)
-            Button(action: handleImport, label: {
-                Label("Import", systemImage: "rectangle.stack.person.crop")
-            })
+            NotificationButton(
+                action: handleImport,
+                label: Label("Import", systemImage: "rectangle.stack.person.crop"),
+                successLabel: Label("Imported!", systemImage: "checkmark.square"),
+                failureLabel: Label("Failure", systemImage: "exclamationmark.square")
+            )
         }
-        .navigationTitle("Import")
         .sheet(isPresented: self.$isScanning, content: {
             #if os(iOS)
             CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
@@ -29,14 +32,16 @@ struct ImportAccountView: View {
         })
     }
     
-    func handleImport() {
+    func handleImport() -> Result<Void, Error> {
         switch self.core.api.importAccount(accountString: self.accountKey) {
         case .success(let acc):
             self.core.account = acc
             self.core.sync()
+            return .success(())
         case .failure(let err):
             hideKeyboard()
             self.core.displayError(error: err)
+            return .failure(err)
         }
     }
     

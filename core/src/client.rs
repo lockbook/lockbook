@@ -121,6 +121,7 @@ pub trait Client {
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
     ) -> Result<u64, Error<NewAccountError>>;
+    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>>;
 }
 
 pub struct ClientImpl;
@@ -382,5 +383,15 @@ impl Client for ClientImpl {
             },
         )
         .map(|r: NewAccountResponse| r.folder_metadata_version)
+    }
+    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>> {
+        api_request(
+            Method::GET,
+            "get-usage",
+            &GetUsageRequest {
+                username: String::from(username),
+                client_version: CORE_CODE_VERSION.to_string(),
+            },
+        )
     }
 }
