@@ -20,6 +20,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -42,6 +43,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -57,6 +59,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -81,6 +84,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &(account.username.clone() + " "),
                 &sign(&account),
                 account.keys.to_public_key(),

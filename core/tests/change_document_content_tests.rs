@@ -22,6 +22,7 @@ mod change_document_content_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,6 +40,7 @@ mod change_document_content_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -55,6 +57,7 @@ mod change_document_content_tests {
         // change document content
         assert_matches!(
             ClientImpl::change_document_content(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -74,6 +77,7 @@ mod change_document_content_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -90,6 +94,7 @@ mod change_document_content_tests {
         // change content of document we never created
         assert_matches!(
             ClientImpl::change_document_content(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),

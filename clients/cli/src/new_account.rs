@@ -1,5 +1,5 @@
-use std::io;
 use std::io::Write;
+use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError};
 
@@ -16,9 +16,12 @@ pub fn new_account() {
         .expect("Failed to read from stdin");
     username.retain(|c| c != '\n');
 
+    let api_location =
+        env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string());
+
     println!("Generating keys and checking for username availability...");
 
-    match create_account(&get_config(), &username) {
+    match create_account(&get_config(), &username, &api_location) {
         Ok(_) => exit_with("Account created successfully", SUCCESS),
         Err(error) => match error {
             CreateAccountError::UsernameTaken => exit_with("Username taken.", USERNAME_TAKEN),

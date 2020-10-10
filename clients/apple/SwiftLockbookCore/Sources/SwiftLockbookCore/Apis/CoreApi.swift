@@ -6,7 +6,7 @@ public typealias CoreResult<T> = Result<T, ApplicationError>
 public protocol LockbookApi {
     // Account
     func getAccount() -> CoreResult<Account>
-    func createAccount(username: String) -> CoreResult<Account>
+    func createAccount(username: String, apiLocation: String) -> CoreResult<Account>
     func importAccount(accountString: String) -> CoreResult<Account>
     func exportAccount() -> CoreResult<String>
     func getUsage() -> CoreResult<[FileUsage]>
@@ -27,9 +27,6 @@ public protocol LockbookApi {
     func updateFile(id: UUID, content: String) -> CoreResult<Empty>
     func markFileForDeletion(id: UUID) -> CoreResult<Bool>
     func renameFile(id: UUID, name: String) -> CoreResult<Empty>
-    
-    // Diagnostic
-    func getApiLocation() -> String
 }
 
 public struct CoreApi: LockbookApi {
@@ -37,6 +34,7 @@ public struct CoreApi: LockbookApi {
     
     public init(documentsDirectory: String) {
         self.documentsDirectory = documentsDirectory
+        print("Located at \(documentsDirectory)")
     }
     
     /// If this isn't called, the rust logger will not start!
@@ -48,8 +46,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
-    public func createAccount(username: String) -> CoreResult<Account> {
-        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username))
+    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account> {
+        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username, apiLocation))
         
         return result.flatMap { print($0 as Any); return getAccount() }
     }
@@ -117,13 +115,6 @@ public struct CoreApi: LockbookApi {
     public func renameFile(id: UUID, name: String) -> CoreResult<Empty> {
         fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
     }
-    
-    public func getApiLocation() -> String {
-        let result = get_api_loc()
-        let resultString = String(cString: result!)
-        release_pointer(UnsafeMutablePointer(mutating: result))
-        return resultString
-    }
 }
 
 
@@ -136,7 +127,7 @@ public struct FakeApi: LockbookApi {
         CoreResult.success(Account(username: username))
     }
     
-    public func createAccount(username: String) -> CoreResult<Account> {
+    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
     }
     
@@ -199,10 +190,6 @@ Nulla facilisi. Fusce ac risus ut sem vulputate euismod vitae ac massa. Quisque 
     
     public func renameFile(id: UUID, name: String) -> CoreResult<Empty> {
         CoreResult.failure(ApplicationError.Lockbook(CoreError.lazy()))
-    }
-    
-    public func getApiLocation() -> String {
-        "fake://fake.lockbook.fake"
     }
     
     public let username: Account.Username = "jeff"

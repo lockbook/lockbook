@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::path::Path;
+
 use jni::objects::{JClass, JString};
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
@@ -19,7 +21,6 @@ use crate::{
     GetChildrenError, GetFileByIdError, GetRootError, ImportError, InitLoggerError,
     InsertFileError, ReadDocumentError, RenameFileError, SetLastSyncedError, WriteToDocumentError,
 };
-use std::path::Path;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -57,6 +58,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     _: JClass,
     jconfig: JString,
     jusername: JString,
+    japi_url: JString,
 ) -> jstring {
     let serialized_config: String = match env.get_string(jconfig) {
         Ok(ok) => ok,
@@ -82,6 +84,17 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     }
     .into();
 
+    let api_url: String = match env.get_string(japi_url) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                CreateAccountError::UnexpectedError("Couldn't get api_url out of JNI!".to_string()),
+            );
+        }
+    }
+    .into();
+
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
         Err(_) => {
@@ -94,7 +107,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
     serialize_to_jstring(
         &env,
-        create_account(&deserialized_config, username.as_str()),
+        create_account(&deserialized_config, &username, &api_url),
     )
 }
 
