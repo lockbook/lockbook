@@ -133,6 +133,7 @@ mod unit_tests {
 
         let account = Account {
             username: username.clone(),
+            api_url: "ftp://uranus.net".to_string(),
             keys: private_key,
         };
         let auth = AuthServiceImpl::<EarlyClock, RsaImpl>::generate_auth(&account).unwrap();
@@ -148,6 +149,7 @@ mod unit_tests {
         let username = String::from("Smail");
         let account = Account {
             username,
+            api_url: "ftp://uranus.net".to_string(),
             keys: private_key,
         };
 
