@@ -9,11 +9,15 @@ final class SwiftLockbookCoreTests: XCTestCase {
     // CoreApi(documentsDirectory: "~/.lockbook")
     static let core = CoreApi(documentsDirectory: SwiftLockbookCoreTests.tempDir)
     
+    static func getApiLocation() -> String {
+        ProcessInfo.processInfo.environment["API_URL"]!
+    }
+    
     override class func setUp() {
         super.setUp()
         
         print("LOCKBOOK DIR", SwiftLockbookCoreTests.core.documentsDirectory)
-        print("API LOCATION", SwiftLockbookCoreTests.core.getApiLocation())
+        print("API LOCATION", getApiLocation())
     }
     
     override func setUp() {
@@ -21,7 +25,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
         
         continueAfterFailure = false
         
-        let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
+        let apiLocation = SwiftLockbookCoreTests.getApiLocation()
         if (apiLocation.contains("://api.")) {
             XCTFail("API Location looks like prod: \"\(apiLocation)\". Stopping tests...")
         }
@@ -29,7 +33,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
     
     func test01CreateExportImportAccount() {
         let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
-        let result = SwiftLockbookCoreTests.core.createAccount(username: username)
+        let result = SwiftLockbookCoreTests.core.createAccount(username: username, apiLocation: SwiftLockbookCoreTests.getApiLocation())
         
         switch result {
         case .success(let acc):
@@ -211,7 +215,7 @@ final class SwiftLockbookCoreTests: XCTestCase {
         self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
             let accountResult = SwiftLockbookCoreTests.core.getAccount()
             if case .failure(_) = accountResult {
-                let newAccountResult = SwiftLockbookCoreTests.core.createAccount(username: "swiftperformance\(UUID.init().uuidString.prefix(5))")
+                let newAccountResult = SwiftLockbookCoreTests.core.createAccount(username: "swiftperformance\(UUID.init().uuidString.prefix(5))", apiLocation: SwiftLockbookCoreTests.getApiLocation())
                 if case .failure(let err) = newAccountResult {
                     return XCTFail("Could not create account! \(err)")
                 }
