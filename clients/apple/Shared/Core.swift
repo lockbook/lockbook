@@ -69,7 +69,6 @@ class Core: ObservableObject {
             print(err)
         }
         self.api = api
-        print("API URL: \(api.getApiLocation())")
         self.updateFiles()
         
         passthrough

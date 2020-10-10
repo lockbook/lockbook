@@ -22,6 +22,7 @@ mod rename_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,6 +40,7 @@ mod rename_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -55,6 +57,7 @@ mod rename_document_tests {
         // rename document
         assert_matches!(
             ClientImpl::rename_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -74,6 +77,7 @@ mod rename_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -90,6 +94,7 @@ mod rename_document_tests {
         // rename document that wasn't created
         assert_matches!(
             ClientImpl::rename_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),
@@ -111,6 +116,7 @@ mod rename_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -128,6 +134,7 @@ mod rename_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -143,13 +150,20 @@ mod rename_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version,
+            ),
             Ok(_)
         );
 
         // rename deleted document
         assert_matches!(
             ClientImpl::rename_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -171,6 +185,7 @@ mod rename_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -188,6 +203,7 @@ mod rename_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -204,6 +220,7 @@ mod rename_document_tests {
         // rename document
         assert_matches!(
             ClientImpl::rename_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -225,6 +242,7 @@ mod rename_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -242,6 +260,7 @@ mod rename_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -261,6 +280,7 @@ mod rename_document_tests {
         let doc_name2 = random_filename();
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id2,
@@ -278,6 +298,7 @@ mod rename_document_tests {
         // move document
         assert_matches!(
             ClientImpl::rename_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
