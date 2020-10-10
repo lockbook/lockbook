@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ApplicationError: Error {
+public enum ApplicationError: Error, Equatable {
     case Lockbook(CoreError)
     case LockbookUnhandled(String)
     case Serialization(String)
