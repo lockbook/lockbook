@@ -8,10 +8,10 @@ struct BookView: View {
     var body: some View {
         NavigationView {
             #if os(iOS)
-            FileListView(core: core, account: account, selectedFolder: core.grouped.first!)
+            FileListView(core: core, account: account, selectedFolder: core.grouped.first)
                 .navigationBarTitleDisplayMode(.inline)
             #else
-            FileListView(core: core, account: account, selectedFolder: core.grouped.first!)
+            FileListView(core: core, account: account, selectedFolder: core.grouped.first)
             #endif
             Text("Pick a file!")
         }
