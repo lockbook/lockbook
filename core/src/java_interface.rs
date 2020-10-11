@@ -16,10 +16,7 @@ use crate::model::work_unit::WorkUnit;
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
     get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file,
-    move_file, read_document, rename_file, set_last_synced, sync_all, write_document,
-    AccountExportError, CreateAccountError, CreateFileError, DeleteFileError, GetAccountError,
-    GetChildrenError, GetFileByIdError, GetRootError, ImportError, InitLoggerError,
-    InsertFileError, ReadDocumentError, RenameFileError, SetLastSyncedError, WriteToDocumentError,
+    move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error,
 };
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -41,7 +38,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                InitLoggerError::UnexpectedError("Couldn't get path out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get path out of JNI!".to_string()),
             );
         }
     }
@@ -65,7 +62,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateAccountError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -76,9 +73,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateAccountError::UnexpectedError(
-                    "Couldn't get username out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get username out of JNI!".to_string()),
             );
         }
     }
@@ -89,7 +84,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateAccountError::UnexpectedError("Couldn't get api_url out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get api_url out of JNI!".to_string()),
             );
         }
     }
@@ -100,7 +95,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateAccountError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -123,7 +118,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ImportError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -134,7 +129,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ImportError::UnexpectedError("Couldn't get account out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get account out of JNI!".to_string()),
             );
         }
     }
@@ -145,7 +140,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ImportError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -167,7 +162,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                AccountExportError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -178,7 +173,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                AccountExportError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -197,7 +192,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetAccountError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -208,7 +203,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetAccountError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -228,7 +223,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                SetLastSyncedError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -239,7 +234,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                SetLastSyncedError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -261,7 +256,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetRootError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -272,7 +267,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetRootError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -292,7 +287,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetChildrenError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -303,7 +298,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetChildrenError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -314,7 +309,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetChildrenError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -324,7 +319,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetChildrenError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -344,7 +339,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetFileByIdError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -355,7 +350,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetFileByIdError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -366,7 +361,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetFileByIdError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -376,7 +371,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                GetFileByIdError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -396,7 +391,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                InsertFileError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -407,9 +402,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                InsertFileError::UnexpectedError(
-                    "Couldn't get file metadata out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get file metadata out of JNI!".to_string()),
             );
         }
     }
@@ -420,7 +413,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                InsertFileError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -431,9 +424,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
             Err(_) => {
                 return serialize_to_jstring(
                     &env,
-                    InsertFileError::UnexpectedError(
-                        "Couldn't deserialize file metadata!".to_string(),
-                    ),
+                    Error::<()>::Unexpected("Couldn't deserialize file metadata!".to_string()),
                 );
             }
         };
@@ -457,7 +448,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                RenameFileError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -468,7 +459,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                RenameFileError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -479,7 +470,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                RenameFileError::UnexpectedError("Couldn't get name out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get name out of JNI!".to_string()),
             );
         }
     }
@@ -490,7 +481,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                RenameFileError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -500,7 +491,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                RenameFileError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -525,7 +516,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -536,7 +527,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't get name out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get name out of JNI!".to_string()),
             );
         }
     }
@@ -547,7 +538,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -558,7 +549,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't get filetype out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get filetype out of JNI!".to_string()),
             );
         }
     }
@@ -569,7 +560,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -579,7 +570,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -589,7 +580,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                CreateFileError::UnexpectedError("Couldn't deserialize filetype!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize filetype!".to_string()),
             );
         }
     };
@@ -617,7 +608,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                DeleteFileError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -628,7 +619,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                DeleteFileError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -639,7 +630,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                DeleteFileError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -649,7 +640,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                DeleteFileError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -669,7 +660,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ReadDocumentError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -680,7 +671,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ReadDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -691,7 +682,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ReadDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -701,7 +692,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                ReadDocumentError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -722,9 +713,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get config out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -735,7 +724,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -746,9 +735,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get content out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get content out of JNI!".to_string()),
             );
         }
     }
@@ -759,7 +746,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -769,7 +756,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -779,7 +766,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize content!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize content!".to_string()),
             );
         }
     };
@@ -803,9 +790,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get config out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -816,7 +801,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -827,7 +812,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't get id out of JNI!".to_string()),
+                Error::<()>::Unexpected("Couldn't get id out of JNI!".to_string()),
             );
         }
     }
@@ -838,7 +823,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -848,7 +833,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -858,7 +843,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize id!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize id!".to_string()),
             );
         }
     };
@@ -884,9 +869,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get config out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -897,7 +880,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -916,9 +899,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get config out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -929,7 +910,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -950,9 +931,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get config out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
             );
         }
     }
@@ -963,9 +942,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get account out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get account out of JNI!".to_string()),
             );
         }
     }
@@ -976,9 +953,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError(
-                    "Couldn't get work unit out of JNI!".to_string(),
-                ),
+                Error::<()>::Unexpected("Couldn't get work unit out of JNI!".to_string()),
             );
         }
     }
@@ -989,7 +964,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize config!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
             );
         }
     };
@@ -999,7 +974,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize account!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize account!".to_string()),
             );
         }
     };
@@ -1009,7 +984,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Err(_) => {
             return serialize_to_jstring(
                 &env,
-                WriteToDocumentError::UnexpectedError("Couldn't deserialize wu!".to_string()),
+                Error::<()>::Unexpected("Couldn't deserialize wu!".to_string()),
             );
         }
     };
