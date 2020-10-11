@@ -52,7 +52,7 @@ struct ImportAccountView: View {
         case .success(let key):
             self.accountKey = key
         case .failure(let err):
-            print(err)
+            print(err) // TODO: Convert this to an ApplicationError
         }
     }
     #endif
