@@ -1,2 +1,2 @@
-// API Location (which server you hit)
-API_LOCATION = http:/$()/qa.lockbook.app:8000
+// Local development
+API_LOCATION = http:/$()/localhost:8000
