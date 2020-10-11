@@ -20,6 +20,14 @@ struct LockbookApp: App {
                     AnyView(BookView(core: core, account: account))
                 }
             }
+            .alert(isPresented: Binding(get: { core.globalError != nil }, set: { _ in core.globalError = nil })) {
+                // TODO: Improve the UX of this
+                Alert(
+                    title: Text("Core Error!"),
+                    message: core.globalError.map({ Text($0.rawValue) }),
+                    dismissButton: .default(Text("Dismiss"))
+                )
+            }
             .buttonStyle(PlainButtonStyle())
             .ignoresSafeArea()
         }
@@ -41,6 +49,14 @@ struct LockbookApp: App {
                 case .some(let account):
                     AnyView(BookView(core: core, account: account))
                 }
+            }
+            .alert(isPresented: Binding(get: { core.globalError != nil }, set: { _ in core.globalError = nil })) {
+                // TODO: Improve the UX of this
+                Alert(
+                    title: Text("Core Error!"),
+                    message: core.globalError.map({ Text($0.rawValue) }),
+                    dismissButton: .default(Text("Dismiss"))
+                )
             }
             .ignoresSafeArea()
         }
