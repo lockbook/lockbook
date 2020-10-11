@@ -20,7 +20,6 @@ class Core: ObservableObject {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
             DispatchQueue.main.async {
-                print("Deleted \(lockbookDir) and logging out")
                 self.account = nil
             }
         }
@@ -43,7 +42,7 @@ class Core: ObservableObject {
         case .Lockbook(let coreErr):
             globalError = coreErr
         default:
-            print("General Error \(error.message())")
+            print("General Error \(error.message())") // TODO: Do something better than println
         }
     }
     
@@ -74,7 +73,7 @@ class Core: ObservableObject {
         case .success(let acc):
             self.account = acc
         case .failure(let err):
-            print(err)
+            print(err) // TODO: Improve this
         }
         self.api = api
         self.updateFiles()
@@ -87,7 +86,7 @@ class Core: ObservableObject {
                 case .failure(let err):
                     self.displayError(error: err)
                 case .finished:
-                    print("Sync subscription finished!")
+                    print("Sync subscription finished!") // TODO: Does the application work at this point?
                 }
             }, receiveValue: { _ in
                 self.updateFiles()
