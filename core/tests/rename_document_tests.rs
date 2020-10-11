@@ -101,7 +101,7 @@ mod rename_document_tests {
                 0,
                 &random_filename(),
             ),
-            Err(Error::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Api(
                 RenameDocumentError::DocumentNotFound
             ))
         );
@@ -170,7 +170,7 @@ mod rename_document_tests {
                 version,
                 &random_filename(),
             ),
-            Err(Error::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Api(
                 RenameDocumentError::DocumentDeleted
             ))
         );
@@ -227,7 +227,7 @@ mod rename_document_tests {
                 version - 1,
                 &random_filename(),
             ),
-            Err(Error::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Api(
                 RenameDocumentError::EditConflict
             ))
         );
@@ -305,7 +305,7 @@ mod rename_document_tests {
                 version,
                 &doc_name2,
             ),
-            Err(Error::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Api(
                 RenameDocumentError::DocumentPathTaken
             ))
         );
