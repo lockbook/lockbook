@@ -12,13 +12,13 @@ class ImportAccountTests: SLCTest {
         try core.cleanUp()
     }
     
-    func testSimple() {
+    func testSimple() throws {
         let importResult = core.api.importAccount(accountString: known!.accountString)
         
         assertSuccess(importResult) { $0.username == known!.account.username }
     }
     
-    func testBadAccountString() {
+    func testBadAccountString() throws {
         let importResult = core.api.importAccount(accountString: "JUNK-ACCOUNT-STRING")
         
         assertFailure(importResult) { $0 == .Lockbook(.AccountStringCorrupted) }
