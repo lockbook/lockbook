@@ -1,6 +1,7 @@
 package app.lockbook
 
 import java.util.*
+import kotlin.reflect.jvm.jvmName
 
 // You have to build the jni from core first to be able to run the tests.
 // Next you have to add a vm option that helps java find the library:
@@ -20,6 +21,12 @@ fun createRandomPath(): String {
 inline fun <reified T> assertType(comparableValue: Any?) {
     require(comparableValue is T) {
         "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+    }
+}
+
+fun assertEnumType(comparableValue: Any?, enum: Any) {
+    require(comparableValue == enum) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else (comparableValue as Enum<*>).name} is not of type ${(enum as Enum<*>).name}"
     }
 }
 
