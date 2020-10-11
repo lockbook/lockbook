@@ -68,6 +68,13 @@ extension SLCTest {
         return "SwiftIntegrationTest" + String((0..<10).compactMap { _ in validChars.randomElement() })
     }
     
+    /// Generates a random filename
+    /// - Returns: A random filename
+    func randomFilename() -> String {
+        let validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return String((0..<10).compactMap { _ in validChars.randomElement() })
+    }
+    
     /// Helper to verify that a result was successful and meets some criteria
     /// - Parameters:
     ///   - result: The result you want to verify
