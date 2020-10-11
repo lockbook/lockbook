@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftLockbookCore
 
-class SyncTests: SLCTest {
+class SyncFileTests: SLCTest {
     var account: Account?
     
     override func setUpWithError() throws {
@@ -63,6 +63,8 @@ class SyncTests: SLCTest {
             log("Syncing: \(unit.get().name)")
             assertSuccess(core.api.executeWork(work: unit))
         }
+        
+        assertSuccess(core.api.setLastSynced(lastSync: UInt64(work.mostRecentUpdateFromServer.timeIntervalSince1970)))
         
         assertSuccess(core.api.calculateWork()) { $0.workUnits.isEmpty }
     }
