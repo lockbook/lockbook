@@ -99,7 +99,7 @@ mod delete_document_tests {
                 Uuid::new_v4(),
                 0,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentNotFound
             ))
         );
@@ -167,7 +167,7 @@ mod delete_document_tests {
                 doc_id,
                 version,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentDeleted
             ))
         );
@@ -223,7 +223,7 @@ mod delete_document_tests {
                 doc_id,
                 version - 1,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::EditConflict
             ))
         );

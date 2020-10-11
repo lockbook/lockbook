@@ -92,7 +92,7 @@ mod get_document_tests {
         // get document we never created
         assert_matches!(
             ClientImpl::get_document(&account.api_url, Uuid::new_v4(), 0,),
-            Err(Error::<GetDocumentError>::Api(
+            Err(ApiError::<GetDocumentError>::Api(
                 GetDocumentError::DocumentNotFound
             ))
         );

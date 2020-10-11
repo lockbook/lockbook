@@ -101,7 +101,7 @@ mod change_document_content_tests {
                 0,
                 aes_str(&folder_key, "new doc content"),
             ),
-            Err(Error::<ChangeDocumentContentError>::Api(
+            Err(ApiError::<ChangeDocumentContentError>::Api(
                 ChangeDocumentContentError::DocumentNotFound
             ))
         );

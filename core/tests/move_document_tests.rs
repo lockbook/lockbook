@@ -129,7 +129,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &folder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentNotFound
             ))
         );
@@ -222,7 +222,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentDeleted
             ))
         );
@@ -303,7 +303,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::EditConflict
             ))
         );
@@ -405,7 +405,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentPathTaken
             ))
         );

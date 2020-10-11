@@ -70,7 +70,7 @@ mod new_account_tests {
                 },
                 rsa_key(&account.keys.to_public_key(), &folder_key)
             ),
-            Err(Error::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::UsernameTaken
             ))
         );
@@ -95,7 +95,7 @@ mod new_account_tests {
                 },
                 rsa_key(&account.keys.to_public_key(), &folder_key)
             ),
-            Err(Error::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::InvalidUsername
             ))
         );
@@ -128,7 +128,7 @@ mod new_account_tests {
     //             },
     //             rsa_key(&account.keys.to_public_key(), &folder_key)
     //         ),
-    //         Err(Error::<NewAccountError>::Api(
+    //         Err(ApiError::<NewAccountError>::Api(
     //             NewAccountError::InvalidPublicKey
     //         ))
     //     );
@@ -155,7 +155,7 @@ mod new_account_tests {
     //             },
     //             rsa_key(&account.keys.to_public_key(), &folder_key)
     //         ),
-    //         Err(Error::<NewAccountError>::Api(NewAccountError::InvalidAuth))
+    //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
     //     );
     // }
 }

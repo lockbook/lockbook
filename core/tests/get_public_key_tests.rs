@@ -45,7 +45,7 @@ mod get_public_key_tests {
 
         assert_matches!(
             ClientImpl::get_public_key(&account.api_url, &account.username),
-            Err(Error::<GetPublicKeyError>::Api(
+            Err(ApiError::<GetPublicKeyError>::Api(
                 GetPublicKeyError::UserNotFound
             ))
         );
