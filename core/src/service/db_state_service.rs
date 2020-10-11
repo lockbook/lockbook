@@ -4,9 +4,7 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service::GetStateError::{AccountDbError, RepoError};
-use crate::service::db_state_service::State::{
-    Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
-};
+use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
 use crate::CORE_CODE_VERSION;
 
 #[derive(Debug, PartialEq)]
@@ -58,10 +56,10 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
                     Ok(ReadyToUse)
                 } else {
                     match state_version.as_str() {
-                        "0.1.0" => Ok(State::StateRequiresClearing),
-                        "0.1.1" => Ok(State::StateRequiresClearing),
-                        "0.1.2" => Ok(State::ReadyToUse),
-                        _ => Ok(State::StateRequiresCleaning),
+                        "0.1.0" => Ok(StateRequiresClearing),
+                        "0.1.1" => Ok(StateRequiresClearing),
+                        "0.1.2" => Ok(ReadyToUse),
+                        _ => Ok(StateRequiresClearing),
                     }
                 }
             }
@@ -80,11 +78,11 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
             }
 
             match db_version.as_str() {
-                "0.1.0" => Err(MigrationError::StateRequiresClearing),
-                "0.1.1" => Err(MigrationError::StateRequiresClearing),
-                "0.1.2" => Ok(()),
-                _ => Err(MigrationError::StateRequiresClearing),
-            }
+                "0.1.0" => VersionDb::set(&db, "0.1.1").map_err(MigrationError::RepoError)?,
+                "0.1.1" => return Err(MigrationError::StateRequiresClearing), // If you wanted to remove this, write a migration for PR #332
+                "0.1.2" => return Ok(()),
+                _ => return Err(MigrationError::StateRequiresClearing),
+            };
         }
     }
 }
