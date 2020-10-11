@@ -111,7 +111,3 @@ extension SLCTest {
         print(formatLog(message))
     }
 }
-
-let tests = [
-    ("CreateAccountTests.testSimple", CreateAccountTests.testSimple)
-]
