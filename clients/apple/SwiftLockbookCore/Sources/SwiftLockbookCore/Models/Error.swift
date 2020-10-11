@@ -2,7 +2,6 @@ import Foundation
 
 public enum ApplicationError: Error, Equatable {
     case Lockbook(CoreError)
-    case LockbookUnhandled(String)
     case Serialization(String)
     case Deserialization(String, String)
     case State(String)
@@ -11,8 +10,6 @@ public enum ApplicationError: Error, Equatable {
         switch self {
         case .Lockbook(let coreErr):
             return coreErr.rawValue
-        case .LockbookUnhandled(let err):
-            return err
         case .Serialization(let errMsg):
             return errMsg
         case .Deserialization(let errMsg, let json):
@@ -23,7 +20,7 @@ public enum ApplicationError: Error, Equatable {
     }
     
     public static func lazy() -> ApplicationError {
-        LockbookUnhandled("Lazy!")
+        State("Lazy!")
     }
 }
 
