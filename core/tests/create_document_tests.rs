@@ -117,7 +117,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::FileIdTaken
             ))
         );
@@ -186,7 +186,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::DocumentPathTaken
             ))
         );
@@ -236,7 +236,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::ParentNotFound
             ))
         );
