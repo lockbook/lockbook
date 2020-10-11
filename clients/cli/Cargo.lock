@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook_core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -852,6 +852,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sled",
+ "strum",
  "tempfile",
  "uuid",
 ]
@@ -1511,6 +1512,27 @@ checksum = "a489c87c08fbaf12e386665109dd13470dcc9c4583ea3e10dd2b4523e5ebd9ac"
 dependencies = [
  "heck",
  "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "strum"
+version = "0.19.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89a286a7e3b5720b9a477b23253bc50debac207c8d21505f8e70b36792f11b5"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.19.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e61bb0be289045cb80bfce000512e32d09f8337e54c186725da381377ad1f8d5"
+dependencies = [
+ "heck",
  "proc-macro2",
  "quote",
  "syn",

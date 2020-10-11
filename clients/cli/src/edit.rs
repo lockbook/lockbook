@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
-    get_file_by_path, read_document, write_document, GetFileByPathError, ReadDocumentError,
-    WriteToDocumentError,
+    get_file_by_path, read_document, write_document, Error as CoreError, GetFileByPathError,
+    ReadDocumentError, WriteToDocumentError,
 };
 
 use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config};
@@ -23,23 +23,23 @@ pub fn edit(file_name: &str) {
     let file_metadata = match get_file_by_path(&get_config(), file_name) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
-            GetFileByPathError::NoFileAtThatPath => exit_with(
+            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => exit_with(
                 &format!("No file found with the path {}", file_name),
                 FILE_NOT_FOUND,
             ),
-            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     };
 
     let file_content = match read_document(&get_config(), file_metadata.id) {
         Ok(content) => content,
         Err(error) => match error {
-            ReadDocumentError::TreatedFolderAsDocument => {
+            CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
                 exit_with("Specified file is a folder!", DOCUMENT_TREATED_AS_FOLDER)
             }
-            ReadDocumentError::NoAccount
-            | ReadDocumentError::FileDoesNotExist
-            | ReadDocumentError::UnexpectedError(_) => exit_with(
+            CoreError::UiError(ReadDocumentError::NoAccount)
+            | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
+            | CoreError::Unexpected(_) => exit_with(
                 &format!("Unexpected error while reading encrypted doc: {:#?}", error),
                 UNEXPECTED_ERROR,
             ),
@@ -108,10 +108,10 @@ pub fn edit(file_name: &str) {
                 SUCCESS,
             ),
             Err(err) => match err {
-                WriteToDocumentError::NoAccount
-                | WriteToDocumentError::FileDoesNotExist
-                | WriteToDocumentError::FolderTreatedAsDocument
-                | WriteToDocumentError::UnexpectedError(_) => exit_with(
+                CoreError::UiError(WriteToDocumentError::NoAccount)
+                | CoreError::UiError(WriteToDocumentError::FileDoesNotExist)
+                | CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument)
+                | CoreError::Unexpected(_) => exit_with(
                     &format!("Unexpected error saving file: {:#?}", err),
                     UNEXPECTED_ERROR,
                 ),

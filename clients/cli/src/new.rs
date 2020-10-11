@@ -5,7 +5,8 @@ use std::path::Path;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
-    create_file_at_path, write_document, CreateFileAtPathError, WriteToDocumentError,
+    create_file_at_path, write_document, CreateFileAtPathError, Error as CoreError,
+    WriteToDocumentError,
 };
 use uuid::Uuid;
 
@@ -23,24 +24,24 @@ pub fn new(file_name: &str) {
     let file_metadata = match create_file_at_path(&get_config(), &file_name) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
-            CreateFileAtPathError::FileAlreadyExists => {
+            CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
                 exit_with("File already exists!", FILE_ALREADY_EXISTS)
             }
-            CreateFileAtPathError::NoAccount => exit_with_no_account(),
-            CreateFileAtPathError::NoRoot => {
+            CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
+            CoreError::UiError(CreateFileAtPathError::NoRoot) => {
                 exit_with("No root folder, have you synced yet?", NO_ROOT)
             }
-            CreateFileAtPathError::PathContainsEmptyFile => {
+            CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => {
                 exit_with("Path contains an empty file.", PATH_CONTAINS_EMPTY_FILE)
             }
-            CreateFileAtPathError::PathDoesntStartWithRoot => {
+            CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
                 exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)
             }
-            CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(
+            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(
                 "A file within your path is a document that was treated as a folder",
                 DOCUMENT_TREATED_AS_FOLDER,
             ),
-            CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     };
 
@@ -85,15 +86,15 @@ pub fn new(file_name: &str) {
                 SUCCESS,
             ),
             Err(err) => match err {
-                WriteToDocumentError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                WriteToDocumentError::NoAccount => exit_with(
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
                     "Unexpected: No account! Run init or import to get started!",
                     UNEXPECTED_ERROR,
                 ),
-                WriteToDocumentError::FileDoesNotExist => {
+                CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
                     exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
                 }
-                WriteToDocumentError::FolderTreatedAsDocument => {
+                CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
                     exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
                 }
             },

@@ -5,6 +5,7 @@ use chrono_human_duration::ChronoHumanDuration;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
+use lockbook_core::Error as CoreError;
 use lockbook_core::{
     get_account, get_db_state, init_logger, migrate_db, GetAccountError, GetStateError,
     MigrationError,
@@ -30,8 +31,8 @@ pub fn get_account_or_exit() -> Account {
     match get_account(&get_config()) {
         Ok(account) => account,
         Err(error) => match error {
-            GetAccountError::NoAccount => exit_with_no_account(),
-            GetAccountError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(GetAccountError::NoAccount) => exit_with_no_account(),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }
@@ -52,11 +53,11 @@ pub fn check_and_perform_migrations() {
                         }
                     }
                     Err(error) => match error {
-                        MigrationError::StateRequiresCleaning => exit_with(
+                        CoreError::UiError(MigrationError::StateRequiresCleaning) => exit_with(
                             "Your local state cannot be migrated, please re-sync with a fresh client.",
                             UNINSTALL_REQUIRED,
                         ),
-                        MigrationError::UnexpectedError(msg) =>
+                        CoreError::Unexpected(msg) =>
                             exit_with(
                                 &format!(
                                     "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
@@ -73,7 +74,8 @@ pub fn check_and_perform_migrations() {
             ),
         },
         Err(err) => match err {
-            GetStateError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(GetStateError::Stub) => exit_with("Impossible", UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }
