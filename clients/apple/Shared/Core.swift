@@ -7,6 +7,7 @@ class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
     @Published var account: Account?
+    @Published var globalError: CoreError?
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
@@ -36,7 +37,12 @@ class Core: ObservableObject {
     }
     
     func displayError(error: ApplicationError) {
-        print("Error \(error.message())")
+        switch error {
+        case .Lockbook(let coreErr):
+            globalError = coreErr
+        default:
+            print("General Error \(error.message())")
+        }
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
