@@ -1,13 +1,13 @@
 use sled::Db;
 
-use crate::CORE_CODE_VERSION;
-use crate::repo::{account_repo, db_version_repo};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
+use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service::GetStateError::{AccountDbError, RepoError};
 use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
+use crate::CORE_CODE_VERSION;
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -40,7 +40,7 @@ pub struct DbStateServiceImpl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> 
 }
 
 impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
-for DbStateServiceImpl<AccountDb, VersionDb>
+    for DbStateServiceImpl<AccountDb, VersionDb>
 {
     fn get_state(db: &Db) -> Result<State, GetStateError> {
         if AccountDb::maybe_get_account(&db)
@@ -61,7 +61,7 @@ for DbStateServiceImpl<AccountDb, VersionDb>
                         "0.1.0" => Ok(State::StateRequiresClearing),
                         "0.1.1" => Ok(State::StateRequiresClearing),
                         "0.1.2" => Ok(State::ReadyToUse),
-                        _ => Ok(State::StateRequiresCleaning)
+                        _ => Ok(State::StateRequiresCleaning),
                     }
                 }
             }
@@ -91,12 +91,12 @@ for DbStateServiceImpl<AccountDb, VersionDb>
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::{CORE_CODE_VERSION, DefaultDbStateService};
     use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
+    use crate::{DefaultDbStateService, CORE_CODE_VERSION};
 
     #[test]
     fn test_initial_state() {
