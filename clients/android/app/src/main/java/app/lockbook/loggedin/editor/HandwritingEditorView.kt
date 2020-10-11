@@ -3,16 +3,19 @@ package app.lockbook.loggedin.editor
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
+import android.os.Build
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import androidx.annotation.RequiresApi
 import app.lockbook.R
 import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
+import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
@@ -94,15 +97,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     fun setColor(color: String) {
         when (color) {
-            resources.getString(R.string.handwriting_editor_pallete_white) -> activePaint.color = Color.WHITE
-            resources.getString(R.string.handwriting_editor_pallete_blue) -> activePaint.color = Color.BLUE
-            resources.getString(R.string.handwriting_editor_pallete_red) -> activePaint.color = Color.RED
-            resources.getString(R.string.handwriting_editor_pallete_yellow) -> activePaint.color = Color.YELLOW
+            resources.getString(R.string.handwriting_editor_pallete_white) -> activePaint.color =
+                Color.WHITE
+            resources.getString(R.string.handwriting_editor_pallete_blue) -> activePaint.color =
+                Color.BLUE
+            resources.getString(R.string.handwriting_editor_pallete_red) -> activePaint.color =
+                Color.RED
+            resources.getString(R.string.handwriting_editor_pallete_yellow) -> activePaint.color =
+                Color.YELLOW
         }
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        val beginTime = System.nanoTime()
         if (event != null) {
             for (point in 0 until event.pointerCount) {
                 if (event.getToolType(point) == MotionEvent.TOOL_TYPE_STYLUS ||
@@ -169,9 +177,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O) // TODO remove this smail
     fun setUpBitmapDrawable() {
-        val canvas = holder.lockCanvas()
-        canvasBitmap = Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
+        val canvas = holder.lockHardwareCanvas()
+        canvasBitmap =
+            Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
         val currentPaint = Paint()
         currentPaint.color = Color.WHITE
@@ -179,7 +189,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         currentPaint.style = Paint.Style.STROKE
         tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
         viewPort.set(canvas.clipBounds)
-        holder.unlockCanvasAndPost(canvas)
+        holder.unlockCanvasAndPost(canvas) // The rectangle is not drawn at this moment right?
     }
 
     fun drawLockbookDrawable() {
@@ -214,13 +224,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
+    @SuppressLint("NewApi") // TODO @smail remove this
     override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
             try {
-                canvas = holder.lockCanvas(null)
+                canvas = holder.lockHardwareCanvas()
                 drawBitmap(canvas)
-            } finally {
+            } finally { // TODO what happens to this unhandled catch?
                 holder.unlockCanvasAndPost(canvas)
             }
         }
