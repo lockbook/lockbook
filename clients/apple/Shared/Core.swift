@@ -19,8 +19,10 @@ class Core: ObservableObject {
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
-            print("Deleted \(lockbookDir) and logging out")
-            self.account = nil
+            DispatchQueue.main.async {
+                print("Deleted \(lockbookDir) and logging out")
+                self.account = nil
+            }
         }
     }
     
