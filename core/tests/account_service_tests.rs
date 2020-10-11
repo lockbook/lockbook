@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::client::Error;
+    use lockbook_core::client::ApiError;
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
@@ -55,7 +55,7 @@ mod account_tests {
         assert!(
             matches!(
                 err,
-                AccountCreationError::ApiError(Error::Api(NewAccountError::UsernameTaken))
+                AccountCreationError::ApiError(ApiError::Api(NewAccountError::UsernameTaken))
             ),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
             &generated_account.username,
@@ -76,7 +76,7 @@ mod account_tests {
             assert!(
                 matches!(
                     err,
-                    AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
+                    AccountCreationError::ApiError(ApiError::Api(NewAccountError::InvalidUsername))
                 ),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,
