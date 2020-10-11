@@ -4,7 +4,9 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service::GetStateError::{AccountDbError, RepoError};
-use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
+use crate::service::db_state_service::State::{
+    Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
+};
 use crate::CORE_CODE_VERSION;
 
 #[derive(Debug, PartialEq)]
@@ -56,7 +58,7 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
                     Ok(ReadyToUse)
                 } else {
                     match state_version.as_str() {
-                        "0.1.0" => Ok(StateRequiresClearing),
+                        "0.1.0" => Ok(MigrationRequired),
                         "0.1.1" => Ok(StateRequiresClearing),
                         "0.1.2" => Ok(ReadyToUse),
                         _ => Ok(StateRequiresClearing),
