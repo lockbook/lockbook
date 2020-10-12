@@ -10,7 +10,7 @@ import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
@@ -94,7 +94,7 @@ class ImportAccountActivity : AppCompatActivity() {
                         Timber.e("Unable to import an account.")
                         Toast.makeText(
                             applicationContext,
-                            UNEXPECTED_ERROR_OCCURRED,
+                            UNEXPECTED_ERROR,
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -102,7 +102,7 @@ class ImportAccountActivity : AppCompatActivity() {
                         Timber.e("ImportError not matched: ${error::class.simpleName}.")
                         Toast.makeText(
                             applicationContext,
-                            UNEXPECTED_ERROR_OCCURRED,
+                            UNEXPECTED_ERROR,
                             Toast.LENGTH_LONG
                         ).show()
                     }
