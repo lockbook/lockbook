@@ -18,7 +18,6 @@ import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
-    private lateinit var handwritingThread: Thread
     private var timer: Timer = Timer()
     private val handler = Handler()
 
@@ -66,28 +65,22 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     private fun startUpDrawingIfAble(id: String): Boolean {
         val contents = handwritingEditorViewModel.handleReadDocument(id)
+        Timber.e(contents)
 
         if (contents != null && contents.isNotEmpty()) {
-            val lockbookDrawable = if (handwritingEditorViewModel.lockBookDrawable == null) {
-                Klaxon().parse<Drawing>(contents)
-            } else {
-                handwritingEditorViewModel.lockBookDrawable
-            }
-
-            if (lockbookDrawable == null) {
-                errorHasOccurred("Unable to load this drawing.")
-                return false
+            if (handwritingEditorViewModel.lockBookDrawable == null) {
+                handwritingEditorViewModel.lockBookDrawable = Klaxon().parse<Drawing>(contents)
             }
 
             if (handwritingEditorViewModel.lockBookDrawable == null) {
-                handwritingEditorViewModel.lockBookDrawable = lockbookDrawable
+                errorHasOccurred("Unable to load this drawing.")
+                return false
             }
         }
 
         handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder?) {
                 handwriting_editor.setUpDrawing(handwritingEditorViewModel.lockBookDrawable)
-                startHandwritingThread()
             }
 
             override fun surfaceChanged(
@@ -106,22 +99,18 @@ class HandwritingEditorActivity : AppCompatActivity() {
         return true
     }
 
-    private fun startHandwritingThread() {
-        handwritingThread = Thread(handwriting_editor)
-        handwritingThread.start()
+    override fun onPause() {
+        super.onPause()
+        endHandwritingThread()
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        handwriting_editor.restartThread()
     }
 
     private fun endHandwritingThread() {
-        var retry = true
-        handwriting_editor.isThreadRunning = false
-        while (retry) {
-            Timber.e("Trying..")
-            try {
-                handwritingThread.join()
-                retry = false
-            } catch (e: InterruptedException) {
-            }
-        }
+        handwriting_editor.endThread()
     }
 
     private fun setUpHandwritingToolbar() {
@@ -159,15 +148,15 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                 Page(
                                     Transformation(
                                         Point(
-                                            handwriting_editor.lockBookDrawable.page.transformation.translation.x,
-                                            handwriting_editor.lockBookDrawable.page.transformation.translation.y
+                                            handwriting_editor.lockbookDrawable.page.transformation.translation.x,
+                                            handwriting_editor.lockbookDrawable.page.transformation.translation.y
                                         ),
-                                        handwriting_editor.lockBookDrawable.page.transformation.scale,
-                                        handwriting_editor.lockBookDrawable.page.transformation.scaleFocus,
-                                        handwriting_editor.lockBookDrawable.page.transformation.rotation
+                                        handwriting_editor.lockbookDrawable.page.transformation.scale,
+                                        handwriting_editor.lockbookDrawable.page.transformation.scaleFocus,
+                                        handwriting_editor.lockbookDrawable.page.transformation.rotation
                                     )
                                 ),
-                                handwriting_editor.lockBookDrawable.events.map { event ->
+                                handwriting_editor.lockbookDrawable.events.map { event ->
                                     Event(
                                         if (event.stroke == null) null else Stroke(
                                             event.stroke.color,
@@ -193,8 +182,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         timer.cancel()
-        handwritingEditorViewModel.lockBookDrawable = handwriting_editor.lockBookDrawable
-        handwritingEditorViewModel.savePath(handwriting_editor.lockBookDrawable)
+        handwritingEditorViewModel.lockBookDrawable = handwriting_editor.lockbookDrawable
+        handwritingEditorViewModel.savePath(handwriting_editor.lockbookDrawable)
         super.onDestroy()
     }
 
