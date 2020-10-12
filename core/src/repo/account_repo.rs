@@ -1,6 +1,6 @@
 use sled::Db;
 
-use crate::model::account::Account;
+use crate::model::account::{Account, ApiUrl};
 use crate::repo::account_repo::AccountRepoError::NoAccount;
 use crate::repo::account_repo::DbError::{SerdeError, SledError};
 
@@ -21,17 +21,19 @@ pub trait AccountRepo {
     fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError>;
     fn maybe_get_account(db: &Db) -> Result<Option<Account>, DbError>;
     fn get_account(db: &Db) -> Result<Account, AccountRepoError>;
+    fn get_api_url(db: &Db) -> Result<ApiUrl, AccountRepoError>;
 }
 
 pub struct AccountRepoImpl;
 
 static ACCOUNT: &str = "account";
+static YOU: &str = "you";
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError> {
         let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
         tree.insert(
-            "you",
+            YOU,
             serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
         )
         .map_err(AccountRepoError::SledError)?;
@@ -51,7 +53,7 @@ impl AccountRepo for AccountRepoImpl {
 
     fn get_account(db: &Db) -> Result<Account, AccountRepoError> {
         let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
-        let maybe_value = tree.get("you").map_err(AccountRepoError::SledError)?;
+        let maybe_value = tree.get(YOU).map_err(AccountRepoError::SledError)?;
         match maybe_value {
             None => Err(NoAccount),
             Some(account) => {
@@ -59,6 +61,16 @@ impl AccountRepo for AccountRepoImpl {
                     .map_err(AccountRepoError::SerdeError)?)
             }
         }
+    }
+
+    fn get_api_url(db: &Db) -> Result<ApiUrl, AccountRepoError> {
+        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
+        tree.get(YOU)
+            .map_err(AccountRepoError::SledError)?
+            .ok_or(AccountRepoError::NoAccount)
+            .and_then(|data| {
+                serde_json::from_slice(data.as_ref()).map_err(AccountRepoError::SerdeError)
+            })
     }
 }
 
@@ -77,6 +89,7 @@ mod unit_tests {
     fn insert_account() {
         let test_account = Account {
             username: "parth".to_string(),
+            api_url: "ftp://uranus.net".to_string(),
             keys: RsaImpl::generate_key().expect("Key generation failure"),
         };
 
