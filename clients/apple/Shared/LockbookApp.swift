@@ -24,7 +24,7 @@ struct LockbookApp: App {
                 // TODO: Improve the UX of this
                 Alert(
                     title: Text("Core Error!"),
-                    message: core.globalError.map({ Text($0.rawValue) }),
+                    message: core.globalError.map({ Text($0.message) }),
                     dismissButton: .default(Text("Dismiss"))
                 )
             }
@@ -54,7 +54,7 @@ struct LockbookApp: App {
                 // TODO: Improve the UX of this
                 Alert(
                     title: Text("Core Error!"),
-                    message: core.globalError.map({ Text($0.rawValue) }),
+                    message: core.globalError.map({ Text($0.message) }),
                     dismissButton: .default(Text("Dismiss"))
                 )
             }

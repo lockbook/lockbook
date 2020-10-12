@@ -42,7 +42,7 @@ class SyncFileTests: SLCTest {
     
     func testIterativeSomeFiles() throws {
         let root = try core.api.getRoot().get()
-
+        
         let resultCalculateEmpty = core.api.calculateWork()
         
         assertSuccess(resultCalculateEmpty) { $0.workUnits.isEmpty }

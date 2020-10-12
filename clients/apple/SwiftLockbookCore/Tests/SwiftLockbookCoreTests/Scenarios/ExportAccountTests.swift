@@ -6,11 +6,11 @@ class ExportAccountTests: SLCTest {
         let username = randomUsername()
         
         let _ = try core.api.createAccount(username: username, apiLocation: systemApiLocation())
-
+        
         let resultCreate = core.api.getAccount()
         
         assertSuccess(resultCreate) { $0.username == username }
-
+        
         let resultExport = core.api.exportAccount()
         
         assertSuccess(resultExport)
@@ -19,7 +19,7 @@ class ExportAccountTests: SLCTest {
         
         let resultGetAccount = core.api.getAccount()
         
-        assertFailure(resultGetAccount) { $0 ==  .UiError(.NoAccount) }
+        assertFailure(resultGetAccount) { $0 ==  .init(.NoAccount) }
         
         
         let resultImport = try core.api.importAccount(accountString: resultExport.get())

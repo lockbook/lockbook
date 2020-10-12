@@ -31,45 +31,45 @@ class ErrorEnumTests: XCTestCase {
         let SetLastSyncedError: [SetLastSyncedError]
         let GetLastSyncedError: [GetLastSyncedError]
         let GetUsageError: [GetUsageError]
-
+        
         func noneEmpty() -> Bool {
             !InitLoggerError.isEmpty
-            && !GetStateError.isEmpty
-            && !MigrationError.isEmpty
-            && !CreateAccountError.isEmpty
-            && !ImportError.isEmpty
-            && !AccountExportError.isEmpty
-            && !GetAccountError.isEmpty
-            && !CreateFileAtPathError.isEmpty
-            && !WriteToDocumentError.isEmpty
-            && !CreateFileError.isEmpty
-            && !GetRootError.isEmpty
-            && !GetChildrenError.isEmpty
-            && !GetFileByIdError.isEmpty
-            && !GetFileByPathError.isEmpty
-            && !InsertFileError.isEmpty
-            && !DeleteFileError.isEmpty
-            && !ReadDocumentError.isEmpty
-            && !ListPathsError.isEmpty
-            && !ListMetadatasError.isEmpty
-            && !RenameFileError.isEmpty
-            && !MoveFileError.isEmpty
-            && !SyncAllError.isEmpty
-            && !CalculateWorkError.isEmpty
-            && !ExecuteWorkError.isEmpty
-            && !SetLastSyncedError.isEmpty
-            && !GetLastSyncedError.isEmpty
-            && !GetUsageError.isEmpty
+                && !GetStateError.isEmpty
+                && !MigrationError.isEmpty
+                && !CreateAccountError.isEmpty
+                && !ImportError.isEmpty
+                && !AccountExportError.isEmpty
+                && !GetAccountError.isEmpty
+                && !CreateFileAtPathError.isEmpty
+                && !WriteToDocumentError.isEmpty
+                && !CreateFileError.isEmpty
+                && !GetRootError.isEmpty
+                && !GetChildrenError.isEmpty
+                && !GetFileByIdError.isEmpty
+                && !GetFileByPathError.isEmpty
+                && !InsertFileError.isEmpty
+                && !DeleteFileError.isEmpty
+                && !ReadDocumentError.isEmpty
+                && !ListPathsError.isEmpty
+                && !ListMetadatasError.isEmpty
+                && !RenameFileError.isEmpty
+                && !MoveFileError.isEmpty
+                && !SyncAllError.isEmpty
+                && !CalculateWorkError.isEmpty
+                && !ExecuteWorkError.isEmpty
+                && !SetLastSyncedError.isEmpty
+                && !GetLastSyncedError.isEmpty
+                && !GetUsageError.isEmpty
         }
     }
-
+    
     func testAllVariants() throws {
         let result = get_variants()!
         let resultString = String(cString: result)
         release_pointer(UnsafeMutablePointer(mutating: result))
-
+        
         let allErrors: AllErrors = try deserialize(data: resultString.data(using: .utf8)!).get()
-
+        
         XCTAssert(allErrors.noneEmpty(), "Some error variants are empty!")
     }
 }

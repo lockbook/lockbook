@@ -33,7 +33,7 @@ struct CoreScenario {
 /// SLCTest stands for SwiftLockbookCoreTest, this provides useful boiler plate for testing the Swift liblockbook_core wrapper
 class SLCTest: XCTestCase {
     let core = CoreScenario()
-        
+    
     override func setUpWithError() throws {
         try super.setUpWithError()
         try core.setUp()
@@ -101,13 +101,13 @@ extension SLCTest {
             XCTAssertTrue(validation(error), "ApplicationError validation failed! \(error)")
         }
     }
-
+    
     /// A helper to format test log messages
     /// - Parameter message: The thing you want to print
     func formatLog(_ message: String) -> String {
         "ℹ️\t\(message)"
     }
-
+    
     func log(_ message: String) {
         print(formatLog(message))
     }
