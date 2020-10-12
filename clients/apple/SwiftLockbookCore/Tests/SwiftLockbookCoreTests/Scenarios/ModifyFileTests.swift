@@ -11,7 +11,7 @@ class ModifyFileTests: SLCTest {
         account = try core.api.getAccount().get()
         root = try core.api.getRoot().get()
     }
-
+    
     func testUpdateContent1KB() throws {
         let resultCreateFile = core.api.createFile(name: randomFilename(), dirId: root!.id, isFolder: false)
         assertSuccess(resultCreateFile)

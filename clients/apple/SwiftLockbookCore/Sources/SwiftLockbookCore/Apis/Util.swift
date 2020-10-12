@@ -36,7 +36,7 @@ func deserializeResult<T: Decodable, E: UiError>(jsonResultStr: String) -> FfiRe
     do {
         return try deserialize(data: jsonResultStr.data(using: .utf8)!).get()
     } catch {
-        return .failure(.Unexpected("\(error.localizedDescription) \(jsonResultStr)"))
+        return .failure(.init(unexpected: "\(error.localizedDescription) \(jsonResultStr)"))
     }
 }
 
