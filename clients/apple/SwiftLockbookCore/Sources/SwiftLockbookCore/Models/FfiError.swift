@@ -1,34 +1,54 @@
 import Foundation
 
-public enum FfiError<U: UiError>: Error {
-    case UiError(U)
-    case Unexpected(String)
+public class AnyFfiError: Error, Equatable {
+    public let message: String
+    
+    init(message: String) {
+        self.message = message
+    }
+    
+    public static func == (lhs: AnyFfiError, rhs: AnyFfiError) -> Bool {
+        lhs.message == rhs.message
+    }
 }
 
-extension FfiError: Decodable {
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: TagContentKeys.self)
-        let error = try container.decode(Keys.self, forKey: .tag)
-        switch error {
-        case .UiError:
-            self = .UiError(try container.decode(U.self, forKey: .content))
-        case .Unexpected:
-            self = .Unexpected(try container.decode(String.self, forKey: .content))
-        }
+public class FfiError<U: UiError>: AnyFfiError, Decodable {
+    let kind: Kind
+    
+    enum Kind {
+        case UiError(U)
+        case Unexpected(String)
     }
-
+    
     enum Keys: String, Decodable {
         case UiError
         case Unexpected
     }
+    
+    public init(unexpected: String) {
+        self.kind = .Unexpected(unexpected)
+        super.init(message: "\(kind)")
+    }
+    
+    public init(_ error: U) {
+        self.kind = .UiError(error)
+        super.init(message: "\(kind)")
+    }
+    
+    required public convenience init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: TagContentKeys.self)
+        let error = try container.decode(Keys.self, forKey: .tag)
+        switch error {
+        case .UiError:
+            self.init(try container.decode(U.self, forKey: .content))
+        case .Unexpected:
+            self.init(unexpected: try container.decode(String.self, forKey: .content))
+        }
+    }
 }
 
-extension FfiError: Equatable where U: Equatable {
-
-}
-
-public protocol UiError: Decodable {
-
+public protocol UiError: Decodable, Error {
+    
 }
 
 public enum InitLoggerError: String, UiError {

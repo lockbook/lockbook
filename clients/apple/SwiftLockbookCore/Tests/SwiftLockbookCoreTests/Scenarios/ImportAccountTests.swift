@@ -17,15 +17,15 @@ class ImportAccountTests: SLCTest {
         let importResult = core.api.importAccount(accountString: known!.accountString)
         
         assertSuccess(importResult)
-
+        
         let getResult = core.api.getAccount()
-
+        
         assertSuccess(getResult) { $0.username == known!.account.username }
     }
     
     func testBadAccountString() throws {
         let importResult = core.api.importAccount(accountString: "JUNK-ACCOUNT-STRING")
         
-        assertFailure(importResult) { $0 == .UiError(.AccountStringCorrupted) }
+        assertFailure(importResult) { $0 == .init(.AccountStringCorrupted) }
     }
 }
