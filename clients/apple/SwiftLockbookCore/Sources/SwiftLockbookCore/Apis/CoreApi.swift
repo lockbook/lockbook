@@ -83,4 +83,12 @@ public struct CoreApi: LockbookApi {
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
     }
+
+    public func getState() -> FfiResult<DbState, GetStateError> {
+        fromPrimitiveResult(result: get_db_state(documentsDirectory))
+    }
+
+    public func migrateState() -> FfiResult<Empty, MigrationError> {
+        fromPrimitiveResult(result: migrate_db(documentsDirectory))
+    }
 }
