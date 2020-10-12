@@ -7,10 +7,6 @@ public struct CoreApi: LockbookApi {
     public init(documentsDirectory: String) {
         self.documentsDirectory = documentsDirectory
         print("Located at \(documentsDirectory)")
-    }
-    
-    /// If this isn't called, the rust logger will not start!
-    public func initializeLogger() -> Void {
         init_logger_safely(documentsDirectory)
     }
     
