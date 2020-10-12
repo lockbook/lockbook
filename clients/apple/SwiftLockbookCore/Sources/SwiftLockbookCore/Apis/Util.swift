@@ -32,7 +32,7 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
     }
 }
 
-func deserializeResult<T: Decodable, E: Decodable>(jsonResultStr: String) -> CoreResult<T, E> {
+func deserializeResult<T: Decodable, E: UiError>(jsonResultStr: String) -> FfiResult<T, E> {
     do {
         return try deserialize(data: jsonResultStr.data(using: .utf8)!).get()
     } catch {
@@ -40,7 +40,7 @@ func deserializeResult<T: Decodable, E: Decodable>(jsonResultStr: String) -> Cor
     }
 }
 
-func fromPrimitiveResult<T: Decodable, E: Decodable>(result: UnsafePointer<Int8>) -> CoreResult<T, E> {
+func fromPrimitiveResult<T: Decodable, E: UiError>(result: UnsafePointer<Int8>) -> FfiResult<T, E> {
     let resultString = String(cString: result)
     release_pointer(UnsafeMutablePointer(mutating: result))
     

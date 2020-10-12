@@ -1,54 +1,49 @@
 import Foundation
 
-public enum CoreError<E: Decodable & Equatable>: Error, Equatable, Decodable {
-    public static func == (lhs: CoreError<E>, rhs: CoreError<E>) -> Bool {
-        switch (lhs, rhs) {
-        case (UIError(let lui), UIError(let rui)):
-            return lui == rui
-        case (Unexpected(let lui), Unexpected(let rui)):
-            return lui == rui
-        default:
-            return false
-        }
-    }
-
-    case UIError(E)
+public enum FfiError<U: UiError>: Error {
+    case UiError(U)
     case Unexpected(String)
+}
 
-    enum ErrorTypes: String, Decodable {
-        case UiError
-        case Unexpected
-    }
-
+extension FfiError: Decodable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: TagContentKeys.self)
-        let error = try container.decode(ErrorTypes.self, forKey: .tag)
+        let error = try container.decode(Keys.self, forKey: .tag)
         switch error {
         case .UiError:
-            self = .UIError(try container.decode(E.self, forKey: .content))
+            self = .UiError(try container.decode(U.self, forKey: .content))
         case .Unexpected:
             self = .Unexpected(try container.decode(String.self, forKey: .content))
         }
     }
-    
-    public static func lazy() -> Self {
-        Unexpected("Lazy!")
+
+    enum Keys: String, Decodable {
+        case UiError
+        case Unexpected
     }
 }
 
-public enum InitLoggerError: String, Decodable {
+extension FfiError: Equatable where U: Equatable {
+
+}
+
+public protocol UiError: Decodable {
+
+}
+
+public enum InitLoggerError: String, UiError {
     case Stub
 }
 
-public enum GetStateError: String, Decodable {
+public enum GetStateError: String, UiError {
     case Stub
 }
 
-public enum MigrationError: String, Decodable {
+public enum MigrationError: String, UiError {
     case StateRequiresCleaning
 }
 
-public enum CreateAccountError: String, Decodable {
+public enum CreateAccountError: String, UiError {
     case AccountExistsAlready
     case ClientUpdateRequired
     case CouldNotReachServer
@@ -56,7 +51,7 @@ public enum CreateAccountError: String, Decodable {
     case UsernameTaken
 }
 
-public enum ImportError: String, Decodable {
+public enum ImportError: String, UiError {
     case AccountDoesNotExist
     case AccountExistsAlready
     case AccountStringCorrupted
@@ -65,15 +60,15 @@ public enum ImportError: String, Decodable {
     case UsernamePKMismatch
 }
 
-public enum AccountExportError: String, Decodable {
+public enum AccountExportError: String, UiError {
     case NoAccount
 }
 
-public enum GetAccountError: String, Decodable {
+public enum GetAccountError: String, UiError {
     case NoAccount
 }
 
-public enum CreateFileAtPathError: String, Decodable {
+public enum CreateFileAtPathError: String, UiError {
     case DocumentTreatedAsFolder
     case FileAlreadyExists
     case NoAccount
@@ -82,13 +77,13 @@ public enum CreateFileAtPathError: String, Decodable {
     case PathDoesntStartWithRoot
 }
 
-public enum WriteToDocumentError: String, Decodable {
+public enum WriteToDocumentError: String, UiError {
     case FileDoesNotExist
     case FolderTreatedAsDocument
     case NoAccount
 }
 
-public enum CreateFileError: String, Decodable {
+public enum CreateFileError: String, UiError {
     case CouldNotFindAParent
     case DocumentTreatedAsFolder
     case FileNameContainsSlash
@@ -97,45 +92,45 @@ public enum CreateFileError: String, Decodable {
     case NoAccount
 }
 
-public enum GetRootError: String, Decodable {
+public enum GetRootError: String, UiError {
     case NoRoot
 }
 
-public enum GetChildrenError: String, Decodable {
+public enum GetChildrenError: String, UiError {
     case Stub
 }
 
-public enum GetFileByIdError: String, Decodable {
+public enum GetFileByIdError: String, UiError {
     case NoFileWithThatId
 }
 
-public enum GetFileByPathError: String, Decodable {
+public enum GetFileByPathError: String, UiError {
     case NoFileAtThatPath
 }
 
-public enum InsertFileError: String, Decodable {
+public enum InsertFileError: String, UiError {
     case Stub
 }
 
-public enum DeleteFileError: String, Decodable {
+public enum DeleteFileError: String, UiError {
     case NoFileWithThatId
 }
 
-public enum ReadDocumentError: String, Decodable {
+public enum ReadDocumentError: String, UiError {
     case FileDoesNotExist
     case NoAccount
     case TreatedFolderAsDocument
 }
 
-public enum ListPathsError: String, Decodable {
+public enum ListPathsError: String, UiError {
     case Stub
 }
 
-public enum ListMetadatasError: String, Decodable {
+public enum ListMetadatasError: String, UiError {
     case Stub
 }
 
-public enum RenameFileError: String, Decodable {
+public enum RenameFileError: String, UiError {
     case CannotRenameRoot
     case FileDoesNotExist
     case FileNameNotAvailable
@@ -143,7 +138,7 @@ public enum RenameFileError: String, Decodable {
     case NewNameEmpty
 }
 
-public enum MoveFileError: String, Decodable {
+public enum MoveFileError: String, UiError {
     case CannotMoveRoot
     case DocumentTreatedAsFolder
     case FileDoesNotExist
@@ -152,28 +147,28 @@ public enum MoveFileError: String, Decodable {
     case TargetParentHasChildNamedThat
 }
 
-public enum SyncAllError: String, Decodable {
+public enum SyncAllError: String, UiError {
     case NoAccount
     case CouldNotReachServer
     case ExecuteWorkError
 }
-public enum CalculateWorkError: String, Decodable {
+public enum CalculateWorkError: String, UiError {
     case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
 }
-public enum ExecuteWorkError: String, Decodable {
+public enum ExecuteWorkError: String, UiError {
     case CouldNotReachServer
     case ClientUpdateRequired
     case BadAccount
 }
-public enum SetLastSyncedError: String, Decodable {
+public enum SetLastSyncedError: String, UiError {
     case Stub
 }
-public enum GetLastSyncedError: String, Decodable {
+public enum GetLastSyncedError: String, UiError {
     case Stub
 }
-public enum GetUsageError: String, Decodable {
+public enum GetUsageError: String, UiError {
     case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
