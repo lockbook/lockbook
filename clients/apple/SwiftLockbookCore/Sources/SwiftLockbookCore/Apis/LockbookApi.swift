@@ -7,17 +7,17 @@ public protocol LockbookApi {
     func importAccount(accountString: String) -> FfiResult<Empty, ImportError>
     func exportAccount() -> FfiResult<String, AccountExportError>
     func getUsage() -> FfiResult<[FileUsage], GetUsageError>
-
+    
     // Work
     func synchronize() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
     func executeWork(work: WorkUnit) -> FfiResult<Empty, ExecuteWorkError>
     func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError>
-
+    
     // Directory
     func getRoot() -> FfiResult<FileMetadata, GetRootError>
     func listFiles() -> FfiResult<[FileMetadata], ListMetadatasError>
-
+    
     // Document
     func getFile(id: UUID) -> FfiResult<DecryptedValue, ReadDocumentError>
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError>

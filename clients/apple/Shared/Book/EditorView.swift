@@ -20,7 +20,7 @@ struct EditorView: View, Equatable {
     @ObservedObject var core: Core
     @ObservedObject var contentBuffer: ContentBuffer
     let meta: FileMetadata
-
+    
     var body: some View {
         return VStack(spacing: 0) {
             TitleTextField(text: $contentBuffer.title, doneEditing: {
@@ -29,11 +29,11 @@ struct EditorView: View, Equatable {
                     core.updateFiles()
                     contentBuffer.status = .Succeeded
                 case .failure(let err):
-                    core.displayError(error: err)
+                    core.handleError(err)
                     contentBuffer.status = .Failed
                 }
             })
-
+            
             let baseEditor = ContentEditor(text: $contentBuffer.content)
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
@@ -42,7 +42,7 @@ struct EditorView: View, Equatable {
                         contentBuffer.content = decrypted.secret
                         contentBuffer.succeeded = true
                     case .failure(let err):
-                        core.displayError(error: err)
+                        core.handleError(err)
                         contentBuffer.succeeded = false
                     }
                 }
@@ -51,7 +51,7 @@ struct EditorView: View, Equatable {
                     case .success(_):
                         contentBuffer.succeeded = true
                     case .failure(let err):
-                        core.displayError(error: err)
+                        core.handleError(err)
                         contentBuffer.succeeded = false
                     }
                 }
@@ -89,7 +89,7 @@ struct EditorView: View, Equatable {
     
     init(core: Core, meta: FileMetadata) {
         self.core = core
-//        self._meta = .init(initialValue: meta)
+        //        self._meta = .init(initialValue: meta)
         self.meta = meta
         self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
     }
@@ -129,7 +129,7 @@ class ContentBuffer: ObservableObject {
             .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
             .filter({ _ in self.succeeded })
             .flatMap { _ in
-                Future<Void, ApplicationError> { promise in
+                Future<Void, Error> { promise in
                     promise(self.save())
                 }
             }
@@ -143,7 +143,7 @@ class ContentBuffer: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func save() -> Result<Void, ApplicationError> {
+    func save() -> Result<Void, Error> {
         switch core.api.updateFile(id: meta.id, content: content) {
         case .success(_):
             return .success(())
