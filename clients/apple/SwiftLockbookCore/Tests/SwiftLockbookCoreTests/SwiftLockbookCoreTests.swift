@@ -85,7 +85,7 @@ extension SLCTest {
         case .success(let t):
             XCTAssertTrue(validation(t), "Result validation failed!")
         case .failure(let error):
-            XCTFail("Result was not a success! \(error.localizedDescription)")
+            XCTFail("Result was not a success! \(error)")
         }
     }
     

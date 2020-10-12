@@ -6,7 +6,8 @@ class SyncFileTests: SLCTest {
     
     override func setUpWithError() throws {
         try super.setUpWithError()
-        account = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let _ = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let account = try core.api.getAccount().get()
     }
     
     func testBruteNoFiles() throws {

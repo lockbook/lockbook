@@ -9,11 +9,11 @@ public struct FakeApi: LockbookApi {
         CoreResult.success(.fake(username: username))
     }
     
-    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account, CreateAccountError> {
+    public func createAccount(username: String, apiLocation: String) -> CoreResult<Empty, CreateAccountError> {
         CoreResult.failure(CoreError.lazy())
     }
     
-    public func importAccount(accountString: String) -> CoreResult<Account, ImportError> {
+    public func importAccount(accountString: String) -> CoreResult<Empty, ImportError> {
         CoreResult.failure(CoreError.lazy())
     }
     

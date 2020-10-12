@@ -35,8 +35,8 @@ public enum CoreResult<T: Decodable, E: Decodable & Equatable>: Decodable {
 public protocol LockbookApi {
     // Account
     func getAccount() -> CoreResult<Account, GetAccountError>
-    func createAccount(username: String, apiLocation: String) -> CoreResult<Account, CreateAccountError>
-    func importAccount(accountString: String) -> CoreResult<Account, ImportError>
+    func createAccount(username: String, apiLocation: String) -> CoreResult<Empty, CreateAccountError>
+    func importAccount(accountString: String) -> CoreResult<Empty, ImportError>
     func exportAccount() -> CoreResult<String, AccountExportError>
     func getUsage() -> CoreResult<[FileUsage], GetUsageError>
     
@@ -75,11 +75,11 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
-    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account, CreateAccountError> {
+    public func createAccount(username: String, apiLocation: String) -> CoreResult<Empty, CreateAccountError> {
         fromPrimitiveResult(result: create_account(documentsDirectory, username, apiLocation))
     }
     
-    public func importAccount(accountString: String) -> CoreResult<Account, ImportError> {
+    public func importAccount(accountString: String) -> CoreResult<Empty, ImportError> {
         fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     
