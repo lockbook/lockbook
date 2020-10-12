@@ -51,10 +51,6 @@ public protocol UiError: Decodable, Error {
     
 }
 
-public enum InitLoggerError: String, UiError {
-    case Stub
-}
-
 public enum GetStateError: String, UiError {
     case Stub
 }
