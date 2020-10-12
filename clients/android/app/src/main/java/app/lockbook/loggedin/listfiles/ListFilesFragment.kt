@@ -25,7 +25,6 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -207,7 +206,6 @@ class ListFilesFragment : Fragment() {
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
         if (listFilesViewModel.dialogStatus.isDialogOpen) {
-            Timber.e(listFilesViewModel.dialogStatus.alertDialogFileName)
             createFileNameDialog(listFilesViewModel.dialogStatus.alertDialogFileName)
         }
         if (listFilesViewModel.syncingStatus.isSyncing) {
