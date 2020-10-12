@@ -47,6 +47,12 @@ public class FfiError<U: UiError>: AnyFfiError, Decodable {
     }
 }
 
+extension FfiError: CustomStringConvertible {
+    public var description: String {
+        "\(String(describing: Self.self)): \(message)"
+    }
+}
+
 public protocol UiError: Decodable, Error {
     
 }
