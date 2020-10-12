@@ -17,7 +17,7 @@ import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
@@ -144,13 +144,13 @@ class ListFilesViewModel(path: String, application: Application) :
                 is CalculateWorkError.CouldNotReachServer -> {
                     Timber.e("Could not reach server despite being online.")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 is CalculateWorkError.UnexpectedError -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
             }
@@ -206,7 +206,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> {
                 }
                 else -> {
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
                 }
             }
@@ -238,7 +238,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                     else -> {
                         Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     }
                 }
             }
@@ -276,18 +276,18 @@ class ListFilesViewModel(path: String, application: Application) :
                         fileModel.renameRefreshFiles(id, newName)
                     } else {
                         Timber.e("new_name is null.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     }
                 }
                 DELETE_RESULT_CODE -> fileModel.deleteRefreshFiles(id)
                 else -> {
                     Timber.e("Result code not matched: $resultCode")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         } else {
             Timber.e("id is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            _errorHasOccurred.postValue(UNEXPECTED_ERROR)
         }
     }
 
@@ -358,7 +358,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     ).apply()
                     else -> {
                         Timber.e("Unrecognized sort item id.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     }
                 }
 
@@ -385,7 +385,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 else -> {
                     Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
             }
@@ -401,13 +401,13 @@ class ListFilesViewModel(path: String, application: Application) :
                     is CalculateWorkError.UnexpectedError -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
+                            UNEXPECTED_ERROR
                         )
                     }
                     else -> {
                         Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                         _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
+                            UNEXPECTED_ERROR
                         )
                     }
                 }
@@ -435,13 +435,13 @@ class ListFilesViewModel(path: String, application: Application) :
                         )
                     if (setLastSyncedResult is Err) {
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     } else {
                         _showPreSyncSnackBar.postValue(syncWork.work_units.size)
                     }
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                     _stopSyncSnackBar.postValue(Unit)
                 }
             }
@@ -474,14 +474,14 @@ class ListFilesViewModel(path: String, application: Application) :
                         is CalculateWorkError.UnexpectedError -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                                UNEXPECTED_ERROR
                             )
                             _stopSyncSnackBar.postValue(Unit)
                         }
                         else -> {
                             Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                                UNEXPECTED_ERROR
                             )
                             _stopSyncSnackBar.postValue(Unit)
                         }

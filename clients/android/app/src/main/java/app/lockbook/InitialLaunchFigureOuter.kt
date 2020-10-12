@@ -16,7 +16,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
@@ -88,7 +88,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         Timber.e("State enum not matched: ${getDBStateResult.value::class.simpleName}")
                         Toast.makeText(
                             applicationContext,
-                            UNEXPECTED_ERROR_OCCURRED,
+                            UNEXPECTED_ERROR,
                             Toast.LENGTH_LONG
                         )
                             .show()
@@ -98,12 +98,12 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.UnexpectedError -> {
                     Timber.e("Unable to get DB State: ${error.error}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                 }
                 else -> {
                     Timber.e("GetStateError not matched: ${error::class.simpleName}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                 }
             }
@@ -129,12 +129,12 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
                 is MigrationError.UnexpectedError -> {
                     Timber.e("Unable to migrate DB: ${error.error}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                 }
                 else -> {
                     Timber.e("MigrationError not matched: ${error::class.simpleName}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                 }
             }
@@ -167,7 +167,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(this, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                     finish()
                 }
@@ -187,7 +187,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                     Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         applicationContext,
-                                        UNEXPECTED_ERROR_OCCURRED,
+                                        UNEXPECTED_ERROR,
                                         Toast.LENGTH_SHORT
                                     )
                                         .show()
@@ -224,7 +224,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> launchListFilesActivity()
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                Toast.makeText(this, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                     .show()
             }
         }

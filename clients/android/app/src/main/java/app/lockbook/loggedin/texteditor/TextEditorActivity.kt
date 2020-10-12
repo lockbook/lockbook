@@ -12,8 +12,9 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -95,9 +96,9 @@ class TextEditorActivity : AppCompatActivity() {
         )
     }
 
-    private fun errorHasOccurred(errorText: String) {
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).show()
         finish()
-        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
     }
 
     private fun setUpView() {
@@ -173,7 +174,7 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+                Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG).show()
             }
         }
 

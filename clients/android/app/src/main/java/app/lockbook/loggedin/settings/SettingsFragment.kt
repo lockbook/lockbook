@@ -17,7 +17,7 @@ import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
@@ -108,7 +108,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Toast.makeText(
                         requireContext(),
-                        UNEXPECTED_ERROR_OCCURRED,
+                        UNEXPECTED_ERROR,
                         Toast.LENGTH_LONG
                     )
                         .show()
@@ -130,7 +130,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                     Timber.e("Biometric authentication error: $errString")
                                     Toast.makeText(
                                         requireContext(),
-                                        UNEXPECTED_ERROR_OCCURRED,
+                                        UNEXPECTED_ERROR,
                                         Toast.LENGTH_SHORT
                                     )
                                         .show()
@@ -167,7 +167,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_NONE -> matchKey(key, newValue)
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                     .show()
             }
         }
@@ -180,7 +180,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValue)
             else -> {
                 Timber.e("Shared preference key not matched: $key")
-                Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                     .show()
             }
         }
@@ -220,13 +220,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         Timber.e("Unable to export account: ${error.error}")
                         Toast.makeText(
                             context,
-                            UNEXPECTED_ERROR_OCCURRED,
+                            UNEXPECTED_ERROR,
                             Toast.LENGTH_LONG
                         ).show()
                     }
                     else -> {
                         Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                        Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                        Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                             .show()
                     }
                 }
@@ -254,13 +254,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Timber.e("Unable to export account: ${error.error}")
                     Toast.makeText(
                         context,
-                        UNEXPECTED_ERROR_OCCURRED,
+                        UNEXPECTED_ERROR,
                         Toast.LENGTH_LONG
                     ).show()
                 }
                 else -> {
                     Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                    Toast.makeText(context, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                    Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
                         .show()
                 }
             }
