@@ -108,46 +108,6 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
-macro_rules! impl_get_variants {
-    ( $( $name:ty,)* ) => {
-        fn get_all_error_variants() -> Value {
-            json!({
-                $(stringify!($name): <$name>::iter().collect::<Vec<_>>(),)*
-            })
-        }
-    };
-}
-
-impl_get_variants!(
-    InitLoggerError,
-    GetStateError,
-    MigrationError,
-    CreateAccountError,
-    ImportError,
-    AccountExportError,
-    GetAccountError,
-    CreateFileAtPathError,
-    WriteToDocumentError,
-    CreateFileError,
-    GetRootError,
-    GetChildrenError,
-    GetFileByIdError,
-    GetFileByPathError,
-    InsertFileError,
-    DeleteFileError,
-    ReadDocumentError,
-    ListPathsError,
-    ListMetadatasError,
-    RenameFileError,
-    MoveFileError,
-    SyncAllError,
-    CalculateWorkError,
-    ExecuteWorkError,
-    SetLastSyncedError,
-    GetLastSyncedError,
-    GetUsageError,
-);
-
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
 pub enum Error<U: Serialize> {
@@ -1223,3 +1183,48 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
             _ => Error::Unexpected(format!("{:#?}", err)),
         })
 }
+
+// This basically generates a function called `get_all_error_variants`,
+// which will produce a big json dict of { "Error": ["Values"] }.
+// Clients can consume this and attempt deserializing each array of errors to see
+// if they are handling all cases
+macro_rules! impl_get_variants {
+    ( $( $name:ty,)* ) => {
+        fn get_all_error_variants() -> Value {
+            json!({
+                $(stringify!($name): <$name>::iter().collect::<Vec<_>>(),)*
+            })
+        }
+    };
+}
+
+// All new errors must be placed in here!
+impl_get_variants!(
+    InitLoggerError,
+    GetStateError,
+    MigrationError,
+    CreateAccountError,
+    ImportError,
+    AccountExportError,
+    GetAccountError,
+    CreateFileAtPathError,
+    WriteToDocumentError,
+    CreateFileError,
+    GetRootError,
+    GetChildrenError,
+    GetFileByIdError,
+    GetFileByPathError,
+    InsertFileError,
+    DeleteFileError,
+    ReadDocumentError,
+    ListPathsError,
+    ListMetadatasError,
+    RenameFileError,
+    MoveFileError,
+    SyncAllError,
+    CalculateWorkError,
+    ExecuteWorkError,
+    SetLastSyncedError,
+    GetLastSyncedError,
+    GetUsageError,
+);
