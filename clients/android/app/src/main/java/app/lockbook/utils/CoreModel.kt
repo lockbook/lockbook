@@ -7,6 +7,9 @@ import com.github.michaelbull.result.Result
 import timber.log.Timber
 
 object CoreModel {
+
+    const val API_URL = "http://lockbook_server:8000"
+
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
             Klaxon().converter(initLoggerConverter)
@@ -22,7 +25,7 @@ object CoreModel {
     fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
         val createAccountResult: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
-                .parse(createAccount(Klaxon().toJsonString(config), account))
+                .parse(createAccount(Klaxon().toJsonString(config), account, API_URL))
 
         if (createAccountResult != null) {
             return createAccountResult

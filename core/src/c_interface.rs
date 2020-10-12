@@ -10,7 +10,7 @@ use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
-use crate::{ExecuteWorkError, API_URL};
+use crate::ExecuteWorkError;
 use serde::Serialize;
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -49,13 +49,6 @@ unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_api_loc() -> *const c_char {
-    CString::new(API_URL.to_string())
-        .expect("Could not API_LOC String -> C String")
-        .into_raw()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     if s.is_null() {
         return;
@@ -74,10 +67,12 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 pub unsafe extern "C" fn create_account(
     writeable_path: *const c_char,
     username: *const c_char,
+    api_url: *const c_char,
 ) -> *const c_char {
     json_c_string(crate::create_account(
         &config_from_ptr(writeable_path),
         &str_from_ptr(username),
+        &str_from_ptr(api_url),
     ))
 }
 

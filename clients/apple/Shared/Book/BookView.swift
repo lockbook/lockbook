@@ -8,10 +8,10 @@ struct BookView: View {
     var body: some View {
         NavigationView {
             #if os(iOS)
-            FileListView(core: core, account: account, selectedFolder: core.grouped.first!)
+            FileListView(core: core, account: account, selectedFolder: core.grouped.first)
                 .navigationBarTitleDisplayMode(.inline)
             #else
-            FileListView(core: core, account: account, selectedFolder: core.grouped.first!)
+            FileListView(core: core, account: account, selectedFolder: core.grouped.first)
             #endif
             Text("Pick a file!")
         }
@@ -139,9 +139,9 @@ struct FileListView: View {
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            BookView(core: Core(), account: Account(username: "test"))
+            BookView(core: Core(), account: .fake(username: "test"))
                 .ignoresSafeArea()
-            BookView(core: Core(), account: Account(username: "test"))
+            BookView(core: Core(), account: .fake(username: "test"))
                 .ignoresSafeArea()
                 .preferredColorScheme(.dark)
         }
