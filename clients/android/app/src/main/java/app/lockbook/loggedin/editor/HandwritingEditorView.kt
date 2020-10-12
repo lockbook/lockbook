@@ -9,7 +9,6 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
-import androidx.annotation.RequiresApi
 import app.lockbook.R
 import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
@@ -24,22 +23,23 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val activePath = Path()
     private val viewPort = Rect()
     private val bitmapPaint = Paint()
+    var thread = Thread(this)
     var isThreadRunning = false
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    var lockBookDrawable: Drawing = Drawing()
+    var lockbookDrawable: Drawing = Drawing()
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    lockBookDrawable.page.transformation.scale *= detector.scaleFactor
-                    lockBookDrawable.page.transformation.scale = 0.7f.coerceAtLeast(
-                        lockBookDrawable.page.transformation.scale.coerceAtMost(2.0f)
+                    lockbookDrawable.page.transformation.scale *= detector.scaleFactor
+                    lockbookDrawable.page.transformation.scale = 0.7f.coerceAtLeast(
+                        lockbookDrawable.page.transformation.scale.coerceAtMost(2.0f)
                     )
 
-                    lockBookDrawable.page.transformation.scaleFocus.x = detector.focusX
-                    lockBookDrawable.page.transformation.scaleFocus.y = detector.focusY
+                    lockbookDrawable.page.transformation.scaleFocus.x = detector.focusX
+                    lockbookDrawable.page.transformation.scaleFocus.y = detector.focusY
 
                     return true
                 }
@@ -55,8 +55,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockBookDrawable.page.transformation.translation.x += -distanceX * lockBookDrawable.page.transformation.scale
-                lockBookDrawable.page.transformation.translation.y += -distanceY * lockBookDrawable.page.transformation.scale
+                lockbookDrawable.page.transformation.translation.x += -distanceX * lockbookDrawable.page.transformation.scale
+                lockbookDrawable.page.transformation.translation.y += -distanceY * lockbookDrawable.page.transformation.scale
 
                 return true
             }
@@ -77,14 +77,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun drawBitmap(canvas: Canvas) {
         canvas.save()
         canvas.translate(
-            lockBookDrawable.page.transformation.translation.x,
-            lockBookDrawable.page.transformation.translation.y
+            lockbookDrawable.page.transformation.translation.x,
+            lockbookDrawable.page.transformation.translation.y
         )
         canvas.scale(
-            lockBookDrawable.page.transformation.scale,
-            lockBookDrawable.page.transformation.scale,
-            lockBookDrawable.page.transformation.scaleFocus.x,
-            lockBookDrawable.page.transformation.scaleFocus.y
+            lockbookDrawable.page.transformation.scale,
+            lockbookDrawable.page.transformation.scale,
+            lockbookDrawable.page.transformation.scaleFocus.x,
+            lockbookDrawable.page.transformation.scaleFocus.y
         )
         viewPort.set(canvas.clipBounds)
         canvas.drawColor(
@@ -149,7 +149,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 pressure * 7
             )
         ) // TODO: This should become a setting, maybe called sensitivity
-        lockBookDrawable.events.add(Event(penPath))
+        lockbookDrawable.events.add(Event(penPath))
     }
 
     private fun lineTo(x: Float, y: Float, pressure: Float) {
@@ -168,8 +168,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         activePath.reset()
         lastPoint.set(x, y)
-        for (eventIndex in lockBookDrawable.events.size - 1 downTo 1) {
-            val currentEvent = lockBookDrawable.events[eventIndex].stroke
+        for (eventIndex in lockbookDrawable.events.size - 1 downTo 1) {
+            val currentEvent = lockbookDrawable.events[eventIndex].stroke
             if (currentEvent is Stroke) {
                 currentEvent.points.add(PressurePoint(x, y, pressure * 7))
                 break
@@ -202,7 +202,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         currentPaint.strokeJoin = Paint.Join.ROUND
         currentPaint.strokeCap = Paint.Cap.ROUND
 
-        for (event in lockBookDrawable.events) {
+        for (event in lockbookDrawable.events) {
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
@@ -230,16 +230,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     fun setUpDrawing(lockbookDrawable: Drawing?) {
         setUpBitmapDrawable()
         if(lockbookDrawable != null) {
+            this.lockbookDrawable = lockbookDrawable
             drawLockbookDrawable()
         }
         isThreadRunning = true
+        thread.start()
     }
 
-    override fun run() {
+    fun endThread() {
+        isThreadRunning = false
+    }
+
+    fun restartThread() {
+        isThreadRunning = true
+        thread = Thread(this)
+        thread.start()
+    }
+
+        override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
             try {
-                canvas = if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+                canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
                     holder.lockHardwareCanvas()
                 } else {
                     holder.lockCanvas()
@@ -249,5 +261,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
+
+        thread.interrupt()
     }
 }
