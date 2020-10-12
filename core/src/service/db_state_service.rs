@@ -8,8 +8,9 @@ use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
 use crate::CORE_CODE_VERSION;
+use serde::Serialize;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub enum State {
     ReadyToUse,
     Empty,
