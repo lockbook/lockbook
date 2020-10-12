@@ -14,20 +14,19 @@ import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
-import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
+    var lockbookDrawable: Drawing = Drawing()
+    private lateinit var canvasBitmap: Bitmap
+    private lateinit var tempCanvas: Canvas
+    private var thread = Thread(this)
+    private var isThreadRunning = false
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
     private val viewPort = Rect()
     private val bitmapPaint = Paint()
-    var thread = Thread(this)
-    var isThreadRunning = false
-    private lateinit var canvasBitmap: Bitmap
-    private lateinit var tempCanvas: Canvas
-    var lockbookDrawable: Drawing = Drawing()
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
@@ -95,22 +94,68 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         canvas.restore()
     }
 
-    fun setColor(color: String) {
-        when (color) {
-            resources.getString(R.string.handwriting_editor_pallete_white) -> activePaint.color =
-                Color.WHITE
-            resources.getString(R.string.handwriting_editor_pallete_blue) -> activePaint.color =
-                Color.BLUE
-            resources.getString(R.string.handwriting_editor_pallete_red) -> activePaint.color =
-                Color.RED
-            resources.getString(R.string.handwriting_editor_pallete_yellow) -> activePaint.color =
-                Color.YELLOW
+    fun setUpBitmapDrawable() {
+        val canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+            holder.lockHardwareCanvas()
+        } else {
+            holder.lockCanvas()
         }
+        canvasBitmap =
+            Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
+        tempCanvas = Canvas(canvasBitmap)
+        val currentPaint = Paint()
+        currentPaint.color = Color.WHITE
+        currentPaint.strokeWidth = 10f
+        currentPaint.style = Paint.Style.STROKE
+        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
+        viewPort.set(canvas.clipBounds)
+        holder.unlockCanvasAndPost(canvas)
+    }
+
+    fun drawLockbookDrawable() {
+        val currentPaint = Paint()
+        currentPaint.isAntiAlias = true
+        currentPaint.style = Paint.Style.STROKE
+        currentPaint.strokeJoin = Paint.Join.ROUND
+        currentPaint.strokeCap = Paint.Cap.ROUND
+
+        for (event in lockbookDrawable.events) {
+            if (event.stroke is Stroke) {
+                currentPaint.color = event.stroke.color
+
+                for (pointIndex in 0 until event.stroke.points.size) {
+                    currentPaint.strokeWidth = event.stroke.points[pointIndex].pressure
+                    if (pointIndex != 0) {
+                        activePath.moveTo(
+                            event.stroke.points[pointIndex - 1].x,
+                            event.stroke.points[pointIndex - 1].y
+                        )
+                        activePath.lineTo(
+                            event.stroke.points[pointIndex].x,
+                            event.stroke.points[pointIndex].y
+                        )
+                        tempCanvas.drawPath(activePath, currentPaint)
+                        activePath.reset()
+                    }
+                }
+
+                activePath.reset()
+            }
+        }
+    }
+
+    fun setUpDrawing(lockbookDrawable: Drawing?) {
+        setUpBitmapDrawable()
+        if (lockbookDrawable != null) {
+            this.lockbookDrawable = lockbookDrawable
+            drawLockbookDrawable()
+        }
+        isThreadRunning = true
+        thread.start()
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        val beginTime = System.nanoTime()
         if (event != null) {
             for (point in 0 until event.pointerCount) {
                 if (event.getToolType(point) == MotionEvent.TOOL_TYPE_STYLUS ||
@@ -177,64 +222,21 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    fun setUpBitmapDrawable() {
-        val canvas = if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-            holder.lockHardwareCanvas()
-        } else {
-            holder.lockCanvas()
+    fun setColor(color: String) {
+        when (color) {
+            resources.getString(R.string.handwriting_editor_pallete_white) ->
+                activePaint.color =
+                    Color.WHITE
+            resources.getString(R.string.handwriting_editor_pallete_blue) ->
+                activePaint.color =
+                    Color.BLUE
+            resources.getString(R.string.handwriting_editor_pallete_red) ->
+                activePaint.color =
+                    Color.RED
+            resources.getString(R.string.handwriting_editor_pallete_yellow) ->
+                activePaint.color =
+                    Color.YELLOW
         }
-        canvasBitmap =
-            Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
-        tempCanvas = Canvas(canvasBitmap)
-        val currentPaint = Paint()
-        currentPaint.color = Color.WHITE
-        currentPaint.strokeWidth = 10f
-        currentPaint.style = Paint.Style.STROKE
-        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
-        viewPort.set(canvas.clipBounds)
-        holder.unlockCanvasAndPost(canvas) // The rectangle is not drawn at this moment right?
-    }
-
-    fun drawLockbookDrawable() {
-        val currentPaint = Paint()
-        currentPaint.isAntiAlias = true
-        currentPaint.style = Paint.Style.STROKE
-        currentPaint.strokeJoin = Paint.Join.ROUND
-        currentPaint.strokeCap = Paint.Cap.ROUND
-
-        for (event in lockbookDrawable.events) {
-            if (event.stroke is Stroke) {
-                currentPaint.color = event.stroke.color
-
-                for (pointIndex in 0 until event.stroke.points.size) {
-                    currentPaint.strokeWidth = event.stroke.points[pointIndex].pressure
-                    if (pointIndex != 0) {
-                        activePath.moveTo(
-                            event.stroke.points[pointIndex - 1].x,
-                            event.stroke.points[pointIndex - 1].y
-                        )
-                        activePath.lineTo(
-                            event.stroke.points[pointIndex].x,
-                            event.stroke.points[pointIndex].y
-                        )
-                        tempCanvas.drawPath(activePath, currentPaint)
-                        activePath.reset()
-                    }
-                }
-
-                activePath.reset()
-            }
-        }
-    }
-
-    fun setUpDrawing(lockbookDrawable: Drawing?) {
-        setUpBitmapDrawable()
-        if(lockbookDrawable != null) {
-            this.lockbookDrawable = lockbookDrawable
-            drawLockbookDrawable()
-        }
-        isThreadRunning = true
-        thread.start()
     }
 
     fun endThread() {
@@ -247,7 +249,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         thread.start()
     }
 
-        override fun run() {
+    override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
             try {
