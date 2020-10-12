@@ -10,7 +10,6 @@ struct CoreScenario {
     init() {
         dir = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftLockbookCoreTests", isDirectory: false)
         api = CoreApi(documentsDirectory: dir.path)
-        api.initializeLogger()
     }
     
     /// Creates a working directory for your testing, deletes if one already exists

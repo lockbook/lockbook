@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftLockbookCore
 
 struct AppView: View {
     @ObservedObject var core: Core
@@ -34,15 +35,34 @@ struct AppView: View {
         }
         .alert(isPresented: Binding(get: { core.globalError != nil }, set: { _ in core.globalError = nil })) {
             // TODO: Improve the UX of this
-            Alert(
-                title: Text("Core Error!"),
-                message: core.globalError.map({ Text($0.message) }),
-                dismissButton: .default(Text("Dismiss"))
-            )
+            switch core.globalError {
+            case let update as FfiError<CreateAccountError> where update == .init(.ClientUpdateRequired):
+                return updateAlert
+            case let update as FfiError<ImportError> where update == .init(.ClientUpdateRequired):
+                return updateAlert
+            case let update as FfiError<CalculateWorkError> where update == .init(.ClientUpdateRequired):
+                return updateAlert
+            case let update as FfiError<ExecuteWorkError> where update == .init(.ClientUpdateRequired):
+                return updateAlert
+            case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
+                return updateAlert
+            default:
+                return Alert(
+                    title: Text("Core Error!"),
+                    message: core.globalError.map({ Text($0.message) }),
+                    dismissButton: .default(Text("Dismiss"))
+                )
+            }
         }
 
         return view
     }
+
+    let updateAlert: Alert = Alert(
+        title: Text("Update Required!"),
+        message: Text("It seems like you're using an out-date client. Please update to perform sync operations."),
+        dismissButton: .default(Text("Dismiss"))
+    )
 }
 
 struct AppView_Previews: PreviewProvider {
