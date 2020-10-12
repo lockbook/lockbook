@@ -760,6 +760,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
     NoAccount,
+    ClientUpdateRequired,
     CouldNotReachServer,
     ExecuteWorkError, // TODO: @parth ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
 }
@@ -791,6 +792,9 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                 SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
                     ApiError::SendFailed(_) => {
                         Err(Error::UiError(SyncAllError::CouldNotReachServer))
+                    }
+                    ApiError::Api(GetUpdatesError::ClientUpdateRequired) => {
+                        Err(Error::UiError(SyncAllError::ClientUpdateRequired))
                     }
                     ApiError::Serialize(_)
                     | ApiError::ReceiveFailed(_)
