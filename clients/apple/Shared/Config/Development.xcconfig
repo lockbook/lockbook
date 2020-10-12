@@ -1,0 +1,2 @@
+// Local development
+API_LOCATION = http:/$()/localhost:8000

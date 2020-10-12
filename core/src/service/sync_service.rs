@@ -152,6 +152,7 @@ impl<
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::get_updates(
+            &account.api_url,
             &account.username,
             &SignedValue {
                 content: String::default(),
@@ -239,9 +240,12 @@ impl<
                     FileMetadataDb::insert(&db, &metadata)
                         .map_err(WorkExecutionError::MetadataRepoError)?;
                     if metadata.file_type == Document {
-                        let document =
-                            ApiClient::get_document(metadata.id, metadata.content_version)
-                                .map_err(DocumentGetError)?;
+                        let document = ApiClient::get_document(
+                            &account.api_url,
+                            metadata.id,
+                            metadata.content_version,
+                        )
+                        .map_err(DocumentGetError)?;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
                     }
@@ -273,9 +277,12 @@ impl<
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
-                                let document =
-                                    ApiClient::get_document(metadata.id, metadata.content_version)
-                                        .map_err(DocumentGetError)?;
+                                let document = ApiClient::get_document(
+                                    &account.api_url,
+                                    metadata.id,
+                                    metadata.content_version,
+                                )
+                                .map_err(DocumentGetError)?;
 
                                 DocsDb::insert(&db, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
@@ -345,6 +352,7 @@ impl<
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
+                                                &account.api_url,
                                                 metadata.id,
                                                 metadata.content_version,
                                             )
@@ -409,6 +417,7 @@ impl<
 
                                         // Overwrite local file with server copy
                                         let new_content = ApiClient::get_document(
+                                            &account.api_url,
                                             metadata.id,
                                             metadata.content_version,
                                         )
@@ -483,6 +492,7 @@ impl<
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::create_document(
+                            &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -501,6 +511,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::create_folder(
+                            &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -521,6 +532,7 @@ impl<
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::rename_document(
+                                &account.api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -528,6 +540,7 @@ impl<
                                 .map_err(DocumentRenameError)?
                         } else {
                             ApiClient::rename_folder(
+                                &account.api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -543,6 +556,7 @@ impl<
                     if local_change.moved.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::move_document(
+                                &account.api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -551,6 +565,7 @@ impl<
                             ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
+                                &account.api_url,
                                 &account.username,
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
@@ -567,6 +582,7 @@ impl<
 
                     if local_change.content_edited.is_some() && metadata.file_type == Document {
                         let version = ApiClient::change_document_content(
+                            &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -583,6 +599,7 @@ impl<
                 } else { // not new and deleted
                     if metadata.file_type == Document {
                         ApiClient::delete_document(
+                            &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
@@ -596,6 +613,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         ApiClient::delete_folder(
+                            &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,

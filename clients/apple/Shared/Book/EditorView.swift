@@ -29,7 +29,7 @@ struct EditorView: View, Equatable {
                     core.updateFiles()
                     contentBuffer.status = .Succeeded
                 case .failure(let err):
-                    print("Renaming failed, error: \(err.message())")
+                    core.displayError(error: err)
                     contentBuffer.status = .Failed
                 }
             })

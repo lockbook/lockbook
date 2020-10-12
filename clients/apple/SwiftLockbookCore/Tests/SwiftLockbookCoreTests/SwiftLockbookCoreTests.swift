@@ -1,241 +1,114 @@
 import XCTest
 @testable import SwiftLockbookCore
 
-final class SwiftLockbookCoreTests: XCTestCase {
-    static let fileMan = FileManager.init()
-    static let tempDir = NSTemporaryDirectory().appending(UUID.init().uuidString)
+
+/// A suite to help manage the Swift liblockbook_core wrapper
+struct CoreScenario {
+    let dir: URL
+    let api: CoreApi
     
-    /// The following can be used to interface Swift code with a local lockbook instance! Useful for testing
-    // CoreApi(documentsDirectory: "~/.lockbook")
-    static let core = CoreApi(documentsDirectory: SwiftLockbookCoreTests.tempDir)
-    
-    override class func setUp() {
-        super.setUp()
-        
-        print("LOCKBOOK DIR", SwiftLockbookCoreTests.core.documentsDirectory)
-        print("API LOCATION", SwiftLockbookCoreTests.core.getApiLocation())
+    init() {
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftLockbookCoreTests", isDirectory: false)
+        api = CoreApi(documentsDirectory: dir.path)
+        api.initializeLogger()
     }
     
-    override func setUp() {
-        super.setUp()
-        
-        continueAfterFailure = false
-        
-        let apiLocation = SwiftLockbookCoreTests.core.getApiLocation()
-        if (apiLocation.contains("://api.")) {
-            XCTFail("API Location looks like prod: \"\(apiLocation)\". Stopping tests...")
+    /// Creates a working directory for your testing, deletes if one already exists
+    /// - Throws: A file-system error when it cannot perform an operation
+    func setUp() throws {
+        if (FileManager.default.fileExists(atPath: dir.path)) {
+            try cleanUp()
         }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: .none)
+        
     }
     
-    func test01CreateExportImportAccount() {
-        let username = "swift"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")
-        let result = SwiftLockbookCoreTests.core.createAccount(username: username)
+    /// Deletes the testing directory
+    /// - Throws: A file-system error if it can't delete
+    func cleanUp() throws {
+        try FileManager.default.removeItem(atPath: dir.path)
+    }
+}
+
+/// SLCTest stands for SwiftLockbookCoreTest, this provides useful boiler plate for testing the Swift liblockbook_core wrapper
+class SLCTest: XCTestCase {
+    let core = CoreScenario()
         
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try core.setUp()
+    }
+    
+    override func tearDownWithError() throws {
+        try super.tearDownWithError()
+        try core.cleanUp()
+    }
+}
+
+/// An error relating to a SwiftLockbookCore test
+enum SLCTestError: Error {
+    case noApiLocation(String)
+}
+
+extension SLCTest {
+    /// Retrieve the API location defined by an environment variable
+    /// - Returns: The API if it is defined
+    func systemApiLocation() throws -> String {
+        let envVar = "API_URL"
+        
+        guard let location = ProcessInfo.processInfo.environment[envVar] else {
+            throw SLCTestError.noApiLocation("You must define \(envVar)")
+        }
+        return location
+    }
+    
+    /// Generates a random username
+    /// - Returns: A random username
+    func randomUsername() -> String {
+        let validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return "SwiftIntegrationTest" + String((0..<10).compactMap { _ in validChars.randomElement() })
+    }
+    
+    /// Generates a random filename
+    /// - Returns: A random filename
+    func randomFilename() -> String {
+        let validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return String((0..<10).compactMap { _ in validChars.randomElement() })
+    }
+    
+    /// Helper to verify that a result was successful and meets some criteria
+    /// - Parameters:
+    ///   - result: The result you want to verify
+    ///   - validation: Some truth about the Result.success
+    func assertSuccess<T>(_ result: CoreResult<T>, validation: (T) -> Bool = { _ in true }) {
         switch result {
-        case .success(let acc):
-            XCTAssertEqual(acc.username, username)
-        case .failure(let err):
-            XCTFail(err.message())
-        }
-        
-        let exportResult = SwiftLockbookCoreTests.core.exportAccount()
-        
-        guard case .success(let accountString) = exportResult else {
-            guard case .failure(let err) = exportResult else {
-                return XCTFail()
-            }
-            return XCTFail(err.message())
-        }
-        
-        try? SwiftLockbookCoreTests.fileMan.removeItem(atPath: SwiftLockbookCoreTests.tempDir)
-        
-        guard case .failure(_) = SwiftLockbookCoreTests.core.getAccount() else {
-            return XCTFail("Account was found!")
-        }
-        
-        let importResult = SwiftLockbookCoreTests.core.importAccount(accountString: accountString)
-        
-        switch importResult {
-        case .success(let acc):
-            XCTAssertEqual(acc.username, username)
-        case .failure(let err):
-            XCTFail(err.message())
-        }
-        
-        let workResult = SwiftLockbookCoreTests.core.calculateWork()
-        
-        switch workResult {
-        case .success(let work):
-            XCTAssertEqual(work.workUnits.count, 1)
-            
-            let syncRes = SwiftLockbookCoreTests.core.synchronize()
-            if case .failure(let err) = syncRes {
-                return XCTFail(err.message())
-            }
-            
-            switch  SwiftLockbookCoreTests.core.calculateWork() {
-            case .success(let workMeta):
-                XCTAssertEqual(workMeta.workUnits.count, 0)
-            case .failure(let err):
-                XCTFail(err.message())
-            }
-        case .failure(let err):
-            XCTFail(err.message())
+        case .success(let t):
+            XCTAssertTrue(validation(t), "Result validation failed!")
+        case .failure(let error):
+            XCTFail("Result was not a success! \(error.message())")
         }
     }
     
-    func test02CreateFile() {
-        let filename = "swiftfile"+UUID.init().uuidString.replacingOccurrences(of: "-", with: "")+".md"
-        
-        do {
-            let root = try SwiftLockbookCoreTests.core.getRoot().get()
-            
-            let result = SwiftLockbookCoreTests.core.createFile(name: filename, dirId: root.id, isFolder: false)
-            
-            switch result {
-            case .success(let file):
-                XCTAssertEqual(file.name, filename)
-            case .failure(let err):
-                XCTFail(err.message())
-            }
-        } catch let err as ApplicationError {
-           XCTFail(err.message())
-       } catch {
-           XCTFail(error.localizedDescription)
-       }
-    }
-    
-    func test03Sync() {
-        let result = SwiftLockbookCoreTests.core.synchronize()
-        
+    /// Helper to verify that a result was a failure and the error meets some criteria
+    /// - Parameters:
+    ///   - result: The result you want to verify
+    ///   - validation: Some truth about the Result.failure(ApplicationError)
+    func assertFailure<T>(_ result: CoreResult<T>, validation: (ApplicationError) -> Bool = { _ in true }) {
         switch result {
-        case .success(_):
-            return
-        case .failure(let err):
-            return XCTFail(err.message())
-        }
-    }
-    
-    func test04ListFiles() {
-        do {
-            let _ = try SwiftLockbookCoreTests.core.getRoot().get()
-            let result = SwiftLockbookCoreTests.core.listFiles()
-            
-            switch result {
-            case .success(let files):
-                XCTAssertEqual(files.count, 2)
-            case .failure(let err):
-                XCTFail(err.message())
-            }
-        } catch let err as ApplicationError {
-            XCTFail(err.message())
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
-    }
-    
-    func test05CreateFile() {
-        do {
-            let root = try SwiftLockbookCoreTests.core.getRoot().get()
-            
-            let result = SwiftLockbookCoreTests.core.createFile(name: "test.md", dirId: root.id, isFolder: false)
-            
-            switch result {
-            case .success(let meta):
-                XCTAssertEqual(meta.name, "test.md")
-            case .failure(let err):
-                XCTFail(err.message())
-            }
-        } catch let err as ApplicationError {
-           XCTFail(err.message())
-       } catch {
-           XCTFail(error.localizedDescription)
-       }
-    }
-    
-    func test06CalculateWork() {
-        let result = SwiftLockbookCoreTests.core.calculateWork()
-        
-        switch result {
-        case .success(let workMeta):
-            XCTAssertEqual(workMeta.workUnits.count, 1)
-        case .failure(let err):
-            XCTFail(err.message())
-        }
-    }
-    
-    func test07UpdateFile() {
-         do {
-             let root = try SwiftLockbookCoreTests.core.getRoot().get()
-
-              let file = try SwiftLockbookCoreTests.core.createFile(name: "test_update.md", dirId: root.id, isFolder: false).get()
-
-              let update = SwiftLockbookCoreTests.core.updateFile(id: file.id, content: "Some new shit!")
-
-              if case .failure(let err) = update {
-                 XCTFail("Could not update file! \(err)")
-             }
-
-          } catch let err as ApplicationError {
-            XCTFail(err.message())
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
-     }
-    
-    func test08GetUsage() {
-        do {
-            let root = try SwiftLockbookCoreTests.core.getRoot().get()
-
-            let file = try SwiftLockbookCoreTests.core.createFile(name: "test_usage.md", dirId: root.id, isFolder: false).get()
-
-            let _ = try SwiftLockbookCoreTests.core.updateFile(id: file.id, content: "Some new shit!").get()
-
-            let _ = try SwiftLockbookCoreTests.core.synchronize().get()
-            
-            switch SwiftLockbookCoreTests.core.getUsage() {
-            case .success(let usage):
-                XCTAssertEqual(usage.count, 4)
-            case .failure(let err):
-                XCTFail("Coult not get usage \(err)")
-            }
-        } catch let err as ApplicationError {
-            XCTFail(err.message())
-        } catch {
-            XCTFail(error.localizedDescription)
+        case .success(let t):
+            XCTFail("Result was not an error! \(t)")
+        case .failure(let error):
+            XCTAssertTrue(validation(error), "ApplicationError validation failed!")
         }
     }
 
-
-    func test10FfiPerformance() {
-        self.measureMetrics([XCTPerformanceMetric.wallClockTime], automaticallyStartMeasuring: false) {
-            let accountResult = SwiftLockbookCoreTests.core.getAccount()
-            if case .failure(_) = accountResult {
-                let newAccountResult = SwiftLockbookCoreTests.core.createAccount(username: "swiftperformance\(UUID.init().uuidString.prefix(5))")
-                if case .failure(let err) = newAccountResult {
-                    return XCTFail("Could not create account! \(err)")
-                }
-            }
-
-            startMeasuring()
-            let result = SwiftLockbookCoreTests.core.calculateWork()
-            stopMeasuring()
-
-            if case .failure(let err) = result {
-                return XCTFail("Didn't calculate any work! \(err)")
-            }
-        }
+    /// A helper to format test log messages
+    /// - Parameter message: The thing you want to print
+    func formatLog(_ message: String) -> String {
+        "ℹ️\t\(message)"
     }
 
-
-    static var allTests = [
-        ("test01CreateExportImportAccount", test01CreateExportImportAccount),
-        ("test02CreateFile", test02CreateFile),
-        ("test03Sync", test03Sync),
-        ("test04ListFiles", test04ListFiles),
-        ("test05CreateFile", test05CreateFile),
-        ("test06CalculateWork", test06CalculateWork),
-        ("test07UpdateFile", test07UpdateFile),
-        ("test08GetUsage", test08GetUsage)
-    ]
+    func log(_ message: String) {
+        print(formatLog(message))
+    }
 }

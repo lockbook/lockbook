@@ -517,6 +517,7 @@ mod unit_tests {
     fn test_account() -> Account {
         Account {
             username: String::from("username"),
+            api_url: "ftp://uranus.net".to_string(),
             keys: DefaultCrypto::generate_key().unwrap(),
         }
     }
