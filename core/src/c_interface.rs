@@ -10,7 +10,7 @@ use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
-use crate::{Error, ExecuteWorkError};
+use crate::{get_all_error_variants, Error, ExecuteWorkError};
 use serde::Serialize;
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -262,4 +262,10 @@ pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_ch
     json_c_string(crate::get_usage(&Config {
         writeable_path: str_from_ptr(writeable_path),
     }))
+}
+
+//// FOR INTEGRATION TESTS ONLY
+#[no_mangle]
+pub unsafe extern "C" fn get_variants() -> *const c_char {
+    json_c_string(get_all_error_variants())
 }

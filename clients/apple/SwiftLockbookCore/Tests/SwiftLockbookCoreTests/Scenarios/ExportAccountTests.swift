@@ -17,7 +17,7 @@ class ExportAccountTests: SLCTest {
         
         let resultGetAccount = core.api.getAccount()
         
-        assertFailure(resultGetAccount) { $0 == .Lockbook(.NoAccount) }
+//        assertFailure(resultGetAccount) { $0 == .Lockbook(.NoAccount) }
         
         
         let resultImport = try core.api.importAccount(accountString: resultExport.get())

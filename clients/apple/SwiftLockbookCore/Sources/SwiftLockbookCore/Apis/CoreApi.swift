@@ -1,32 +1,61 @@
 import Foundation
 import CLockbookCore
 
-public typealias CoreResult<T> = Result<T, ApplicationError>
+public enum CoreResult<T: Decodable, E: Decodable & Equatable>: Decodable {
+    case success(T)
+    case failure(CoreError<E>)
+
+    enum ResultKeys: String, CodingKey {
+        case Ok
+        case Err
+    }
+
+    func get() throws -> T {
+        switch self {
+        case .success(let t):
+            return t
+        case .failure(let err):
+            throw err
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: ResultKeys.self)
+
+        if (container.contains(.Ok)) {
+            self = .success(try container.decode(T.self, forKey: .Ok))
+        } else if (container.contains(.Err)) {
+            self = .failure(try container.decode(CoreError<E>.self, forKey: .Err))
+        } else {
+            self = .failure(.Unexpected("Failed to deserialize \(String(describing: Self.self)): \(container.codingPath)"))
+        }
+    }
+}
 
 public protocol LockbookApi {
     // Account
-    func getAccount() -> CoreResult<Account>
-    func createAccount(username: String, apiLocation: String) -> CoreResult<Account>
-    func importAccount(accountString: String) -> CoreResult<Account>
-    func exportAccount() -> CoreResult<String>
-    func getUsage() -> CoreResult<[FileUsage]>
+    func getAccount() -> CoreResult<Account, GetAccountError>
+    func createAccount(username: String, apiLocation: String) -> CoreResult<Account, CreateAccountError>
+    func importAccount(accountString: String) -> CoreResult<Account, ImportError>
+    func exportAccount() -> CoreResult<String, AccountExportError>
+    func getUsage() -> CoreResult<[FileUsage], GetUsageError>
     
     // Work
-    func synchronize() -> CoreResult<Empty>
-    func calculateWork() -> CoreResult<WorkMetadata>
-    func executeWork(work: WorkUnit) -> CoreResult<Empty>
-    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty>
+    func synchronize() -> CoreResult<Empty, SyncAllError>
+    func calculateWork() -> CoreResult<WorkMetadata, CalculateWorkError>
+    func executeWork(work: WorkUnit) -> CoreResult<Empty, ExecuteWorkError>
+    func setLastSynced(lastSync: UInt64) -> CoreResult<Empty, SetLastSyncedError>
     
     // Directory
-    func getRoot() -> CoreResult<FileMetadata>
-    func listFiles() -> CoreResult<[FileMetadata]>
+    func getRoot() -> CoreResult<FileMetadata, GetRootError>
+    func listFiles() -> CoreResult<[FileMetadata], ListMetadatasError>
     
     // Document
-    func getFile(id: UUID) -> CoreResult<DecryptedValue>
-    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata>
-    func updateFile(id: UUID, content: String) -> CoreResult<Empty>
-    func markFileForDeletion(id: UUID) -> CoreResult<Bool>
-    func renameFile(id: UUID, name: String) -> CoreResult<Empty>
+    func getFile(id: UUID) -> CoreResult<DecryptedValue, ReadDocumentError>
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata, CreateFileError>
+    func updateFile(id: UUID, content: String) -> CoreResult<Empty, WriteToDocumentError>
+    func markFileForDeletion(id: UUID) -> CoreResult<Bool, DeleteFileError>
+    func renameFile(id: UUID, name: String) -> CoreResult<Empty, RenameFileError>
 }
 
 public struct CoreApi: LockbookApi {
@@ -42,74 +71,73 @@ public struct CoreApi: LockbookApi {
         init_logger_safely(documentsDirectory)
     }
     
-    public func getAccount() -> CoreResult<Account> {
+    public func getAccount() -> CoreResult<Account, GetAccountError> {
         fromPrimitiveResult(result: get_account(documentsDirectory))
     }
     
-    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account> {
-        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: create_account(documentsDirectory, username, apiLocation))
-        
-        return result.flatMap { print($0 as Any); return getAccount() }
+    public func createAccount(username: String, apiLocation: String) -> CoreResult<Account, CreateAccountError> {
+        fromPrimitiveResult(result: create_account(documentsDirectory, username, apiLocation))
     }
     
-    public func importAccount(accountString: String) -> CoreResult<Account> {
-        let result: Result<Empty, ApplicationError> = fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
-        
-        return result.flatMap { print($0 as Any); return getAccount() }
+    public func importAccount(accountString: String) -> CoreResult<Account, ImportError> {
+        fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     
-    public func exportAccount() -> CoreResult<String> {
+    public func exportAccount() -> CoreResult<String, AccountExportError> {
         fromPrimitiveResult(result: export_account(documentsDirectory))
     }
     
-    public func getUsage() -> CoreResult<[FileUsage]> {
+    public func getUsage() -> CoreResult<[FileUsage], GetUsageError> {
         fromPrimitiveResult(result: get_usage(documentsDirectory))
     }
     
-    public func synchronize() -> CoreResult<Empty> {
+    public func synchronize() -> CoreResult<Empty, SyncAllError> {
         fromPrimitiveResult(result: sync_all(documentsDirectory))
     }
     
-    public func calculateWork() -> CoreResult<WorkMetadata> {
+    public func calculateWork() -> CoreResult<WorkMetadata, CalculateWorkError> {
         fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    public func executeWork(work: WorkUnit) -> CoreResult<Empty> {
-        serialize(obj: work).flatMap({
-            fromPrimitiveResult(result: execute_work(documentsDirectory, $0))
-        })
+    public func executeWork(work: WorkUnit) -> CoreResult<Empty, ExecuteWorkError> {
+        switch serialize(obj: work) {
+        case .success(let str):
+            return fromPrimitiveResult(result: execute_work(documentsDirectory, str))
+        case .failure(let err):
+            return .failure(.Unexpected(err.localizedDescription))
+        }
     }
     
-    public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty> {
+    public func setLastSynced(lastSync: UInt64) -> CoreResult<Empty, SetLastSyncedError> {
         fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
     }
     
-    public func getRoot() -> CoreResult<FileMetadata> {
+    public func getRoot() -> CoreResult<FileMetadata, GetRootError> {
         fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
-    public func listFiles() -> CoreResult<[FileMetadata]> {
+    public func listFiles() -> CoreResult<[FileMetadata], ListMetadatasError> {
         fromPrimitiveResult(result: list_metadatas(documentsDirectory))
     }
     
-    public func getFile(id: UUID) -> CoreResult<DecryptedValue> {
+    public func getFile(id: UUID) -> CoreResult<DecryptedValue, ReadDocumentError> {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     
-    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata> {
+    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> CoreResult<FileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }
     
-    public func updateFile(id: UUID, content: String) -> CoreResult<Empty> {
+    public func updateFile(id: UUID, content: String) -> CoreResult<Empty, WriteToDocumentError> {
         fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
-    public func markFileForDeletion(id: UUID) -> CoreResult<Bool> {
-        CoreResult.failure(ApplicationError.lazy())
+    public func markFileForDeletion(id: UUID) -> CoreResult<Bool, DeleteFileError> {
+        CoreResult.failure(CoreError.lazy())
     }
     
-    public func renameFile(id: UUID, name: String) -> CoreResult<Empty> {
+    public func renameFile(id: UUID, name: String) -> CoreResult<Empty, RenameFileError> {
         fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
     }
 }

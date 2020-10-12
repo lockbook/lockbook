@@ -80,12 +80,12 @@ extension SLCTest {
     /// - Parameters:
     ///   - result: The result you want to verify
     ///   - validation: Some truth about the Result.success
-    func assertSuccess<T>(_ result: CoreResult<T>, validation: (T) -> Bool = { _ in true }) {
+    func assertSuccess<T, E>(_ result: CoreResult<T, E>, validation: (T) -> Bool = { _ in true }) {
         switch result {
         case .success(let t):
             XCTAssertTrue(validation(t), "Result validation failed!")
         case .failure(let error):
-            XCTFail("Result was not a success! \(error.message())")
+            XCTFail("Result was not a success! \(error.localizedDescription)")
         }
     }
     
@@ -93,7 +93,7 @@ extension SLCTest {
     /// - Parameters:
     ///   - result: The result you want to verify
     ///   - validation: Some truth about the Result.failure(ApplicationError)
-    func assertFailure<T>(_ result: CoreResult<T>, validation: (ApplicationError) -> Bool = { _ in true }) {
+    func assertFailure<T, E>(_ result: CoreResult<T, E>, validation: (CoreError<E>) -> Bool = { _ in true }) {
         switch result {
         case .success(let t):
             XCTFail("Result was not an error! \(t)")

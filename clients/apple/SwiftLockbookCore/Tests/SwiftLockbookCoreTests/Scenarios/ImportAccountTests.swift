@@ -21,6 +21,6 @@ class ImportAccountTests: SLCTest {
     func testBadAccountString() throws {
         let importResult = core.api.importAccount(accountString: "JUNK-ACCOUNT-STRING")
         
-        assertFailure(importResult) { $0 == .Lockbook(.AccountStringCorrupted) }
+        assertFailure(importResult) { $0 == .lazy() }
     }
 }
