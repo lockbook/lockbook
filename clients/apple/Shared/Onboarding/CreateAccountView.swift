@@ -16,15 +16,12 @@ struct CreateAccountView: View {
     }
     
     func handleCreate() {
-        print("Trying to create \(username)")
         let res = self.core.api
             .createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation))
             .eraseError()
             .flatMap { _ in
                 self.core.api.getAccount().eraseError()
             }
-        
-        print("Result \(res)")
         
         switch res {
         case .success(let acc):
