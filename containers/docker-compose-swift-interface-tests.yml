@@ -66,5 +66,6 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
+        swift test --generate-linuxmain \
         swift test \
       '
