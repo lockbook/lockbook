@@ -115,12 +115,7 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum InitLoggerError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn init_logger(log_path: &Path) -> Result<(), Error<InitLoggerError>> {
+pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     let print_colors = env::var("LOG_NO_COLOR").is_err();
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
@@ -1200,7 +1195,6 @@ macro_rules! impl_get_variants {
 
 // All new errors must be placed in here!
 impl_get_variants!(
-    InitLoggerError,
     GetStateError,
     MigrationError,
     CreateAccountError,
