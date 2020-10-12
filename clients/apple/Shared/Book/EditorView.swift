@@ -144,11 +144,13 @@ class ContentBuffer: ObservableObject {
     }
     
     func save() -> Result<Void, Error> {
-        switch core.api.updateFile(id: meta.id, content: content) {
-        case .success(_):
-            return .success(())
-        case .failure(let err):
-            return .failure(err)
+        core.serialQueue.sync {
+            switch core.api.updateFile(id: meta.id, content: content) {
+            case .success(_):
+                return .success(())
+            case .failure(let err):
+                return .failure(err)
+            }
         }
     }
 }
