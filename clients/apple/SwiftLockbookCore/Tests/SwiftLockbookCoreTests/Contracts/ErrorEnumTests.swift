@@ -4,6 +4,7 @@ import XCTest
 
 class ErrorEnumTests: XCTestCase {
     struct AllErrors: Decodable {
+        let InitLoggerError: [InitLoggerError]
         let GetStateError: [GetStateError]
         let MigrationError: [MigrationError]
         let CreateAccountError: [CreateAccountError]
@@ -32,32 +33,33 @@ class ErrorEnumTests: XCTestCase {
         let GetUsageError: [GetUsageError]
 
         func noneEmpty() -> Bool {
-            !GetStateError.isEmpty &&
-            !MigrationError.isEmpty &&
-            !CreateAccountError.isEmpty &&
-            !ImportError.isEmpty &&
-            !AccountExportError.isEmpty &&
-            !GetAccountError.isEmpty &&
-            !CreateFileAtPathError.isEmpty &&
-            !WriteToDocumentError.isEmpty &&
-            !CreateFileError.isEmpty &&
-            !GetRootError.isEmpty &&
-            !GetChildrenError.isEmpty &&
-            !GetFileByIdError.isEmpty &&
-            !GetFileByPathError.isEmpty &&
-            !InsertFileError.isEmpty &&
-            !DeleteFileError.isEmpty &&
-            !ReadDocumentError.isEmpty &&
-            !ListPathsError.isEmpty &&
-            !ListMetadatasError.isEmpty &&
-            !RenameFileError.isEmpty &&
-            !MoveFileError.isEmpty &&
-            !SyncAllError.isEmpty &&
-            !CalculateWorkError.isEmpty &&
-            !ExecuteWorkError.isEmpty &&
-            !SetLastSyncedError.isEmpty &&
-            !GetLastSyncedError.isEmpty &&
-            !GetUsageError.isEmpty
+            !InitLoggerError.isEmpty
+            && !GetStateError.isEmpty
+            && !MigrationError.isEmpty
+            && !CreateAccountError.isEmpty
+            && !ImportError.isEmpty
+            && !AccountExportError.isEmpty
+            && !GetAccountError.isEmpty
+            && !CreateFileAtPathError.isEmpty
+            && !WriteToDocumentError.isEmpty
+            && !CreateFileError.isEmpty
+            && !GetRootError.isEmpty
+            && !GetChildrenError.isEmpty
+            && !GetFileByIdError.isEmpty
+            && !GetFileByPathError.isEmpty
+            && !InsertFileError.isEmpty
+            && !DeleteFileError.isEmpty
+            && !ReadDocumentError.isEmpty
+            && !ListPathsError.isEmpty
+            && !ListMetadatasError.isEmpty
+            && !RenameFileError.isEmpty
+            && !MoveFileError.isEmpty
+            && !SyncAllError.isEmpty
+            && !CalculateWorkError.isEmpty
+            && !ExecuteWorkError.isEmpty
+            && !SetLastSyncedError.isEmpty
+            && !GetLastSyncedError.isEmpty
+            && !GetUsageError.isEmpty
         }
     }
 

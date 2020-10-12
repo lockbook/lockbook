@@ -7,13 +7,13 @@ class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
     @Published var account: Account?
-    @Published var globalError: CoreError?
+    @Published var globalError: Error?
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
-    private var passthrough = PassthroughSubject<Void, ApplicationError>()
+    private var passthrough = PassthroughSubject<Void, Error>()
     private var cancellableSet: Set<AnyCancellable> = []
     
     func purge() {
@@ -37,7 +37,7 @@ class Core: ObservableObject {
         }
     }
     
-    func displayError(error: ApplicationError) {
+    func displayError<E: Decodable & Equatable, CE: CoreError<E>>(error: E) {
         switch error {
         case .Lockbook(let coreErr):
             globalError = coreErr
