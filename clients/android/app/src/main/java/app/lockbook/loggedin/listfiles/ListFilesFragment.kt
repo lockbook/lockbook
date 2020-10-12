@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -21,6 +20,7 @@ import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
@@ -28,46 +28,23 @@ import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
+    private lateinit var alertDialog: AlertDialog
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
         ).setViewToMove(list_files_layout)
     }
-    private val offlineSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_offline_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private val preSyncSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_presync_snackbar, "n")
-        )
-            .setSwipeToDismiss(true)
-            .setAllowUserInput(true)
-    }
+
     private val syncSnackProgressBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_HORIZONTAL,
-            resources.getString(R.string.list_files_sync_snackbar, "n")
-        )
+            resources.getString(R.string.list_files_sync_snackbar, "n"))
             .setIsIndeterminate(false)
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-    private val syncUpToDateSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_sync_finished_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private lateinit var alertDialog: AlertDialog
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -245,23 +222,29 @@ class ListFilesFragment : Fragment() {
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(R.string.list_files_sync_finished_snackbar),
+                Snackbar.LENGTH_SHORT
+            ).show()
         } else {
-            snackProgressBarManager.show(
-                preSyncSnackBar.setMessage(
-                    resources.getString(
-                        R.string.list_files_presync_snackbar,
-                        amountToSync.toString()
-                    )
-                ),
-                SnackProgressBarManager.LENGTH_SHORT
-            )
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(
+                    R.string.list_files_presync_snackbar,
+                    amountToSync.toString()),
+                Snackbar.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun showOfflineSnackBar() {
         snackProgressBarManager.dismiss()
-        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+        Snackbar.make(
+            fragment_list_files,
+            resources.getString(R.string.list_files_offline_snackbar),
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -343,8 +326,12 @@ class ListFilesFragment : Fragment() {
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        Toast.makeText(context, errorText, Toast.LENGTH_LONG).show()
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(list_files_layout, error, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun unexpectedErrorHasOccurred(description: String) {
+
     }
 
     fun onBackPressed(): Boolean {

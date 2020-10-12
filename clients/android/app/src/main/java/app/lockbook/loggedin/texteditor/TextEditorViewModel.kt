@@ -7,7 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import timber.log.Timber
@@ -94,12 +94,12 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
                 is WriteToDocumentError.UnexpectedError -> {
                     Timber.e("Unable to write document changes: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
