@@ -13,6 +13,7 @@ class Core: ObservableObject {
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    let serialQueue = DispatchQueue(label: "syncQueue")
     
     private var passthrough = PassthroughSubject<Void, Error>()
     private var cancellableSet: Set<AnyCancellable> = []
@@ -56,7 +57,7 @@ class Core: ObservableObject {
     
     func sync() {
         self.syncing = true
-        DispatchQueue.global(qos: .background).async {
+        serialQueue.async {
             switch self.api.synchronize() {
             case .success(_):
                 self.passthrough.send(())
