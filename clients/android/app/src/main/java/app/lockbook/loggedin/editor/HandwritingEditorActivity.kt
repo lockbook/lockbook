@@ -13,7 +13,6 @@ import app.lockbook.R
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -65,7 +64,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     private fun startUpDrawingIfAble(id: String): Boolean {
         val contents = handwritingEditorViewModel.handleReadDocument(id)
-        Timber.e(contents)
 
         if (contents != null && contents.isNotEmpty()) {
             if (handwritingEditorViewModel.lockBookDrawable == null) {
