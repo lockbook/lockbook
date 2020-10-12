@@ -34,7 +34,7 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
 
 func deserializeResult<T: Decodable, E: Decodable>(jsonResultStr: String) -> CoreResult<T, E> {
     do {
-        return try JSONDecoder().decode(CoreResult.self, from: jsonResultStr.data(using: .utf8)!)
+        return try deserialize(data: jsonResultStr.data(using: .utf8)!).get()
     } catch {
         return .failure(.Unexpected("\(error.localizedDescription) \(jsonResultStr)"))
     }
