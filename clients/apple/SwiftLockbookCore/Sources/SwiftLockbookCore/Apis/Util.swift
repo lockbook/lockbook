@@ -8,7 +8,7 @@ public func intEpochToString(epoch: UInt64) -> String {
     return formatter.string(from: date)
 }
 
-func serialize<T: Encodable>(obj: T) -> Result<String, ApplicationError> {
+func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
     let encoder = JSONEncoder.init()
     encoder.keyEncodingStrategy = .convertToSnakeCase
     do {
@@ -16,7 +16,7 @@ func serialize<T: Encodable>(obj: T) -> Result<String, ApplicationError> {
         let output = String(data: data, encoding: .utf8) ?? ""
         return Result.success(output)
     } catch let error {
-        return Result.failure(ApplicationError.Serialization("Failed serializing! \(error)"))
+        return Result.failure(error)
     }
 }
 
@@ -32,35 +32,15 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
     }
 }
 
-func deserializeResult<T: Decodable>(jsonResultStr: String) -> Result<T, ApplicationError> {
-    guard let dict = try? JSONSerialization.jsonObject(with: Data(jsonResultStr.utf8), options: []) as? [String: Any] else {
-        return Result.failure(ApplicationError.Deserialization("Couldn't deserialize dict!", jsonResultStr))
-    }
-    
-    if let ok = dict["Ok"] {
-        guard let data = try? JSONSerialization.data(withJSONObject: ok, options: .fragmentsAllowed) else {
-            return Result.failure(ApplicationError.Deserialization("Not valid JSON!", jsonResultStr))
-        }
-        return deserialize(data: data).mapError { ApplicationError.Deserialization("Failed deserializing! \($0)", jsonResultStr) }
-    } else {
-        if let err = dict["Err"] {
-            guard let data = try? JSONSerialization.data(withJSONObject: err, options: .fragmentsAllowed) else {
-                return Result.failure(ApplicationError.Deserialization("Not valid JSON!", jsonResultStr))
-            }
-            let coreErrorRes: Result<CoreError, Error> = deserialize(data: data)
-            switch coreErrorRes {
-            case .success(let coreError):
-                return .failure(.Lockbook(coreError))
-            case .failure(let err):
-                return .failure(ApplicationError.Deserialization("Failed deserializing! \(err)", jsonResultStr))
-            }
-        } else {
-            return Result.failure(ApplicationError.Deserialization("Could not find Ok or Err!", jsonResultStr))
-        }
+func deserializeResult<T: Decodable, E: Decodable>(jsonResultStr: String) -> CoreResult<T, E> {
+    do {
+        return try JSONDecoder().decode(CoreResult.self, from: jsonResultStr.data(using: .utf8)!)
+    } catch {
+        return .failure(.Unexpected("\(error.localizedDescription) \(jsonResultStr)"))
     }
 }
 
-func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T, ApplicationError> {
+func fromPrimitiveResult<T: Decodable, E: Decodable>(result: UnsafePointer<Int8>) -> CoreResult<T, E> {
     let resultString = String(cString: result)
     release_pointer(UnsafeMutablePointer(mutating: result))
     
@@ -69,4 +49,9 @@ func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T,
 
 public struct Empty: Decodable {
     
+}
+
+enum TagContentKeys: String, CodingKey {
+    case tag
+    case content
 }

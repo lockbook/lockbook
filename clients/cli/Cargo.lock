@@ -853,6 +853,7 @@ dependencies = [
  "sha2",
  "sled",
  "strum",
+ "strum_macros",
  "tempfile",
  "uuid",
 ]
@@ -1522,9 +1523,6 @@ name = "strum"
 version = "0.19.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b89a286a7e3b5720b9a477b23253bc50debac207c8d21505f8e70b36792f11b5"
-dependencies = [
- "strum_macros",
-]
 
 [[package]]
 name = "strum_macros"
