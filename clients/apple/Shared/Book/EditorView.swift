@@ -3,6 +3,7 @@ import SwiftLockbookCore
 import Combine
 
 #if os(macOS)
+/// Gets rid of the highlight border on a textfield
 extension NSTextField {
     open override var focusRingType: NSFocusRingType {
         get { .none }
@@ -35,6 +36,7 @@ struct EditorView: View, Equatable {
             })
             
             let baseEditor = ContentEditor(text: $contentBuffer.content)
+                .font(.system(.body, design: .monospaced))
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
                     switch core.api.getFile(id: meta.id) {
@@ -89,17 +91,8 @@ struct EditorView: View, Equatable {
     
     init(core: Core, meta: FileMetadata) {
         self.core = core
-        //        self._meta = .init(initialValue: meta)
         self.meta = meta
         self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
-    }
-}
-
-struct EditorView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
-        }
     }
 }
 
@@ -159,4 +152,12 @@ enum SaveStatus {
     case Succeeded
     case Failed
     case Inactive
+}
+
+struct EditorView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
+        }
+    }
 }
