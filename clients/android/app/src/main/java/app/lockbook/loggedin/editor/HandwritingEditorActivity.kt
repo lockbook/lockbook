@@ -13,8 +13,8 @@ import app.lockbook.R
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import java.util.*
 import timber.log.Timber
+import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
@@ -55,18 +55,20 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         )
 
-        if (startUpDrawing(id)) return
+        if (!startUpDrawingIfAble(id)) {
+            finish()
+            return
+        }
 
         startBackgroundSave()
         setUpHandwritingToolbar()
     }
 
-    private fun startUpDrawing(id: String): Boolean {
+    private fun startUpDrawingIfAble(id: String): Boolean {
         val contents = handwritingEditorViewModel.handleReadDocument(id)
 
         if (contents != null && contents.isNotEmpty()) {
             val lockbookDrawable = if (handwritingEditorViewModel.lockBookDrawable == null) {
-
                 Klaxon().parse<Drawing>(contents)
             } else {
                 handwritingEditorViewModel.lockBookDrawable
@@ -74,55 +76,39 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
             if (lockbookDrawable == null) {
                 errorHasOccurred("Unable to load this drawing.")
-                return true
+                return false
             }
 
-            handwriting_editor.lockBookDrawable = lockbookDrawable
-            handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder?) {
-                    handwriting_editor.setUpBitmapDrawable()
-                    handwriting_editor.drawLockbookDrawable()
-                    handwriting_editor.isThreadRunning = true
-                    handwritingThread = Thread(handwriting_editor)
-                    handwritingThread.start()
-                }
-
-                override fun surfaceChanged(
-                    holder: SurfaceHolder?,
-                    format: Int,
-                    width: Int,
-                    height: Int
-                ) {
-                }
-
-                override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                    endHandwritingThread()
-                }
-            })
-        } else {
-            handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder?) {
-                    handwriting_editor.setUpBitmapDrawable()
-                    handwriting_editor.isThreadRunning = true
-                    handwritingThread = Thread(handwriting_editor)
-                    handwritingThread.start()
-                }
-
-                override fun surfaceChanged(
-                    holder: SurfaceHolder?,
-                    format: Int,
-                    width: Int,
-                    height: Int
-                ) {
-                }
-
-                override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                    endHandwritingThread()
-                }
-            })
+            if (handwritingEditorViewModel.lockBookDrawable == null) {
+                handwritingEditorViewModel.lockBookDrawable = lockbookDrawable
+            }
         }
 
-        return false
+        handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder?) {
+                handwriting_editor.setUpDrawing(handwritingEditorViewModel.lockBookDrawable)
+                startHandwritingThread()
+            }
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder?,
+                format: Int,
+                width: Int,
+                height: Int
+            ) {
+            }
+
+            override fun surfaceDestroyed(holder: SurfaceHolder?) {
+                endHandwritingThread()
+            }
+        })
+
+        return true
+    }
+
+    private fun startHandwritingThread() {
+        handwritingThread = Thread(handwriting_editor)
+        handwritingThread.start()
     }
 
     private fun endHandwritingThread() {
@@ -133,7 +119,8 @@ class HandwritingEditorActivity : AppCompatActivity() {
             try {
                 handwritingThread.join()
                 retry = false
-            } catch (e: InterruptedException) {}
+            } catch (e: InterruptedException) {
+            }
         }
     }
 
