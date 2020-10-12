@@ -8,7 +8,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -39,13 +39,13 @@ class FileModel(path: String) {
                 is CalculateWorkError.CouldNotReachServer -> {
                     Timber.e("Could not reach server despite being online.")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 is CalculateWorkError.UnexpectedError -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
             }
@@ -75,12 +75,12 @@ class FileModel(path: String) {
                         is GetFileByIdError.UnexpectedError -> {
                             Timber.e("Unable to get the parent of the current path: ${error.error}")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                                UNEXPECTED_ERROR
                             )
                         }
                         else -> {
                             Timber.e("GetFileByIdError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                         }
                     }
                 }
@@ -88,11 +88,11 @@ class FileModel(path: String) {
             is Err -> when (val error = getSiblingsOfParentResult.error) {
                 is GetChildrenError.UnexpectedError -> {
                     Timber.e("Unable to get siblings of the parent: ${error.error}")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
                 else -> {
                     Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -110,12 +110,12 @@ class FileModel(path: String) {
                 is RenameFileError.UnexpectedError -> {
                     Timber.e("Unable to rename file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("RenameFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -129,12 +129,12 @@ class FileModel(path: String) {
                 is DeleteFileError.UnexpectedError -> {
                     Timber.e("Unable to delete file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("DeleteFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -153,12 +153,12 @@ class FileModel(path: String) {
                 is ReadDocumentError.UnexpectedError -> {
                     Timber.e("Unable to get content of file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -182,12 +182,12 @@ class FileModel(path: String) {
                 is GetRootError.UnexpectedError -> {
                     Timber.e("Unable to set parent to root: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("GetRootError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -204,11 +204,11 @@ class FileModel(path: String) {
                     when (val error = insertFileResult.error) {
                         is InsertFileError.UnexpectedError -> {
                             Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                         }
                         else -> {
                             Timber.e("InsertFileError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                            _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                         }
                     }
                 }
@@ -225,12 +225,12 @@ class FileModel(path: String) {
                 is CreateFileError.UnexpectedError -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("CreateFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -244,11 +244,11 @@ class FileModel(path: String) {
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.UnexpectedError -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
                 else -> {
                     Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
             }
         }
@@ -321,7 +321,7 @@ class FileModel(path: String) {
             SharedPreferences.SORT_FILES_TYPE -> sortFilesType(files)
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                _errorHasOccurred.postValue(UNEXPECTED_ERROR)
             }
         }
     }
@@ -336,7 +336,7 @@ class FileModel(path: String) {
                     is CalculateWorkError.UnexpectedError -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
+                            UNEXPECTED_ERROR
                         )
                     }
                 }

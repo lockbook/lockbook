@@ -10,7 +10,7 @@ import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.CreateAccountError
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -75,7 +75,7 @@ class NewAccountActivity : AppCompatActivity() {
                             Timber.e("Unable to create account.")
                             Toast.makeText(
                                 applicationContext,
-                                UNEXPECTED_ERROR_OCCURRED,
+                                UNEXPECTED_ERROR,
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -83,7 +83,7 @@ class NewAccountActivity : AppCompatActivity() {
                             Timber.e("CreateAccountError not matched: ${error::class.simpleName}.")
                             Toast.makeText(
                                 applicationContext,
-                                UNEXPECTED_ERROR_OCCURRED,
+                                UNEXPECTED_ERROR,
                                 Toast.LENGTH_LONG
                             ).show()
                         }
