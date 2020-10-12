@@ -11,6 +11,6 @@ class CreateAccountTests: SLCTest {
     func testNoNetwork() throws {
         let result = core.api.createAccount(username: randomUsername(), apiLocation: "ftp://localhost:6969")
         
-        assertFailure(result) { $0 == .Lockbook(.CouldNotReachServer) }
+        assertFailure(result) { $0 == .lazy() }
     }
 }

@@ -1,11 +1,16 @@
+#![recursion_limit = "256"]
 #[macro_use]
 extern crate log;
 extern crate reqwest;
 
 use serde::Serialize;
+use serde_json::json;
+use serde_json::value::Value;
 pub use sled::Db;
 use std::env;
 use std::path::Path;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use uuid::Uuid;
 
 use crate::client::{ApiError, Client, ClientImpl};
@@ -103,14 +108,54 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileEncryptionService,
 >;
 
+macro_rules! impl_get_variants {
+    ( $( $name:ty,)* ) => {
+        fn get_all_error_variants() -> Value {
+            json!({
+                $(stringify!($name): <$name>::iter().collect::<Vec<_>>(),)*
+            })
+        }
+    };
+}
+
+impl_get_variants!(
+    InitLoggerError,
+    GetStateError,
+    MigrationError,
+    CreateAccountError,
+    ImportError,
+    AccountExportError,
+    GetAccountError,
+    CreateFileAtPathError,
+    WriteToDocumentError,
+    CreateFileError,
+    GetRootError,
+    GetChildrenError,
+    GetFileByIdError,
+    GetFileByPathError,
+    InsertFileError,
+    DeleteFileError,
+    ReadDocumentError,
+    ListPathsError,
+    ListMetadatasError,
+    RenameFileError,
+    MoveFileError,
+    SyncAllError,
+    CalculateWorkError,
+    ExecuteWorkError,
+    SetLastSyncedError,
+    GetLastSyncedError,
+    GetUsageError,
+);
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
-pub enum Error<U> {
+pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum InitLoggerError {
     Stub, // TODO: Enums should not be empty
 }
@@ -143,7 +188,7 @@ pub fn connect_to_db(config: &Config) -> Result<Db, String> {
     Ok(db)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetStateError {
     Stub, // TODO: Enums should not be empty
 }
@@ -157,7 +202,7 @@ pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum MigrationError {
     StateRequiresCleaning,
 }
@@ -178,7 +223,7 @@ pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum CreateAccountError {
     UsernameTaken,
     InvalidUsername,
@@ -240,8 +285,7 @@ pub fn create_account(
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "tag", content = "content")]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ImportError {
     AccountStringCorrupted,
     AccountExistsAlready,
@@ -292,7 +336,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum AccountExportError {
     NoAccount,
 }
@@ -316,7 +360,7 @@ pub fn export_account(config: &Config) -> Result<String, Error<AccountExportErro
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetAccountError {
     NoAccount,
 }
@@ -335,7 +379,7 @@ pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum CreateFileAtPathError {
     FileAlreadyExists,
     NoAccount,
@@ -396,7 +440,7 @@ pub fn create_file_at_path(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum WriteToDocumentError {
     NoAccount,
     FileDoesNotExist,
@@ -439,7 +483,7 @@ pub fn write_document(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum CreateFileError {
     NoAccount,
     DocumentTreatedAsFolder,
@@ -491,7 +535,7 @@ pub fn create_file(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetRootError {
     NoRoot,
 }
@@ -508,7 +552,7 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetChildrenError {
     Stub, // TODO: Enums should not be empty
 }
@@ -525,7 +569,7 @@ pub fn get_children(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetFileByIdError {
     NoFileWithThatId,
 }
@@ -546,7 +590,7 @@ pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<G
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetFileByPathError {
     NoFileAtThatPath,
 }
@@ -566,7 +610,7 @@ pub fn get_file_by_path(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum InsertFileError {
     Stub, // TODO: Enums should not be empty
 }
@@ -583,7 +627,7 @@ pub fn insert_file(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum DeleteFileError {
     NoFileWithThatId,
 }
@@ -604,7 +648,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<DeleteFileErro
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ReadDocumentError {
     TreatedFolderAsDocument,
     NoAccount,
@@ -642,7 +686,7 @@ pub fn read_document(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ListPathsError {
     Stub, // TODO: Enums should not be empty
 }
@@ -659,7 +703,7 @@ pub fn list_paths(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ListMetadatasError {
     Stub, // TODO: Enums should not be empty
 }
@@ -673,7 +717,7 @@ pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMe
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameEmpty,
@@ -714,7 +758,7 @@ pub fn rename_file(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum MoveFileError {
     NoAccount,
     FileDoesNotExist,
@@ -758,11 +802,11 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
     NoAccount,
     CouldNotReachServer,
-    ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
+    ExecuteWorkError, // TODO: @parth ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
 }
 
 pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
@@ -799,123 +843,13 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                     | ApiError::Api(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
                 },
             },
-            SyncError::WorkExecutionError(err_map) => {
-                Err(Error::UiError(SyncAllError::ExecuteWorkError(
-                    err_map
-                        .iter()
-                        .map(|err| match err.1 {
-                            WorkExecutionError::DocumentGetError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::DocumentRenameError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::FolderRenameError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::DocumentMoveError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::FolderMoveError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::DocumentCreateError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::FolderCreateError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::DocumentChangeError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::DocumentDeleteError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::FolderDeleteError(api) => match api {
-                                ApiError::SendFailed(_) => {
-                                    Error::UiError(ExecuteWorkError::CouldNotReachServer)
-                                }
-                                ApiError::Serialize(_)
-                                | ApiError::ReceiveFailed(_)
-                                | ApiError::Deserialize(_)
-                                | ApiError::Api(_) => Error::Unexpected(format!("{:#?}", api)),
-                            },
-                            WorkExecutionError::MetadataRepoError(_)
-                            | WorkExecutionError::MetadataRepoErrorOpt(_)
-                            | WorkExecutionError::SaveDocumentError(_)
-                            | WorkExecutionError::LocalChangesRepoError(_)
-                            | WorkExecutionError::AutoRenameError(_)
-                            | WorkExecutionError::DecryptingOldVersionForMergeError(_)
-                            | WorkExecutionError::ReadingCurrentVersionError(_)
-                            | WorkExecutionError::WritingMergedFileError(_)
-                            | WorkExecutionError::FindingParentsForConflictingFileError(_)
-                            | WorkExecutionError::ResolveConflictByCreatingNewFileError(_) => {
-                                Error::Unexpected(format!("{:#?}", err))
-                            }
-                        })
-                        .collect::<Vec<_>>(),
-                )))
-            }
+            SyncError::WorkExecutionError(_) => Err(Error::UiError(SyncAllError::ExecuteWorkError)),
             SyncError::MetadataUpdateError(err) => Err(Error::Unexpected(format!("{:#?}", err))),
         },
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum CalculateWorkError {
     NoAccount,
     CouldNotReachServer,
@@ -964,7 +898,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ExecuteWorkError {
     CouldNotReachServer,
     ClientUpdateRequired,
@@ -1232,7 +1166,7 @@ pub fn execute_work(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum SetLastSyncedError {
     Stub, // TODO: Enums should not be empty
 }
@@ -1246,7 +1180,7 @@ pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetL
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetLastSyncedError {
     Stub, // TODO: Enums should not be empty
 }
@@ -1264,7 +1198,7 @@ pub fn get_last_synced(config: &Config) -> Result<u64, Error<GetLastSyncedError>
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, EnumIter)]
 pub enum GetUsageError {
     NoAccount,
     CouldNotReachServer,
