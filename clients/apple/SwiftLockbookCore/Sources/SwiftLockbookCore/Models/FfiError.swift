@@ -171,6 +171,7 @@ public enum MoveFileError: String, UiError {
 
 public enum SyncAllError: String, UiError {
     case NoAccount
+    case ClientUpdateRequired
     case CouldNotReachServer
     case ExecuteWorkError
 }
