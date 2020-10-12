@@ -55,8 +55,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockBookDrawable.page.transformation.translation.x += -distanceX / lockBookDrawable.page.transformation.scale
-                lockBookDrawable.page.transformation.translation.y += -distanceY / lockBookDrawable.page.transformation.scale
+                lockBookDrawable.page.transformation.translation.x += -distanceX * lockBookDrawable.page.transformation.scale
+                lockBookDrawable.page.transformation.translation.y += -distanceY * lockBookDrawable.page.transformation.scale
 
                 return true
             }
@@ -177,9 +177,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O) // TODO remove this smail
     fun setUpBitmapDrawable() {
-        val canvas = holder.lockHardwareCanvas()
+        val canvas = if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+            holder.lockHardwareCanvas()
+        } else {
+            holder.lockCanvas()
+        }
         canvasBitmap =
             Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
@@ -224,12 +227,23 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    @SuppressLint("NewApi") // TODO @smail remove this
+    fun setUpDrawing(lockbookDrawable: Drawing?) {
+        setUpBitmapDrawable()
+        if(lockbookDrawable != null) {
+            drawLockbookDrawable()
+        }
+        isThreadRunning = true
+    }
+
     override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
             try {
-                canvas = holder.lockHardwareCanvas()
+                canvas = if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+                    holder.lockHardwareCanvas()
+                } else {
+                    holder.lockCanvas()
+                }
                 drawBitmap(canvas)
             } finally { // TODO what happens to this unhandled catch?
                 holder.unlockCanvasAndPost(canvas)
