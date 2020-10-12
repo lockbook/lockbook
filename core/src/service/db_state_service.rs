@@ -1,3 +1,5 @@
+use sled::Db;
+
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
@@ -6,7 +8,6 @@ use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
 use crate::CORE_CODE_VERSION;
-use sled::Db;
 
 #[derive(Debug, PartialEq)]
 pub enum State {
@@ -56,7 +57,12 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
                 if state_version == CORE_CODE_VERSION {
                     Ok(ReadyToUse)
                 } else {
-                    Ok(MigrationRequired)
+                    match state_version.as_str() {
+                        "0.1.0" => Ok(MigrationRequired),
+                        "0.1.1" => Ok(StateRequiresClearing),
+                        "0.1.2" => Ok(ReadyToUse),
+                        _ => Ok(StateRequiresClearing),
+                    }
                 }
             }
         }
@@ -75,9 +81,10 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
 
             match db_version.as_str() {
                 "0.1.0" => VersionDb::set(&db, "0.1.1").map_err(MigrationError::RepoError)?,
-                "0.1.1" => return Ok(()),
+                "0.1.1" => return Err(MigrationError::StateRequiresClearing), // If you wanted to remove this, write a migration for PR #332
+                "0.1.2" => return Ok(()),
                 _ => return Err(MigrationError::StateRequiresClearing),
-            }
+            };
         }
     }
 }
