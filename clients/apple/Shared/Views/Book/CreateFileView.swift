@@ -16,7 +16,6 @@ struct CreateFileView: View {
             Toggle("Folder", isOn: $newFileIsDoc)
                 .toggleStyle(FlipToggleStyle(left: ("Doc", "doc", .pink), right: ("Folder", "folder", .purple)))
                 .padding(.vertical, 50)
-                .keyboardShortcut(KeyEquivalent("d"), modifiers: .command)
             HStack {
                 Button(action: {
                     if !newFileName.isEmpty {
@@ -33,7 +32,6 @@ struct CreateFileView: View {
                     Label("Create", systemImage: "plus.circle")
                         .foregroundColor(.green)
                 }
-                .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                 .padding(.horizontal, 10)
             }
         }

@@ -35,6 +35,7 @@ class ContentBuffer: ObservableObject {
             .eraseToAnyPublisher()
             .receive(on: RunLoop.main)
             .sink(receiveCompletion: { (err) in
+                self.succeeded = false
                 self.status = .WriteFailure
             }, receiveValue: { (input) in
                 self.status = .WriteSuccess
@@ -54,6 +55,7 @@ class ContentBuffer: ObservableObject {
     }
 
     enum Status {
+        case BufferDied
         case WriteSuccess
         case WriteFailure
         case RenameSuccess
