@@ -108,14 +108,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		EA08372725198A81008EA3F3 /* Account */ = {
-			isa = PBXGroup;
-			children = (
-				EA08372A25198AC9008EA3F3 /* AccountView.swift */,
-			);
-			path = Account;
-			sourceTree = "<group>";
-		};
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -206,7 +198,7 @@
 			children = (
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
-				EA08372725198A81008EA3F3 /* Account */,
+				EA08372A25198AC9008EA3F3 /* AccountView.swift */,
 				EA77C34F2519AC70006B5247 /* CreateFileView.swift */,
 			);
 			path = Book;
