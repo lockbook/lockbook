@@ -426,31 +426,31 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
 
-        if (syncWork.work_units.isNotEmpty()) {
-            _showSyncSnackBar.postValue(syncWork.work_units.size)
+        if (syncWork.workUnits.isNotEmpty()) {
+            _showSyncSnackBar.postValue(syncWork.workUnits.size)
         }
 
         var currentProgress = 0
-        syncingStatus.maxProgress = syncWork.work_units.size
+        syncingStatus.maxProgress = syncWork.workUnits.size
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
         repeat(10) {
-            if ((currentProgress + syncWork.work_units.size) > syncingStatus.maxProgress) {
-                syncingStatus.maxProgress = currentProgress + syncWork.work_units.size
+            if ((currentProgress + syncWork.workUnits.size) > syncingStatus.maxProgress) {
+                syncingStatus.maxProgress = currentProgress + syncWork.workUnits.size
                 _showSyncSnackBar.postValue(syncingStatus.maxProgress)
             }
 
-            if (syncWork.work_units.isEmpty()) {
+            if (syncWork.workUnits.isEmpty()) {
                 return if (syncErrors.isEmpty()) {
                     val setLastSyncedResult =
                         CoreModel.setLastSynced(
                             fileModel.config,
-                            syncWork.most_recent_update_from_server
+                            syncWork.mostRecentUpdateFromServer
                         )
                     if (setLastSyncedResult is Err) {
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
                         _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                     } else {
-                        _showPreSyncSnackBar.postValue(syncWork.work_units.size)
+                        _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
                     }
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
@@ -458,7 +458,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     _stopSyncSnackBar.postValue(Unit)
                 }
             }
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
                         CoreModel.executeFileSyncWork(fileModel.config, account, workUnit)
@@ -507,7 +507,7 @@ class ListFilesViewModel(path: String, application: Application) :
             _stopSyncSnackBar.postValue(Unit)
         } else {
             _stopSyncSnackBar.postValue(Unit)
-            _showPreSyncSnackBar.postValue(syncWork.work_units.size)
+            _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
         }
     }
 
@@ -517,7 +517,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileModel.files.value?.let {
                     val fileMetadata = it[position]
 
-                    if (fileMetadata.file_type == FileType.Folder) {
+                    if (fileMetadata.fileType == FileType.Folder) {
                         fileModel.intoFolder(fileMetadata)
                     } else {
                         val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)

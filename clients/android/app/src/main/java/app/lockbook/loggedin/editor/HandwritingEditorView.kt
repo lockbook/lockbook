@@ -9,10 +9,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
-import app.lockbook.utils.Drawing
-import app.lockbook.utils.Event
-import app.lockbook.utils.PressurePoint
-import app.lockbook.utils.Stroke
+import app.lockbook.utils.*
 import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
@@ -118,12 +115,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             PorterDuff.Mode.CLEAR
         )
         canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
-        canvas.drawCircle(
-            modelFocusPoint.x,
-            modelFocusPoint.y,
-            10f,
-            activePaint
-        )
         canvas.restore()
     }
 
@@ -134,7 +125,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             holder.lockCanvas()
         }
         canvasBitmap =
-            Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
+            Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
         val currentPaint = Paint()
         currentPaint.color = Color.WHITE
@@ -199,7 +190,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
-            Timber.e("pointers ${event.pointerCount}")
             if (event.pointerCount > 0) {
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
@@ -304,9 +294,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun restartThread() {
-        isThreadRunning = true
         thread = Thread(this)
-        thread.start()
     }
 
     override fun run() {
@@ -323,7 +311,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
-
+        Timber.e("ENDED")
         thread.interrupt()
     }
 }
