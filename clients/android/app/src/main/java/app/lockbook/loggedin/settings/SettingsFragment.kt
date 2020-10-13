@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
-import android.widget.Toast
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -17,6 +16,7 @@ import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.loggedin.logs.LogActivity
 import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -30,9 +30,11 @@ import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.utils.SharedPreferences.VIEW_LOGS_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 import java.io.File
 
@@ -106,12 +108,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    Toast.makeText(
-                        requireContext(),
-                        UNEXPECTED_ERROR,
-                        Toast.LENGTH_LONG
-                    )
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_CLIENT_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                     return
                 }
 
@@ -128,20 +129,18 @@ class SettingsFragment : PreferenceFragmentCompat() {
                             when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    Toast.makeText(
-                                        requireContext(),
-                                        UNEXPECTED_ERROR,
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                    Snackbar.make(
+                                        splash_screen,
+                                        UNEXPECTED_CLIENT_ERROR,
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> {
-                                    Toast.makeText(
-                                        requireContext(),
+                                    Snackbar.make(
+                                        splash_screen,
                                         "Too many tries, try again later!",
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
                                 }
                                 else -> {}
                             }
@@ -167,8 +166,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_NONE -> matchKey(key, newValue)
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                    .show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -180,8 +182,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValue)
             else -> {
                 Timber.e("Shared preference key not matched: $key")
-                Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                    .show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -211,23 +216,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
             is Err -> {
                 when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> Toast.makeText(
-                        context,
+                    is AccountExportError.NoAccount -> Snackbar.make(
+                        splash_screen,
                         "Error! No account!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
                     is AccountExportError.UnexpectedError -> {
                         Timber.e("Unable to export account: ${error.error}")
-                        Toast.makeText(
-                            context,
+                        Snackbar.make(
+                            splash_screen,
                             UNEXPECTED_ERROR,
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_SHORT
                         ).show()
                     }
                     else -> {
                         Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                        Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                            .show()
+                        Snackbar.make(
+                            splash_screen,
+                            UNEXPECTED_CLIENT_ERROR,
+                            Snackbar.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
@@ -241,27 +249,33 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
-                Toast.makeText(context, "Account string copied!", Toast.LENGTH_LONG)
-                    .show()
+                Snackbar.make(
+                    splash_screen,
+                    "Account string copied!",
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
             is Err -> when (val error = exportResult.error) {
-                is AccountExportError.NoAccount -> Toast.makeText(
-                    context,
+                is AccountExportError.NoAccount -> Snackbar.make(
+                    splash_screen,
                     "Error! No account!",
-                    Toast.LENGTH_LONG
+                    Snackbar.LENGTH_SHORT
                 ).show()
                 is AccountExportError.UnexpectedError -> {
                     Timber.e("Unable to export account: ${error.error}")
-                    Toast.makeText(
-                        context,
+                    Snackbar.make(
+                        splash_screen,
                         UNEXPECTED_ERROR,
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
                 }
                 else -> {
                     Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                    Toast.makeText(context, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_CLIENT_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                 }
             }
         }

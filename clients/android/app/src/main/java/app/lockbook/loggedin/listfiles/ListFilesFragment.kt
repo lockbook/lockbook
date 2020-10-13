@@ -39,12 +39,12 @@ class ListFilesFragment : Fragment() {
     private val syncSnackProgressBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_HORIZONTAL,
-            resources.getString(R.string.list_files_sync_snackbar, "n"))
+            resources.getString(R.string.list_files_sync_snackbar, "n")
+        )
             .setIsIndeterminate(false)
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -232,7 +232,8 @@ class ListFilesFragment : Fragment() {
                 fragment_list_files,
                 resources.getString(
                     R.string.list_files_presync_snackbar,
-                    amountToSync.toString()),
+                    amountToSync.toString()
+                ),
                 Snackbar.LENGTH_SHORT
             ).show()
         }
@@ -331,7 +332,6 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun unexpectedErrorHasOccurred(description: String) {
-
     }
 
     fun onBackPressed(): Boolean {
