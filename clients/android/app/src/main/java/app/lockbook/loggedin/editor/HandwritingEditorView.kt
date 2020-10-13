@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
@@ -23,57 +22,55 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var tempCanvas: Canvas
     private var thread = Thread(this)
     private var isThreadRunning = false
+
+    // Current drawing stroke state
     private val activePaint = Paint()
     private val lastPoint = PointF()
     private val activePath = Path()
-    private val viewPort = Rect()
     private val bitmapPaint = Paint()
-    private var isScalling = false
+
+    // Scaling and Viewport state
+    private val viewPort = Rect()
     private var onScreenFocusPoint = PointF()
     private var modelFocusPoint = PointF()
-    private var driftX = 0f
-    private var driftY = 0f
+    private var driftWhileScalingX = 0f
+    private var driftWhileScalingY = 0f
+
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null && !isScalling) {
-                        isScalling = true
+                    if (detector != null) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                         modelFocusPoint = screenToModel(onScreenFocusPoint)
-
-//                        drawingModel.currentView.transformationrmation.onScreenFocusPoint.x =
-//                            zoomFocusPoint.x
-//                        drawingModel.currentView.transformation.onScreenFocusPoint.y =
-//                            zoomFocusPoint.y
-
-//                        Timber.e("Model: ${zoomFocusPoint}, Screen: (${detector.focusX}, ${detector.focusY}), Scale: ${drawingModel.currentView.transformation.scale}, ViewPort: ${viewPort}")
                     }
                     return true
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
 
-                    drawingModel.currentView.transformation.scale *= detector.scaleFactor // 2.14
+                    drawingModel.currentView.transformation.scale *= detector.scaleFactor
 
                     val screenLocationNormalized = PointF(
-                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(), // 0.6
-                        onScreenFocusPoint.y / tempCanvas.clipBounds.height() // 0.5
+                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
+                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
                     )
 
                     val currentViewPortWidth =
-                        tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale // 1752 / 2.14 = 818.691588785
+                        tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
                     val currentViewPortHeight =
-                        tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale // 2613 / 2.14 = 1221.028037383
+                        tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
 
-                    driftX = (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
-                    driftY = (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
+                    driftWhileScalingX =
+                        (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
+                    driftWhileScalingY =
+                        (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
 
                     val left =
-                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftX
+                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
                     val top =
-                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftY
+                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
                     val right = left + currentViewPortWidth
                     val bottom = top + currentViewPortHeight
 
@@ -86,30 +83,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 override fun onScaleEnd(detector: ScaleGestureDetector?) {
-                    Timber.e("scale ended")
-                    isScalling = false
-                    driftX = 0f
-                    driftY = 0f
+                    driftWhileScalingX = 0f
+                    driftWhileScalingY = 0f
                     super.onScaleEnd(detector)
                 }
             }
         )
-
-    private val gestureDetector = GestureDetector(
-        context,
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onScroll(
-                e1: MotionEvent?,
-                e2: MotionEvent?,
-                distanceX: Float,
-                distanceY: Float
-            ): Boolean {
-                drawingModel.currentView.transformation.translation.x += -distanceX
-                drawingModel.currentView.transformation.translation.y += -distanceY
-                return true
-            }
-        }
-    )
 
     init {
         activePaint.isAntiAlias = true
@@ -121,8 +100,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         bitmapPaint.strokeCap = Paint.Cap.ROUND
         bitmapPaint.strokeJoin = Paint.Join.ROUND
     }
-
-    var currentScale = drawingModel.currentView.transformation.scale
 
     private fun render(canvas: Canvas) {
         canvas.save()
@@ -198,6 +175,15 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 activePath.reset()
             }
         }
+
+        val currentViewPortWidth =
+            tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
+        val currentViewPortHeight =
+            tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
+        viewPort.left = (-drawingModel.currentView.transformation.translation.x).toInt()
+        viewPort.top = (-drawingModel.currentView.transformation.translation.y).toInt()
+        viewPort.right = (left + currentViewPortWidth).toInt()
+        viewPort.bottom = (top + currentViewPortHeight).toInt()
     }
 
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
@@ -231,7 +217,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleFingerEvent(event: MotionEvent) {
         scaleGestureDetector.onTouchEvent(event)
-//        gestureDetector.onTouchEvent(event)
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
@@ -280,7 +265,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    fun screenToModel(screen: PointF): PointF {
+    private fun screenToModel(screen: PointF): PointF {
         var modelX =
             (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
 
