@@ -2,7 +2,6 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
@@ -10,14 +9,17 @@ import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -65,45 +67,45 @@ class ImportAccountActivity : AppCompatActivity() {
                     finishAffinity()
                 }
                 is Err -> when (val error = importAccountResult.error) {
-                    is ImportError.AccountStringCorrupted -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountStringCorrupted -> Snackbar.make(
+                        splash_screen,
                         "Invalid account string!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is ImportError.AccountExistsAlready -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountExistsAlready -> Snackbar.make(
+                        splash_screen,
                         "Account already exists!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is ImportError.AccountDoesNotExist -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountDoesNotExist -> Snackbar.make(
+                        splash_screen,
                         "That account does not exist on this server!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is ImportError.UsernamePKMismatch -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.UsernamePKMismatch -> Snackbar.make(
+                        splash_screen,
                         "That username does not correspond with that public_key on this server!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is ImportError.CouldNotReachServer -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.CouldNotReachServer -> Snackbar.make(
+                        splash_screen,
                         "Could not access server to ensure this !",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.UnexpectedError -> {
                         Timber.e("Unable to import an account.")
-                        Toast.makeText(
-                            applicationContext,
+                        Snackbar.make(
+                            splash_screen,
                             UNEXPECTED_ERROR,
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_SHORT
                         ).show()
                     }
                     else -> {
                         Timber.e("ImportError not matched: ${error::class.simpleName}.")
-                        Toast.makeText(
-                            applicationContext,
-                            UNEXPECTED_ERROR,
-                            Toast.LENGTH_LONG
+                        Snackbar.make(
+                            splash_screen,
+                            UNEXPECTED_CLIENT_ERROR,
+                            Snackbar.LENGTH_SHORT
                         ).show()
                     }
                 }

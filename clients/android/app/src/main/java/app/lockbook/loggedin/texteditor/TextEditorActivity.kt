@@ -6,19 +6,19 @@ import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 import java.util.*
 import java.util.concurrent.Executors
@@ -174,7 +174,11 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG).show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
         }
 
