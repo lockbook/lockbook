@@ -13,7 +13,7 @@ struct SyncIndicator: View {
                 .disabled(true)
         } else {
             Image(systemName: "arrow.2.circlepath.circle.fill")
-                .foregroundColor(.accentColor)
+                .foregroundColor(.primary)
         }
     }
 }
