@@ -8,7 +8,7 @@ import timber.log.Timber
 
 object CoreModel {
 
-    const val API_URL = "http://lockbook_server:8000"
+    const val API_URL = "http://qa.lockbook.app:8000"
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
