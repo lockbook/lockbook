@@ -15,7 +15,7 @@ class Core: ObservableObject {
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
-    private var passthrough = PassthroughSubject<Void, Error>()
+    private var passthrough = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
 
     func load() {
@@ -58,12 +58,7 @@ class Core: ObservableObject {
     func sync() {
         self.syncing = true
         serialQueue.async {
-            switch self.api.synchronize() {
-            case .success(_):
-                self.passthrough.send(())
-            case .failure(let err):
-                self.passthrough.send(completion: .failure(err))
-            }
+            self.passthrough.send(self.api.synchronize())
         }
     }
     
@@ -105,18 +100,24 @@ class Core: ObservableObject {
         updateFiles()
 
         passthrough
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .removeDuplicates(by: {
+                switch ($0, $1) {
+                case (.failure(let e1), .failure(let e2)):
+                    return e1 == e2
+                default:
+                    return false
+                }
+            })
             .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { err in
+            .sink(receiveValue: { res in
                 self.syncing = false
-                switch err {
+                switch res {
+                case .success(_):
+                    self.updateFiles()
                 case .failure(let err):
                     self.handleError(err)
-                case .finished:
-                    print("Sync subscription finished!") // TODO: Does the application work at this point?
                 }
-            }, receiveValue: { _ in
-                self.updateFiles()
-                self.syncing = false
             })
             .store(in: &cancellableSet)
     }
