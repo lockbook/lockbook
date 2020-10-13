@@ -14,10 +14,11 @@ import app.lockbook.utils.Drawing
 import app.lockbook.utils.Event
 import app.lockbook.utils.PressurePoint
 import app.lockbook.utils.Stroke
+import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
-    var lockbookDrawable: Drawing = Drawing()
+    var drawingModel: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     private var thread = Thread(this)
@@ -27,20 +28,69 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val activePath = Path()
     private val viewPort = Rect()
     private val bitmapPaint = Paint()
+    private var isScalling = false
+    private var onScreenFocusPoint = PointF()
+    private var modelFocusPoint = PointF()
+    private var driftX = 0f
+    private var driftY = 0f
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
+                    if (detector != null && !isScalling) {
+                        isScalling = true
+                        onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
+                        modelFocusPoint = screenToModel(onScreenFocusPoint)
+
+//                        drawingModel.currentView.transformationrmation.onScreenFocusPoint.x =
+//                            zoomFocusPoint.x
+//                        drawingModel.currentView.transformation.onScreenFocusPoint.y =
+//                            zoomFocusPoint.y
+
+//                        Timber.e("Model: ${zoomFocusPoint}, Screen: (${detector.focusX}, ${detector.focusY}), Scale: ${drawingModel.currentView.transformation.scale}, ViewPort: ${viewPort}")
+                    }
+                    return true
+                }
+
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    lockbookDrawable.page.transformation.scale *= detector.scaleFactor
-                    lockbookDrawable.page.transformation.scale = 0.7f.coerceAtLeast(
-                        lockbookDrawable.page.transformation.scale.coerceAtMost(2.0f)
+
+                    drawingModel.currentView.transformation.scale *= detector.scaleFactor // 2.14
+
+                    val screenLocationNormalized = PointF(
+                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(), // 0.6
+                        onScreenFocusPoint.y / tempCanvas.clipBounds.height() // 0.5
                     )
 
-                    lockbookDrawable.page.transformation.scaleFocus.x = detector.focusX
-                    lockbookDrawable.page.transformation.scaleFocus.y = detector.focusY
+                    val currentViewPortWidth =
+                        tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale // 1752 / 2.14 = 818.691588785
+                    val currentViewPortHeight =
+                        tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale // 2613 / 2.14 = 1221.028037383
+
+                    driftX = (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
+                    driftY = (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
+
+                    val left =
+                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftX
+                    val top =
+                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftY
+                    val right = left + currentViewPortWidth
+                    val bottom = top + currentViewPortHeight
+
+                    viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+
+                    drawingModel.currentView.transformation.translation.x = -left
+                    drawingModel.currentView.transformation.translation.y = -top
 
                     return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector?) {
+                    Timber.e("scale ended")
+                    isScalling = false
+                    driftX = 0f
+                    driftY = 0f
+                    super.onScaleEnd(detector)
                 }
             }
         )
@@ -54,9 +104,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                lockbookDrawable.page.transformation.translation.x += -distanceX * lockbookDrawable.page.transformation.scale
-                lockbookDrawable.page.transformation.translation.y += -distanceY * lockbookDrawable.page.transformation.scale
-
+                drawingModel.currentView.transformation.translation.x += -distanceX
+                drawingModel.currentView.transformation.translation.y += -distanceY
                 return true
             }
         }
@@ -73,35 +122,42 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         bitmapPaint.strokeJoin = Paint.Join.ROUND
     }
 
-    private fun drawBitmap(canvas: Canvas) {
+    var currentScale = drawingModel.currentView.transformation.scale
+
+    private fun render(canvas: Canvas) {
         canvas.save()
-        canvas.translate(
-            lockbookDrawable.page.transformation.translation.x,
-            lockbookDrawable.page.transformation.translation.y
-        )
         canvas.scale(
-            lockbookDrawable.page.transformation.scale,
-            lockbookDrawable.page.transformation.scale,
-            lockbookDrawable.page.transformation.scaleFocus.x,
-            lockbookDrawable.page.transformation.scaleFocus.y
+            drawingModel.currentView.transformation.scale,
+            drawingModel.currentView.transformation.scale,
         )
-        viewPort.set(canvas.clipBounds)
+
+        canvas.translate(
+            drawingModel.currentView.transformation.translation.x,
+            drawingModel.currentView.transformation.translation.y
+        )
+
         canvas.drawColor(
             Color.TRANSPARENT,
             PorterDuff.Mode.CLEAR
         )
         canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
+        canvas.drawCircle(
+            modelFocusPoint.x,
+            modelFocusPoint.y,
+            10f,
+            activePaint
+        )
         canvas.restore()
     }
 
-    fun setUpBitmapDrawable() {
+    private fun initializeCanvasesAndBitmaps() {
         val canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
             holder.lockHardwareCanvas()
         } else {
             holder.lockCanvas()
         }
         canvasBitmap =
-            Bitmap.createBitmap(canvas.width * 2, canvas.height * 2, Bitmap.Config.ARGB_8888)
+            Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
         tempCanvas = Canvas(canvasBitmap)
         val currentPaint = Paint()
         currentPaint.color = Color.WHITE
@@ -112,14 +168,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         holder.unlockCanvasAndPost(canvas)
     }
 
-    fun drawLockbookDrawable() {
+    private fun restoreFromModel() {
         val currentPaint = Paint()
         currentPaint.isAntiAlias = true
         currentPaint.style = Paint.Style.STROKE
         currentPaint.strokeJoin = Paint.Join.ROUND
         currentPaint.strokeCap = Paint.Cap.ROUND
 
-        for (event in lockbookDrawable.events) {
+        for (event in drawingModel.events) {
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
@@ -144,11 +200,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    fun setUpDrawing(lockbookDrawable: Drawing?) {
-        setUpBitmapDrawable()
-        if (lockbookDrawable != null) {
-            this.lockbookDrawable = lockbookDrawable
-            drawLockbookDrawable()
+    fun initializeWithDrawing(maybeDrawing: Drawing?) {
+        initializeCanvasesAndBitmaps()
+        if (maybeDrawing != null) {
+            this.drawingModel = maybeDrawing
+            restoreFromModel()
         }
         isThreadRunning = true
         thread.start()
@@ -157,13 +213,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
-            for (point in 0 until event.pointerCount) {
-                if (event.getToolType(point) == MotionEvent.TOOL_TYPE_STYLUS ||
-                    event.getToolType(point) == MotionEvent.TOOL_TYPE_ERASER
+            Timber.e("pointers ${event.pointerCount}")
+            if (event.pointerCount > 0) {
+                if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
+                    event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
                 ) {
                     handleStylusEvent(event)
                 }
-                if (event.getToolType(point) == MotionEvent.TOOL_TYPE_FINGER) {
+                if (event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
                     handleFingerEvent(event)
                 }
             }
@@ -174,52 +231,70 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleFingerEvent(event: MotionEvent) {
         scaleGestureDetector.onTouchEvent(event)
-        gestureDetector.onTouchEvent(event)
+//        gestureDetector.onTouchEvent(event)
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
+        val modelPoint = screenToModel(PointF(event.x, event.y))
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> moveTo(event.x, event.y, event.pressure)
-            MotionEvent.ACTION_MOVE -> lineTo(event.x, event.y, event.pressure)
+            MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
+            MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
         }
     }
 
-    private fun moveTo(x: Float, y: Float, pressure: Float) {
-        lastPoint.set(x, y)
+    private fun moveTo(point: PointF, pressure: Float) {
+        lastPoint.set(point.x, point.y)
         val penPath = Stroke(activePaint.color)
         penPath.points.add(
             PressurePoint(
-                x,
-                y,
-                pressure * 7
+                point.x,
+                point.y,
+                pressure * 7 // TODO: This should become a setting, maybe called sensitivity
             )
-        ) // TODO: This should become a setting, maybe called sensitivity
-        lockbookDrawable.events.add(Event(penPath))
+        )
+        drawingModel.events.add(Event(penPath))
     }
 
-    private fun lineTo(x: Float, y: Float, pressure: Float) {
+    private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure * 7
         activePath.moveTo(
-            (viewPort.width() * 2 * (lastPoint.x / tempCanvas.clipBounds.width())) + viewPort.left,
-            (viewPort.height() * 2 * (lastPoint.y / tempCanvas.clipBounds.height())) + viewPort.top
+            lastPoint.x,
+            lastPoint.y
         )
 
         activePath.lineTo(
-            (viewPort.width() * 2 * (x / tempCanvas.clipBounds.width())) + viewPort.left,
-            (viewPort.height() * 2 * (y / tempCanvas.clipBounds.height())) + viewPort.top
+            point.x,
+            point.y
         )
 
         tempCanvas.drawPath(activePath, activePaint)
 
         activePath.reset()
-        lastPoint.set(x, y)
-        for (eventIndex in lockbookDrawable.events.size - 1 downTo 1) {
-            val currentEvent = lockbookDrawable.events[eventIndex].stroke
+        lastPoint.set(point.x, point.y)
+        for (eventIndex in drawingModel.events.size - 1 downTo 1) {
+            val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(PressurePoint(x, y, pressure * 7))
+                currentEvent.points.add(PressurePoint(point.x, point.y, pressure * 7))
                 break
             }
         }
+    }
+
+    fun screenToModel(screen: PointF): PointF {
+        var modelX =
+            (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
+
+        if (modelX < 0) modelX = 0f
+        if (modelX > tempCanvas.clipBounds.width()) modelX =
+            tempCanvas.clipBounds.width().toFloat()
+
+        var modelY =
+            (viewPort.height() * (screen.y / tempCanvas.clipBounds.height())) + viewPort.top
+        if (modelY < 0) modelY = 0f
+        if (modelY > tempCanvas.clipBounds.height()) modelY =
+            tempCanvas.clipBounds.height().toFloat()
+
+        return PointF(modelX, modelY)
     }
 
     fun setColor(color: String) {
@@ -258,7 +333,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 } else {
                     holder.lockCanvas()
                 }
-                drawBitmap(canvas)
+                render(canvas)
             } finally { // TODO what happens to this unhandled catch?
                 holder.unlockCanvasAndPost(canvas)
             }
