@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.observe
 import app.lockbook.R
 import app.lockbook.utils.*
 import com.beust.klaxon.Klaxon
@@ -48,11 +49,10 @@ class HandwritingEditorActivity : AppCompatActivity() {
             ).get(HandwritingEditorViewModel::class.java)
 
         handwritingEditorViewModel.errorHasOccurred.observe(
-            this,
-            { errorHasOccurred ->
-                errorHasOccurred(errorHasOccurred)
-            }
-        )
+            this
+        ) { errorHasOccurred ->
+            errorHasOccurred(errorHasOccurred)
+        }
 
         if (!startUpDrawingIfAble(id)) {
             finish()
@@ -65,7 +65,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     private fun startUpDrawingIfAble(id: String): Boolean {
         val priorContents = handwritingEditorViewModel.handleReadDocument(id)
-        Timber.e(priorContents)
 
         if (priorContents != null && priorContents.isNotEmpty()) {
             if (handwritingEditorViewModel.lockBookDrawable == null) {
@@ -80,6 +79,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
         handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder?) {
+                Timber.e("CREATED")
                 handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
             }
 
@@ -92,6 +92,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder?) {
+                Timber.e("DESTROYED")
                 endHandwritingThread()
             }
         })
@@ -99,14 +100,16 @@ class HandwritingEditorActivity : AppCompatActivity() {
         return true
     }
 
-    override fun onPause() {
-        super.onPause()
-        endHandwritingThread()
-    }
-
     override fun onRestart() {
         super.onRestart()
+        Timber.e("RESTARTED")
         handwriting_editor.restartThread()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Timber.e("STOPPED")
+        endHandwritingThread()
     }
 
     private fun endHandwritingThread() {

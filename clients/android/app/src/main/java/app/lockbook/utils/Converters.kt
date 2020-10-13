@@ -26,6 +26,40 @@ val initLoggerConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val getUsageConverters = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? {
+        val okResult = jv.obj?.array<FileUsage>("Ok")
+
+        if (okResult != null) {
+            return Ok(Klaxon().parseFromJsonArray<FileUsage>(okResult))
+        }
+
+        when (jv.obj?.get("Err")) {
+            GetUsageError.NoAccount::class.simpleName -> return Err(
+                GetUsageError.NoAccount
+            )
+            GetUsageError.CouldNotReachServer::class.simpleName -> return Err(
+                GetUsageError.CouldNotReachServer
+            )
+            GetUsageError.ClientUpdateRequired::class.simpleName -> return Err(
+                GetUsageError.ClientUpdateRequired
+            )
+        }
+
+        val unexpectedResult = jv.obj?.get("UnexpectedError")
+
+        if (unexpectedResult is String) {
+            return Err(GetUsageError.UnexpectedError(unexpectedResult))
+        }
+
+        return Err(GetUsageError.UnexpectedError("Unable to parse GetUsageResult: ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

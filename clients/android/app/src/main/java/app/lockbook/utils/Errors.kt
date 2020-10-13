@@ -4,6 +4,13 @@ sealed class InitLoggerError {
     data class Unexpected(val error: String) : InitLoggerError()
 }
 
+sealed class GetUsageError {
+    object NoAccount: GetUsageError()
+    object CouldNotReachServer: GetUsageError()
+    object ClientUpdateRequired: GetUsageError()
+    class UnexpectedError(val error: String) : GetUsageError()
+}
+
 sealed class CreateAccountError {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
