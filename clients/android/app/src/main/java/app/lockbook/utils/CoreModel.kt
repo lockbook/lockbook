@@ -232,7 +232,7 @@ object CoreModel {
         name: String
     ): Result<Unit, RenameFileError> {
         val renameResult: Result<Unit, RenameFileError>? =
-            Klaxon().converter(renameFileConverter)
+            Klaxon().converter(getUsageConverters)
                 .parse(renameFile(Klaxon().toJsonString(config), id, name))
 
         if (renameResult != null) {
