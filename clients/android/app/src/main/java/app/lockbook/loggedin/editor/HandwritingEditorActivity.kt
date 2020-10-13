@@ -152,7 +152,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                             handwriting_editor.drawingModel.currentView.transformation.translation.y
                                         ),
                                         handwriting_editor.drawingModel.currentView.transformation.scale,
-                                        handwriting_editor.drawingModel.currentView.transformation.onScreenFocusPoint,
                                     )
                                 ),
                                 handwriting_editor.drawingModel.events.map { event ->
