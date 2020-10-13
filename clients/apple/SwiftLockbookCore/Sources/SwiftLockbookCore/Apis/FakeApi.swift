@@ -73,7 +73,7 @@ Vestibulum ante ipsum primis in vel.
     }
     
     public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
-        .failure(.init(unexpected: "LAZY"))
+        .success(Empty())
     }
     
     public func markFileForDeletion(id: UUID) -> FfiResult<Bool, DeleteFileError> {
