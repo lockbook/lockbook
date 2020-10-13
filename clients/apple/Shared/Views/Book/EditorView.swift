@@ -2,16 +2,6 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
-#if os(macOS)
-/// Gets rid of the highlight border on a textfield
-extension NSTextField {
-    open override var focusRingType: NSFocusRingType {
-        get { .none }
-        set { }
-    }
-}
-#endif
-
 struct EditorView: View, Equatable {
     /// Define an always equality so that this view doesn't reload once it's initialized
     static func == (lhs: EditorView, rhs: EditorView) -> Bool {
@@ -29,10 +19,10 @@ struct EditorView: View, Equatable {
                     switch core.api.renameFile(id: meta.id, name: contentBuffer.title) {
                     case .success(_):
                         core.updateFiles()
-                        contentBuffer.status = .Succeeded
+                        contentBuffer.status = .RenameSuccess
                     case .failure(let err):
                         core.handleError(err)
-                        contentBuffer.status = .Failed
+                        contentBuffer.status = .RenameFailure
                     }
                 }
             })
@@ -61,33 +51,16 @@ struct EditorView: View, Equatable {
                 }
             #if os(iOS)
             baseEditor
-                .navigationBarItems(trailing: makeStatus())
+                .navigationBarItems(trailing: EditorStatus(status: contentBuffer.status))
             #else
             baseEditor
                 .toolbar(content: {
                     ToolbarItem(placement: .automatic) {
-                        makeStatus()
+                        EditorStatus(status: contentBuffer.status)
                             .font(.title)
                     }
                 })
             #endif
-        }
-    }
-    
-    func makeStatus() -> some View {
-        switch contentBuffer.status {
-        case .Inactive:
-            return Image(systemName: "slash.circle")
-                .foregroundColor(.secondary)
-                .opacity(0.4)
-        case .Succeeded:
-            return Image(systemName: "checkmark.circle")
-                .foregroundColor(.green)
-                .opacity(0.6)
-        case .Failed:
-            return Image(systemName: "xmark.circle")
-                .foregroundColor(.red)
-                .opacity(0.6)
         }
     }
     
@@ -98,63 +71,43 @@ struct EditorView: View, Equatable {
     }
 }
 
-class ContentBuffer: ObservableObject {
-    let meta: FileMetadata
-    private var cancellables: Set<AnyCancellable> = []
-    let core: Core
-    @Published var content: String
-    @Published var succeeded: Bool = false
-    @Published var status: SaveStatus = .Inactive
-    @Published var title: String
-    
-    init(meta: FileMetadata, initialContent: String, core: Core) {
-        self.meta = meta
-        self.core = core
-        self.content = initialContent
-        self.title = meta.name
-        
-        $content
-            .debounce(for: 0.2, scheduler: RunLoop.main)
-            .sink { _ in
-                self.status = .Inactive
-            }
-            .store(in: &cancellables)
-        
-        $content
-            .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
-            .filter({ _ in self.succeeded })
-            .flatMap { _ in
-                Future<Void, Error> { promise in
-                    promise(self.save())
-                }
-            }
-            .eraseToAnyPublisher()
-            .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { (err) in
-                self.status = .Failed
-            }, receiveValue: { (input) in
-                self.status = .Succeeded
-            })
-            .store(in: &cancellables)
-    }
-    
-    func save() -> Result<Void, Error> {
-        core.serialQueue.sync {
-            switch core.api.updateFile(id: meta.id, content: content) {
-            case .success(_):
-                return .success(())
-            case .failure(let err):
-                return .failure(err)
-            }
+struct EditorStatus: View {
+    let status: ContentBuffer.Status
+    var body: some View {
+        switch status {
+        case .WriteSuccess:
+            return Image(systemName: "text.badge.checkmark")
+                .foregroundColor(.green)
+                .opacity(0.3)
+        case .WriteFailure:
+            return Image(systemName: "text.badge.xmark")
+                .foregroundColor(.red)
+                .opacity(0.6)
+        case .RenameSuccess:
+            return Image(systemName: "checkmark.circle")
+                .foregroundColor(.green)
+                .opacity(0.3)
+        case .RenameFailure:
+            return Image(systemName: "xmark.circle")
+                .foregroundColor(.red)
+                .opacity(0.6)
+        case .Inactive:
+            return Image(systemName: "ellipsis")
+                .foregroundColor(.secondary)
+                .opacity(0.3)
         }
     }
 }
 
-enum SaveStatus {
-    case Succeeded
-    case Failed
-    case Inactive
+#if os(macOS)
+/// Gets rid of the highlight border on a textfield
+extension NSTextField {
+    open override var focusRingType: NSFocusRingType {
+        get { .none }
+        set { }
+    }
 }
+#endif
 
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
