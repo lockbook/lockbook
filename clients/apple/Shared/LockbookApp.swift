@@ -3,31 +3,22 @@ import SwiftLockbookCore
 
 @main
 struct LockbookApp: App {
-    #if os(macOS)
-    @StateObject var core = Core(documenstDirectory: FileManager.default.homeDirectoryForCurrentUser.path + "/.lockbook")
-    #else
-    @StateObject var core = Core(documenstDirectory: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path)
-    #endif
-    
+    @StateObject var core = Core(documenstDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
+
     var body: some Scene {
-        #if os(macOS)
         WindowGroup {
             AppView(core: core)
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
-        }.commands(content: {
+        }.commands {
             CommandMenu("Lockbook") {
-                Button("Sync", action: core.sync).keyboardShortcut("s", modifiers: .command)
+                Button("Sync", action: core.sync).keyboardShortcut("S", modifiers: .command)
             }
-        })
+        }
 
+        #if os(macOS)
         Settings {
             SettingsView(core: core)
-        }
-        #else
-        WindowGroup {
-            AppView(core: core)
-                .ignoresSafeArea()
         }
         #endif
     }

@@ -62,13 +62,8 @@ class Core: ObservableObject {
         }
     }
     
-    func handleError<E: Error>(_ error: E) {
-        switch error {
-        case let ffiError as AnyFfiError:
-            globalError = ffiError
-        default:
-            print("Received non-FFI error [\(String(describing: error.self))] \(error)") // This is basically an app crash
-        }
+    func handleError(_ error: AnyFfiError) {
+        globalError = error
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
