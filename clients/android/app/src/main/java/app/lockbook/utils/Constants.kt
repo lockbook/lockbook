@@ -47,5 +47,6 @@ object WorkManagerTags {
     const val PERIODIC_SYNC_TAG = "periodic_sync"
 }
 
+const val CANVAS_SIZE = 2500
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
 const val LOG_FILE_NAME = "output.log"

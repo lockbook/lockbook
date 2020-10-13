@@ -13,14 +13,7 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::{
-    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
-    get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file,
-    move_file, read_document, rename_file, set_last_synced, sync_all, write_document,
-    AccountExportError, CreateAccountError, CreateFileError, DeleteFileError, GetAccountError,
-    GetChildrenError, GetFileByIdError, GetRootError, ImportError, InitLoggerError,
-    InsertFileError, ReadDocumentError, RenameFileError, SetLastSyncedError, WriteToDocumentError,
-};
+use crate::{calculate_work, create_account, create_file, delete_file, execute_work, export_account, get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, AccountExportError, CreateAccountError, CreateFileError, DeleteFileError, GetAccountError, GetChildrenError, GetFileByIdError, GetRootError, ImportError, InitLoggerError, InsertFileError, ReadDocumentError, RenameFileError, SetLastSyncedError, WriteToDocumentError, GetUsageError, get_usage};
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -50,6 +43,36 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
     let path = Path::new(&absolute_path);
 
     serialize_to_jstring(&env, init_logger(path))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env.get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                GetUsageError::UnexpectedError("Couldn't get config out of JNI!".to_string()),
+            );
+        }
+    }
+        .into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                GetUsageError::UnexpectedError("Couldn't deserialize config!".to_string()),
+            );
+        }
+    };
+
+    serialize_to_jstring(&env, get_usage(&deserialized_config))
 }
 
 #[no_mangle]
