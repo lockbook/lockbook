@@ -92,7 +92,6 @@ struct FileListView: View {
                 Button(action: { showingCreate.toggle() }) {
                     Image(systemName: "plus.circle")
                 }
-                .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                 .popover(isPresented: $showingCreate, content: {
                     if let folder = selectedFolder {
                         CreateFileView(core: core, currentFolder: folder)
@@ -115,12 +114,13 @@ struct FileListView: View {
                 HStack {
                     Button(action: core.sync) {
                         SyncIndicator(syncing: $core.syncing)
-                    }.font(.title)
+                    }
+                    .font(.title)
                     .disabled(core.syncing)
                     Button(action: { showingCreate.toggle() }) {
                         Image(systemName: "plus.circle")
-                    }.font(.title)
-                    .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
+                    }
+                    .font(.title)
                     .popover(isPresented: $showingCreate, content: {
                         if let folder = selectedFolder {
                             CreateFileView(core: core, currentFolder: folder)

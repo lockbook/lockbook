@@ -75,6 +75,10 @@ struct EditorStatus: View {
     let status: ContentBuffer.Status
     var body: some View {
         switch status {
+        case .BufferDied:
+            return Image(systemName: "lock.fill")
+                .foregroundColor(.red)
+                .opacity(0.6)
         case .WriteSuccess:
             return Image(systemName: "text.badge.checkmark")
                 .foregroundColor(.green)
