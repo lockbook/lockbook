@@ -1,19 +1,33 @@
 package app.lockbook.utils
 
+import com.beust.klaxon.Json
 import java.util.*
 
 data class FileMetadata(
     val id: String,
-    val file_type: FileType,
+    @Json(name = "file_type")
+    val fileType: FileType,
     val parent: String,
     val name: String,
     val owner: String,
     val signature: SignedValue,
-    val metadata_version: Long,
-    val content_version: Long,
+    @Json(name = "metadata_version")
+    val metadataVersion: Long,
+    @Json(name = "content_version")
+    val contentVersion: Long,
     val deleted: Boolean,
-    val user_access_keys: LinkedHashMap<String, UserAccessInfo>,
-    val folder_access_keys: FolderAccessInfo
+    @Json(name = "user_access_keys")
+    val userAccessKeys: LinkedHashMap<String, UserAccessInfo>,
+    @Json(name = "folder_access_keys")
+    val folderAccessKeys: FolderAccessInfo
+)
+
+data class FileUsage(
+    @Json(name = "file_id")
+    val fileId: String,
+    @Json(name = "byte_secs")
+    val byteSections: Int,
+    val secs: Int,
 )
 
 data class SignedValue(
@@ -22,8 +36,10 @@ data class SignedValue(
 )
 
 data class FolderAccessInfo(
-    val folder_id: String,
-    val access_key: EncryptedValueWithNonce
+    @Json(name = "folder_id")
+    val folderId: String,
+    @Json(name = "access_key")
+    val accessKey: EncryptedValueWithNonce
 )
 
 data class EncryptedValueWithNonce(
@@ -37,8 +53,10 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    val public_key: RSAPublicKey,
-    val access_key: EncryptedValue
+    @Json(name = "public_key")
+    val publicKey: RSAPublicKey,
+    @Json(name = "access_key")
+    val accessKey: EncryptedValue
 )
 
 data class EncryptedValue(
@@ -52,7 +70,8 @@ data class DecryptedValue(
 data class Account(
     val username: String,
     val keys: RSAPrivateKey,
-    val api_url: String,
+    @Json(name = "api_url")
+    val apiUrl: String,
 )
 
 data class RSAPrivateKey(
@@ -68,8 +87,10 @@ data class RSAPublicKey(
 )
 
 data class WorkCalculated(
-    val work_units: List<WorkUnit>,
-    val most_recent_update_from_server: Long
+    @Json(name = "work_units")
+    val workUnits: List<WorkUnit>,
+    @Json(name = "most_recent_update_from_server")
+    val mostRecentUpdateFromServer: Long
 )
 
 data class WorkUnit(

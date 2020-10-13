@@ -342,9 +342,9 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, PopUpInfoActivity::class.java)
         intent.putExtra("name", fileMetadata.name)
         intent.putExtra("id", fileMetadata.id)
-        intent.putExtra("fileType", fileMetadata.file_type.toString())
-        intent.putExtra("metadataVersion", fileMetadata.metadata_version.toString())
-        intent.putExtra("contentVersion", fileMetadata.content_version.toString())
+        intent.putExtra("fileType", fileMetadata.fileType.toString())
+        intent.putExtra("metadataVersion", fileMetadata.metadataVersion.toString())
+        intent.putExtra("contentVersion", fileMetadata.contentVersion.toString())
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
