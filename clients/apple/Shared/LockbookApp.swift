@@ -15,8 +15,12 @@ struct LockbookApp: App {
             AppView(core: core)
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
-        }
-        
+        }.commands(content: {
+            CommandMenu("Lockbook") {
+                Button("Sync", action: core.sync).keyboardShortcut("s", modifiers: .command)
+            }
+        })
+
         Settings {
             SettingsView(core: core)
         }
