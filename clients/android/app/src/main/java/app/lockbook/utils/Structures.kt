@@ -117,7 +117,6 @@ data class Page(
 data class Transformation(
     var translation: Point = Point(0f, 0f),
     var scale: Float = 1f,
-    var onScreenFocusPoint: Point = Point(0f, 0f),
 )
 
 data class PressurePoint(
