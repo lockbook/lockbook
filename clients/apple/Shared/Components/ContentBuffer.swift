@@ -28,26 +28,34 @@ class ContentBuffer: ObservableObject {
             .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
             .filter({ _ in self.succeeded })
             .flatMap { _ in
-                Future<Void, Error> { promise in
-                    promise(self.save())
+                Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
+                    promise(.success(self.save()))
                 }
             }
             .eraseToAnyPublisher()
             .receive(on: RunLoop.main)
             .sink(receiveCompletion: { (err) in
                 self.succeeded = false
-                self.status = .WriteFailure
+                self.status = .BufferDied
             }, receiveValue: { (input) in
-                self.status = .WriteSuccess
+                switch input {
+                case .success(_):
+                    self.succeeded = true
+                    self.status = .WriteSuccess
+                case .failure(let err):
+                    core.handleError(err)
+                    self.status = .WriteFailure
+                }
+
             })
             .store(in: &cancellables)
     }
 
-    func save() -> Result<Void, Error> {
+    func save() -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {
         core.serialQueue.sync {
             switch core.api.updateFile(id: meta.id, content: content) {
-            case .success(_):
-                return .success(())
+            case .success(let e):
+                return .success(e)
             case .failure(let err):
                 return .failure(err)
             }
