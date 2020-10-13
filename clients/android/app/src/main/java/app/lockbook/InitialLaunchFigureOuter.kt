@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
@@ -16,6 +15,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
 import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
@@ -23,6 +23,7 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 
@@ -60,10 +61,10 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         performBiometricFlow(pref)
                     }
                     State.MigrationRequired -> {
-                        Toast.makeText(
-                            applicationContext,
+                        Snackbar.make(
+                            splash_screen,
                             "Your Lockbook data is old and will require migrating to use this version, please wait...",
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_SHORT
                         ).show()
                         progressBar = ProgressBar(
                             applicationContext,
@@ -78,33 +79,38 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
-                        Toast.makeText(
-                            applicationContext,
+                        Snackbar.make(
+                            splash_screen,
                             "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_SHORT
                         ).show()
                     }
                     else -> {
                         Timber.e("State enum not matched: ${getDBStateResult.value::class.simpleName}")
-                        Toast.makeText(
-                            applicationContext,
-                            UNEXPECTED_ERROR,
-                            Toast.LENGTH_LONG
-                        )
-                            .show()
+                        Snackbar.make(
+                            splash_screen,
+                            UNEXPECTED_CLIENT_ERROR,
+                            Snackbar.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.UnexpectedError -> {
                     Timber.e("Unable to get DB State: ${error.error}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                 }
                 else -> {
                     Timber.e("GetStateError not matched: ${error::class.simpleName}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -121,21 +127,27 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Err -> when (val error = migrateDBResult.error) {
                 is MigrationError.StateRequiresCleaning -> {
                     Timber.e("DB state requires cleaning!")
-                    Toast.makeText(
-                        applicationContext,
+                    Snackbar.make(
+                        splash_screen,
                         "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
                 }
                 is MigrationError.UnexpectedError -> {
                     Timber.e("Unable to migrate DB: ${error.error}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                 }
                 else -> {
                     Timber.e("MigrationError not matched: ${error::class.simpleName}")
-                    Toast.makeText(applicationContext, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -167,8 +179,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    Toast.makeText(this, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                        .show()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_CLIENT_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
                     finish()
                 }
 
@@ -185,21 +200,19 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    Toast.makeText(
-                                        applicationContext,
-                                        UNEXPECTED_ERROR,
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                    Snackbar.make(
+                                        splash_screen,
+                                        UNEXPECTED_CLIENT_ERROR,
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
                                     finish()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
-                                    Toast.makeText(
-                                        applicationContext,
+                                    Snackbar.make(
+                                        splash_screen,
                                         "Too many tries, try again later!",
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
                                 else -> finish()
                             }
                         }
@@ -224,8 +237,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> launchListFilesActivity()
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Toast.makeText(this, UNEXPECTED_ERROR, Toast.LENGTH_LONG)
-                    .show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
         }
     }

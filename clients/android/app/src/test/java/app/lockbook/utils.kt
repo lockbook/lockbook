@@ -1,7 +1,6 @@
 package app.lockbook
 
 import java.util.*
-import kotlin.reflect.jvm.jvmName
 
 // You have to build the jni from core first to be able to run the tests.
 // Next you have to add a vm option that helps java find the library:
