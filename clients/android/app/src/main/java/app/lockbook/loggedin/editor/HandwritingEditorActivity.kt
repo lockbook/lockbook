@@ -103,12 +103,16 @@ class HandwritingEditorActivity : AppCompatActivity() {
     override fun onRestart() {
         super.onRestart()
         Timber.e("RESTARTED")
+        restartThread()
+    }
+
+    private fun restartThread() {
         handwriting_editor.restartThread()
     }
 
-    override fun onStop() {
-        super.onStop()
-        Timber.e("STOPPED")
+    override fun onPause() {
+        super.onPause()
+        Timber.e("PAUSED")
         endHandwritingThread()
     }
 
