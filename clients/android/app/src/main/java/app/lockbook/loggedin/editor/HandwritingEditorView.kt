@@ -311,7 +311,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
-        Timber.e("ENDED")
         thread.interrupt()
     }
 }
