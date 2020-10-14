@@ -79,7 +79,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
         handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder?) {
-                Timber.e("CREATED")
                 handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
             }
 
@@ -92,8 +91,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                Timber.e("DESTROYED")
-                endHandwritingThread()
+                handwriting_editor.endThread()
             }
         })
 
@@ -102,21 +100,11 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     override fun onRestart() {
         super.onRestart()
-        Timber.e("RESTARTED")
-        restartThread()
-    }
-
-    private fun restartThread() {
         handwriting_editor.restartThread()
     }
 
     override fun onPause() {
         super.onPause()
-        Timber.e("PAUSED")
-        endHandwritingThread()
-    }
-
-    private fun endHandwritingThread() {
         handwriting_editor.endThread()
     }
 
