@@ -83,7 +83,7 @@ extension SLCTest {
     func assertSuccess<T, E: UiError>(_ result: FfiResult<T, E>, validation: (T) -> Bool = { _ in true }) {
         switch result {
         case .success(let t):
-            XCTAssertTrue(validation(t), "Result validation failed!")
+            XCTAssertTrue(validation(t), "Result validation failed! \(t)")
         case .failure(let error):
             XCTFail("Result was not a success! \(error)")
         }
@@ -98,7 +98,7 @@ extension SLCTest {
         case .success(let t):
             XCTFail("Result was not an error! \(t)")
         case .failure(let error):
-            XCTAssertTrue(validation(error), "ApplicationError validation failed! \(error)")
+            XCTAssertTrue(validation(error), "ApplicationError validation failed! \(error) \(error.message)")
         }
     }
     
