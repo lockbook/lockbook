@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.appcompat.app.AlertDialog
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -223,11 +224,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     ).show()
                     is AccountExportError.UnexpectedError -> {
                         Timber.e("Unable to export account: ${error.error}")
-                        Snackbar.make(
-                            splash_screen,
-                            UNEXPECTED_ERROR,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                            .setTitle(UNEXPECTED_ERROR)
+                            .setMessage(error.error)
+                            .show()
                     }
                     else -> {
                         Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
@@ -263,11 +263,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 ).show()
                 is AccountExportError.UnexpectedError -> {
                     Timber.e("Unable to export account: ${error.error}")
-                    Snackbar.make(
-                        splash_screen,
-                        UNEXPECTED_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                        .setTitle(UNEXPECTED_ERROR)
+                        .setMessage(error.error)
+                        .show()
                 }
                 else -> {
                     Timber.e("AccountExportError not matched: ${error::class.simpleName}.")

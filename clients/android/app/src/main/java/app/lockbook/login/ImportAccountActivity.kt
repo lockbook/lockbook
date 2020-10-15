@@ -2,6 +2,7 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
@@ -94,11 +95,10 @@ class ImportAccountActivity : AppCompatActivity() {
                     ).show()
                     is ImportError.UnexpectedError -> {
                         Timber.e("Unable to import an account.")
-                        Snackbar.make(
-                            splash_screen,
-                            UNEXPECTED_ERROR,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                        AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                            .setTitle(UNEXPECTED_ERROR)
+                            .setMessage(error.error)
+                            .show()
                     }
                     else -> {
                         Timber.e("ImportError not matched: ${error::class.simpleName}.")

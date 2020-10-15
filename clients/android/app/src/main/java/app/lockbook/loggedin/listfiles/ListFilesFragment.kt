@@ -18,6 +18,7 @@ import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.Messages
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
@@ -162,6 +163,20 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { errorText ->
                 errorHasOccurred(errorText)
+            }
+        )
+
+        listFilesViewModel.unexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
+            }
+        )
+
+        listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
             }
         )
 
@@ -331,7 +346,11 @@ class ListFilesFragment : Fragment() {
         Snackbar.make(list_files_layout, error, Snackbar.LENGTH_SHORT).show()
     }
 
-    private fun unexpectedErrorHasOccurred(description: String) {
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+            .setTitle(Messages.UNEXPECTED_ERROR)
+            .setMessage(error)
+            .show()
     }
 
     fun onBackPressed(): Boolean {
