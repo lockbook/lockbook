@@ -1,3 +1,4 @@
+using Core;
 using lockbook;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -27,8 +28,7 @@ namespace test {
         public void Init() {
             try {
                 Directory.Delete(lockbookDir, true);
-            }
-            catch (DirectoryNotFoundException) { }
+            } catch (DirectoryNotFoundException) { }
         }
 
         [TestMethod]
@@ -110,6 +110,14 @@ namespace test {
         }
 
         [TestMethod]
+        public void GetAccountNoAccount() {
+            // get account
+            var getAccountResult = CoreService.GetAccount().WaitResult();
+            Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getAccountResult.GetType());
+            Assert.AreEqual(Core.GetAccount.PossibleErrors.NoAccount,
+               ((Core.GetAccount.ExpectedError)getAccountResult).error);
+        }
+        [TestMethod]
         public void ImportAccount() {
             // create account
             var username = RandomUsername();
@@ -141,7 +149,10 @@ namespace test {
 
             // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
-            Assert.AreEqual(typeof(Core.ImportAccount.Success), importAccountResult.GetType());
+            Assert.AreEqual(typeof(Core.ImportAccount.ExpectedError), importAccountResult.GetType());
+            Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
+                ((Core.ImportAccount.ExpectedError)importAccountResult).error);
+
         }
 
         [TestMethod]
@@ -159,11 +170,85 @@ namespace test {
         [TestMethod]
         public void SyncAll() {
             // this one will be tricky let's tackle it later
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            CoreService.SyncAll().WaitResult();
+            var syncAllResult = CoreService.SyncAll().WaitResult();
+            Assert.AreEqual(typeof(Core.SyncAll.Success), syncAllResult.GetType());
+        }
+
+        [TestMethod]
+        public void SyncAllNoAccount() {
+
+            CoreService.SyncAll().WaitResult();
+            var syncAllResult = CoreService.SyncAll().WaitResult();
+            Assert.AreEqual(typeof(Core.SyncAll.ExpectedError), syncAllResult.GetType());
+            Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
+                ((Core.SyncAll.ExpectedError)syncAllResult).error);
+        }
+
+        [TestMethod]
+        public void CreateFile() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
         }
 
         [TestMethod]
         public void CreateFileNoAccount() {
+            //create file
+
             Assert.IsFalse(CoreService.AccountExists());
         }
+
+        [TestMethod]
+        public void WriteDoc() {
+
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+
+            var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
+            Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
+        }
+
+        [TestMethod]
+        public void ReadDoc() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+
+            var readDocResult = CoreService.ReadDocument(id).WaitResult();
+            Assert.AreEqual(typeof(Core.ReadDocument.Success), readDocResult.GetType());
+        }
+
+        [TestMethod]
+        public void RenameFile() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+
+            var renameFileResult = CoreService.RenameFile(id, "NewTestFile").WaitResult();
+            Assert.AreEqual(typeof(Core.RenameFile.Success), renameFileResult.GetType());
+        }
+
+
     }
 }
