@@ -18,40 +18,47 @@ namespace lockbook {
         private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr get_api_loc();
-
+        private static extern IntPtr init_logger_safely(string writeable_path);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr create_account(string path, string username);
-
+        private static extern IntPtr create_account(string writeable_path, string username, string api_url);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr get_account(string path);
-
+        private static extern IntPtr import_account(string writeable_path, string account_string);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr import_account(string path, string account_string);
-
+        private static extern IntPtr export_account(string writeable_path);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr list_metadatas(string path);
-
+        private static extern IntPtr get_account(string writeable_path);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr create_file(string path, string name, string parent, string file_type);
-
+        private static extern IntPtr create_file_at_path(string writeable_path, string path_and_name);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr rename_file(string path, string id, string new_name);
-
+        private static extern IntPtr write_document(string writeable_path, string id, string content);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr move_file(string path, string id, string new_parent);
-
+        private static extern IntPtr create_file(string writeable_path, string name, string parent, string file_type);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr sync_all(string path);
-
+        private static extern IntPtr get_root(string writeable_path);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr read_document(string path, string id);
-
+        private static extern IntPtr get_file_by_path(string writeable_path, string path);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr write_document(string path, string id, string content);
-
+        private static extern IntPtr read_document(string writeable_path, string id);
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr calculate_work(string path);
+        private static extern IntPtr list_paths(string writeable_path, string filter);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr rename_file(string writeable_path, string id, string new_name);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr list_metadatas(string writeable_path);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr move_file(string writeable_path, string id, string new_parent);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr calculate_work(string writeable_path);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr execute_work(string writeable_path, string work_unit);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr sync_all(string writeable_path);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr set_last_synced(string writeable_path, ulong last_synced);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_last_synced(string writeable_path);
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_usage(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
@@ -77,7 +84,7 @@ namespace lockbook {
         public async Task<Core.CreateAccount.Result> CreateAccount(string username) {
             string result = await Task.Run(() => {
                 coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(create_account(path, username));
+                string coreResponse = getStringAndRelease(create_account(path, username, "http://api.lockbook.app:8000"));
                 coreMutex.ReleaseMutex();
                 return coreResponse;
             });
