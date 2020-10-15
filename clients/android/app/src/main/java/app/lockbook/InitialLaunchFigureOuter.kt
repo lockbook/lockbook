@@ -1,11 +1,13 @@
 package app.lockbook
 
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
@@ -26,6 +28,7 @@ import com.github.michaelbull.result.Ok
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
+
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
@@ -98,17 +101,16 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.UnexpectedError -> {
                     Timber.e("Unable to get DB State: ${error.error}")
-                    Snackbar.make(
-                        splash_screen,
-                        UNEXPECTED_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                        .setTitle(UNEXPECTED_ERROR)
+                        .setMessage(error.error)
+                        .show()
                 }
                 else -> {
                     Timber.e("GetStateError not matched: ${error::class.simpleName}")
                     Snackbar.make(
                         splash_screen,
-                        UNEXPECTED_ERROR,
+                        UNEXPECTED_CLIENT_ERROR,
                         Snackbar.LENGTH_SHORT
                     ).show()
                 }
@@ -135,17 +137,16 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
                 is MigrationError.UnexpectedError -> {
                     Timber.e("Unable to migrate DB: ${error.error}")
-                    Snackbar.make(
-                        splash_screen,
-                        UNEXPECTED_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                        .setTitle(UNEXPECTED_ERROR)
+                        .setMessage(error.error)
+                        .show()
                 }
                 else -> {
                     Timber.e("MigrationError not matched: ${error::class.simpleName}")
                     Snackbar.make(
                         splash_screen,
-                        UNEXPECTED_ERROR,
+                        UNEXPECTED_CLIENT_ERROR,
                         Snackbar.LENGTH_SHORT
                     ).show()
                 }
@@ -176,7 +177,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(
