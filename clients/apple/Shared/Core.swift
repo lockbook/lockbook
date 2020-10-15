@@ -69,14 +69,14 @@ class Core: ObservableObject {
         self.documenstDirectory = documenstDirectory
         let api = CoreApi(documentsDirectory: documenstDirectory)
         api.initializeLogger()
+        self.api = api
         switch api.getAccount() {
         case .success(let acc):
             self.account = acc
+            self.updateFiles()
         case .failure(let err):
             print(err) // TODO: Improve this
         }
-        self.api = api
-        self.updateFiles()
         
         passthrough
             .receive(on: RunLoop.main)
