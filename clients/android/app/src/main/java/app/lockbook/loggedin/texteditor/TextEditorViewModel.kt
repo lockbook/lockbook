@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.Messages
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
@@ -21,6 +22,7 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
     private val _canUndo = MutableLiveData<Boolean>()
     private val _canRedo = MutableLiveData<Boolean>()
     private val _errorHasOccurred = MutableLiveData<String>()
+    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
     val canUndo: LiveData<Boolean>
         get() = _canUndo
@@ -93,13 +95,13 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
                 }
                 is WriteToDocumentError.UnexpectedError -> {
                     Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
+                    _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR)
+                    _errorHasOccurred.postValue(Messages.UNEXPECTED_CLIENT_ERROR)
                 }
             }
         }
