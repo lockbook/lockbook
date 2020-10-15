@@ -1,7 +1,7 @@
 package app.lockbook.core
 
 external fun initLogger(path: String): String
-external fun createAccount(config: String, username: String): String
+external fun createAccount(config: String, username: String, apiUrl: String): String
 external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
 external fun getAccount(config: String): String

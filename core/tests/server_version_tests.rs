@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod server_version_tests {
-    use crate::integration_test::{random_username, test_config};
+    use crate::integration_test::{generate_account, test_config};
 
     use lockbook_core::client::{api_request, Error};
     use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
@@ -13,10 +13,17 @@ mod server_version_tests {
     #[test]
     fn forced_upgrade() {
         let cfg = test_config();
-        create_account(&cfg, &random_username()).unwrap();
+        let generated_account = generate_account();
+        create_account(
+            &cfg,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
         let account = get_account(&cfg).unwrap();
 
         let result: Result<RSAPublicKey, Error<GetPublicKeyError>> = api_request(
+            &generated_account.api_url,
             Method::GET,
             "get-public-key",
             &GetPublicKeyRequest {

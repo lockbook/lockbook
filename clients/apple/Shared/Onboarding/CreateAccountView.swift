@@ -13,11 +13,10 @@ struct CreateAccountView: View {
                 Label("Create", systemImage: "person.crop.circle.badge.plus")
             })
         }
-        .navigationTitle("Create")
     }
     
     func handleCreate() {
-        switch self.core.api.createAccount(username: self.username) {
+        switch self.core.api.createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation)) {
         case .success(let acc):
             self.core.account = acc
         case .failure(let err):

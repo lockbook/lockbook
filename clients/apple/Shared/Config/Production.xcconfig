@@ -1,0 +1,2 @@
+// API Location
+API_LOCATION = http:/$()/api.lockbook.app:8000
