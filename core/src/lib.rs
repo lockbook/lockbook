@@ -59,6 +59,7 @@ use std::str::FromStr;
 pub mod c_interface;
 pub mod client;
 pub mod java_interface;
+mod json_interface;
 pub mod loggers;
 pub mod model;
 pub mod repo;
