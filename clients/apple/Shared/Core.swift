@@ -7,6 +7,7 @@ class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
     @Published var account: Account?
+    @Published var globalError: CoreError?
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
@@ -18,8 +19,9 @@ class Core: ObservableObject {
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
-            print("Deleted \(lockbookDir) and logging out")
-            self.account = nil
+            DispatchQueue.main.async {
+                self.account = nil
+            }
         }
     }
     
@@ -36,7 +38,12 @@ class Core: ObservableObject {
     }
     
     func displayError(error: ApplicationError) {
-        print("Error \(error.message())")
+        switch error {
+        case .Lockbook(let coreErr):
+            globalError = coreErr
+        default:
+            print("General Error \(error.message())") // TODO: Do something better than println
+        }
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
@@ -66,10 +73,9 @@ class Core: ObservableObject {
         case .success(let acc):
             self.account = acc
         case .failure(let err):
-            print(err)
+            print(err) // TODO: Improve this
         }
         self.api = api
-        print("API URL: \(api.getApiLocation())")
         self.updateFiles()
         
         passthrough
@@ -80,7 +86,7 @@ class Core: ObservableObject {
                 case .failure(let err):
                     self.displayError(error: err)
                 case .finished:
-                    print("Sync subscription finished!")
+                    print("Sync subscription finished!") // TODO: Does the application work at this point?
                 }
             }, receiveValue: { _ in
                 self.updateFiles()

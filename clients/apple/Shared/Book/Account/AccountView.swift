@@ -4,6 +4,8 @@ import SwiftLockbookCore
 struct AccountView: View {
     @ObservedObject var core: Core
     let account: Account
+    @State var showingUsage: Bool = false
+    @State var showingAccount: Bool = false
     @State var showingCode: Bool = false
     @State var copiedString: Bool?
     @Environment(\.presentationMode) var presentationMode
@@ -16,32 +18,63 @@ struct AccountView: View {
         VStack(spacing: 50) {
             Text("\(account.username)'s Account")
                 .font(.title)
-            GroupBox(label: Text("Account String").padding(.bottom, 20)) {
+            GroupBox(label: Text("Account").padding(.bottom, 20)) {
                 VStack(spacing: 20) {
                     Button(action: { showingCode.toggle() }) {
                         Label("Show QR Code", systemImage: "qrcode")
                     }
-                    HStack {
-                        Button(action: copyAccountString ) {
-                            Label("Copy to Clipboard", systemImage: "pencil.and.ellipsis.rectangle")
-                        }
-                        copiedString.map { b in
-                            Button(action: hideMessage ) {
-                                if (b) {
-                                    Label("Copied!", systemImage: "checkmark.square").foregroundColor(.green)
-                                } else {
-                                    Label("Failed", systemImage: "exclamationmark.square").foregroundColor(.red)
-                                }
+                    NotificationButton(
+                        action: copyAccountString,
+                        label: Label("Copy String to Clipboard", systemImage: "pencil.and.ellipsis.rectangle"),
+                        successLabel: Label("Copied!", systemImage: "checkmark.square"),
+                        failureLabel: Label("Failed", systemImage: "exclamationmark.square")
+                    )
+                    DisclosureGroup(
+                        isExpanded: $showingUsage,
+                        content: { () -> AnyView in
+                            let usages = (try? core.api.getUsage().get()) ?? []
+                            let bytes = usages.map { $0.byteSecs }.reduce(0, +)
+                            return AnyView(UsageIndicator(numerator: bytes*8/10, denominator: bytes, suffix: "Bytes")
+                                            .foregroundColor(.accentColor))
+                        },
+                        label: {
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    withAnimation(.linear) { showingUsage.toggle() }
+                                }, label: {
+                                    Label("Current Usage", systemImage: "circle.grid.hex.fill")
+                                })
+                                Spacer()
                             }
-                            .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: hideMessage) }
                         }
-                    }
+                    )
+                    DisclosureGroup(
+                        isExpanded: $showingAccount,
+                        content: {
+                            Text("\(account.qualified())")
+                                .font(.subheadline)
+                                .padding(.vertical, 10)
+                                .foregroundColor(.accentColor)
+                        },
+                        label: {
+                            HStack {
+                                Spacer()
+                                Button(action: { showingAccount.toggle() }, label: {
+                                    Label("Location", systemImage: "rectangle.grid.1x2.fill")
+                                })
+                                Spacer()
+                            }
+                        }
+                    )
                 }
             }
             GroupBox(label: Text("Debug").padding(.bottom, 20)) {
-                Button(action: purgeAndLogout) {
-                    Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
-                        .foregroundColor(.red)
+                VStack(spacing: 20) {
+                    Button(action: purgeAndLogout) {
+                        Label("Purge and Logout", systemImage: "person.crop.circle.badge.xmark")
+                            .foregroundColor(.red)
+                    }
                 }
             }
         }
@@ -75,7 +108,7 @@ struct AccountView: View {
         return nil
     }
     
-    func copyAccountString() {
+    func copyAccountString() -> Result<Void, Error> {
         withAnimation {
             switch core.api.exportAccount() {
             case .success(let accountString):
@@ -86,11 +119,17 @@ struct AccountView: View {
                 NSPasteboard.general.setString(accountString, forType: .string)
                 #endif
                 copiedString = true
+                return .success(())
             case .failure(let err):
                 copiedString = false
                 core.displayError(error: err)
+                return .failure(err)
             }
         }
+    }
+    
+    func getUsage() {
+        showingUsage = true
     }
     
     func purgeAndLogout() {
@@ -101,6 +140,6 @@ struct AccountView: View {
 
 struct AccountView_Previews: PreviewProvider {
     static var previews: some View {
-        AccountView(core: Core(), account: Account(username: "test"))
+        AccountView(core: Core(), account: .fake(username: "test"))
     }
 }
