@@ -7,10 +7,9 @@ struct SyncIndicator: View {
         if (syncing) {
             Image(systemName: "arrow.2.circlepath.circle.fill")
                 .rotationEffect(.degrees(spin ? 360 : 0))
-                .animation(Animation.linear(duration: 0.5).repeatForever(autoreverses: false))
+                .animation(Animation.linear(duration: 0.8).repeatForever(autoreverses: false))
                 .onAppear() { spin.toggle() }
-                .foregroundColor(.pink)
-                .opacity(0.2)
+                .foregroundColor(.secondary)
                 .disabled(true)
         } else {
             Image(systemName: "arrow.2.circlepath.circle.fill")

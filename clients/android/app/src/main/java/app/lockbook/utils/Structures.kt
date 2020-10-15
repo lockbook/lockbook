@@ -51,7 +51,8 @@ data class DecryptedValue(
 
 data class Account(
     val username: String,
-    val keys: RSAPrivateKey
+    val keys: RSAPrivateKey,
+    val api_url: String,
 )
 
 data class RSAPrivateKey(

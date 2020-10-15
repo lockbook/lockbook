@@ -2,6 +2,15 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
+#if os(macOS)
+extension NSTextField {
+    open override var focusRingType: NSFocusRingType {
+        get { .none }
+        set { }
+    }
+}
+#endif
+
 struct EditorView: View, Equatable {
     /// Define an always equality so that this view doesn't reload once it's initialized
     static func == (lhs: EditorView, rhs: EditorView) -> Bool {
@@ -9,48 +18,60 @@ struct EditorView: View, Equatable {
     }
     
     @ObservedObject var core: Core
-    @ObservedObject var buffer: Buffer
+    @ObservedObject var contentBuffer: ContentBuffer
     let meta: FileMetadata
-        
+
     var body: some View {
-        let baseEditor = TextEditor(text: $buffer.content)
-            .padding(0.1)
-            .navigationTitle(meta.name)
-            .disabled(!buffer.succeeded)
-            .onAppear {
-                switch core.api.getFile(id: meta.id) {
-                case .success(let decrypted):
-                    buffer.content = decrypted.secret
-                    buffer.succeeded = true
-                case .failure(let err):
-                    core.displayError(error: err)
-                    buffer.succeeded = false
-                }
-            }
-            .onDisappear {
-                switch buffer.save() {
+        return VStack(spacing: 0) {
+            TitleTextField(text: $contentBuffer.title, doneEditing: {
+                switch core.api.renameFile(id: meta.id, name: contentBuffer.title) {
                 case .success(_):
-                    buffer.succeeded = true
+                    core.updateFiles()
+                    contentBuffer.status = .Succeeded
                 case .failure(let err):
                     core.displayError(error: err)
-                    buffer.succeeded = false
+                    contentBuffer.status = .Failed
                 }
-            }
-        
-        
-        #if os(iOS)
-        baseEditor
-            .navigationBarItems(trailing: makeStatus())
-        #else
-        baseEditor
-            .toolbar(content: {
-                ToolbarItem(placement: .automatic) { makeStatus() }
             })
-        #endif
+
+            let baseEditor = ContentEditor(text: $contentBuffer.content)
+                .disabled(!contentBuffer.succeeded)
+                .onAppear {
+                    switch core.api.getFile(id: meta.id) {
+                    case .success(let decrypted):
+                        contentBuffer.content = decrypted.secret
+                        contentBuffer.succeeded = true
+                    case .failure(let err):
+                        core.displayError(error: err)
+                        contentBuffer.succeeded = false
+                    }
+                }
+                .onDisappear {
+                    switch contentBuffer.save() {
+                    case .success(_):
+                        contentBuffer.succeeded = true
+                    case .failure(let err):
+                        core.displayError(error: err)
+                        contentBuffer.succeeded = false
+                    }
+                }
+            #if os(iOS)
+            baseEditor
+                .navigationBarItems(trailing: makeStatus())
+            #else
+            baseEditor
+                .toolbar(content: {
+                    ToolbarItem(placement: .automatic) {
+                        makeStatus()
+                            .font(.title)
+                    }
+                })
+            #endif
+        }
     }
     
     func makeStatus() -> some View {
-        switch buffer.status {
+        switch contentBuffer.status {
         case .Inactive:
             return Image(systemName: "slash.circle")
                 .foregroundColor(.secondary)
@@ -68,8 +89,9 @@ struct EditorView: View, Equatable {
     
     init(core: Core, meta: FileMetadata) {
         self.core = core
+//        self._meta = .init(initialValue: meta)
         self.meta = meta
-        self.buffer = Buffer(meta: meta, initialContent: "<PLACEHOLDER>", core: core)
+        self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
     }
 }
 
@@ -81,18 +103,20 @@ struct EditorView_Previews: PreviewProvider {
     }
 }
 
-class Buffer: ObservableObject {
+class ContentBuffer: ObservableObject {
     let meta: FileMetadata
     private var cancellables: Set<AnyCancellable> = []
     let core: Core
     @Published var content: String
     @Published var succeeded: Bool = false
     @Published var status: SaveStatus = .Inactive
+    @Published var title: String
     
     init(meta: FileMetadata, initialContent: String, core: Core) {
         self.meta = meta
         self.core = core
         self.content = initialContent
+        self.title = meta.name
         
         $content
             .debounce(for: 0.2, scheduler: RunLoop.main)
@@ -117,7 +141,6 @@ class Buffer: ObservableObject {
                 self.status = .Succeeded
             })
             .store(in: &cancellables)
-        
     }
     
     func save() -> Result<Void, ApplicationError> {

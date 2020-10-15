@@ -68,7 +68,7 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-static API_URL: &str = env!("API_URL");
+pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
@@ -114,7 +114,7 @@ pub type DefaultFileService = FileServiceImpl<
 
 #[derive(Debug, Serialize)]
 pub enum InitLoggerError {
-    Unexpected(String),
+    UnexpectedError(String),
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
@@ -125,11 +125,11 @@ pub fn init_logger(log_path: &Path) -> Result<(), InitLoggerError> {
         .unwrap_or_else(|| log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
-        .map_err(|err| InitLoggerError::Unexpected(format!("IO Error: {:#?}", err)))?
+        .map_err(|err| InitLoggerError::UnexpectedError(format!("IO Error: {:#?}", err)))?
         .level(log::LevelFilter::Warn)
         .level_for("lockbook_core", lockbook_log_level)
         .apply()
-        .map_err(|err| InitLoggerError::Unexpected(format!("{:#?}", err)))?;
+        .map_err(|err| InitLoggerError::UnexpectedError(format!("{:#?}", err)))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
 }
@@ -191,10 +191,14 @@ pub enum CreateAccountError {
     UnexpectedError(String),
 }
 
-pub fn create_account(config: &Config, username: &str) -> Result<(), CreateAccountError> {
+pub fn create_account(
+    config: &Config,
+    username: &str,
+    api_url: &str,
+) -> Result<(), CreateAccountError> {
     let db = connect_to_db(&config).map_err(CreateAccountError::UnexpectedError)?;
 
-    match DefaultAccountService::create_account(&db, username) {
+    match DefaultAccountService::create_account(&db, username, api_url) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             AccountCreationError::AccountExistsAlready => {
@@ -1197,7 +1201,7 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, GetUsageError> {
 
     let acc = DefaultAccountRepo::get_account(&db).map_err(|_| GetUsageError::NoAccount)?;
 
-    DefaultClient::get_usage(acc.username.as_str())
+    DefaultClient::get_usage(&acc.api_url, acc.username.as_str())
         .map(|resp| resp.usages)
         .map_err(|err| match err {
             Error::Api(api::GetUsageError::ClientUpdateRequired) => {

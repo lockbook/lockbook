@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_public_key_tests {
-    use crate::integration_test::{aes_key, generate_account, random_username, rsa_key, sign};
+    use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl, Error};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -20,6 +20,7 @@ mod get_public_key_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 key.clone(),
@@ -33,15 +34,17 @@ mod get_public_key_tests {
             Ok(_)
         );
 
-        let key2 = ClientImpl::get_public_key(&account.username).unwrap();
+        let key2 = ClientImpl::get_public_key(&account.api_url, &account.username).unwrap();
 
         assert_eq!(key, key2);
     }
 
     #[test]
     fn get_public_key_not_found() {
+        let account = generate_account();
+
         assert_matches!(
-            ClientImpl::get_public_key(&random_username()),
+            ClientImpl::get_public_key(&account.api_url, &account.username),
             Err(Error::<GetPublicKeyError>::Api(
                 GetPublicKeyError::UserNotFound
             ))
