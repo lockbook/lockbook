@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook_core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aead",
  "aes-gcm",

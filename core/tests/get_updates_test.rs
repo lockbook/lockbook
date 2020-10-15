@@ -16,6 +16,7 @@ mod get_updates_test {
         let folder_key = AesImpl::generate_key();
 
         let version = ClientImpl::new_account(
+            &account.api_url,
             &account.username,
             &sign(&account),
             account.keys.to_public_key(),
@@ -30,7 +31,7 @@ mod get_updates_test {
 
         // get updates at version 0
         assert_eq!(
-            ClientImpl::get_updates(&account.username, &sign(&account), 0,)
+            ClientImpl::get_updates(&account.api_url, &account.username, &sign(&account), 0,)
                 .unwrap()
                 .len(),
             1
@@ -38,9 +39,14 @@ mod get_updates_test {
 
         // get updates at version of root folder
         assert_eq!(
-            ClientImpl::get_updates(&account.username, &sign(&account), version,)
-                .unwrap()
-                .len(),
+            ClientImpl::get_updates(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                version,
+            )
+            .unwrap()
+            .len(),
             0
         );
     }
