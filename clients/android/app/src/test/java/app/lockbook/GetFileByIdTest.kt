@@ -75,18 +75,18 @@ class GetFileByIdTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<GetFileByIdError.NoFileWithThatId>(
+        assertType<CoreError.NoFileWithThatId>(
             CoreModel.getFileById(config, generateId()).component2()
         )
     }
 
     @Test
     fun getFileByIdUnexpectedError() {
-        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
+        val getFileByIdResult: Result<FileMetadata, CoreError>? =
             Klaxon().converter(getFileByIdConverter)
                 .parse(exportAccount(""))
 
-        assertType<GetFileByIdError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             getFileByIdResult?.component2()
         )
     }
