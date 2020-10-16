@@ -108,37 +108,38 @@ namespace lockbook {
             Func<string, T> parseUIErr,
             Func<string, T> parseUnexpectedErr) {
             var result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreRespose = getStringAndRelease(func());
-                coreMutex.ReleaseMutex();
-                return coreRespose;
+                string coreResponse;
+                try {
+                    coreMutex.WaitOne();
+                    coreResponse = getStringAndRelease(func());
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
+                return coreResponse;
             });
 
             JObject obj = JObject.Parse(result);
             string tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
             string content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
             if (tag == null) return parseUnexpectedErr("contract error (no tag): " + result);
-            if (content == null) return parseUnexpectedErr("contract error (no content) " + result);
+            if (content == null) return parseUnexpectedErr("contract error (no content): " + result);
             switch (tag) {
                 case "Ok":
                     return parseOk(content);
                 case "Err":
                     JObject errObj = JObject.Parse(content);
-                    string uiError = errObj.SelectToken("UiError", errorWhenNoMatch: false)?.ToString();
-                    string unexpected = errObj.SelectToken("Unexpected", errorWhenNoMatch: false)?.ToString();
-                    switch (uiError) {
-                        case null:
-                            break;
+                    string errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
+                    string errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
+                    if (errTag == null) return parseUnexpectedErr("contract error (no err tag): " + content);
+                    if (errContent == null) return parseUnexpectedErr("contract error (no err content): " + content);
+                    switch (errTag) {
+                        case "UiError":
+                            return parseUIErr(errContent);
+                        case "Unexpected":
+                            return parseUnexpectedErr(errContent);
                         default:
-                            return parseUIErr(uiError);
+                            return parseUnexpectedErr("contract error (err content tag neither UiError nor Unexpected): " + content);
                     }
-                    switch (unexpected) {
-                        case null:
-                            break;
-                        default:
-                            return parseUnexpectedErr(unexpected);
-                    }
-                    return parseUnexpectedErr("contract error (err content neither UiError nor Unexpected): " + content);
                 default:
                     return parseUnexpectedErr("contract error (tag neither Ok nor Err): " + tag);
             }
@@ -153,9 +154,9 @@ namespace lockbook {
                 s => {
                     if (new Dictionary<string, Core.CreateAccount.PossibleErrors> {
                         {"InvalidUsername", Core.CreateAccount.PossibleErrors.InvalidUsername },
-                        {"UsernameTaken", Core.CreateAccount.PossibleErrors.InvalidUsername },
-                        {"CouldNotReachServer", Core.CreateAccount.PossibleErrors.InvalidUsername },
-                        {"AccountExistsAlready", Core.CreateAccount.PossibleErrors.InvalidUsername },
+                        {"UsernameTaken", Core.CreateAccount.PossibleErrors.UsernameTaken },
+                        {"CouldNotReachServer", Core.CreateAccount.PossibleErrors.CouldNotReachServer },
+                        {"AccountExistsAlready", Core.CreateAccount.PossibleErrors.AccountExistsAlready },
                     }.TryGetValue(s, out var p)) {
                         return new Core.CreateAccount.ExpectedError { error = p };
                     } else {
@@ -211,17 +212,17 @@ namespace lockbook {
                 });
         }
 
-        public async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
-            return await FFICommon<Core.ListFileMetadata.Result>(
+        public async Task<Core.ListMetadatas.Result> ListFileMetadata() {
+            return await FFICommon<Core.ListMetadatas.Result>(
                 () => list_metadatas(path),
                 s => {
-                    return new Core.ListFileMetadata.Success();
+                    return new Core.ListMetadatas.Success();
                 },
                 s => {
-                    return new Core.ListFileMetadata.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                    return new Core.ListMetadatas.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
                 },
                 s => {
-                    return new Core.ListFileMetadata.UnexpectedError { errorMessage = s };
+                    return new Core.ListMetadatas.UnexpectedError { errorMessage = s };
                 });
         }
 

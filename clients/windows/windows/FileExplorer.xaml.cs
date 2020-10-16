@@ -102,10 +102,10 @@ namespace lockbook {
             var result = await App.CoreService.ListFileMetadata();
 
             switch (result) {
-                case Core.ListFileMetadata.Success success:
+                case Core.ListMetadatas.Success success:
                     await PopulateTree(success.files);
                     break;
-                case Core.ListFileMetadata.UnexpectedError ohNo:
+                case Core.ListMetadatas.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }

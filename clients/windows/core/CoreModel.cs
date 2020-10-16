@@ -2,6 +2,58 @@
 using System.Collections.Generic;
 
 namespace Core {
+    public class FileMetadata {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("parent")]
+        public string Parent { get; set; }
+
+        [JsonProperty("file_type")]
+        public string Type { get; set; }
+    }
+
+    public class DecryptedValue {
+        [JsonProperty("secret")]
+        public string secret { get; set; }
+    }
+
+    public enum FileType {
+        Folder,
+        Document
+    }
+
+    namespace GetDbState {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace MigrateDb {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public enum PossibleErrors {
+            ClientUpdateRequired,
+        }
+
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
     namespace CreateAccount {
         public abstract class Result { }
 
@@ -12,6 +64,48 @@ namespace Core {
             InvalidUsername,
             CouldNotReachServer,
             AccountExistsAlready,
+            ClientUpdateRequired,
+        }
+
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace ImportAccount {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public enum PossibleErrors {
+            AccountStringCorrupted,
+            AccountExistsAlready,
+            UsernamePKMismatch,
+            CouldNotReachServer,
+            AccountDoesNotExist,
+            ClientUpdateRequired,
+        }
+
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace ExportAccount {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
         }
 
         public class ExpectedError : Result {
@@ -43,17 +137,20 @@ namespace Core {
         }
     }
 
-    namespace ImportAccount {
+    namespace CreateFileAtPath {
         public abstract class Result { }
 
-        public class Success : Result { }
+        public class Success : Result {
+            public string accountJson;
+        }
 
         public enum PossibleErrors {
-            AccountStringCorrupted,
-            AccountExistsAlready,
-            AccountDoesNotExist,
-            UsernamePKMismatch,
-            CouldNotReachServer
+            PathDoesntStartWithRoot,
+            PathContainsEmptyFile,
+            FileAlreadyExists,
+            NoRoot,
+            NoAccount,
+            DocumentTreatedAsFolder,
         }
 
         public class ExpectedError : Result {
@@ -65,35 +162,18 @@ namespace Core {
         }
     }
 
-    public class FileMetadata {
-        [JsonProperty("id")]
-        public string Id { get; set; }
-
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("parent")]
-        public string Parent { get; set; }
-
-        [JsonProperty("file_type")]
-        public string Type { get; set; }
-    }
-
-    public class DecryptedValue {
-        [JsonProperty("secret")]
-        public string secret { get; set; }
-    }
-
-    public enum FileType {
-        Folder,
-        Document
-    }
-
-    namespace ListFileMetadata {
+    namespace WriteDocument {
         public abstract class Result { }
 
-        public class Success : Result {
-            public List<FileMetadata> files;
+        public class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
+            FolderTreatedAsDocument,
+            FileDoesNotExist
+        }
+        public class ExpectedError : Result {
+            public PossibleErrors error;
         }
 
         public class UnexpectedError : Result {
@@ -126,18 +206,83 @@ namespace Core {
         }
     }
 
-    namespace SyncAll {
+    namespace GetRoot {
         public abstract class Result { }
 
-        public class Success : Result { }
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
+        }
 
         public enum PossibleErrors {
-            NoAccount,
-            CouldNotReachServer,
-            ExecuteWorkError
+            NoRoot,
         }
         public class ExpectedError : Result {
             public PossibleErrors error;
+        }
+
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace GetChildren {
+        public abstract class Result { }
+
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace GetFileById {
+        public abstract class Result { }
+
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
+        }
+
+        public enum PossibleErrors {
+            NoFileWithThatId,
+        }
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace GetFileByPath {
+        public abstract class Result { }
+
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
+        }
+
+        public enum PossibleErrors {
+            NoFileAtThatPath,
+        }
+
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace InsertFile {
+        public abstract class Result { }
+
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
         }
 
         public class UnexpectedError : Result {
@@ -149,14 +294,15 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public DecryptedValue content;
+            public FileMetadata NewFile { get; set; }
         }
 
         public enum PossibleErrors {
-            NoAccount,
             TreatedFolderAsDocument,
-            FileDoesNotExist
+            NoAccount,
+            FileDoesNotExist,
         }
+
         public class ExpectedError : Result {
             public PossibleErrors error;
         }
@@ -166,18 +312,23 @@ namespace Core {
         }
     }
 
-    namespace WriteDocument {
+    namespace ListPaths {
         public abstract class Result { }
 
-        public class Success : Result { }
-
-        public enum PossibleErrors {
-            NoAccount,
-            TreatedFolderAsDocument,
-            FileDoesNotExist
+        public class Success : Result {
+            public FileMetadata NewFile { get; set; }
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace ListMetadatas {
+        public abstract class Result { }
+
+        public class Success : Result {
+            public List<FileMetadata> files;
         }
 
         public class UnexpectedError : Result {
@@ -229,6 +380,25 @@ namespace Core {
         }
     }
 
+    namespace SyncAll {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer,
+            ExecuteWorkError,
+        }
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
     namespace CalculateWork {
         public class WorkCalculated {
             [JsonProperty("work_units")]
@@ -246,8 +416,67 @@ namespace Core {
 
         public enum PossibleErrors {
             NoAccount,
-            CouldNotReachServer
+            CouldNotReachServer,
+            ClientUpdateRequired,
+        }
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
 
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace ExecuteWork {
+        public abstract class Result { }
+
+        public class Success : Result {
+        }
+
+        public enum PossibleErrors {
+            CouldNotReachServer,
+            ClientUpdateRequired,
+        }
+        public class ExpectedError : Result {
+            public PossibleErrors error;
+        }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace SetLastSynced {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace GetLastSynced {
+        public abstract class Result { }
+
+        public class Success : Result { }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace GetUsage {
+        public abstract class Result { }
+
+        public class Success : Result {
+        }
+
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer,
+            ClientUpdateRequired,
         }
         public class ExpectedError : Result {
             public PossibleErrors error;
