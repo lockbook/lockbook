@@ -60,7 +60,7 @@ namespace test {
             var createAccountResult2 = CoreService.CreateAccount(username2).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult2.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.AccountExistsAlready,
-                ((Core.CreateAccount.ExpectedError)createAccountResult2).error);
+                ((Core.CreateAccount.ExpectedError)createAccountResult2).Error);
         }
 
         [TestMethod]
@@ -81,7 +81,7 @@ namespace test {
             var createAccountResult2 = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult2.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.UsernameTaken,
-                ((Core.CreateAccount.ExpectedError)createAccountResult2).error);
+                ((Core.CreateAccount.ExpectedError)createAccountResult2).Error);
         }
 
         [TestMethod]
@@ -90,7 +90,7 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
-                ((Core.CreateAccount.ExpectedError)createAccountResult).error);
+                ((Core.CreateAccount.ExpectedError)createAccountResult).Error);
         }
 
         [TestMethod]
@@ -111,7 +111,7 @@ namespace test {
             var getAccountResult = CoreService.GetAccount().WaitResult();
             Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getAccountResult.GetType());
             Assert.AreEqual(Core.GetAccount.PossibleErrors.NoAccount,
-               ((Core.GetAccount.ExpectedError)getAccountResult).error);
+               ((Core.GetAccount.ExpectedError)getAccountResult).Error);
         }
         [TestMethod]
         public void ImportAccount() {
@@ -147,7 +147,7 @@ namespace test {
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
             Assert.AreEqual(typeof(Core.ImportAccount.ExpectedError), importAccountResult.GetType());
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
-                ((Core.ImportAccount.ExpectedError)importAccountResult).error);
+                ((Core.ImportAccount.ExpectedError)importAccountResult).Error);
 
         }
 
@@ -182,7 +182,7 @@ namespace test {
             var syncAllResult = CoreService.SyncAll().WaitResult();
             Assert.AreEqual(typeof(Core.SyncAll.ExpectedError), syncAllResult.GetType());
             Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
-                ((Core.SyncAll.ExpectedError)syncAllResult).error);
+                ((Core.SyncAll.ExpectedError)syncAllResult).Error);
         }
 
         [TestMethod]
@@ -204,14 +204,13 @@ namespace test {
 
         [TestMethod]
         public void WriteDoc() {
-
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
 
             var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
             Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+            var id = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
             Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
@@ -225,7 +224,7 @@ namespace test {
 
             var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
             Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+            var id = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var readDocResult = CoreService.ReadDocument(id).WaitResult();
             Assert.AreEqual(typeof(Core.ReadDocument.Success), readDocResult.GetType());
@@ -239,7 +238,7 @@ namespace test {
 
             var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
             Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var id = ((Core.CreateFile.Success)createFileResult).NewFile.Id;
+            var id = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var renameFileResult = CoreService.RenameFile(id, "NewTestFile").WaitResult();
             Assert.AreEqual(typeof(Core.RenameFile.Success), renameFileResult.GetType());

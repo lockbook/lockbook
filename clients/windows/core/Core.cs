@@ -25,7 +25,16 @@ namespace lockbook {
         private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
+        private unsafe static extern void release_pointer(IntPtr str_pointer);
+
+        [DllImport("lockbook_core.dll")]
         private static extern void init_logger_safely(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_db_state(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr migrate_db(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr create_account(string writeable_path, string username, string api_url);
@@ -79,16 +88,13 @@ namespace lockbook {
         private static extern IntPtr sync_all(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr set_last_synced(string writeable_path, ulong last_synced);
+        private static extern IntPtr set_last_synced(string writeable_path, ulong last_sync);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr get_last_synced(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr get_usage(string writeable_path);
-
-        [DllImport("lockbook_core.dll")]
-        private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         private static string getStringAndRelease(IntPtr pointer) {
             string temp_string = Marshal.PtrToStringAnsi(pointer);
@@ -152,19 +158,14 @@ namespace lockbook {
                     return new Core.CreateAccount.Success();
                 },
                 s => {
-                    if (new Dictionary<string, Core.CreateAccount.PossibleErrors> {
-                        {"InvalidUsername", Core.CreateAccount.PossibleErrors.InvalidUsername },
-                        {"UsernameTaken", Core.CreateAccount.PossibleErrors.UsernameTaken },
-                        {"CouldNotReachServer", Core.CreateAccount.PossibleErrors.CouldNotReachServer },
-                        {"AccountExistsAlready", Core.CreateAccount.PossibleErrors.AccountExistsAlready },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.CreateAccount.ExpectedError { error = p };
+                    if (Enum.TryParse<Core.CreateAccount.PossibleErrors>(s, out var p)) {
+                        return new Core.CreateAccount.ExpectedError { Error = p };
                     } else {
-                        return new Core.CreateAccount.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.CreateAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.CreateAccount.UnexpectedError { errorMessage = s };
+                    return new Core.CreateAccount.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -178,13 +179,13 @@ namespace lockbook {
                     if (new Dictionary<string, Core.GetAccount.PossibleErrors> {
                         {"NoAccount", Core.GetAccount.PossibleErrors.NoAccount },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.GetAccount.ExpectedError { error = p };
+                        return new Core.GetAccount.ExpectedError { Error = p };
                     } else {
-                        return new Core.GetAccount.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.GetAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.GetAccount.UnexpectedError { errorMessage = s };
+                    return new Core.GetAccount.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -202,13 +203,13 @@ namespace lockbook {
                         {"UsernamePKMismatch", Core.ImportAccount.PossibleErrors.UsernamePKMismatch },
                         {"CouldNotReachServer", Core.ImportAccount.PossibleErrors.CouldNotReachServer },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.ImportAccount.ExpectedError { error = p };
+                        return new Core.ImportAccount.ExpectedError { Error = p };
                     } else {
-                        return new Core.ImportAccount.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.ImportAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.ImportAccount.UnexpectedError { errorMessage = s };
+                    return new Core.ImportAccount.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -219,10 +220,10 @@ namespace lockbook {
                     return new Core.ListMetadatas.Success();
                 },
                 s => {
-                    return new Core.ListMetadatas.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                    return new Core.ListMetadatas.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                 },
                 s => {
-                    return new Core.ListMetadatas.UnexpectedError { errorMessage = s };
+                    return new Core.ListMetadatas.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -240,13 +241,13 @@ namespace lockbook {
                         {"FileNameNotAvailable", Core.CreateFile.PossibleErrors.FileNameNotAvailable },
                         {"FileNameContainsSlash", Core.CreateFile.PossibleErrors.FileNameContainsSlash },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.CreateFile.ExpectedError { error = p };
+                        return new Core.CreateFile.ExpectedError { Error = p };
                     } else {
-                        return new Core.CreateFile.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.CreateFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.CreateFile.UnexpectedError { errorMessage = s };
+                    return new Core.CreateFile.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -262,13 +263,13 @@ namespace lockbook {
                         {"CouldNotReachServer", Core.SyncAll.PossibleErrors.CouldNotReachServer },
                         {"ExecuteWorkError", Core.SyncAll.PossibleErrors.ExecuteWorkError },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.SyncAll.ExpectedError { error = p };
+                        return new Core.SyncAll.ExpectedError { Error = p };
                     } else {
-                        return new Core.SyncAll.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.SyncAll.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.SyncAll.UnexpectedError { errorMessage = s };
+                    return new Core.SyncAll.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -284,13 +285,13 @@ namespace lockbook {
                         {"NewNameContainsSlash", Core.RenameFile.PossibleErrors.NewNameContainsSlash },
                         {"FileNameNotAvailable", Core.RenameFile.PossibleErrors.FileNameNotAvailable },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.RenameFile.ExpectedError { error = p };
+                        return new Core.RenameFile.ExpectedError { Error = p };
                     } else {
-                        return new Core.RenameFile.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.RenameFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.RenameFile.UnexpectedError { errorMessage = s };
+                    return new Core.RenameFile.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -308,13 +309,13 @@ namespace lockbook {
                         {"TargetParentHasChildNamedThat", Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat },
                         {"TargetParentDoesNotExist", Core.MoveFile.PossibleErrors.TargetParentDoesNotExist },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.MoveFile.ExpectedError { error = p };
+                        return new Core.MoveFile.ExpectedError { Error = p };
                     } else {
-                        return new Core.MoveFile.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.MoveFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.MoveFile.UnexpectedError { errorMessage = s };
+                    return new Core.MoveFile.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -330,13 +331,13 @@ namespace lockbook {
                         {"FileDoesNotExist", Core.ReadDocument.PossibleErrors.FileDoesNotExist },
                         {"TreatedFolderAsDocument", Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.ReadDocument.ExpectedError { error = p };
+                        return new Core.ReadDocument.ExpectedError { Error = p };
                     } else {
-                        return new Core.ReadDocument.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.ReadDocument.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.ReadDocument.UnexpectedError { errorMessage = s };
+                    return new Core.ReadDocument.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -350,15 +351,15 @@ namespace lockbook {
                     if (new Dictionary<string, Core.WriteDocument.PossibleErrors> {
                         {"NoAccount", Core.WriteDocument.PossibleErrors.NoAccount },
                         {"FileDoesNotExist", Core.WriteDocument.PossibleErrors.FileDoesNotExist },
-                        {"TreatedFolderAsDocument", Core.WriteDocument.PossibleErrors.TreatedFolderAsDocument },
+                        {"FolderTreatedAsDocument", Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.WriteDocument.ExpectedError { error = p };
+                        return new Core.WriteDocument.ExpectedError { Error = p };
                     } else {
-                        return new Core.WriteDocument.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.WriteDocument.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.WriteDocument.UnexpectedError { errorMessage = s };
+                    return new Core.WriteDocument.UnexpectedError { ErrorMessage = s };
                 });
         }
 
@@ -373,13 +374,13 @@ namespace lockbook {
                         {"NoAccount", Core.CalculateWork.PossibleErrors.NoAccount },
                         {"CouldNotReachServer", Core.CalculateWork.PossibleErrors.CouldNotReachServer },
                     }.TryGetValue(s, out var p)) {
-                        return new Core.CalculateWork.ExpectedError { error = p };
+                        return new Core.CalculateWork.ExpectedError { Error = p };
                     } else {
-                        return new Core.CalculateWork.UnexpectedError { errorMessage = "contract error (unknown UIError): " + s };
+                        return new Core.CalculateWork.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
                     }
                 },
                 s => {
-                    return new Core.CalculateWork.UnexpectedError { errorMessage = s };
+                    return new Core.CalculateWork.UnexpectedError { ErrorMessage = s };
                 });
         }
     }
