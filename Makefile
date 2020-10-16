@@ -118,7 +118,7 @@ performance_bench: performance server
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
-	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/target/criterion - > performance-report-$(hash).tar
+	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg simple-create_write_read.svg
 
 # Helpers
 .PHONY: is_docker_running
