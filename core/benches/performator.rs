@@ -20,14 +20,8 @@ use uuid::Uuid;
 
 struct CpuProfiler;
 impl Profiler for CpuProfiler {
-    fn start_profiling(&mut self, benchmark_id: &str, benchmark_dir: &Path) {
-        fs::create_dir_all(benchmark_dir).unwrap();
-
-        let profile_name = format!(
-            "./{}/{}.profile",
-            benchmark_dir.to_str().unwrap(),
-            benchmark_id.to_string().replace("/", "-")
-        );
+    fn start_profiling(&mut self, benchmark_id: &str, _benchmark_dir: &Path) {
+        let profile_name = format!("./{}.profile", benchmark_id.to_string().replace("/", "-"));
 
         PROFILER.lock().unwrap().start(profile_name).unwrap();
     }
