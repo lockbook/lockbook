@@ -4,21 +4,21 @@ using System.Collections.Generic;
 namespace Core {
     public class FileMetadata {
         [JsonProperty("id")]
-        public string Id { get; set; }
+        public string Id;
 
         [JsonProperty("name")]
-        public string Name { get; set; }
+        public string Name;
 
         [JsonProperty("parent")]
-        public string Parent { get; set; }
+        public string Parent;
 
         [JsonProperty("file_type")]
-        public string Type { get; set; }
+        public string Type;
     }
 
     public class DecryptedValue {
         [JsonProperty("secret")]
-        public string secret { get; set; }
+        public string secret;
     }
 
     public enum FileType {
@@ -26,10 +26,33 @@ namespace Core {
         Document
     }
 
+    public enum DbState {
+        ReadyToUse,
+        Empty,
+        MigrationRequired,
+        StateRequiresClearing,
+    }
+
+    public class FileUsage {
+        public string fileId;
+        public ulong byteSeconds;
+        public ulong seconds;
+ }
+
+    public class WorkCalculated {
+        [JsonProperty("work_units")]
+        public List<dynamic> WorkUnits;
+
+        [JsonProperty("most_recent_update_from_server")]
+        public ulong MostRecentUpdateFromServer;
+    }
+
     namespace GetDbState {
         public abstract class Result { }
 
-        public class Success : Result { }
+        public class Success : Result {
+            public DbState dbState;
+        }
 
         public class UnexpectedError : Result {
             public string errorMessage;
@@ -102,7 +125,9 @@ namespace Core {
     namespace ExportAccount {
         public abstract class Result { }
 
-        public class Success : Result { }
+        public class Success : Result {
+            string accountString;
+        }
 
         public enum PossibleErrors {
             NoAccount,
@@ -141,8 +166,8 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public string accountJson;
-        }
+            public FileMetadata NewFile;
+    }
 
         public enum PossibleErrors {
             PathDoesntStartWithRoot,
@@ -185,7 +210,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public FileMetadata NewFile;
         }
 
         public enum PossibleErrors {
@@ -210,7 +235,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public FileMetadata Root;
         }
 
         public enum PossibleErrors {
@@ -230,7 +255,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public List<FileMetadata> Children;
         }
 
         public class UnexpectedError : Result {
@@ -242,7 +267,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public FileMetadata File;
         }
 
         public enum PossibleErrors {
@@ -262,7 +287,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public FileMetadata File;
         }
 
         public enum PossibleErrors {
@@ -281,8 +306,25 @@ namespace Core {
     namespace InsertFile {
         public abstract class Result { }
 
+        public class Success : Result { }
+
+        public class UnexpectedError : Result {
+            public string errorMessage;
+        }
+    }
+
+    namespace DeleteFile {
+        public abstract class Result { }
+
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+        }
+
+        public enum PossibleErrors {
+            NoFileWithThatId,
+        }
+
+        public class ExpectedError : Result {
+            public PossibleErrors error;
         }
 
         public class UnexpectedError : Result {
@@ -294,7 +336,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public DecryptedValue Content;
         }
 
         public enum PossibleErrors {
@@ -316,7 +358,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile { get; set; }
+            public List<string> paths;
         }
 
         public class UnexpectedError : Result {
@@ -400,14 +442,6 @@ namespace Core {
     }
 
     namespace CalculateWork {
-        public class WorkCalculated {
-            [JsonProperty("work_units")]
-            public List<dynamic> WorkUnits { get; set; }
-
-            [JsonProperty("most_recent_update_from_server")]
-            public ulong MostRecentUpdateFromServer { get; set; }
-        }
-
         public abstract class Result { }
 
         public class Success : Result {
@@ -431,8 +465,7 @@ namespace Core {
     namespace ExecuteWork {
         public abstract class Result { }
 
-        public class Success : Result {
-        }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             CouldNotReachServer,
@@ -460,7 +493,9 @@ namespace Core {
     namespace GetLastSynced {
         public abstract class Result { }
 
-        public class Success : Result { }
+        public class Success : Result {
+            public ulong timestamp;
+        }
 
         public class UnexpectedError : Result {
             public string errorMessage;
@@ -471,6 +506,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
+            public List<FileUsage> usage;
         }
 
         public enum PossibleErrors {
