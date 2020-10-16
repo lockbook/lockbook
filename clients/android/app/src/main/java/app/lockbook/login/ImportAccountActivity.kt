@@ -8,8 +8,8 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
+import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.ImportError
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
@@ -56,7 +56,7 @@ class ImportAccountActivity : AppCompatActivity() {
             .initiateScan()
     }
 
-    private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
+    private suspend fun handleImportResult(importAccountResult: Result<Unit, CoreError>) {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
@@ -65,32 +65,32 @@ class ImportAccountActivity : AppCompatActivity() {
                     finishAffinity()
                 }
                 is Err -> when (val error = importAccountResult.error) {
-                    is ImportError.AccountStringCorrupted -> Toast.makeText(
+                    is CoreError.AccountStringCorrupted -> Toast.makeText(
                         applicationContext,
                         "Invalid account string!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.AccountExistsAlready -> Toast.makeText(
+                    is CoreError.AccountExistsAlready -> Toast.makeText(
                         applicationContext,
                         "Account already exists!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.AccountDoesNotExist -> Toast.makeText(
+                    is CoreError.AccountDoesNotExist -> Toast.makeText(
                         applicationContext,
                         "That account does not exist on this server!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.UsernamePKMismatch -> Toast.makeText(
+                    is CoreError.UsernamePKMismatch -> Toast.makeText(
                         applicationContext,
                         "That username does not correspond with that public_key on this server!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.CouldNotReachServer -> Toast.makeText(
+                    is CoreError.CouldNotReachServer -> Toast.makeText(
                         applicationContext,
                         "Could not access server to ensure this !",
                         Toast.LENGTH_LONG
                     ).show()
-                    is ImportError.UnexpectedError -> {
+                    is CoreError.Unexpected -> {
                         Timber.e("Unable to import an account.")
                         Toast.makeText(
                             applicationContext,

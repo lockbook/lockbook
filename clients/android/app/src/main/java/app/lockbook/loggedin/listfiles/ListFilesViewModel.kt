@@ -41,7 +41,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
-import kotlin.collections.set
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
@@ -140,14 +139,14 @@ class ListFilesViewModel(path: String, application: Application) :
                     incrementalSyncIfNotRunning()
                 }
             is Err -> when (val error = syncWorkResult.error) {
-                is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> {
+                is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CoreError.CouldNotReachServer -> {
                     Timber.e("Could not reach server despite being online.")
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
                     )
                 }
-                is CalculateWorkError.UnexpectedError -> {
+                is CoreError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
@@ -378,8 +377,8 @@ class ListFilesViewModel(path: String, application: Application) :
         val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
             is Ok -> accountResult.value
             is Err -> return when (val error = accountResult.error) {
-                is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is GetAccountError.UnexpectedError -> {
+                is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CoreError.Unexpected -> {
                     Timber.e("Unable to get account: ${error.error}")
                 }
                 else -> {
@@ -395,10 +394,9 @@ class ListFilesViewModel(path: String, application: Application) :
             when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
-                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> {
-                    }
-                    is CalculateWorkError.UnexpectedError -> {
+                    is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                    is CoreError.CouldNotReachServer -> {}
+                    is CoreError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _errorHasOccurred.postValue(
                             UNEXPECTED_ERROR_OCCURRED
@@ -419,7 +417,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
         var currentProgress = 0
         syncingStatus.maxProgress = syncWork.work_units.size
-        val syncErrors = hashMapOf<String, ExecuteWorkError>()
+        val syncErrors = hashMapOf<String, CoreError>()
         repeat(10) {
             if ((currentProgress + syncWork.work_units.size) > syncingStatus.maxProgress) {
                 syncingStatus.maxProgress = currentProgress + syncWork.work_units.size
@@ -465,13 +463,13 @@ class ListFilesViewModel(path: String, application: Application) :
                 when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                     is Ok -> syncWorkResult.value
                     is Err -> return when (val error = syncWorkResult.error) {
-                        is CalculateWorkError.NoAccount -> {
+                        is CoreError.NoAccount -> {
                             _errorHasOccurred.postValue("Error! No account!")
                             _stopSyncSnackBar.postValue(Unit)
                         }
-                        is CalculateWorkError.CouldNotReachServer -> {
+                        is CoreError.CouldNotReachServer -> {
                         }
-                        is CalculateWorkError.UnexpectedError -> {
+                        is CoreError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _errorHasOccurred.postValue(
                                 UNEXPECTED_ERROR_OCCURRED
