@@ -113,8 +113,8 @@ performance: is_docker_running
 
 .PHONY: performance_bench
 performance_bench: performance server
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-performance.yml --project-name=performance-$(hash) down
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-performance.yml --project-name=performance-$(hash) up --exit-code-from=performance_bench
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) down
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) up --exit-code-from=performance_bench
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
