@@ -12,7 +12,8 @@ namespace test {
             get { return new CoreService(lockbookDir); }
         }
 
-        // todo: test helper to asser status and print things otherwise
+        // todo: test helper to assert status and print things otherwise
+
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
@@ -159,7 +160,7 @@ namespace test {
 
             // list file metadata
             var listFileMetadataResult = CoreService.ListFileMetadata().WaitResult();
-            Assert.AreEqual(typeof(Core.ListFileMetadata.Success), listFileMetadataResult.GetType());
+            Assert.AreEqual(typeof(Core.ListMetadatas.Success), listFileMetadataResult.GetType());
         }
 
         [TestMethod]
