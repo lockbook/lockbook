@@ -1,0 +1,43 @@
+version: '3'
+
+services:
+  filesdb:
+    extends:
+      file: common-services.yml
+      service: filesdb
+  config_filesdb:
+    extends:
+      file: common-services.yml
+      service: config_indexdb
+    depends_on:
+      - filesdb
+  indexdb:
+    extends:
+      file: common-services.yml
+      service: indexdb
+  config_indexdb:
+    extends:
+      file: common-services.yml
+      service: config_filesdb
+    depends_on:
+      - indexdb
+  lockbook_server:
+    extends:
+      file: common-services.yml
+      service: lockbook_server
+    depends_on:
+      - config_filesdb
+      - config_indexdb
+
+  performance_bench:
+    image: performance:$HASH
+    container_name: performance-$TYPE-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        LOCKBOOK_DEBUG=1 cargo bench -- --profile-time 5 \
+      '
