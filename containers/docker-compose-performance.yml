@@ -12,5 +12,5 @@ services:
       /bin/sh -c '\
         sleep 5 && \
         LOCKBOOK_DEBUG=1 cargo bench -- --profile-time 5 && \
-        pprof --svg $$(find . -type f -executable -name "performator-*") target/criterion/simple/create_write_read/profile/simple-create_write_read.profile > simple-create_write_read.svg \
+        pprof --svg $$(find . -type f -executable -name "performator-*") target/criterion/profile/simple-create_write_read.profile > simple-create_write_read.svg \
       '
