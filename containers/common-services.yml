@@ -12,6 +12,8 @@ services:
     container_name: config_filesdb-$TYPE-$HASH
     env_file:
       - ../containers/test.env
+    depends_on:
+      - filesdb
     entrypoint: >
       /bin/sh -c '\
         while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "$$FILES_DB_HOST Waiting for Minio to start..." && sleep 0.2; done; \
@@ -30,6 +32,8 @@ services:
     container_name: config_indexdb-$TYPE-$HASH
     env_file:
       - ../containers/test.env
+    depends_on:
+      - indexdb
     volumes:
       - $PWD/index_db:/index_db
     entrypoint: >
@@ -43,6 +47,9 @@ services:
     container_name: server-$TYPE-$HASH
     env_file:
       - ../containers/test.env
+    depends_on:
+      - indexdb
+      - filesdb
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
