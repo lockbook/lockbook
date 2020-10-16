@@ -33,7 +33,7 @@ struct CoreScenario {
 /// SLCTest stands for SwiftLockbookCoreTest, this provides useful boiler plate for testing the Swift liblockbook_core wrapper
 class SLCTest: XCTestCase {
     let core = CoreScenario()
-        
+    
     override func setUpWithError() throws {
         try super.setUpWithError()
         try core.setUp()
@@ -80,12 +80,12 @@ extension SLCTest {
     /// - Parameters:
     ///   - result: The result you want to verify
     ///   - validation: Some truth about the Result.success
-    func assertSuccess<T>(_ result: CoreResult<T>, validation: (T) -> Bool = { _ in true }) {
+    func assertSuccess<T, E: UiError>(_ result: FfiResult<T, E>, validation: (T) -> Bool = { _ in true }) {
         switch result {
         case .success(let t):
-            XCTAssertTrue(validation(t), "Result validation failed!")
+            XCTAssertTrue(validation(t), "Result validation failed! \(t)")
         case .failure(let error):
-            XCTFail("Result was not a success! \(error.message())")
+            XCTFail("Result was not a success! \(error)")
         }
     }
     
@@ -93,21 +93,21 @@ extension SLCTest {
     /// - Parameters:
     ///   - result: The result you want to verify
     ///   - validation: Some truth about the Result.failure(ApplicationError)
-    func assertFailure<T>(_ result: CoreResult<T>, validation: (ApplicationError) -> Bool = { _ in true }) {
+    func assertFailure<T, E: UiError>(_ result: FfiResult<T, E>, validation: (FfiError<E>) -> Bool = { _ in true }) {
         switch result {
         case .success(let t):
             XCTFail("Result was not an error! \(t)")
         case .failure(let error):
-            XCTAssertTrue(validation(error), "ApplicationError validation failed!")
+            XCTAssertTrue(validation(error), "ApplicationError validation failed! \(error) \(error.message)")
         }
     }
-
+    
     /// A helper to format test log messages
     /// - Parameter message: The thing you want to print
     func formatLog(_ message: String) -> String {
         "ℹ️\t\(message)"
     }
-
+    
     func log(_ message: String) {
         print(formatLog(message))
     }
