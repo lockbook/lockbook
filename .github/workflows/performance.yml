@@ -9,7 +9,7 @@ on:
     branches: [ master ]
 
 jobs:
-  Benchmarks:
+  Reports:
     runs-on: self-hosted
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -26,5 +26,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: performance-report
-        path: |
-          performance-report-*
+        path: simple-create_write_read.svg

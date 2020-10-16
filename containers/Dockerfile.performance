@@ -13,6 +13,7 @@ RUN cd /deps/libunwind-1.3.2; ./configure; make; make install;
 RUN cd /deps; wget "https://github.com/gperftools/gperftools/releases/download/gperftools-2.8/gperftools-2.8.tar.gz"; tar -xzf gperftools-2.8.tar.gz
 RUN cd /deps/gperftools-2.8; ./configure; make; make install;
 RUN ldconfig
+RUN apt update && apt install -y graphviz
 
 # Cargo caching
 COPY containers/dummy.rs src/lib.rs
