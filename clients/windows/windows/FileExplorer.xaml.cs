@@ -76,7 +76,7 @@ namespace lockbook {
                         }
                         break;
                     case Core.CalculateWork.ExpectedError error:
-                        switch (error.error) {
+                        switch (error.Error) {
                             case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
                                 if (sync.IsEnabled) {
                                     syncIcon.Glyph = offlineGlyph;
@@ -84,13 +84,13 @@ namespace lockbook {
                                 }
                                 break;
                             default:
-                                System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + error.error);
+                                System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + error.Error);
                                 break;
 
                         }
                         break;
                     case Core.CalculateWork.UnexpectedError uhOh:
-                        System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.errorMessage);
+                        System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.ErrorMessage);
                         break;
                 }
 
@@ -106,7 +106,7 @@ namespace lockbook {
                     await PopulateTree(success.files);
                     break;
                 case Core.ListMetadatas.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
+                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
 
@@ -184,7 +184,7 @@ namespace lockbook {
                     await RefreshFiles();
                     break;
                 case Core.CreateFile.ExpectedError error:
-                    switch (error.error) {
+                    switch (error.Error) {
                         case Core.CreateFile.PossibleErrors.FileNameNotAvailable:
                             await new MessageDialog("A file already exists at this path!", "Name Taken!").ShowAsync();
                             break;
@@ -195,12 +195,12 @@ namespace lockbook {
                             await new MessageDialog("File names cannot be empty!", "Name Empty!").ShowAsync();
                             break;
                         default:
-                            await new MessageDialog("Unhandled Error!", error.error.ToString()).ShowAsync();
+                            await new MessageDialog("Unhandled Error!", error.Error.ToString()).ShowAsync();
                             break;
                     }
                     break;
                 case Core.CreateFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
         }
@@ -254,7 +254,7 @@ namespace lockbook {
                     await RefreshFiles();
                     break;
                 case Core.RenameFile.ExpectedError error:
-                    switch (error.error) {
+                    switch (error.Error) {
                         case Core.RenameFile.PossibleErrors.FileNameNotAvailable:
                             await new MessageDialog("A file already exists at this path!", "Name Taken!").ShowAsync();
                             break;
@@ -270,7 +270,7 @@ namespace lockbook {
                     }
                     break;
                 case Core.RenameFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
         }
@@ -310,7 +310,7 @@ namespace lockbook {
                             await RefreshFiles();
                             break;
                         case Core.MoveFile.ExpectedError error:
-                            switch (error.error) {
+                            switch (error.Error) {
                                 case Core.MoveFile.PossibleErrors.NoAccount:
                                     await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
                                     break;
@@ -332,7 +332,7 @@ namespace lockbook {
                             }
                             break;
                         case Core.MoveFile.UnexpectedError uhOh:
-                            await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                            await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                             break;
                     }
                 }
@@ -353,7 +353,7 @@ namespace lockbook {
                         keyStrokeCount[tag] = 0;
                         break;
                     case Core.ReadDocument.ExpectedError error:
-                        switch (error.error) {
+                        switch (error.Error) {
                             case Core.ReadDocument.PossibleErrors.NoAccount:
                                 await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
                                 break;
@@ -366,7 +366,7 @@ namespace lockbook {
                         }
                         break;
                     case Core.ReadDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                         break;
                 }
             }
@@ -392,11 +392,11 @@ namespace lockbook {
                     case Core.WriteDocument.Success:
                         break;
                     case Core.WriteDocument.ExpectedError error:
-                        switch (error.error) {
+                        switch (error.Error) {
                             case Core.WriteDocument.PossibleErrors.NoAccount:
                                 await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
                                 break;
-                            case Core.WriteDocument.PossibleErrors.TreatedFolderAsDocument:
+                            case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
                                 await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
                                 break;
                             case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
@@ -405,7 +405,7 @@ namespace lockbook {
                         }
                         break;
                     case Core.WriteDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.errorMessage, "Unexpected Error!").ShowAsync();
+                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                         break;
                 }
             }

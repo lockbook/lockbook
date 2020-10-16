@@ -2,6 +2,14 @@
 using System.Collections.Generic;
 
 namespace Core {
+    public interface IExpectedError<T> {
+        public T Error { get; set; }
+    }
+
+    public interface IUnexpectedError {
+        public string ErrorMessage { get; set; }
+    }
+
     public class FileMetadata {
         [JsonProperty("id")]
         public string Id;
@@ -37,7 +45,7 @@ namespace Core {
         public string fileId;
         public ulong byteSeconds;
         public ulong seconds;
- }
+    }
 
     public class WorkCalculated {
         [JsonProperty("work_units")]
@@ -54,8 +62,8 @@ namespace Core {
             public DbState dbState;
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -68,12 +76,12 @@ namespace Core {
             ClientUpdateRequired,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -90,12 +98,12 @@ namespace Core {
             ClientUpdateRequired,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -113,12 +121,12 @@ namespace Core {
             ClientUpdateRequired,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -133,12 +141,12 @@ namespace Core {
             NoAccount,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -153,12 +161,12 @@ namespace Core {
             NoAccount
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -166,8 +174,8 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile;
-    }
+            public FileMetadata newFile;
+        }
 
         public enum PossibleErrors {
             PathDoesntStartWithRoot,
@@ -178,12 +186,12 @@ namespace Core {
             DocumentTreatedAsFolder,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -197,12 +205,13 @@ namespace Core {
             FolderTreatedAsDocument,
             FileDoesNotExist
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -210,7 +219,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata NewFile;
+            public FileMetadata newFile;
         }
 
         public enum PossibleErrors {
@@ -221,13 +230,14 @@ namespace Core {
             FileNameContainsSlash,
             FileNameEmpty,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -235,19 +245,20 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata Root;
+            public FileMetadata root;
         }
 
         public enum PossibleErrors {
             NoRoot,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -255,11 +266,11 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public List<FileMetadata> Children;
+            public List<FileMetadata> children;
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -267,19 +278,20 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata File;
+            public FileMetadata file;
         }
 
         public enum PossibleErrors {
             NoFileWithThatId,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -287,19 +299,19 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public FileMetadata File;
+            public FileMetadata file;
         }
 
         public enum PossibleErrors {
             NoFileAtThatPath,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -308,8 +320,8 @@ namespace Core {
 
         public class Success : Result { }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -323,12 +335,12 @@ namespace Core {
             NoFileWithThatId,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -336,7 +348,7 @@ namespace Core {
         public abstract class Result { }
 
         public class Success : Result {
-            public DecryptedValue Content;
+            public DecryptedValue content;
         }
 
         public enum PossibleErrors {
@@ -345,12 +357,12 @@ namespace Core {
             FileDoesNotExist,
         }
 
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -361,8 +373,8 @@ namespace Core {
             public List<string> paths;
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -373,8 +385,8 @@ namespace Core {
             public List<FileMetadata> files;
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -390,12 +402,13 @@ namespace Core {
             NewNameEmpty,
             CannotRenameRoot
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -413,12 +426,13 @@ namespace Core {
             CannotMoveRoot,
 
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -432,12 +446,13 @@ namespace Core {
             CouldNotReachServer,
             ExecuteWorkError,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -453,12 +468,13 @@ namespace Core {
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -471,12 +487,13 @@ namespace Core {
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -485,8 +502,8 @@ namespace Core {
 
         public class Success : Result { }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -497,8 +514,8 @@ namespace Core {
             public ulong timestamp;
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 
@@ -514,12 +531,13 @@ namespace Core {
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-        public class ExpectedError : Result {
-            public PossibleErrors error;
+
+        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
+            public PossibleErrors Error { get; set; }
         }
 
-        public class UnexpectedError : Result {
-            public string errorMessage;
+        public class UnexpectedError : Result, IUnexpectedError {
+            public string ErrorMessage { get; set; }
         }
     }
 }
