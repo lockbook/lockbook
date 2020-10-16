@@ -25,7 +25,7 @@ namespace lockbook {
         private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr init_logger_safely(string writeable_path);
+        private static extern void init_logger_safely(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr create_account(string writeable_path, string username, string api_url);
