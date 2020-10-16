@@ -3,22 +3,16 @@ using lockbook;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace test {
-    public static class Extensions {
-        public static T WaitResult<T>(this Task<T> task) {
-            task.Wait();
-            return task.Result;
-        }
-    }
-
     [TestClass]
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
         public CoreService CoreService {
             get { return new CoreService(lockbookDir); }
         }
+
+        // todo: test helper to asser status and print things otherwise
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
@@ -33,16 +27,17 @@ namespace test {
 
         [TestMethod]
         public void AccountExistsFalse() {
-            Assert.IsFalse(CoreService.AccountExists());
+            Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
         public void AccountExistsTrue() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            //Console.WriteLine(((Core.CreateAccount.UnexpectedError)createAccountResult).errorMessage);
             Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
-            Assert.IsTrue(CoreService.AccountExists());
+            var getAccountResult = CoreService.GetAccount().WaitResult();
+            Assert.AreEqual(typeof(Core.GetAccount.Success), getAccountResult.GetType());
+            Assert.IsTrue(CoreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
@@ -203,7 +198,7 @@ namespace test {
         public void CreateFileNoAccount() {
             //create file
 
-            Assert.IsFalse(CoreService.AccountExists());
+            Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
