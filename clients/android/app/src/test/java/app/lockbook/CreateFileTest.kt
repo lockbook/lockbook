@@ -63,7 +63,7 @@ class CreateFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CreateFileError.FileNameContainsSlash>(
+        assertType<CoreError.FileNameContainsSlash>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -72,7 +72,7 @@ class CreateFileTest {
             ).component2()
         )
 
-        assertType<CreateFileError.FileNameContainsSlash>(
+        assertType<CoreError.FileNameContainsSlash>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -92,7 +92,7 @@ class CreateFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CreateFileError.FileNameEmpty>(
+        assertType<CoreError.FileNameEmpty>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -101,7 +101,7 @@ class CreateFileTest {
             ).component2()
         )
 
-        assertType<CreateFileError.FileNameEmpty>(
+        assertType<CoreError.FileNameEmpty>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -132,7 +132,7 @@ class CreateFileTest {
             ).component1()
         )
 
-        assertType<CreateFileError.FileNameNotAvailable>(
+        assertType<CoreError.FileNameNotAvailable>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -144,7 +144,7 @@ class CreateFileTest {
 
     @Test
     fun createFileNoAccount() {
-        assertType<CreateFileError.NoAccount>(
+        assertType<CoreError.NoAccount>(
             CoreModel.createFile(
                 config,
                 generateId(),
@@ -156,11 +156,11 @@ class CreateFileTest {
 
     @Test
     fun createFileUnexpectedError() {
-        val createFileResult: Result<FileMetadata, CreateFileError>? =
+        val createFileResult: Result<FileMetadata, CoreError>? =
             Klaxon().converter(createFileConverter)
                 .parse(createFile("", "", "", ""))
 
-        assertType<CreateFileError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             createFileResult?.component2()
         )
     }

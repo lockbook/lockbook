@@ -33,14 +33,17 @@ struct ImportAccountView: View {
     }
     
     func handleImport() -> Result<Void, Error> {
-        switch self.core.api.importAccount(accountString: self.accountKey) {
+        let res = self.core.api.importAccount(accountString: self.accountKey)
+            .eraseError()
+            .flatMap(transform: { _ in self.core.api.getAccount().eraseError() })
+        switch res {
         case .success(let acc):
             self.core.account = acc
             self.core.sync()
             return .success(())
         case .failure(let err):
             hideKeyboard()
-            self.core.displayError(error: err)
+            self.core.handleError(err)
             return .failure(err)
         }
     }

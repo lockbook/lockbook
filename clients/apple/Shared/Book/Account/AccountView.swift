@@ -9,7 +9,7 @@ struct AccountView: View {
     @State var showingCode: Bool = false
     @State var copiedString: Bool?
     @Environment(\.presentationMode) var presentationMode
-
+    
     fileprivate func hideMessage() {
         withAnimation { copiedString = nil }
     }
@@ -103,7 +103,7 @@ struct AccountView: View {
                 }
             }
         case .failure(let err):
-            core.displayError(error: err)
+            core.handleError(err)
         }
         return nil
     }
@@ -122,7 +122,7 @@ struct AccountView: View {
                 return .success(())
             case .failure(let err):
                 copiedString = false
-                core.displayError(error: err)
+                core.handleError(err)
                 return .failure(err)
             }
         }

@@ -8,8 +8,8 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
+import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateAccountError
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
@@ -55,23 +55,23 @@ class NewAccountActivity : AppCompatActivity() {
                 }
                 is Err -> {
                     when (val error = createAccountResult.error) {
-                        is CreateAccountError.UsernameTaken ->
+                        is CoreError.UsernameTaken ->
                             new_account_username.error =
                                 "Username taken!"
-                        is CreateAccountError.InvalidUsername ->
+                        is CoreError.InvalidUsername ->
                             new_account_username.error =
                                 "Invalid username!"
-                        is CreateAccountError.CouldNotReachServer -> Toast.makeText(
+                        is CoreError.CouldNotReachServer -> Toast.makeText(
                             applicationContext,
                             "Network unavailable.",
                             Toast.LENGTH_LONG
                         ).show()
-                        is CreateAccountError.AccountExistsAlready -> Toast.makeText(
+                        is CoreError.AccountExistsAlready -> Toast.makeText(
                             applicationContext,
                             "Account already exists!",
                             Toast.LENGTH_LONG
                         ).show()
-                        is CreateAccountError.UnexpectedError -> {
+                        is CoreError.Unexpected -> {
                             Timber.e("Unable to create account.")
                             Toast.makeText(
                                 applicationContext,

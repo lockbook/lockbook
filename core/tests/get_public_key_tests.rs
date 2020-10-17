@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod get_public_key_tests {
     use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -45,7 +45,7 @@ mod get_public_key_tests {
 
         assert_matches!(
             ClientImpl::get_public_key(&account.api_url, &account.username),
-            Err(Error::<GetPublicKeyError>::Api(
+            Err(ApiError::<GetPublicKeyError>::Api(
                 GetPublicKeyError::UserNotFound
             ))
         );

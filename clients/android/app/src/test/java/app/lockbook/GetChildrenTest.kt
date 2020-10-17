@@ -41,11 +41,11 @@ class GetChildrenTest {
 
     @Test
     fun getChildrenUnexpectedError() {
-        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
+        val getChildrenResult: Result<List<FileMetadata>, CoreError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren("", ""))
 
-        assertType<GetChildrenError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             getChildrenResult?.component2()
         )
     }

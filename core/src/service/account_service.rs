@@ -26,7 +26,7 @@ pub enum AccountCreationError {
     AccountRepoDbError(account_repo::DbError),
     FolderError(RootFolderCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
-    ApiError(client::Error<NewAccountError>),
+    ApiError(client::ApiError<NewAccountError>),
     KeySerializationError(serde_json::error::Error),
     AuthGenFailure(AuthGenError),
     AccountExistsAlready,
@@ -39,7 +39,7 @@ pub enum AccountImportError {
     PersistenceError(account_repo::AccountRepoError),
     InvalidPrivateKey(rsa::errors::Error),
     AccountRepoDbError(account_repo::DbError),
-    FailedToVerifyAccountServerSide(client::Error<GetPublicKeyError>),
+    FailedToVerifyAccountServerSide(client::ApiError<GetPublicKeyError>),
     PublicKeyMismatch,
     AccountExistsAlready,
 }

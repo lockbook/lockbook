@@ -3,7 +3,7 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NO_ROOT_OPS,
     UNEXPECTED_ERROR,
 };
-use lockbook_core::{get_file_by_path, GetFileByPathError, MoveFileError};
+use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 use std::process::exit;
 
 pub fn move_file(path1: &str, path2: &str) {
@@ -17,46 +17,48 @@ pub fn move_file(path1: &str, path2: &str) {
                 ) {
                     Ok(_) => exit(0),
                     Err(move_file_error) => match move_file_error {
-                        MoveFileError::NoAccount => exit_with_no_account(),
-                        MoveFileError::CannotMoveRoot => {
+                        CoreError::UiError(MoveFileError::NoAccount) => exit_with_no_account(),
+                        CoreError::UiError(MoveFileError::CannotMoveRoot) => {
                             exit_with("Cannot move root directory!", NO_ROOT_OPS)
                         }
-                        MoveFileError::FileDoesNotExist => {
+                        CoreError::UiError(MoveFileError::FileDoesNotExist) => {
                             exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
                         }
-                        MoveFileError::TargetParentDoesNotExist => {
+                        CoreError::UiError(MoveFileError::TargetParentDoesNotExist) => {
                             exit_with(&format!("No file found at {}", path2), FILE_NOT_FOUND)
                         }
-                        MoveFileError::TargetParentHasChildNamedThat => exit_with(
-                            &format!(
-                                "{}/ has a file named {}",
-                                file_metadata.name, target_file_metadata.name
-                            ),
-                            FILE_NAME_NOT_AVAILABLE,
-                        ),
-                        MoveFileError::DocumentTreatedAsFolder => exit_with(
+                        CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
+                            exit_with(
+                                &format!(
+                                    "{}/ has a file named {}",
+                                    file_metadata.name, target_file_metadata.name
+                                ),
+                                FILE_NAME_NOT_AVAILABLE,
+                            )
+                        }
+                        CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exit_with(
                             &format!(
                                 "{} is a document, {} cannot be moved there",
                                 target_file_metadata.name, file_metadata.name
                             ),
                             DOCUMENT_TREATED_AS_FOLDER,
                         ),
-                        MoveFileError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                        CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
                     },
                 }
             }
             Err(get_file_error) => match get_file_error {
-                GetFileByPathError::NoFileAtThatPath => {
+                CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                     exit_with(&format!("No file at {}", path2), FILE_NOT_FOUND)
                 }
-                GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         },
         Err(get_file_error) => match get_file_error {
-            GetFileByPathError::NoFileAtThatPath => {
+            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exit_with(&format!("No file at {}", path1), FILE_NOT_FOUND)
             }
-            GetFileByPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }
