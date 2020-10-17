@@ -69,6 +69,20 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_db_state(writeable_path: *const c_char) -> *const c_char {
+    c_string(translate(crate::get_db_state(&config_from_ptr(
+        writeable_path,
+    ))))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn migrate_db(writeable_path: *const c_char) -> *const c_char {
+    c_string(translate(crate::migrate_db(&config_from_ptr(
+        writeable_path,
+    ))))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn create_account(
     writeable_path: *const c_char,
     username: *const c_char,
