@@ -5,14 +5,22 @@ struct CreateAccountView: View {
     @State var username: String = ""
     
     var body: some View {
-        VStack {
+        let view = VStack(spacing: 40) {
             TextField("Username", text: self.$username)
                 .disableAutocorrection(true)
-                .padding(.all, 40)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
             Button(action: handleCreate, label: {
                 Label("Create", systemImage: "person.crop.circle.badge.plus")
             })
         }
+        .padding(.horizontal)
+
+        #if os(iOS)
+        return view
+            .autocapitalization(.none)
+        #else
+        return view
+        #endif
     }
     
     func handleCreate() {
