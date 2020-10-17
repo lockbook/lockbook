@@ -37,10 +37,10 @@ class GetRootTest {
 
     @Test
     fun getRootUnexpectedError() {
-        val getRootResult: Result<FileMetadata, GetRootError>? =
+        val getRootResult: Result<FileMetadata, CoreError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(""))
 
-        assertType<GetRootError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             getRootResult?.component2()
         )
     }

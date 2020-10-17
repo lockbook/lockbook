@@ -57,18 +57,17 @@ public enum FfiResult<T: Decodable, U: UiError> {
 
 extension FfiResult: Decodable {
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: Keys.self)
-        
-        if (container.contains(.Ok)) {
-            self = .success(try container.decode(T.self, forKey: .Ok))
-        } else if (container.contains(.Err)) {
-            self = .failure(try container.decode(FfiError.self, forKey: .Err))
-        } else {
-            self = .failure(.init(unexpected: "Failed to deserialize \(String(describing: Self.self)): \(container.codingPath)"))
+        let container = try decoder.container(keyedBy: TagContentKeys.self)
+
+        switch try container.decode(ResultType.self, forKey: .tag) {
+        case .Ok:
+            self = .success(try container.decode(T.self, forKey: .content))
+        case .Err:
+            self = .failure(try container.decode(FfiError.self, forKey: .content))
         }
     }
     
-    enum Keys: String, CodingKey {
+    enum ResultType: String, Decodable {
         case Ok
         case Err
     }

@@ -37,17 +37,17 @@ class GetAccountTest {
 
     @Test
     fun getAccountNoAccount() {
-        assertType<GetAccountError.NoAccount>(
+        assertType<CoreError.NoAccount>(
             CoreModel.getAccount(config).component2()
         )
     }
 
     @Test
     fun getAccountUnexpectedError() {
-        val getAccountResult: Result<Account, GetAccountError>? =
+        val getAccountResult: Result<Account, CoreError>? =
             Klaxon().converter(getAccountConverter).parse(getAccount(""))
 
-        assertType<GetAccountError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             getAccountResult?.component2()
         )
     }

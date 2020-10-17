@@ -2,12 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.UI.Core.Preview;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -16,11 +14,11 @@ using Windows.UI.Xaml.Controls;
 namespace lockbook {
 
     public class UIFile {
-        public String Id { get; set; }
+        public string Id { get; set; }
 
-        public String Icon { get; set; }
+        public string Icon { get; set; }
 
-        public String Name { get; set; }
+        public string Name { get; set; }
 
         public bool IsDocument { get; set; }
 
@@ -59,7 +57,7 @@ namespace lockbook {
 
         private async void CheckForWorkLoop() {
             while (true) {
-                var result = await CoreService.CalculateWork();
+                var result = await App.CoreService.CalculateWork();
 
                 switch (result) {
                     case Core.CalculateWork.Success success:
@@ -101,7 +99,7 @@ namespace lockbook {
         }
 
         private async Task RefreshFiles() {
-            var result = await CoreService.ListFileMetadata();
+            var result = await App.CoreService.ListFileMetadata();
 
             switch (result) {
                 case Core.ListFileMetadata.Success success:
@@ -146,7 +144,7 @@ namespace lockbook {
                     if (current.Id == file.Parent && file.Parent != file.Id) {
                         toExplore.Enqueue(file);
 
-                        String icon;
+                        string icon;
                         ObservableCollection<UIFile> children;
 
                         if (file.Type == "Folder") {
@@ -166,21 +164,21 @@ namespace lockbook {
         }
 
         private async void NewFolder(object sender, RoutedEventArgs e) {
-            String parent = (String)((MenuFlyoutItem)sender).Tag;
-            String name = await InputTextDialogAsync("Choose a folder name");
+            string parent = (string)((MenuFlyoutItem)sender).Tag;
+            string name = await InputTextDialogAsync("Choose a folder name");
 
             await AddFile(FileType.Folder, name, parent);
         }
       
         private async void NewDocument(object sender, RoutedEventArgs e) {
-            String parent = (String)((MenuFlyoutItem)sender).Tag;
-            String name = await InputTextDialogAsync("Choose a document name");
+            string parent = (string)((MenuFlyoutItem)sender).Tag;
+            string name = await InputTextDialogAsync("Choose a document name");
 
             await AddFile(FileType.Document, name, parent);
         }
 
-        private async Task AddFile(FileType type, String name, String parent) {
-            var result = await CoreService.CreateFile(name, parent, type);
+        private async Task AddFile(FileType type, string name, string parent) {
+            var result = await App.CoreService.CreateFile(name, parent, type);
             switch (result) {
                 case Core.CreateFile.Success: // TODO handle this newly created folder elegantly.
                     await RefreshFiles();
@@ -230,7 +228,7 @@ namespace lockbook {
             sync.IsEnabled = false;
             sync.Content = "Syncing...";
 
-            var result = await CoreService.SyncAll();
+            var result = await App.CoreService.SyncAll();
 
             switch (result) {
                 case Core.SyncAll.Success:
@@ -246,10 +244,10 @@ namespace lockbook {
         }
 
         private async void RenameFile(object sender, RoutedEventArgs e) {
-            String id = (String)((MenuFlyoutItem)sender).Tag;
-            String newName = await InputTextDialogAsync("Choose a new name");
+            string id = (string)((MenuFlyoutItem)sender).Tag;
+            string newName = await InputTextDialogAsync("Choose a new name");
 
-            var result = await CoreService.RenameFile(id, newName);
+            var result = await App.CoreService.RenameFile(id, newName);
 
             switch (result) {
                 case Core.RenameFile.Success:
@@ -301,11 +299,11 @@ namespace lockbook {
         }
 
         private async void NavigationViewItem_Drop(object sender, DragEventArgs e) {
-            if ((e.OriginalSource as FrameworkElement)?.Tag is String newParent) {
-                if (await (e.DataView.GetDataAsync("id")) is String oldFileId) {
+            if ((e.OriginalSource as FrameworkElement)?.Tag is string newParent) {
+                if (await (e.DataView.GetDataAsync("id")) is string oldFileId) {
                     e.Handled = true;
 
-                    var result = await CoreService.MoveFile(oldFileId, newParent);
+                    var result = await App.CoreService.MoveFile(oldFileId, newParent);
 
                     switch (result) {
                         case Core.MoveFile.Success:
@@ -342,11 +340,11 @@ namespace lockbook {
         }
 
         private async void DocumentSelected(Microsoft.UI.Xaml.Controls.NavigationView sender, Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs args) {
-            String tag = (string)args.SelectedItemContainer?.Tag;
+            string tag = (string)args.SelectedItemContainer?.Tag;
 
             if (tag != null) {
                 currentDocumentId = (string)args.SelectedItemContainer.Tag;
-                var result = await CoreService.ReadDocument(currentDocumentId);
+                var result = await App.CoreService.ReadDocument(currentDocumentId);
 
                 switch (result) {
                     case Core.ReadDocument.Success content:
@@ -388,7 +386,7 @@ namespace lockbook {
                     return;
                 }
 
-                var result = await CoreService.WriteDocument(docID, text);
+                var result = await App.CoreService.WriteDocument(docID, text);
 
                 switch (result) {
                     case Core.WriteDocument.Success:
