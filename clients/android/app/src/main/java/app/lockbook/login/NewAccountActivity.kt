@@ -72,7 +72,7 @@ class NewAccountActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                         is CoreError.Unexpected -> {
-                            Timber.e("Unable to create account.")
+                            Timber.e("Unable to create an account: ${error.error}")
                             Toast.makeText(
                                 applicationContext,
                                 UNEXPECTED_ERROR_OCCURRED,

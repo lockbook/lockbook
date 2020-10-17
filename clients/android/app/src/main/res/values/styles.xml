@@ -5,6 +5,11 @@
         <item name="colorAccent">@color/blue</item>
         <item name="colorPrimaryDark">@color/black</item>
         <item name="android:windowBackground">@color/black</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+<!--        <item name="android:actionBarStyle">@style/DarkBlue.Actionbar</item>-->
+<!--        <item name="titleTextStyle">@style/DarkBlue.Title</item>-->
+<!--        <item name="android:actionOverflowButtonStyle">@style/DarkBlue.Overflow</item>-->
     </style>
 
     <style name="DarkBlue.Dialog" parent="Theme.AppCompat.Dialog">
@@ -20,6 +25,20 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="background">@color/black</item>
+    </style>
+
+    <style name="DarkBlue.Actionbar" parent="Widget.AppCompat.ActionBar">
+        <item name="backgroundColor">@color/black</item>
+        <item name="android:textColorPrimary">@color/blue</item>
+    </style>
+
+    <style name="DarkBlue.Overflow">
+        <item name="android:src">@drawable/ic_baseline_more_vert_24</item>
+    </style>
+
+    <style name="DarkBlue.Title" parent="TextAppearance.AppCompat.Widget.ActionBar.Title">
+        <item name="titleTextColor">@color/blue</item>
+
     </style>
 
     <style name="Text.Caption" parent="TextAppearance.AppCompat.Caption" />
