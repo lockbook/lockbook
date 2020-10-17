@@ -16,12 +16,19 @@ struct CreateAccountView: View {
     }
     
     func handleCreate() {
-        switch self.core.api.createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation)) {
+        let res = self.core.api
+            .createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation))
+            .eraseError()
+            .flatMap { _ in
+                self.core.api.getAccount().eraseError()
+            }
+        
+        switch res {
         case .success(let acc):
             self.core.account = acc
         case .failure(let err):
             hideKeyboard()
-            self.core.displayError(error: err)
+            self.core.handleError(err)
         }
     }
 }
