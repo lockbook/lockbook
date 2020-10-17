@@ -47,6 +47,12 @@ public class FfiError<U: UiError>: AnyFfiError, Decodable {
     }
 }
 
+extension FfiError: CustomStringConvertible {
+    public var description: String {
+        "\(String(describing: Self.self)): \(message)"
+    }
+}
+
 public protocol UiError: Decodable, Error {
     
 }
@@ -165,6 +171,7 @@ public enum MoveFileError: String, UiError {
 
 public enum SyncAllError: String, UiError {
     case NoAccount
+    case ClientUpdateRequired
     case CouldNotReachServer
     case ExecuteWorkError
 }
