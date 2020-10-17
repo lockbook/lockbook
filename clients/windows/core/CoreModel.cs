@@ -4,9 +4,9 @@ using System.Collections.Generic;
 
 namespace Core {
     namespace CreateAccount {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             UsernameTaken,
@@ -15,39 +15,39 @@ namespace Core {
             AccountExistsAlready,
         }
 
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace GetAccount {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result {
-            public String accountJson;
+        public class Success : Result {
+            public string accountJson;
         }
 
         public enum PossibleErrors {
             NoAccount
         }
 
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace ImportAccount {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             AccountStringCorrupted,
@@ -57,32 +57,32 @@ namespace Core {
             CouldNotReachServer
         }
 
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
-    class FileMetadata {
+    public class FileMetadata {
         [JsonProperty("id")]
-        public String Id { get; set; }
+        public string Id { get; set; }
 
         [JsonProperty("name")]
-        public String Name { get; set; }
+        public string Name { get; set; }
 
         [JsonProperty("parent")]
-        public String Parent { get; set; }
+        public string Parent { get; set; }
 
         [JsonProperty("file_type")]
-        public String Type { get; set; }
+        public string Type { get; set; }
     }
 
-    class DecryptedValue {
+    public class DecryptedValue {
         [JsonProperty("secret")]
-        public String secret { get; set; }
+        public string secret { get; set; }
     }
 
     public enum FileType {
@@ -91,21 +91,21 @@ namespace Core {
     }
 
     namespace ListFileMetadata {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result {
+        public class Success : Result {
             public List<FileMetadata> files;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace CreateFile {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result {
+        public class Success : Result {
             public FileMetadata NewFile { get; set; }
         }
 
@@ -117,39 +117,39 @@ namespace Core {
             FileNameContainsSlash,
             FileNameEmpty,
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace SyncAll {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             NoAccount,
             CouldNotReachServer,
             ExecuteWorkError
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace ReadDocument {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result {
+        public class Success : Result {
             public DecryptedValue content;
         }
 
@@ -158,38 +158,38 @@ namespace Core {
             TreatedFolderAsDocument,
             FileDoesNotExist
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace WriteDocument {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             NoAccount,
             TreatedFolderAsDocument,
             FileDoesNotExist
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace RenameFile {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             FileDoesNotExist,
@@ -198,19 +198,19 @@ namespace Core {
             NewNameEmpty,
             CannotRenameRoot
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace MoveFile {
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result { }
+        public class Success : Result { }
 
         public enum PossibleErrors {
             NoAccount,
@@ -221,27 +221,27 @@ namespace Core {
             CannotMoveRoot,
 
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 
     namespace CalculateWork {
-        class WorkCalculated {
+        public class WorkCalculated {
             [JsonProperty("work_units")]
             public List<dynamic> WorkUnits { get; set; }
 
             [JsonProperty("most_recent_update_from_server")]
-            public UInt64 MostRecentUpdateFromServer { get; set; }
+            public ulong MostRecentUpdateFromServer { get; set; }
         }
 
-        abstract class Result { }
+        public abstract class Result { }
 
-        class Success : Result {
+        public class Success : Result {
             public WorkCalculated workCalculated;
         }
 
@@ -250,12 +250,12 @@ namespace Core {
             CouldNotReachServer
 
         }
-        class ExpectedError : Result {
+        public class ExpectedError : Result {
             public PossibleErrors error;
         }
 
-        class UnexpectedError : Result {
-            public String errorMessage;
+        public class UnexpectedError : Result {
+            public string errorMessage;
         }
     }
 }
