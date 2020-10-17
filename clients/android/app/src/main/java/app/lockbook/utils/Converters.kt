@@ -9,12 +9,10 @@ import com.github.michaelbull.result.Ok
 val initLoggerConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -23,12 +21,10 @@ val initLoggerConverter = object : Converter {
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -37,12 +33,10 @@ val createAccountConverter = object : Converter {
 val importAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -51,19 +45,17 @@ val importAccountConverter = object : Converter {
 val exportAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.string("content")
-                if (ok != null) {
-                    Ok(ok)
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.string("content")
+            if (ok != null) {
+                Ok(ok)
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -72,19 +64,17 @@ val exportAccountConverter = object : Converter {
 val getAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<Account>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<Account>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -93,12 +83,10 @@ val getAccountConverter = object : Converter {
 val setLastSyncedConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -107,19 +95,17 @@ val setLastSyncedConverter = object : Converter {
 val getRootConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -128,19 +114,17 @@ val getRootConverter = object : Converter {
 val getChildrenConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.array<FileMetadata>("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonArray<FileMetadata>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.array<FileMetadata>("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonArray<FileMetadata>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -149,19 +133,17 @@ val getChildrenConverter = object : Converter {
 val getFileByIdConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -170,12 +152,10 @@ val getFileByIdConverter = object : Converter {
 val insertFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -184,12 +164,10 @@ val insertFileConverter = object : Converter {
 val renameFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -198,19 +176,17 @@ val renameFileConverter = object : Converter {
 val createFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -219,12 +195,10 @@ val createFileConverter = object : Converter {
 val deleteFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -233,19 +207,17 @@ val deleteFileConverter = object : Converter {
 val readDocumentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<DecryptedValue>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<DecryptedValue>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -254,12 +226,10 @@ val readDocumentConverter = object : Converter {
 val writeDocumentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -268,12 +238,10 @@ val writeDocumentConverter = object : Converter {
 val moveFileConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -282,12 +250,10 @@ val moveFileConverter = object : Converter {
 val syncAllConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -296,19 +262,17 @@ val syncAllConverter = object : Converter {
 val calculateSyncWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> {
-                val ok = jv.obj?.obj("content")
-                if (ok != null) {
-                    Ok(Klaxon().parseFromJsonObject<WorkCalculated>(ok))
-                } else {
-                    Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> {
+            val ok = jv.obj?.obj("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<WorkCalculated>(ok))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
             }
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -317,12 +281,10 @@ val calculateSyncWorkConverter = object : Converter {
 val executeSyncWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        return when (jv.obj?.string("tag")) {
-            "Ok" -> Ok(Unit)
-            "Err" -> matchError(jv)
-            else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
-        }
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        "Ok" -> Ok(Unit)
+        "Err" -> matchError(jv)
+        else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
