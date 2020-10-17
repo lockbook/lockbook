@@ -7,7 +7,8 @@ class CreateFileTests: SLCTest {
     
     override func setUpWithError() throws {
         try super.setUpWithError()
-        account = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let _ = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        account = try core.api.getAccount().get()
         root = try core.api.getRoot().get()
     }
     
