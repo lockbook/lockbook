@@ -6,9 +6,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.Config
+import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
-import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import timber.log.Timber
 
@@ -82,16 +82,16 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
         val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
         if (writeToDocumentResult is Err) {
             when (val error = writeToDocumentResult.error) {
-                is WriteToDocumentError.FolderTreatedAsDocument -> {
+                is CoreError.FolderTreatedAsDocument -> {
                     _errorHasOccurred.postValue("Error! Folder is treated as document!")
                 }
-                is WriteToDocumentError.FileDoesNotExist -> {
+                is CoreError.FileDoesNotExist -> {
                     _errorHasOccurred.postValue("Error! File does not exist!")
                 }
-                is WriteToDocumentError.NoAccount -> {
+                is CoreError.NoAccount -> {
                     _errorHasOccurred.postValue("Error! No account!")
                 }
-                is WriteToDocumentError.UnexpectedError -> {
+                is CoreError.Unexpected -> {
                     Timber.e("Unable to write document changes: ${error.error}")
                     _errorHasOccurred.postValue(
                         UNEXPECTED_ERROR_OCCURRED
