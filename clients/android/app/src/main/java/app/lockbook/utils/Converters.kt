@@ -1,6 +1,8 @@
 package app.lockbook.utils
 
-import com.beust.klaxon.*
+import com.beust.klaxon.Converter
+import com.beust.klaxon.JsonValue
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 
@@ -10,27 +12,7 @@ val initLoggerConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -44,27 +26,7 @@ val createAccountConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -78,27 +40,7 @@ val importAccountConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -119,27 +61,7 @@ val exportAccountConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -160,27 +82,7 @@ val getAccountConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -194,27 +96,7 @@ val setLastSyncedConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -235,27 +117,7 @@ val getRootConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -276,27 +138,7 @@ val getChildrenConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -317,27 +159,7 @@ val getFileByIdConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -351,27 +173,7 @@ val insertFileConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -385,27 +187,7 @@ val renameFileConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -426,27 +208,7 @@ val createFileConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -460,27 +222,7 @@ val deleteFileConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -501,27 +243,7 @@ val readDocumentConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -535,27 +257,7 @@ val writeDocumentConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -569,27 +271,7 @@ val moveFileConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -603,27 +285,7 @@ val syncAllConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -644,27 +306,7 @@ val calculateSyncWorkConverter = object : Converter {
                     Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
@@ -678,30 +320,32 @@ val executeSyncWorkConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         return when (jv.obj?.string("tag")) {
             "Ok" -> Ok(Unit)
-            "Err" -> {
-                when (jv.obj?.obj("content")?.string("tag")) {
-                    "UiError" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(matchErrorName(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    "Unexpected" -> {
-                        val error = jv.obj?.obj("content")?.string("content")
-                        if (error != null) {
-                            Err(CoreError.Unexpected(error))
-                        } else {
-                            Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
-                        }
-                    }
-                    else -> Err(CoreError.Unexpected("Can't recognize tag."))
-                }
-            }
+            "Err" -> matchError(jv)
             else -> Err(CoreError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+private fun matchError(jv: JsonValue): Err<CoreError> {
+    return when (jv.obj?.obj("content")?.string("tag")) {
+        "UiError" -> {
+            val error = jv.obj?.obj("content")?.string("content")
+            if (error != null) {
+                Err(matchErrorName(error))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
+            }
+        }
+        "Unexpected" -> {
+            val error = jv.obj?.obj("content")?.string("content")
+            if (error != null) {
+                Err(CoreError.Unexpected(error))
+            } else {
+                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
+            }
+        }
+        else -> Err(CoreError.Unexpected("Can't recognize tag."))
+    }
 }
