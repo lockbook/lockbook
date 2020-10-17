@@ -30,7 +30,7 @@ sealed class CoreError {
     data class Unexpected(val error: String) : CoreError()
 }
 
-fun matchErrorName(name: String): CoreError {
+fun matchErrorName(name: String): CoreError { // find a way to make it so that when has to be exhustive, and group up the errors
     return when (name) {
         CoreError.UsernameTaken::class.simpleName -> CoreError.UsernameTaken
         CoreError.InvalidUsername::class.simpleName -> CoreError.InvalidUsername

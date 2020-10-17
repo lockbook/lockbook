@@ -2,6 +2,7 @@ package app.lockbook.loggedin.texteditor
 
 import android.os.Bundle
 import android.os.Handler
+import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
@@ -17,6 +18,7 @@ import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
+import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.activity_text_editor.*
 import timber.log.Timber
 import java.util.*
@@ -108,7 +110,16 @@ class TextEditorActivity : AppCompatActivity() {
             return
         }
 
-        title = name
+        val title = SpannableString(name)
+        title.setSpan(ForegroundColorSpan(
+            ResourcesCompat.getColor(
+                resources,
+                R.color.light,
+                null
+            )), 0, title.length, 0)
+        text_editor_toolbar.title = title
+        setSupportActionBar(text_editor_toolbar)
+
         if (title.endsWith(".md")) {
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(

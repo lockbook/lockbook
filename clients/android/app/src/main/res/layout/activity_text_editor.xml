@@ -5,6 +5,13 @@
     android:orientation="vertical"
     android:padding="5dp">
 
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/text_editor_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:background="@color/black" />
+
     <ScrollView
         android:id="@+id/text_editor_scroller"
         android:layout_width="match_parent"
@@ -16,6 +23,7 @@
             style="@style/Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:textColor="@color/light"
             android:background="@null"
             android:gravity="top|start"
             android:importantForAutofill="no"

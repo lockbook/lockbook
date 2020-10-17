@@ -2,10 +2,13 @@ package app.lockbook.loggedin.listfiles
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
@@ -19,7 +22,9 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.android.synthetic.main.activity_list_files.*
 import timber.log.Timber
+
 
 class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
@@ -27,6 +32,16 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
+
+        val title = SpannableString("Lockbook")
+        title.setSpan(ForegroundColorSpan(
+            ResourcesCompat.getColor(
+            resources,
+            R.color.light,
+            null
+        )), 0, title.length, 0)
+        list_files_toolbar.title = title
+        setSupportActionBar(list_files_toolbar)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
