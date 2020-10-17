@@ -297,7 +297,7 @@ private fun matchError(jv: JsonValue): Err<CoreError> {
             if (error != null) {
                 Err(matchErrorName(error))
             } else {
-                Err(CoreError.Unexpected("Can't receive contents from UnexpectedError."))
+                Err(CoreError.Unexpected("Can't receive contents from UiError.")) // make these types of error messages more verbose
             }
         }
         "Unexpected" -> {
