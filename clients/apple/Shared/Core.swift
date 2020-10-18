@@ -7,19 +7,21 @@ class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
     @Published var account: Account?
+    @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
-    private var passthrough = PassthroughSubject<Void, ApplicationError>()
+    private var passthrough = PassthroughSubject<Void, Error>()
     private var cancellableSet: Set<AnyCancellable> = []
     
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
-            print("Deleted \(lockbookDir) and logging out")
-            self.account = nil
+            DispatchQueue.main.async {
+                self.account = nil
+            }
         }
     }
     
@@ -35,8 +37,13 @@ class Core: ObservableObject {
         }
     }
     
-    func displayError(error: ApplicationError) {
-        print("Error \(error.message())")
+    func handleError<E: Error>(_ error: E) {
+        switch error {
+        case let ffiError as AnyFfiError:
+            globalError = ffiError
+        default:
+            print("Received non-FFI error [\(String(describing: error.self))] \(error)") // This is basically an app crash
+        }
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
@@ -44,17 +51,19 @@ class Core: ObservableObject {
     }
     
     func updateFiles() {
-        switch api.getRoot() {
-        case .success(let root):
-            switch api.listFiles() {
-            case .success(let metas):
-                self.files = metas
-                self.grouped = [buildTree(meta: root)]
+        if (account != nil) {
+            switch api.getRoot() {
+            case .success(let root):
+                switch api.listFiles() {
+                case .success(let metas):
+                    self.files = metas
+                    self.grouped = [buildTree(meta: root)]
+                case .failure(let err):
+                    handleError(err)
+                }
             case .failure(let err):
-                displayError(error: err)
+                handleError(err)
             }
-        case .failure(let err):
-            displayError(error: err)
         }
     }
     
@@ -66,10 +75,9 @@ class Core: ObservableObject {
         case .success(let acc):
             self.account = acc
         case .failure(let err):
-            print(err)
+            print(err) // TODO: Improve this
         }
         self.api = api
-        print("API URL: \(api.getApiLocation())")
         self.updateFiles()
         
         passthrough
@@ -78,9 +86,9 @@ class Core: ObservableObject {
                 self.syncing = false
                 switch err {
                 case .failure(let err):
-                    self.displayError(error: err)
+                    self.handleError(err)
                 case .finished:
-                    print("Sync subscription finished!")
+                    print("Sync subscription finished!") // TODO: Does the application work at this point?
                 }
             }, receiveValue: { _ in
                 self.updateFiles()

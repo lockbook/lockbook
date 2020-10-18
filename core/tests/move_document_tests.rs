@@ -5,7 +5,7 @@ mod move_document_tests {
     use crate::integration_test::{
         aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -22,6 +22,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,6 +40,7 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -58,6 +60,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::create_folder(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 subfolder_id,
@@ -74,6 +77,7 @@ mod move_document_tests {
         // move document
         assert_matches!(
             ClientImpl::move_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -97,6 +101,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -113,6 +118,7 @@ mod move_document_tests {
         // move document that wasn't created
         assert_matches!(
             ClientImpl::move_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 Uuid::new_v4(),
@@ -123,7 +129,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &folder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentNotFound
             ))
         );
@@ -138,6 +144,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -155,6 +162,7 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -174,6 +182,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::create_folder(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 subfolder_id,
@@ -189,13 +198,20 @@ mod move_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.username, &sign(&account), doc_id, version,),
+            ClientImpl::delete_document(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                doc_id,
+                version,
+            ),
             Ok(_)
         );
 
         // move deleted document
         assert_matches!(
             ClientImpl::move_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -206,7 +222,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentDeleted
             ))
         );
@@ -221,6 +237,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -238,6 +255,7 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -257,6 +275,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::create_folder(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 subfolder_id,
@@ -273,6 +292,7 @@ mod move_document_tests {
         // move document
         assert_matches!(
             ClientImpl::move_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -283,7 +303,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::EditConflict
             ))
         );
@@ -298,6 +318,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -316,6 +337,7 @@ mod move_document_tests {
         let doc_key = AesImpl::generate_key();
         let doc_name = random_filename();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -335,6 +357,7 @@ mod move_document_tests {
 
         assert_matches!(
             ClientImpl::create_folder(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 subfolder_id,
@@ -353,6 +376,7 @@ mod move_document_tests {
         let doc_key2 = AesImpl::generate_key();
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id2,
@@ -370,6 +394,7 @@ mod move_document_tests {
         // move document
         assert_matches!(
             ClientImpl::move_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -380,7 +405,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentPathTaken
             ))
         );

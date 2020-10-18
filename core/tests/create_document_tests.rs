@@ -5,7 +5,7 @@ mod create_document_tests {
     use crate::integration_test::{
         aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -22,6 +22,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -41,6 +42,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -65,6 +67,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -84,6 +87,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -101,6 +105,7 @@ mod create_document_tests {
         // create document with same id and key
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -112,7 +117,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::FileIdTaken
             ))
         );
@@ -127,6 +132,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -147,6 +153,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -167,6 +174,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -178,7 +186,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::DocumentPathTaken
             ))
         );
@@ -193,6 +201,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -215,6 +224,7 @@ mod create_document_tests {
 
         assert_matches!(
             ClientImpl::create_document(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 doc_id,
@@ -226,7 +236,7 @@ mod create_document_tests {
                     access_key: aes_key(&folder_key, &doc_key),
                 },
             ),
-            Err(Error::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::ParentNotFound
             ))
         );
