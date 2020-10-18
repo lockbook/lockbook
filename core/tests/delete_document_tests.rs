@@ -5,7 +5,7 @@ mod delete_document_tests {
     use crate::integration_test::{
         aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -99,7 +99,7 @@ mod delete_document_tests {
                 Uuid::new_v4(),
                 0,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentNotFound
             ))
         );
@@ -167,7 +167,7 @@ mod delete_document_tests {
                 doc_id,
                 version,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentDeleted
             ))
         );
@@ -223,7 +223,7 @@ mod delete_document_tests {
                 doc_id,
                 version - 1,
             ),
-            Err(Error::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::EditConflict
             ))
         );
