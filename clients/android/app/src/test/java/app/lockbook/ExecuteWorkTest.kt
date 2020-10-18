@@ -149,10 +149,10 @@ class ExecuteWorkTest {
 
     @Test
     fun executeWorkUnexpectedError() {
-        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
+        val executeSyncWorkResult: Result<Unit, CoreError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
 
-        assertType<ExecuteWorkError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             executeSyncWorkResult?.component2()
         )
     }

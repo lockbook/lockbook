@@ -3,6 +3,7 @@ import SwiftLockbookCore
 import Combine
 
 #if os(macOS)
+/// Gets rid of the highlight border on a textfield
 extension NSTextField {
     open override var focusRingType: NSFocusRingType {
         get { .none }
@@ -20,7 +21,7 @@ struct EditorView: View, Equatable {
     @ObservedObject var core: Core
     @ObservedObject var contentBuffer: ContentBuffer
     let meta: FileMetadata
-
+    
     var body: some View {
         return VStack(spacing: 0) {
             TitleTextField(text: $contentBuffer.title, doneEditing: {
@@ -29,12 +30,13 @@ struct EditorView: View, Equatable {
                     core.updateFiles()
                     contentBuffer.status = .Succeeded
                 case .failure(let err):
-                    core.displayError(error: err)
+                    core.handleError(err)
                     contentBuffer.status = .Failed
                 }
             })
-
+            
             let baseEditor = ContentEditor(text: $contentBuffer.content)
+                .font(.system(.body, design: .monospaced))
                 .disabled(!contentBuffer.succeeded)
                 .onAppear {
                     switch core.api.getFile(id: meta.id) {
@@ -42,7 +44,7 @@ struct EditorView: View, Equatable {
                         contentBuffer.content = decrypted.secret
                         contentBuffer.succeeded = true
                     case .failure(let err):
-                        core.displayError(error: err)
+                        core.handleError(err)
                         contentBuffer.succeeded = false
                     }
                 }
@@ -51,7 +53,7 @@ struct EditorView: View, Equatable {
                     case .success(_):
                         contentBuffer.succeeded = true
                     case .failure(let err):
-                        core.displayError(error: err)
+                        core.handleError(err)
                         contentBuffer.succeeded = false
                     }
                 }
@@ -89,17 +91,8 @@ struct EditorView: View, Equatable {
     
     init(core: Core, meta: FileMetadata) {
         self.core = core
-//        self._meta = .init(initialValue: meta)
         self.meta = meta
         self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
-    }
-}
-
-struct EditorView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
-        }
     }
 }
 
@@ -129,7 +122,7 @@ class ContentBuffer: ObservableObject {
             .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
             .filter({ _ in self.succeeded })
             .flatMap { _ in
-                Future<Void, ApplicationError> { promise in
+                Future<Void, Error> { promise in
                     promise(self.save())
                 }
             }
@@ -143,12 +136,14 @@ class ContentBuffer: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func save() -> Result<Void, ApplicationError> {
-        switch core.api.updateFile(id: meta.id, content: content) {
-        case .success(_):
-            return .success(())
-        case .failure(let err):
-            return .failure(err)
+    func save() -> Result<Void, Error> {
+        core.serialQueue.sync {
+            switch core.api.updateFile(id: meta.id, content: content) {
+            case .success(_):
+                return .success(())
+            case .failure(let err):
+                return .failure(err)
+            }
         }
     }
 }
@@ -157,4 +152,12 @@ enum SaveStatus {
     case Succeeded
     case Failed
     case Inactive
+}
+
+struct EditorView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
+        }
+    }
 }

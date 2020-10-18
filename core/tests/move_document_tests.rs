@@ -5,7 +5,7 @@ mod move_document_tests {
     use crate::integration_test::{
         aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -129,7 +129,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &folder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentNotFound
             ))
         );
@@ -287,7 +287,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentDeleted
             ))
         );
@@ -368,7 +368,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::EditConflict
             ))
         );
@@ -470,7 +470,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 },
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::DocumentPathTaken
             ))
         );

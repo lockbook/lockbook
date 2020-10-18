@@ -2,13 +2,13 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::client::Error;
+    use lockbook_core::client::ApiError;
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, ImportError,
+        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
 
     use crate::integration_test::{generate_account, random_username, test_config, test_db};
@@ -55,7 +55,7 @@ mod account_tests {
         assert!(
             matches!(
                 err,
-                AccountCreationError::ApiError(Error::Api(NewAccountError::UsernameTaken))
+                AccountCreationError::ApiError(ApiError::Api(NewAccountError::UsernameTaken))
             ),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
             &generated_account.username,
@@ -76,7 +76,7 @@ mod account_tests {
             assert!(
                 matches!(
                     err,
-                    AccountCreationError::ApiError(Error::Api(NewAccountError::InvalidUsername))
+                    AccountCreationError::ApiError(ApiError::Api(NewAccountError::InvalidUsername))
                 ),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,
@@ -205,13 +205,13 @@ mod account_tests {
                 "This should not have allowed this account to be imported as one exists already"
             ),
             Err(err) => match err {
-                ImportError::AccountExistsAlready => println!("Test passed!"),
-                ImportError::AccountStringCorrupted
-                | ImportError::AccountDoesNotExist
-                | ImportError::UsernamePKMismatch
-                | ImportError::ClientUpdateRequired
-                | ImportError::CouldNotReachServer
-                | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
+                Error::UiError(ImportError::AccountExistsAlready) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountStringCorrupted)
+                | Error::UiError(ImportError::AccountDoesNotExist)
+                | Error::UiError(ImportError::UsernamePKMismatch)
+                | Error::UiError(ImportError::ClientUpdateRequired)
+                | Error::UiError(ImportError::CouldNotReachServer)
+                | Error::Unexpected(_) => panic!("Wrong Error: {:#?}", err),
             },
         }
     }
@@ -223,13 +223,13 @@ mod account_tests {
         match import_account(&cfg1, "clearly a bad account string") {
             Ok(_) => panic!("This should not be a valid account string"),
             Err(err) => match err {
-                ImportError::AccountStringCorrupted => println!("Test passed!"),
-                ImportError::AccountExistsAlready
-                | ImportError::AccountDoesNotExist
-                | ImportError::UsernamePKMismatch
-                | ImportError::ClientUpdateRequired
-                | ImportError::CouldNotReachServer
-                | ImportError::UnexpectedError(_) => panic!("Wrong Error: {:#?}", err),
+                Error::UiError(ImportError::AccountStringCorrupted) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountExistsAlready)
+                | Error::UiError(ImportError::AccountDoesNotExist)
+                | Error::UiError(ImportError::UsernamePKMismatch)
+                | Error::UiError(ImportError::ClientUpdateRequired)
+                | Error::UiError(ImportError::CouldNotReachServer)
+                | Error::Unexpected(_) => panic!("Wrong Error: {:#?}", err),
             },
         }
     }
@@ -260,13 +260,13 @@ mod account_tests {
         match import_account(&cfg2, &account_string) {
             Ok(_) => panic!("Should not have passed"),
             Err(err) => match err {
-                ImportError::AccountDoesNotExist => println!("Test passed!"),
-                ImportError::AccountStringCorrupted
-                | ImportError::AccountExistsAlready
-                | ImportError::ClientUpdateRequired
-                | ImportError::UsernamePKMismatch
-                | ImportError::CouldNotReachServer
-                | ImportError::UnexpectedError(_) => panic!("Wrong error: {:#?}", err),
+                Error::UiError(ImportError::AccountDoesNotExist) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountStringCorrupted)
+                | Error::UiError(ImportError::AccountExistsAlready)
+                | Error::UiError(ImportError::ClientUpdateRequired)
+                | Error::UiError(ImportError::UsernamePKMismatch)
+                | Error::UiError(ImportError::CouldNotReachServer)
+                | Error::Unexpected(_) => panic!("Wrong error: {:#?}", err),
             },
         }
     }
@@ -298,13 +298,13 @@ mod account_tests {
         match import_account(&test_config(), &bad_account_string) {
             Ok(_) => panic!("Should have failed"),
             Err(err) => match err {
-                ImportError::UsernamePKMismatch => println!("Test passed!"),
-                ImportError::AccountStringCorrupted
-                | ImportError::AccountExistsAlready
-                | ImportError::ClientUpdateRequired
-                | ImportError::AccountDoesNotExist
-                | ImportError::CouldNotReachServer
-                | ImportError::UnexpectedError(_) => panic! {"Wrong error: {:#?}", err},
+                Error::UiError(ImportError::UsernamePKMismatch) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountStringCorrupted)
+                | Error::UiError(ImportError::AccountExistsAlready)
+                | Error::UiError(ImportError::ClientUpdateRequired)
+                | Error::UiError(ImportError::AccountDoesNotExist)
+                | Error::UiError(ImportError::CouldNotReachServer)
+                | Error::Unexpected(_) => panic! {"Wrong error: {:#?}", err},
             },
         }
     }
