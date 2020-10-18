@@ -109,7 +109,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             drawingModel.currentView.transformation.translation.x,
             drawingModel.currentView.transformation.translation.y
         )
-
         canvas.drawColor(
             Color.TRANSPARENT,
             PorterDuff.Mode.CLEAR
@@ -132,7 +131,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         currentPaint.strokeWidth = 10f
         currentPaint.style = Paint.Style.STROKE
         tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
-        viewPort.set(canvas.clipBounds)
         holder.unlockCanvasAndPost(canvas)
     }
 
@@ -171,18 +169,35 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
         val currentViewPortHeight =
             tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
-        viewPort.left = (-drawingModel.currentView.transformation.translation.x).toInt()
-        viewPort.top = (-drawingModel.currentView.transformation.translation.y).toInt()
-        viewPort.right = (left + currentViewPortWidth).toInt()
-        viewPort.bottom = (top + currentViewPortHeight).toInt()
+        viewPort.left = -drawingModel.currentView.transformation.translation.x.toInt()
+        viewPort.top = -drawingModel.currentView.transformation.translation.y.toInt()
+        viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
+        viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
+    }
+
+    private fun screenToModel(screen: PointF): PointF {
+        var modelX =
+            (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
+
+        if (modelX < 0) modelX = 0f
+        if (modelX > tempCanvas.clipBounds.width()) modelX =
+            tempCanvas.clipBounds.width().toFloat()
+
+        var modelY =
+            (viewPort.height() * (screen.y / tempCanvas.clipBounds.height())) + viewPort.top
+        if (modelY < 0) modelY = 0f
+        if (modelY > tempCanvas.clipBounds.height()) modelY =
+            tempCanvas.clipBounds.height().toFloat()
+
+        return PointF(modelX, modelY)
     }
 
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
         initializeCanvasesAndBitmaps()
         if (maybeDrawing != null) {
             this.drawingModel = maybeDrawing
-            restoreFromModel()
         }
+        restoreFromModel()
         isThreadRunning = true
         thread.start()
     }
@@ -246,30 +261,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         activePath.reset()
         lastPoint.set(point.x, point.y)
-        for (eventIndex in drawingModel.events.size - 1 downTo 1) {
+        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
                 currentEvent.points.add(PressurePoint(point.x, point.y, pressure * 7))
                 break
             }
         }
-    }
-
-    private fun screenToModel(screen: PointF): PointF {
-        var modelX =
-            (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
-
-        if (modelX < 0) modelX = 0f
-        if (modelX > tempCanvas.clipBounds.width()) modelX =
-            tempCanvas.clipBounds.width().toFloat()
-
-        var modelY =
-            (viewPort.height() * (screen.y / tempCanvas.clipBounds.height())) + viewPort.top
-        if (modelY < 0) modelY = 0f
-        if (modelY > tempCanvas.clipBounds.height()) modelY =
-            tempCanvas.clipBounds.height().toFloat()
-
-        return PointF(modelX, modelY)
     }
 
     fun setColor(color: String) {
