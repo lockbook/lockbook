@@ -194,7 +194,7 @@ mod move_document_tests {
                     access_key: aes_key(&folder_key, &subfolder_key),
                 }
             ),
-            Err(Error::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Api(
                 MoveDocumentError::ParentNotFound
             ))
         );
