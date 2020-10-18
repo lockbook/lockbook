@@ -5,9 +5,9 @@ sealed class InitLoggerError {
 }
 
 sealed class GetUsageError {
-    object NoAccount: GetUsageError()
-    object CouldNotReachServer: GetUsageError()
-    object ClientUpdateRequired: GetUsageError()
+    object NoAccount : GetUsageError()
+    object CouldNotReachServer : GetUsageError()
+    object ClientUpdateRequired : GetUsageError()
     class UnexpectedError(val error: String) : GetUsageError()
 }
 
