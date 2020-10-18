@@ -18,7 +18,7 @@ namespace lockbook {
             ImportProgressRing.IsActive = true;
             importError.Visibility = Visibility.Collapsed;
 
-            Core.ImportAccount.Result importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
+            Core.ImportAccount.IResult importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
 
             switch (importAccountResult) {
                 case Core.ImportAccount.Success:
