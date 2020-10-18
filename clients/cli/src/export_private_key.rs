@@ -1,4 +1,4 @@
-use lockbook_core::{export_account, AccountExportError};
+use lockbook_core::{export_account, AccountExportError, Error as CoreError};
 
 use crate::utils::{exit_with, exit_with_no_account, get_config};
 use crate::UNEXPECTED_ERROR;
@@ -19,8 +19,8 @@ pub fn export_private_key() {
             }
         }
         Err(err) => match err {
-            AccountExportError::NoAccount => exit_with_no_account(),
-            AccountExportError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(AccountExportError::NoAccount) => exit_with_no_account(),
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 }

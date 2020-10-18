@@ -7,7 +7,7 @@ struct CreateFileView: View {
     @State var newFileName: String = ""
     let currentFolder: FileMetadataWithChildren
     @Environment(\.presentationMode) var presentationMode
-
+    
     var body: some View {
         VStack {
             TextField("\(currentFolder.meta.name)/", text: $newFileName)
@@ -25,7 +25,7 @@ struct CreateFileView: View {
                             core.updateFiles()
                             presentationMode.wrappedValue.dismiss()
                         case .failure(let err):
-                            core.displayError(error: err)
+                            core.handleError(err)
                         }
                         
                     }
