@@ -67,17 +67,17 @@ class SyncAllTest {
 
     @Test
     fun syncAllNoAccount() {
-        assertType<SyncAllError.NoAccount>(
+        assertType<CoreError.NoAccount>(
             CoreModel.syncAllFiles(config).component2()
         )
     }
 
     @Test
     fun syncAllUnexpectedError() {
-        val syncResult: Result<Unit, SyncAllError>? =
+        val syncResult: Result<Unit, CoreError>? =
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
 
-        assertType<SyncAllError.UnexpectedError>(
+        assertType<CoreError.Unexpected>(
             syncResult?.component2()
         )
     }

@@ -211,12 +211,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
             is Err -> {
                 when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> Toast.makeText(
+                    is CoreError.NoAccount -> Toast.makeText(
                         context,
                         "Error! No account!",
                         Toast.LENGTH_LONG
                     ).show()
-                    is AccountExportError.UnexpectedError -> {
+                    is CoreError.Unexpected -> {
                         Timber.e("Unable to export account: ${error.error}")
                         Toast.makeText(
                             context,
@@ -245,12 +245,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     .show()
             }
             is Err -> when (val error = exportResult.error) {
-                is AccountExportError.NoAccount -> Toast.makeText(
+                is CoreError.NoAccount -> Toast.makeText(
                     context,
                     "Error! No account!",
                     Toast.LENGTH_LONG
                 ).show()
-                is AccountExportError.UnexpectedError -> {
+                is CoreError.Unexpected -> {
                     Timber.e("Unable to export account: ${error.error}")
                     Toast.makeText(
                         context,
