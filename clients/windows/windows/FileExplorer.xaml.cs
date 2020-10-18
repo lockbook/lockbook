@@ -61,7 +61,7 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.CalculateWork.Success success:
-                        int work = success.workCalculated.WorkUnits.Count;
+                        int work = success.workCalculated.workUnits.Count;
                         if (sync.IsEnabled) {
                             if (work == 0) {
                                 syncIcon.Glyph = checkGlyph;
@@ -99,7 +99,7 @@ namespace lockbook {
         }
 
         private async Task RefreshFiles() {
-            var result = await App.CoreService.ListFileMetadata();
+            var result = await App.CoreService.ListMetadatas();
 
             switch (result) {
                 case Core.ListMetadatas.Success success:
