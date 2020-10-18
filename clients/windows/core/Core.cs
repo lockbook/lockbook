@@ -61,10 +61,16 @@ namespace lockbook {
         private static extern IntPtr get_root(string writeable_path);
 
         [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_children(string writeable_path, string id);
+
+        [DllImport("lockbook_core.dll")]
         private static extern IntPtr get_file_by_path(string writeable_path, string path);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr read_document(string writeable_path, string id);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr delete_file(string writeable_path, string id);
 
         [DllImport("lockbook_core.dll")]
         private static extern IntPtr list_paths(string writeable_path, string filter);
@@ -98,22 +104,21 @@ namespace lockbook {
 
         private static string getStringAndRelease(IntPtr pointer) {
             string temp_string = Marshal.PtrToStringAnsi(pointer);
-            string result = (string)temp_string.Clone();
+            string IResult = (string)temp_string.Clone();
             release_pointer(pointer);
-            return result;
+            return IResult;
         }
 
         public async Task<bool> AccountExists() {
-            var getAccountResult = await GetAccount();
-            return getAccountResult.GetType() == typeof(Core.GetAccount.Success);
+            var getAccountIResult = await GetAccount();
+            return getAccountIResult.GetType() == typeof(Core.GetAccount.Success);
         }
 
-        private async Task<T> FFICommon<T>(
-            Func<IntPtr> func,
-            Func<string, T> parseOk,
-            Func<string, T> parseUIErr,
-            Func<string, T> parseUnexpectedErr) {
-            var result = await Task.Run(() => {
+        private async Task<TIResult> FFICommon<TIResult, TExpectedErr, TPossibleErrs, TUnexpectedErr>(Func<IntPtr> func, Func<string, TIResult> parseOk)
+            where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
+            where TPossibleErrs : struct, Enum
+            where TUnexpectedErr : UnexpectedError, TIResult, new() {
+            var IResult = await Task.Run(() => {
                 string coreResponse;
                 try {
                     coreMutex.WaitOne();
@@ -124,264 +129,182 @@ namespace lockbook {
                 return coreResponse;
             });
 
-            JObject obj = JObject.Parse(result);
-            string tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
-            string content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-            if (tag == null) return parseUnexpectedErr("contract error (no tag): " + result);
-            if (content == null) return parseUnexpectedErr("contract error (no content): " + result);
+            var obj = JObject.Parse(IResult);
+            var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
+            var content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
+            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + IResult);
+            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + IResult);
             switch (tag) {
                 case "Ok":
                     return parseOk(content);
                 case "Err":
-                    JObject errObj = JObject.Parse(content);
-                    string errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
-                    string errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-                    if (errTag == null) return parseUnexpectedErr("contract error (no err tag): " + content);
-                    if (errContent == null) return parseUnexpectedErr("contract error (no err content): " + content);
+                    var errObj = JObject.Parse(content);
+                    var errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
+                    var errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
+                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + IResult);
+                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + IResult);
                     switch (errTag) {
                         case "UiError":
-                            return parseUIErr(errContent);
+                            if (Enum.TryParse<TPossibleErrs>(errContent, out var value)) return ExpectedErrors.New<TIResult, TExpectedErr, TPossibleErrs>(value);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + IResult);
                         case "Unexpected":
-                            return parseUnexpectedErr(errContent);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>(errContent);
                         default:
-                            return parseUnexpectedErr("contract error (err content tag neither UiError nor Unexpected): " + content);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + IResult);
                     }
                 default:
-                    return parseUnexpectedErr("contract error (tag neither Ok nor Err): " + tag);
+                    return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
         }
 
-        public async Task<Core.CreateAccount.Result> CreateAccount(string username) {
-            return await FFICommon<Core.CreateAccount.Result>(
+        public async Task<Core.GetDbState.IResult> GetDbState() {
+            return await FFICommon<Core.GetDbState.IResult, Core.GetDbState.ExpectedError, Core.GetDbState.PossibleErrors, Core.GetDbState.UnexpectedError>(
+                () => get_db_state(path),
+                s => {
+                    if (Enum.TryParse<DbState>(s, out var dbState)) {
+                        return new Core.GetDbState.Success { dbState = dbState };
+                    } else {
+                        return new Core.GetDbState.UnexpectedError { ErrorMessage = "contract error (unknown dbState variant): " + s };
+                    }
+                });
+        }
+
+        public async Task<Core.MigrateDb.IResult> MigrateDb() {
+            return await FFICommon<Core.MigrateDb.IResult, Core.MigrateDb.ExpectedError, Core.MigrateDb.PossibleErrors, Core.MigrateDb.UnexpectedError>(
+                () => migrate_db(path),
+                s => new Core.MigrateDb.Success());
+        }
+
+        public async Task<Core.CreateAccount.IResult> CreateAccount(string username) {
+            return await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
                 () => create_account(path, username, "http://qa.lockbook.app:8000"),
-                s => {
-                    return new Core.CreateAccount.Success();
-                },
-                s => {
-                    if (Enum.TryParse<Core.CreateAccount.PossibleErrors>(s, out var p)) {
-                        return new Core.CreateAccount.ExpectedError { Error = p };
-                    } else {
-                        return new Core.CreateAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.CreateAccount.UnexpectedError { ErrorMessage = s };
-                });
+                s => new Core.CreateAccount.Success());
         }
 
-        public async Task<Core.GetAccount.Result> GetAccount() {
-            return await FFICommon<Core.GetAccount.Result>(
+        public async Task<Core.ImportAccount.IResult> ImportAccount(string accountString) {
+            return await FFICommon<Core.ImportAccount.IResult, Core.ImportAccount.ExpectedError, Core.ImportAccount.PossibleErrors, Core.ImportAccount.UnexpectedError>(
+                () => import_account(path, accountString),
+                s => new Core.ImportAccount.Success());
+        }
+
+        public async Task<Core.ExportAccount.IResult> ExportAccount() {
+            return await FFICommon<Core.ExportAccount.IResult, Core.ExportAccount.ExpectedError, Core.ExportAccount.PossibleErrors, Core.ExportAccount.UnexpectedError>(
+                () => export_account(path),
+                s => new Core.ExportAccount.Success { accountString = s });
+        }
+
+        public async Task<Core.GetAccount.IResult> GetAccount() {
+            return await FFICommon<Core.GetAccount.IResult, Core.GetAccount.ExpectedError, Core.GetAccount.PossibleErrors, Core.GetAccount.UnexpectedError>(
                 () => get_account(path),
-                s => {
-                    return new Core.GetAccount.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.GetAccount.PossibleErrors> {
-                        {"NoAccount", Core.GetAccount.PossibleErrors.NoAccount },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.GetAccount.ExpectedError { Error = p };
-                    } else {
-                        return new Core.GetAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.GetAccount.UnexpectedError { ErrorMessage = s };
-                });
+                s => new Core.GetAccount.Success { accountJson = s });
         }
 
-        public async Task<Core.ImportAccount.Result> ImportAccount(string account_string) {
-            return await FFICommon<Core.ImportAccount.Result>(
-                () => import_account(path, account_string),
-                s => {
-                    return new Core.ImportAccount.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.ImportAccount.PossibleErrors> {
-                        {"AccountStringCorrupted", Core.ImportAccount.PossibleErrors.AccountStringCorrupted },
-                        {"AccountExistsAlready", Core.ImportAccount.PossibleErrors.AccountExistsAlready },
-                        {"AccountDoesNotExist", Core.ImportAccount.PossibleErrors.AccountDoesNotExist },
-                        {"UsernamePKMismatch", Core.ImportAccount.PossibleErrors.UsernamePKMismatch },
-                        {"CouldNotReachServer", Core.ImportAccount.PossibleErrors.CouldNotReachServer },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.ImportAccount.ExpectedError { Error = p };
-                    } else {
-                        return new Core.ImportAccount.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.ImportAccount.UnexpectedError { ErrorMessage = s };
-                });
+        public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {
+            return await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
+                () => create_file_at_path(path, pathWithName),
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s)});
         }
 
-        public async Task<Core.ListMetadatas.Result> ListFileMetadata() {
-            return await FFICommon<Core.ListMetadatas.Result>(
-                () => list_metadatas(path),
-                s => {
-                    return new Core.ListMetadatas.Success();
-                },
-                s => {
-                    return new Core.ListMetadatas.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                },
-                s => {
-                    return new Core.ListMetadatas.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.CreateFile.Result> CreateFile(string name, string parent, FileType ft) {
-            return await FFICommon<Core.CreateFile.Result>(
-                () => create_file(path, name, parent, ft == FileType.Folder ? "Folder" : "Document"),
-                s => {
-                    return new Core.CreateFile.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.CreateFile.PossibleErrors> {
-                        {"NoAccount", Core.CreateFile.PossibleErrors.NoAccount },
-                        {"DocumentTreatedAsFolder", Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder },
-                        {"CouldNotFindAParent", Core.CreateFile.PossibleErrors.CouldNotFindAParent },
-                        {"FileNameNotAvailable", Core.CreateFile.PossibleErrors.FileNameNotAvailable },
-                        {"FileNameContainsSlash", Core.CreateFile.PossibleErrors.FileNameContainsSlash },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.CreateFile.ExpectedError { Error = p };
-                    } else {
-                        return new Core.CreateFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.CreateFile.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.SyncAll.Result> SyncAll() {
-            return await FFICommon<Core.SyncAll.Result>(
-                () => sync_all(path),
-                s => {
-                    return new Core.SyncAll.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.SyncAll.PossibleErrors> {
-                        {"NoAccount", Core.SyncAll.PossibleErrors.NoAccount },
-                        {"CouldNotReachServer", Core.SyncAll.PossibleErrors.CouldNotReachServer },
-                        {"ExecuteWorkError", Core.SyncAll.PossibleErrors.ExecuteWorkError },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.SyncAll.ExpectedError { Error = p };
-                    } else {
-                        return new Core.SyncAll.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.SyncAll.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.RenameFile.Result> RenameFile(string id, string newName) {
-            return await FFICommon<Core.RenameFile.Result>(
-                () => rename_file(path, id, newName),
-                s => {
-                    return new Core.RenameFile.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.RenameFile.PossibleErrors> {
-                        {"FileDoesNotExist", Core.RenameFile.PossibleErrors.FileDoesNotExist },
-                        {"NewNameContainsSlash", Core.RenameFile.PossibleErrors.NewNameContainsSlash },
-                        {"FileNameNotAvailable", Core.RenameFile.PossibleErrors.FileNameNotAvailable },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.RenameFile.ExpectedError { Error = p };
-                    } else {
-                        return new Core.RenameFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.RenameFile.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.MoveFile.Result> MoveFile(string id, string newParent) {
-            return await FFICommon<Core.MoveFile.Result>(
-                () => move_file(path, id, newParent),
-                s => {
-                    return new Core.MoveFile.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.MoveFile.PossibleErrors> {
-                        {"NoAccount", Core.MoveFile.PossibleErrors.NoAccount },
-                        {"FileDoesNotExist", Core.MoveFile.PossibleErrors.FileDoesNotExist },
-                        {"DocumentTreatedAsFolder", Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder },
-                        {"TargetParentHasChildNamedThat", Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat },
-                        {"TargetParentDoesNotExist", Core.MoveFile.PossibleErrors.TargetParentDoesNotExist },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.MoveFile.ExpectedError { Error = p };
-                    } else {
-                        return new Core.MoveFile.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.MoveFile.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.ReadDocument.Result> ReadDocument(string id) {
-            return await FFICommon<Core.ReadDocument.Result>(
-                () => read_document(path, id),
-                s => {
-                    return new Core.ReadDocument.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.ReadDocument.PossibleErrors> {
-                        {"NoAccount", Core.ReadDocument.PossibleErrors.NoAccount },
-                        {"FileDoesNotExist", Core.ReadDocument.PossibleErrors.FileDoesNotExist },
-                        {"TreatedFolderAsDocument", Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.ReadDocument.ExpectedError { Error = p };
-                    } else {
-                        return new Core.ReadDocument.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.ReadDocument.UnexpectedError { ErrorMessage = s };
-                });
-        }
-
-        public async Task<Core.WriteDocument.Result> WriteDocument(string id, string content) {
-            return await FFICommon<Core.WriteDocument.Result>(
+        public async Task<Core.WriteDocument.IResult> WriteDocument(string id, string content) {
+            return await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
                 () => write_document(path, id, content),
-                s => {
-                    return new Core.WriteDocument.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.WriteDocument.PossibleErrors> {
-                        {"NoAccount", Core.WriteDocument.PossibleErrors.NoAccount },
-                        {"FileDoesNotExist", Core.WriteDocument.PossibleErrors.FileDoesNotExist },
-                        {"FolderTreatedAsDocument", Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.WriteDocument.ExpectedError { Error = p };
-                    } else {
-                        return new Core.WriteDocument.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.WriteDocument.UnexpectedError { ErrorMessage = s };
-                });
+                s => new Core.WriteDocument.Success());
         }
 
-        public async Task<Core.CalculateWork.Result> CalculateWork() {
-            return await FFICommon<Core.CalculateWork.Result>(
+        public async Task<Core.CreateFile.IResult> CreateFile(string name, string parent, FileType ft) {
+            return await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
+                () => create_file(path, name, parent, ft == FileType.Folder ? "Folder" : "Document"),
+                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
+        }
+
+        public async Task<Core.GetRoot.IResult> GetRoot() {
+            return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
+                () => get_root(path),
+                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<FileMetadata>(s) });
+        }
+
+        public async Task<Core.GetChildren.IResult> GetChildren(string id) {
+            return await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
+                () => get_children(path, id),
+                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+        }
+
+        public async Task<Core.ReadDocument.IResult> ReadDocument(string id) {
+            return await FFICommon<Core.ReadDocument.IResult, Core.ReadDocument.ExpectedError, Core.ReadDocument.PossibleErrors, Core.ReadDocument.UnexpectedError>(
+                () => read_document(path, id),
+                s => new Core.ReadDocument.Success { content = JsonConvert.DeserializeObject<DecryptedValue>(s) });
+        }
+
+        public async Task<Core.GetFileByPath.IResult> GetFileByPath(string pathWithName) {
+            return await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
+                () => get_file_by_path(path, pathWithName),
+                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<FileMetadata>(s) });
+        }
+
+        public async Task<Core.DeleteFile.IResult> DeleteFile(string id) {
+            return await FFICommon<Core.DeleteFile.IResult, Core.DeleteFile.ExpectedError, Core.DeleteFile.PossibleErrors, Core.DeleteFile.UnexpectedError>(
+                () => delete_file(path, id),
+                s => new Core.DeleteFile.Success());
+        }
+
+        public async Task<Core.ListPaths.IResult> ListPaths(string filter) {
+            return await FFICommon<Core.ListPaths.IResult, Core.ListPaths.ExpectedError, Core.ListPaths.PossibleErrors, Core.ListPaths.UnexpectedError>(
+                () => list_paths(path, filter),
+                s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s) });
+        }
+
+        public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
+            return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
+                () => list_metadatas(path),
+                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+        }
+
+        public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {
+            return await FFICommon<Core.RenameFile.IResult, Core.RenameFile.ExpectedError, Core.RenameFile.PossibleErrors, Core.RenameFile.UnexpectedError>(
+                () => rename_file(path, id, newName),
+                s => new Core.RenameFile.Success());
+        }
+
+        public async Task<Core.MoveFile.IResult> MoveFile(string id, string newParent) {
+            return await FFICommon<Core.MoveFile.IResult, Core.MoveFile.ExpectedError, Core.MoveFile.PossibleErrors, Core.MoveFile.UnexpectedError>(
+                () => move_file(path, id, newParent),
+                s => new Core.MoveFile.Success());
+        }
+
+        public async Task<Core.SyncAll.IResult> SyncAll() {
+            return await FFICommon<Core.SyncAll.IResult, Core.SyncAll.ExpectedError, Core.SyncAll.PossibleErrors, Core.SyncAll.UnexpectedError>(
+                () => sync_all(path),
+                s => new Core.SyncAll.Success());
+        }
+
+        public async Task<Core.CalculateWork.IResult> CalculateWork() {
+            return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
-                s => {
-                    return new Core.CalculateWork.Success();
-                },
-                s => {
-                    if (new Dictionary<string, Core.CalculateWork.PossibleErrors> {
-                        {"NoAccount", Core.CalculateWork.PossibleErrors.NoAccount },
-                        {"CouldNotReachServer", Core.CalculateWork.PossibleErrors.CouldNotReachServer },
-                    }.TryGetValue(s, out var p)) {
-                        return new Core.CalculateWork.ExpectedError { Error = p };
-                    } else {
-                        return new Core.CalculateWork.UnexpectedError { ErrorMessage = "contract error (unknown UIError): " + s };
-                    }
-                },
-                s => {
-                    return new Core.CalculateWork.UnexpectedError { ErrorMessage = s };
-                });
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s) });
+        }
+
+        public async Task<Core.ExecuteWork.IResult> ExecuteWork(string workUnit) {
+            return await FFICommon<Core.ExecuteWork.IResult, Core.ExecuteWork.ExpectedError, Core.ExecuteWork.PossibleErrors, Core.ExecuteWork.UnexpectedError>(
+                () => execute_work(path, workUnit),
+                s => new Core.ExecuteWork.Success());
+        }
+
+        public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
+            return await FFICommon<Core.SetLastSynced.IResult, Core.SetLastSynced.ExpectedError, Core.SetLastSynced.PossibleErrors, Core.SetLastSynced.UnexpectedError>(
+                () => set_last_synced(path, lastSync),
+                s => new Core.SetLastSynced.Success());
+        }
+
+        public async Task<Core.GetLastSynced.IResult> GetLastSynced() {
+            return await FFICommon<Core.GetLastSynced.IResult, Core.GetLastSynced.ExpectedError, Core.GetLastSynced.PossibleErrors, Core.GetLastSynced.UnexpectedError>(
+                () => get_last_synced(path),
+                s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s) });
+        }
+
+        public async Task<Core.GetUsage.IResult> GetUsage() {
+            return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
+                () => get_usage(path),
+                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<List<FileUsage>>(s) });
         }
     }
 }
