@@ -5,7 +5,7 @@ mod get_document_tests {
     use crate::integration_test::{
         aes_decrypt_str, aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -92,7 +92,7 @@ mod get_document_tests {
         // get document we never created
         assert_matches!(
             ClientImpl::get_document(&account.api_url, Uuid::new_v4(), 0,),
-            Err(Error::<GetDocumentError>::Api(
+            Err(ApiError::<GetDocumentError>::Api(
                 GetDocumentError::DocumentNotFound
             ))
         );
