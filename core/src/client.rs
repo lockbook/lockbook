@@ -3,7 +3,7 @@ use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 
 use crate::model::file_metadata::FileMetadata;
-use crate::{API_URL, CORE_CODE_VERSION};
+use crate::CORE_CODE_VERSION;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use reqwest::Method;
@@ -12,43 +12,50 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub enum Error<ApiError> {
+pub enum ApiError<E> {
     Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
     Deserialize(serde_json::error::Error),
-    Api(ApiError),
+    Api(E),
 }
 
-pub fn api_request<Request: Serialize, Response: DeserializeOwned, ApiError: DeserializeOwned>(
+pub fn api_request<Request: Serialize, Response: DeserializeOwned, E: DeserializeOwned>(
+    api_url: &str,
     method: Method,
     endpoint: &str,
     request: &Request,
-) -> Result<Response, Error<ApiError>> {
+) -> Result<Response, ApiError<E>> {
     let client = ReqwestClient::new();
-    let serialized_request = serde_json::to_string(&request).map_err(Error::Serialize)?;
+    let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
     let serialized_response = client
-        .request(method, format!("{}/{}", API_URL, endpoint).as_str())
+        .request(method, format!("{}/{}", api_url, endpoint).as_str())
         .body(serialized_request)
         .send()
-        .map_err(Error::SendFailed)?
+        .map_err(ApiError::SendFailed)?
         .text()
-        .map_err(Error::ReceiveFailed)?;
-    let response: Result<Response, ApiError> =
-        serde_json::from_str(&serialized_response).map_err(Error::Deserialize)?;
-    response.map_err(Error::Api)
+        .map_err(ApiError::ReceiveFailed)?;
+    let response: Result<Response, E> =
+        serde_json::from_str(&serialized_response).map_err(ApiError::Deserialize)?;
+    response.map_err(ApiError::Api)
 }
 
 pub trait Client {
-    fn get_document(id: Uuid, content_version: u64) -> Result<Document, Error<GetDocumentError>>;
+    fn get_document(
+        api_url: &str,
+        id: Uuid,
+        content_version: u64,
+    ) -> Result<Document, ApiError<GetDocumentError>>;
     fn change_document_content(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_content: EncryptedValueWithNonce,
-    ) -> Result<u64, Error<ChangeDocumentContentError>>;
+    ) -> Result<u64, ApiError<ChangeDocumentContentError>>;
     fn create_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
@@ -56,78 +63,98 @@ pub trait Client {
         parent: Uuid,
         content: EncryptedValueWithNonce,
         parent_access_key: FolderAccessInfo,
-    ) -> Result<u64, Error<CreateDocumentError>>;
+    ) -> Result<u64, ApiError<CreateDocumentError>>;
     fn delete_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-    ) -> Result<u64, Error<DeleteDocumentError>>;
+    ) -> Result<u64, ApiError<DeleteDocumentError>>;
     fn move_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
         new_folder_access: FolderAccessInfo,
-    ) -> Result<u64, Error<MoveDocumentError>>;
+    ) -> Result<u64, ApiError<MoveDocumentError>>;
     fn rename_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
-    ) -> Result<u64, Error<RenameDocumentError>>;
+    ) -> Result<u64, ApiError<RenameDocumentError>>;
     fn create_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
         parent_access_key: FolderAccessInfo,
-    ) -> Result<u64, Error<CreateFolderError>>;
+    ) -> Result<u64, ApiError<CreateFolderError>>;
     fn delete_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-    ) -> Result<u64, Error<DeleteFolderError>>;
+    ) -> Result<u64, ApiError<DeleteFolderError>>;
     fn move_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
         new_access_keys: FolderAccessInfo,
-    ) -> Result<u64, Error<MoveFolderError>>;
+    ) -> Result<u64, ApiError<MoveFolderError>>;
     fn rename_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
-    ) -> Result<u64, Error<RenameFolderError>>;
-    fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>>;
+    ) -> Result<u64, ApiError<RenameFolderError>>;
+    fn get_public_key(
+        api_url: &str,
+        username: &str,
+    ) -> Result<RSAPublicKey, ApiError<GetPublicKeyError>>;
     fn get_updates(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         since_metadata_version: u64,
-    ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>>;
+    ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>>;
     fn new_account(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
-    ) -> Result<u64, Error<NewAccountError>>;
-    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>>;
+    ) -> Result<u64, ApiError<NewAccountError>>;
+    fn get_usage(
+        api_url: &str,
+        username: &str,
+    ) -> Result<GetUsageResponse, ApiError<GetUsageError>>;
 }
 
 pub struct ClientImpl;
 impl Client for ClientImpl {
-    fn get_document(id: Uuid, content_version: u64) -> Result<Document, Error<GetDocumentError>> {
+    fn get_document(
+        api_url: &str,
+        id: Uuid,
+        content_version: u64,
+    ) -> Result<Document, ApiError<GetDocumentError>> {
         api_request(
+            api_url,
             Method::GET,
             "get-document",
             &GetDocumentRequest {
@@ -139,13 +166,15 @@ impl Client for ClientImpl {
         .map(|r: GetDocumentResponse| Document { content: r.content })
     }
     fn change_document_content(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_content: EncryptedValueWithNonce,
-    ) -> Result<u64, Error<ChangeDocumentContentError>> {
+    ) -> Result<u64, ApiError<ChangeDocumentContentError>> {
         api_request(
+            api_url,
             Method::PUT,
             "change-document-content",
             &ChangeDocumentContentRequest {
@@ -160,6 +189,7 @@ impl Client for ClientImpl {
         .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
     }
     fn create_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
@@ -167,8 +197,9 @@ impl Client for ClientImpl {
         parent: Uuid,
         content: EncryptedValueWithNonce,
         parent_access_key: FolderAccessInfo,
-    ) -> Result<u64, Error<CreateDocumentError>> {
+    ) -> Result<u64, ApiError<CreateDocumentError>> {
         api_request(
+            api_url,
             Method::POST,
             "create-document",
             &CreateDocumentRequest {
@@ -185,12 +216,14 @@ impl Client for ClientImpl {
         .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
     }
     fn delete_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-    ) -> Result<u64, Error<DeleteDocumentError>> {
+    ) -> Result<u64, ApiError<DeleteDocumentError>> {
         api_request(
+            api_url,
             Method::DELETE,
             "delete-document",
             &DeleteDocumentRequest {
@@ -204,14 +237,16 @@ impl Client for ClientImpl {
         .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
     }
     fn move_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
         new_folder_access: FolderAccessInfo,
-    ) -> Result<u64, Error<MoveDocumentError>> {
+    ) -> Result<u64, ApiError<MoveDocumentError>> {
         api_request(
+            api_url,
             Method::PUT,
             "move-document",
             &MoveDocumentRequest {
@@ -227,13 +262,15 @@ impl Client for ClientImpl {
         .map(|r: MoveDocumentResponse| r.new_metadata_version)
     }
     fn rename_document(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
-    ) -> Result<u64, Error<RenameDocumentError>> {
+    ) -> Result<u64, ApiError<RenameDocumentError>> {
         api_request(
+            api_url,
             Method::PUT,
             "rename-document",
             &RenameDocumentRequest {
@@ -248,14 +285,16 @@ impl Client for ClientImpl {
         .map(|r: RenameDocumentResponse| r.new_metadata_version)
     }
     fn create_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
         parent_access_key: FolderAccessInfo,
-    ) -> Result<u64, Error<CreateFolderError>> {
+    ) -> Result<u64, ApiError<CreateFolderError>> {
         api_request(
+            api_url,
             Method::POST,
             "create-folder",
             &CreateFolderRequest {
@@ -271,12 +310,14 @@ impl Client for ClientImpl {
         .map(|r: CreateFolderResponse| r.new_metadata_version)
     }
     fn delete_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-    ) -> Result<u64, Error<DeleteFolderError>> {
+    ) -> Result<u64, ApiError<DeleteFolderError>> {
         api_request(
+            api_url,
             Method::DELETE,
             "delete-folder",
             &DeleteFolderRequest {
@@ -290,14 +331,16 @@ impl Client for ClientImpl {
         .map(|r: DeleteFolderResponse| r.new_metadata_version)
     }
     fn move_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
         new_access_keys: FolderAccessInfo,
-    ) -> Result<u64, Error<MoveFolderError>> {
+    ) -> Result<u64, ApiError<MoveFolderError>> {
         api_request(
+            api_url,
             Method::PUT,
             "move-folder",
             &MoveFolderRequest {
@@ -313,13 +356,15 @@ impl Client for ClientImpl {
         .map(|r: MoveFolderResponse| r.new_metadata_version)
     }
     fn rename_folder(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
-    ) -> Result<u64, Error<RenameFolderError>> {
+    ) -> Result<u64, ApiError<RenameFolderError>> {
         api_request(
+            api_url,
             Method::PUT,
             "rename-folder",
             &RenameFolderRequest {
@@ -333,8 +378,12 @@ impl Client for ClientImpl {
         )
         .map(|r: RenameFolderResponse| r.new_metadata_version)
     }
-    fn get_public_key(username: &str) -> Result<RSAPublicKey, Error<GetPublicKeyError>> {
+    fn get_public_key(
+        api_url: &str,
+        username: &str,
+    ) -> Result<RSAPublicKey, ApiError<GetPublicKeyError>> {
         api_request(
+            api_url,
             Method::GET,
             "get-public-key",
             &GetPublicKeyRequest {
@@ -345,11 +394,13 @@ impl Client for ClientImpl {
         .map(|r: GetPublicKeyResponse| r.key)
     }
     fn get_updates(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         since_metadata_version: u64,
-    ) -> Result<Vec<FileMetadata>, Error<GetUpdatesError>> {
+    ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>> {
         api_request(
+            api_url,
             Method::GET,
             "get-updates",
             &GetUpdatesRequest {
@@ -362,14 +413,16 @@ impl Client for ClientImpl {
         .map(|r: GetUpdatesResponse| r.file_metadata)
     }
     fn new_account(
+        api_url: &str,
         username: &str,
         signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedValue,
-    ) -> Result<u64, Error<NewAccountError>> {
+    ) -> Result<u64, ApiError<NewAccountError>> {
         api_request(
+            api_url,
             Method::POST,
             "new-account",
             &NewAccountRequest {
@@ -384,8 +437,12 @@ impl Client for ClientImpl {
         )
         .map(|r: NewAccountResponse| r.folder_metadata_version)
     }
-    fn get_usage(username: &str) -> Result<GetUsageResponse, Error<GetUsageError>> {
+    fn get_usage(
+        api_url: &str,
+        username: &str,
+    ) -> Result<GetUsageResponse, ApiError<GetUsageError>> {
         api_request(
+            api_url,
             Method::GET,
             "get-usage",
             &GetUsageRequest {

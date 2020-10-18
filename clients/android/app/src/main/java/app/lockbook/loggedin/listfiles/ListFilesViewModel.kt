@@ -42,7 +42,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
-import kotlin.collections.set
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
@@ -155,7 +154,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         "Error! Could not reach server."
                     )
                 }
-                is CalculateWorkError.UnexpectedError -> {
+                is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -387,7 +386,7 @@ class ListFilesViewModel(path: String, application: Application) :
             is Ok -> accountResult.value
             is Err -> return when (val error = accountResult.error) {
                 is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is GetAccountError.UnexpectedError -> {
+                is GetAccountError.Unexpected -> {
                     Timber.e("Unable to get account: ${error.error}")
                 }
                 else -> {
@@ -404,9 +403,8 @@ class ListFilesViewModel(path: String, application: Application) :
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> {
-                    }
-                    is CalculateWorkError.UnexpectedError -> {
+                    is CalculateWorkError.CouldNotReachServer -> {}
+                    is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
                             UNEXPECTED_ERROR
@@ -479,7 +477,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                         is CalculateWorkError.CouldNotReachServer -> {
                         }
-                        is CalculateWorkError.UnexpectedError -> {
+                        is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
                                 UNEXPECTED_ERROR

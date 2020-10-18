@@ -54,7 +54,7 @@ class ImportAccountTest {
             Klaxon().converter(importAccountConverter)
                 .parse(importAccount("", ""))
 
-        assertType<ImportError.UnexpectedError>(
+        assertType<ImportError.Unexpected>(
             importResult?.component2()
         )
     }

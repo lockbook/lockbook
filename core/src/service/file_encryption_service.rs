@@ -330,6 +330,7 @@ mod unit_tests {
 
         let account = Account {
             username: String::from("username"),
+            api_url: "ftp://uranus.net".to_string(),
             keys,
         };
 

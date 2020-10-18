@@ -93,7 +93,7 @@ class ImportAccountActivity : AppCompatActivity() {
                         "Could not access server to ensure this !",
                         Snackbar.LENGTH_SHORT
                     ).show()
-                    is ImportError.UnexpectedError -> {
+                    is ImportError.Unexpected -> {
                         Timber.e("Unable to import an account.")
                         AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
                             .setTitle(UNEXPECTED_ERROR)

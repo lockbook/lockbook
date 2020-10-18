@@ -47,14 +47,14 @@ class FileModel(path: String) {
                         UNEXPECTED_CLIENT_ERROR
                     )
                 }
-                is CalculateWorkError.UnexpectedError -> {
+                is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
                     )
                 }
             }
-        }
+        }.exhaustive
 
         return false
     }
@@ -77,7 +77,7 @@ class FileModel(path: String) {
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                        is GetFileByIdError.UnexpectedError -> {
+                        is GetFileByIdError.Unexpected -> {
                             Timber.e("Unable to get the parent of the current path: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
                                 UNEXPECTED_ERROR
@@ -91,7 +91,7 @@ class FileModel(path: String) {
                 }
             }
             is Err -> when (val error = getSiblingsOfParentResult.error) {
-                is GetChildrenError.UnexpectedError -> {
+                is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get siblings of the parent: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
@@ -112,7 +112,7 @@ class FileModel(path: String) {
                 is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is RenameFileError.NewNameEmpty -> _errorHasOccurred.postValue("Error! New file name cannot be empty!")
                 is RenameFileError.CannotRenameRoot -> _errorHasOccurred.postValue("Error! Cannot rename root!")
-                is RenameFileError.UnexpectedError -> {
+                is RenameFileError.Unexpected -> {
                     Timber.e("Unable to rename file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -131,7 +131,7 @@ class FileModel(path: String) {
             is Ok -> refreshFiles()
             is Err -> when (val error = deleteFileResult.error) {
                 is DeleteFileError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                is DeleteFileError.UnexpectedError -> {
+                is DeleteFileError.Unexpected -> {
                     Timber.e("Unable to delete file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -155,7 +155,7 @@ class FileModel(path: String) {
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
                 is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.UnexpectedError -> {
+                is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -184,7 +184,7 @@ class FileModel(path: String) {
             }
             is Err -> when (val error = getRootResult.error) {
                 is GetRootError.NoRoot -> _errorHasOccurred.postValue("No root!")
-                is GetRootError.UnexpectedError -> {
+                is GetRootError.Unexpected -> {
                     Timber.e("Unable to set parent to root: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -207,7 +207,7 @@ class FileModel(path: String) {
                 val insertFileResult = CoreModel.insertFile(config, createFileResult.value)
                 if (insertFileResult is Err) {
                     when (val error = insertFileResult.error) {
-                        is InsertFileError.UnexpectedError -> {
+                        is InsertFileError.Unexpected -> {
                             Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
                             _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
                         }
@@ -227,7 +227,7 @@ class FileModel(path: String) {
                 is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
                 is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
                 is CreateFileError.FileNameEmpty -> _errorHasOccurred.postValue("Error! File cannot be empty!")
-                is CreateFileError.UnexpectedError -> {
+                is CreateFileError.Unexpected -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR
@@ -247,7 +247,7 @@ class FileModel(path: String) {
                 matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
             }
             is Err -> when (val error = getChildrenResult.error) {
-                is GetChildrenError.UnexpectedError -> {
+                is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
                     _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
                 }
@@ -338,7 +338,7 @@ class FileModel(path: String) {
                 when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                     is CalculateWorkError.CouldNotReachServer -> Timber.e("Could not reach server.")
-                    is CalculateWorkError.UnexpectedError -> {
+                    is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
                             UNEXPECTED_ERROR
@@ -367,14 +367,14 @@ class FileModel(path: String) {
                         Result.retry()
                     }
                     is SyncAllError.ExecuteWorkError -> {
-                        Timber.e("Could not execute some work: ${Klaxon().toJsonString(error.error)}")
+                        Timber.e("Could not execute some work.}")
                         Result.failure()
                     }
-                    is SyncAllError.UnexpectedError -> {
+                    is SyncAllError.Unexpected -> {
                         Timber.e("Unable to sync all files: ${error.error}")
                         Result.failure()
                     }
-                }
+                }.exhaustive
             } else {
                 Result.success()
             }
