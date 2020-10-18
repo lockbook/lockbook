@@ -8,17 +8,17 @@ struct UsageIndicator: View {
     
     var body: some View {
         VStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(style: StrokeStyle(lineWidth: 20.0, lineCap: .round, lineJoin: .round))
-                        .opacity(0.3)
-                    RoundedRectangle(cornerRadius: 20)
-                        .scale(x: min((CGFloat(realNumerator)/CGFloat(denominator)), 1.0), y: 1.0, anchor: .leading)
-                        .stroke(style: StrokeStyle(lineWidth: 20.0, lineCap: .round, lineJoin: .round))
-                }
-                .frame(width: 300, height: 1, alignment: .center)
-                .padding(.vertical)
-                Text("\(numerator) \(suffix)")
+            ZStack {
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(style: StrokeStyle(lineWidth: 20.0, lineCap: .round, lineJoin: .round))
+                    .opacity(0.3)
+                RoundedRectangle(cornerRadius: 20)
+                    .scale(x: min((CGFloat(realNumerator)/CGFloat(denominator)), 1.0), y: 1.0, anchor: .leading)
+                    .stroke(style: StrokeStyle(lineWidth: 20.0, lineCap: .round, lineJoin: .round))
+            }
+            .frame(width: 300, height: 1, alignment: .center)
+            .padding(.vertical)
+            Text("\(numerator) \(suffix)")
         }
         .padding()
         .onAppear {
