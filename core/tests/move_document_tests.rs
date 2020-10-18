@@ -174,7 +174,7 @@ mod move_document_tests {
                 access_key: aes_key(&folder_key, &doc_key),
             },
         )
-            .unwrap();
+        .unwrap();
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
