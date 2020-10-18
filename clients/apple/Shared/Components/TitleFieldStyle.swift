@@ -11,10 +11,10 @@ struct TitleTextField: View {
                 doneEditing()
             }
         })
-            .textFieldStyle(PlainTextFieldStyle())
-            .font(.largeTitle)
-            .multilineTextAlignment(.center)
-            .border(Color.black, width: 0)
+        .textFieldStyle(PlainTextFieldStyle())
+        .font(.system(.largeTitle, design: .monospaced))
+        .multilineTextAlignment(.center)
+        .border(Color.black, width: 0)
         #if os(macOS)
         return base
             .background(Color.textEditorBackground(isDark: colorScheme == .dark))
