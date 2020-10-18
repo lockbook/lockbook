@@ -998,6 +998,7 @@ pub fn execute_work(
                     | MoveDocumentError::NotPermissioned
                     | MoveDocumentError::UserNotFound
                     | MoveDocumentError::DocumentNotFound
+                    | MoveDocumentError::ParentNotFound
                     | MoveDocumentError::EditConflict
                     | MoveDocumentError::DocumentDeleted
                     | MoveDocumentError::DocumentPathTaken => {
@@ -1023,7 +1024,8 @@ pub fn execute_work(
                     | MoveFolderError::FolderNotFound
                     | MoveFolderError::EditConflict
                     | MoveFolderError::FolderDeleted
-                    | MoveFolderError::FolderPathTaken => {
+                    | MoveFolderError::FolderPathTaken
+                    | MoveFolderError::ParentNotFound => {
                         Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api_err)))
                     }
                 },
@@ -1066,7 +1068,8 @@ pub fn execute_work(
                     | CreateFolderError::NotPermissioned
                     | CreateFolderError::UserNotFound
                     | CreateFolderError::FileIdTaken
-                    | CreateFolderError::FolderPathTaken => {
+                    | CreateFolderError::FolderPathTaken
+                    | CreateFolderError::ParentNotFound => {
                         Err(ExecuteWorkError::UnexpectedError(format!("{:#?}", api_err)))
                     }
                 },
