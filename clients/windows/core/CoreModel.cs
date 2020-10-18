@@ -1,25 +1,38 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 
 namespace Core {
-    public interface IExpectedError<T> {
+    public abstract class ExpectedError<T> where T : Enum {
         public T Error { get; set; }
     }
 
-    public interface IUnexpectedError {
+    public static class ExpectedErrors {
+        public static TErr New<TIResult, TErr, TPossibleErrs>(TPossibleErrs value)
+            where TErr : ExpectedError<TPossibleErrs>, TIResult, new()
+            where TPossibleErrs : Enum {
+            return new TErr { Error = value };
+        }
+    }
+
+    public abstract class UnexpectedError {
         public string ErrorMessage { get; set; }
+    }
+
+    public static class UnexpectedErrors {
+        public static TErr New<TIResult, TErr>(string value)
+            where TErr : UnexpectedError, TIResult, new() {
+            return new TErr { ErrorMessage = value };
+        }
     }
 
     public class FileMetadata {
         [JsonProperty("id")]
         public string Id;
-
         [JsonProperty("name")]
         public string Name;
-
         [JsonProperty("parent")]
         public string Parent;
-
         [JsonProperty("file_type")]
         public string Type;
     }
@@ -42,54 +55,44 @@ namespace Core {
     }
 
     public class FileUsage {
+        [JsonProperty("file_id")]
         public string fileId;
+        [JsonProperty("byte_seconds")]
         public ulong byteSeconds;
+        [JsonProperty("seconds")]
         public ulong seconds;
     }
 
     public class WorkCalculated {
         [JsonProperty("work_units")]
-        public List<dynamic> WorkUnits;
-
+        public List<dynamic> workUnits;
         [JsonProperty("most_recent_update_from_server")]
-        public ulong MostRecentUpdateFromServer;
+        public ulong mostRecentUpdateFromServer;
     }
 
     namespace GetDbState {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public DbState dbState;
         }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace MigrateDb {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace CreateAccount {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             UsernameTaken,
             InvalidUsername,
@@ -97,21 +100,13 @@ namespace Core {
             AccountExistsAlready,
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ImportAccount {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             AccountStringCorrupted,
             AccountExistsAlready,
@@ -120,63 +115,39 @@ namespace Core {
             AccountDoesNotExist,
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ExportAccount {
-        public abstract class Result { }
-
-        public class Success : Result {
-            string accountString;
+        public interface IResult { }
+        public class Success : IResult {
+            public string accountString;
         }
-
         public enum PossibleErrors {
             NoAccount,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace GetAccount {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public string accountJson;
         }
-
         public enum PossibleErrors {
             NoAccount
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace CreateFileAtPath {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public FileMetadata newFile;
         }
-
         public enum PossibleErrors {
             PathDoesntStartWithRoot,
             PathContainsEmptyFile,
@@ -185,43 +156,27 @@ namespace Core {
             NoAccount,
             DocumentTreatedAsFolder,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace WriteDocument {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             NoAccount,
             FolderTreatedAsDocument,
             FileDoesNotExist
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace CreateFile {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public FileMetadata newFile;
         }
-
         public enum PossibleErrors {
             NoAccount,
             DocumentTreatedAsFolder,
@@ -230,171 +185,92 @@ namespace Core {
             FileNameContainsSlash,
             FileNameEmpty,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace GetRoot {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public FileMetadata root;
         }
-
         public enum PossibleErrors {
             NoRoot,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace GetChildren {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public List<FileMetadata> children;
         }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
-    }
-
-    namespace GetFileById {
-        public abstract class Result { }
-
-        public class Success : Result {
-            public FileMetadata file;
-        }
-
-        public enum PossibleErrors {
-            NoFileWithThatId,
-        }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
-    }
-
-    namespace GetFileByPath {
-        public abstract class Result { }
-
-        public class Success : Result {
-            public FileMetadata file;
-        }
-
-        public enum PossibleErrors {
-            NoFileAtThatPath,
-        }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
-    }
-
-    namespace InsertFile {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
-    }
-
-    namespace DeleteFile {
-        public abstract class Result { }
-
-        public class Success : Result {
-        }
-
-        public enum PossibleErrors {
-            NoFileWithThatId,
-        }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ReadDocument {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public DecryptedValue content;
         }
-
         public enum PossibleErrors {
             TreatedFolderAsDocument,
             NoAccount,
             FileDoesNotExist,
         }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
 
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
+    namespace GetFileByPath {
+        public interface IResult { }
+        public class Success : IResult {
+            public FileMetadata file;
         }
+        public enum PossibleErrors {
+            NoFileAtThatPath,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
 
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
+    namespace DeleteFile {
+        public interface IResult { }
+        public class Success : IResult {
         }
+        public enum PossibleErrors {
+            NoFileWithThatId,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ListPaths {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public List<string> paths;
         }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ListMetadatas {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public List<FileMetadata> files;
         }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace RenameFile {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             FileDoesNotExist,
             NewNameContainsSlash,
@@ -402,21 +278,13 @@ namespace Core {
             NewNameEmpty,
             CannotRenameRoot
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace MoveFile {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             NoAccount,
             FileDoesNotExist,
@@ -424,121 +292,77 @@ namespace Core {
             TargetParentHasChildNamedThat,
             TargetParentDoesNotExist,
             CannotMoveRoot,
-
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace SyncAll {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             NoAccount,
             CouldNotReachServer,
             ExecuteWorkError,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace CalculateWork {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public WorkCalculated workCalculated;
         }
-
         public enum PossibleErrors {
             NoAccount,
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ExecuteWork {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
+        public interface IResult { }
+        public class Success : IResult { }
         public enum PossibleErrors {
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace SetLastSynced {
-        public abstract class Result { }
-
-        public class Success : Result { }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public interface IResult { }
+        public class Success : IResult { }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace GetLastSynced {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public ulong timestamp;
         }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace GetUsage {
-        public abstract class Result { }
-
-        public class Success : Result {
+        public interface IResult { }
+        public class Success : IResult {
             public List<FileUsage> usage;
         }
-
         public enum PossibleErrors {
             NoAccount,
             CouldNotReachServer,
             ClientUpdateRequired,
         }
-
-        public class ExpectedError : Result, IExpectedError<PossibleErrors> {
-            public PossibleErrors Error { get; set; }
-        }
-
-        public class UnexpectedError : Result, IUnexpectedError {
-            public string ErrorMessage { get; set; }
-        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 }
-
