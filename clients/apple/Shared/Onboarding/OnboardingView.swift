@@ -11,7 +11,7 @@ struct OnboardingView: View {
                         NavigationLink(destination: CreateAccountView(core: self.core)) {
                             Label("Create", systemImage: "person.crop.circle.badge.plus")
                         }
-                            .padding(.bottom, 40)
+                        .padding(.bottom, 40)
                         NavigationLink(destination: ImportAccountView(core: self.core)) {
                             Label("Import", systemImage: "rectangle.stack.person.crop")
                         }

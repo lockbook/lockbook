@@ -1,6 +1,5 @@
 package app.lockbook
 
-import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -99,7 +98,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
             }
             is Err -> when (val error = getDBStateResult.error) {
-                is GetStateError.UnexpectedError -> {
+                is GetStateError.Unexpected -> {
                     Timber.e("Unable to get DB State: ${error.error}")
                     AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
@@ -135,7 +134,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         Snackbar.LENGTH_SHORT
                     ).show()
                 }
-                is MigrationError.UnexpectedError -> {
+                is MigrationError.Unexpected -> {
                     Timber.e("Unable to migrate DB: ${error.error}")
                     AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)

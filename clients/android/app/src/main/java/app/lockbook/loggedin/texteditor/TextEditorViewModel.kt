@@ -93,7 +93,7 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
                 is WriteToDocumentError.NoAccount -> {
                     _errorHasOccurred.postValue("Error! No account!")
                 }
-                is WriteToDocumentError.UnexpectedError -> {
+                is WriteToDocumentError.Unexpected -> {
                     Timber.e("Unable to write document changes: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
                         UNEXPECTED_ERROR

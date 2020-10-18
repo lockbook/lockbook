@@ -222,7 +222,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         "Error! No account!",
                         Snackbar.LENGTH_SHORT
                     ).show()
-                    is AccountExportError.UnexpectedError -> {
+                    is AccountExportError.Unexpected -> {
                         Timber.e("Unable to export account: ${error.error}")
                         AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
                             .setTitle(UNEXPECTED_ERROR)
@@ -261,7 +261,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     "Error! No account!",
                     Snackbar.LENGTH_SHORT
                 ).show()
-                is AccountExportError.UnexpectedError -> {
+                is AccountExportError.Unexpected -> {
                     Timber.e("Unable to export account: ${error.error}")
                     AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)

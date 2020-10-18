@@ -48,7 +48,7 @@ class ExportAccountTest {
             Klaxon().converter(exportAccountConverter)
                 .parse(exportAccount(""))
 
-        assertType<AccountExportError.UnexpectedError>(
+        assertType<AccountExportError.Unexpected>(
             exportAccountResult?.component2()
         )
     }

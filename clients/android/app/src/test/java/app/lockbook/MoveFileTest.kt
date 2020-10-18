@@ -238,7 +238,7 @@ class MoveFileTest {
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter).parse(moveFile("", "", ""))
 
-        assertType<MoveFileError.UnexpectedError>(
+        assertType<MoveFileError.Unexpected>(
             moveResult?.component2()
         )
     }

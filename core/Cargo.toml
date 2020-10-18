@@ -1,6 +1,6 @@
 [package]
 name = "lockbook_core"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
@@ -27,5 +27,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 sha2 = "0.8.0"
 sled = "0.34.3"
+strum = "0.19.5"
+strum_macros = "0.19.4"
 tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }

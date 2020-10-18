@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod new_account_tests {
     use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -20,6 +20,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -42,6 +43,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -57,6 +59,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -67,7 +70,7 @@ mod new_account_tests {
                 },
                 rsa_key(&account.keys.to_public_key(), &folder_key)
             ),
-            Err(Error::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::UsernameTaken
             ))
         );
@@ -81,6 +84,7 @@ mod new_account_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &(account.username.clone() + " "),
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -91,7 +95,7 @@ mod new_account_tests {
                 },
                 rsa_key(&account.keys.to_public_key(), &folder_key)
             ),
-            Err(Error::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::InvalidUsername
             ))
         );
@@ -124,7 +128,7 @@ mod new_account_tests {
     //             },
     //             rsa_key(&account.keys.to_public_key(), &folder_key)
     //         ),
-    //         Err(Error::<NewAccountError>::Api(
+    //         Err(ApiError::<NewAccountError>::Api(
     //             NewAccountError::InvalidPublicKey
     //         ))
     //     );
@@ -151,7 +155,7 @@ mod new_account_tests {
     //             },
     //             rsa_key(&account.keys.to_public_key(), &folder_key)
     //         ),
-    //         Err(Error::<NewAccountError>::Api(NewAccountError::InvalidAuth))
+    //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
     //     );
     // }
 }

@@ -74,7 +74,7 @@ class NewAccountActivity : AppCompatActivity() {
                             "Account already exists.",
                             Snackbar.LENGTH_SHORT
                         ).show()
-                        is CreateAccountError.UnexpectedError -> {
+                        is CreateAccountError.Unexpected -> {
                             Timber.e("Unable to create account.")
                             AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)

@@ -14,7 +14,6 @@ func serialize<T: Encodable>(obj: T) -> Result<String, Error> {
     do {
         let data = try encoder.encode(obj)
         let output = String(data: data, encoding: .utf8) ?? ""
-//        print("Outgoing JSON \(output)")
         return Result.success(output)
     } catch let error {
         return Result.failure(error)
@@ -33,33 +32,15 @@ func deserialize<T: Decodable>(data: Data) -> Result<T, Error> {
     }
 }
 
-func deserializeResult<T: Decodable>(jsonResultStr: String) -> Result<T, ApplicationError> {
-//    print("Incoming JSON \(jsonResultStr)")
-    guard let dict = try? JSONSerialization.jsonObject(with: Data(jsonResultStr.utf8), options: []) as? [String: Any] else {
-        return Result.failure(ApplicationError.Serialization("Couldn't deserialize dict!"))
-    }
-    
-    if let ok = dict["Ok"] {
-        guard let data = try? JSONSerialization.data(withJSONObject: ok, options: .fragmentsAllowed) else {
-            return Result.failure(ApplicationError.Serialization("Not valid JSON!"))
-        }
-        return deserialize(data: data).mapError { ApplicationError.General($0) }
-    } else {
-        if let err = dict["Err"] {
-            guard let data = try? JSONSerialization.data(withJSONObject: err, options: .fragmentsAllowed) else {
-                return Result.failure(ApplicationError.Serialization("Not valid JSON!"))
-            }
-            guard let errMsg = String.init(data: data, encoding: .utf8) else {
-                return Result.failure(ApplicationError.Serialization("Err was not a UTF-8 string!"))
-            }
-            return Result.failure(ApplicationError.Lockbook(CoreError.init(message: errMsg, type: .Unhandled)))
-        } else {
-            return Result.failure(ApplicationError.Serialization("Could not find Ok or Err!"))
-        }
+func deserializeResult<T: Decodable, E: UiError>(jsonResultStr: String) -> FfiResult<T, E> {
+    do {
+        return try deserialize(data: jsonResultStr.data(using: .utf8)!).get()
+    } catch {
+        return .failure(.init(unexpected: "\(error.localizedDescription) \(jsonResultStr)"))
     }
 }
 
-func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T, ApplicationError> {
+func fromPrimitiveResult<T: Decodable, E: UiError>(result: UnsafePointer<Int8>) -> FfiResult<T, E> {
     let resultString = String(cString: result)
     release_pointer(UnsafeMutablePointer(mutating: result))
     
@@ -68,4 +49,9 @@ func fromPrimitiveResult<T: Decodable>(result: UnsafePointer<Int8>) -> Result<T,
 
 public struct Empty: Decodable {
     
+}
+
+enum TagContentKeys: String, CodingKey {
+    case tag
+    case content
 }

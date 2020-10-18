@@ -67,7 +67,7 @@ class InsertFileTest {
             Klaxon().converter(insertFileConverter)
                 .parse(insertFile("", ""))
 
-        assertType<InsertFileError.UnexpectedError>(
+        assertType<InsertFileError.Unexpected>(
             insertResult?.component2()
         )
     }

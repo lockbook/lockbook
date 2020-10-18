@@ -2,6 +2,7 @@ package app.lockbook
 
 import app.lockbook.core.createAccount
 import app.lockbook.utils.*
+import app.lockbook.utils.CoreModel.API_URL
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
@@ -65,9 +66,9 @@ class CreateAccountTest {
     fun createAccountUnexpectedError() {
         val createAccountOk: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
-                .parse(createAccount("", ""))
+                .parse(createAccount("", "", API_URL))
 
-        assertType<CreateAccountError.UnexpectedError>(
+        assertType<CreateAccountError.Unexpected>(
             createAccountOk?.component2()
         )
     }

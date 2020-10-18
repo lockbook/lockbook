@@ -5,7 +5,7 @@ mod get_document_tests {
     use crate::integration_test::{
         aes_decrypt_str, aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
-    use lockbook_core::client::{Client, ClientImpl, Error};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
@@ -22,6 +22,7 @@ mod get_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -39,6 +40,7 @@ mod get_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AesImpl::generate_key();
         let version = ClientImpl::create_document(
+            &account.api_url,
             &account.username,
             &sign(&account),
             doc_id,
@@ -56,7 +58,9 @@ mod get_document_tests {
         assert_eq!(
             aes_decrypt_str(
                 &doc_key,
-                &ClientImpl::get_document(doc_id, version).unwrap().content,
+                &ClientImpl::get_document(&account.api_url, doc_id, version)
+                    .unwrap()
+                    .content,
             ),
             "doc content"
         );
@@ -71,6 +75,7 @@ mod get_document_tests {
 
         assert_matches!(
             ClientImpl::new_account(
+                &account.api_url,
                 &account.username,
                 &sign(&account),
                 account.keys.to_public_key(),
@@ -86,8 +91,8 @@ mod get_document_tests {
 
         // get document we never created
         assert_matches!(
-            ClientImpl::get_document(Uuid::new_v4(), 0,),
-            Err(Error::<GetDocumentError>::Api(
+            ClientImpl::get_document(&account.api_url, Uuid::new_v4(), 0,),
+            Err(ApiError::<GetDocumentError>::Api(
                 GetDocumentError::DocumentNotFound
             ))
         );

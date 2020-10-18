@@ -160,7 +160,7 @@ class CreateFileTest {
             Klaxon().converter(createFileConverter)
                 .parse(createFile("", "", "", ""))
 
-        assertType<CreateFileError.UnexpectedError>(
+        assertType<CreateFileError.Unexpected>(
             createFileResult?.component2()
         )
     }

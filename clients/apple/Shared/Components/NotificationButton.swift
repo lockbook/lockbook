@@ -27,7 +27,7 @@ struct NotificationButton: View {
             switch action() {
             case .success(_):
                 success = true
-            case .failure(let err):
+            case .failure(_):
                 success = false
             }
         }

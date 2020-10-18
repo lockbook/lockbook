@@ -39,7 +39,7 @@ class CalculateWorkTest {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
 
-        assertType<CalculateWorkError.UnexpectedError>(
+        assertType<CalculateWorkError.Unexpected>(
             calculateSyncWorkResult?.component2()
         )
     }

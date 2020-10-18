@@ -45,7 +45,7 @@ class GetChildrenTest {
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren("", ""))
 
-        assertType<GetChildrenError.UnexpectedError>(
+        assertType<GetChildrenError.Unexpected>(
             getChildrenResult?.component2()
         )
     }
