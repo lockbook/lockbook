@@ -80,7 +80,7 @@ mod unit_tests {
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
-    use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
+    use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;
@@ -90,7 +90,7 @@ mod unit_tests {
         let test_account = Account {
             username: "parth".to_string(),
             api_url: "ftp://uranus.net".to_string(),
-            keys: RsaImpl::generate_key().expect("Key generation failure"),
+            keys: RSAImpl::generate_key().expect("Key generation failure"),
         };
 
         let config = dummy_config();

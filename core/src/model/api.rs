@@ -3,17 +3,15 @@ use crate::model::crypto::*;
 use crate::model::file_metadata::FileMetadata;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
-
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_content: EncryptedValueWithNonce,
+    pub new_content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -37,13 +35,12 @@ pub enum ChangeDocumentContentError {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
-    pub username: String,
-    pub signature: SignedValue,
+pub username: String,
     pub client_version: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub content: EncryptedValueWithNonce,
+    pub content: EncryptedDocument,
     pub parent_access_key: FolderAccessInfo,
 }
 
@@ -69,7 +66,6 @@ pub enum CreateDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -97,7 +93,6 @@ pub enum DeleteDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveDocumentRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -129,7 +124,6 @@ pub enum MoveDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -165,7 +159,7 @@ pub struct GetDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentResponse {
-    pub content: EncryptedValueWithNonce,
+    pub content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -178,7 +172,6 @@ pub enum GetDocumentError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub name: String,
@@ -208,7 +201,6 @@ pub enum CreateFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -236,7 +228,6 @@ pub enum DeleteFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveFolderRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -268,7 +259,6 @@ pub enum MoveFolderError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -343,7 +333,6 @@ pub enum GetUsageError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
-    pub signature: SignedValue,
     pub client_version: String,
     pub since_metadata_version: u64,
 }
@@ -367,12 +356,11 @@ pub enum GetUpdatesError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
-    pub signature: SignedValue,
     pub client_version: String,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: FolderAccessInfo,
-    pub user_access_key: EncryptedValue,
+    pub user_access_key: EncryptedUserAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

@@ -469,7 +469,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::account::Account;
-    use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
+    use crate::model::crypto::{FolderAccessInfo, EncryptedFolderAccessKey};
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
@@ -498,16 +498,9 @@ mod unit_tests {
             user_access_keys: Default::default(),
             folder_access_keys: FolderAccessInfo {
                 folder_id: Default::default(),
-                access_key: EncryptedValueWithNonce {
-                    garbage: "".to_string(),
-                    nonce: "".to_string(),
-                },
+                access_key: EncryptedFolderAccessKey::new("", ""),
             },
             deleted: false,
-            signature: SignedValue {
-                content: "".to_string(),
-                signature: "".to_string(),
-            },
         }
     }
 

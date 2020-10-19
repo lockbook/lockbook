@@ -6,7 +6,6 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::json_interface::translate;
-use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
@@ -140,9 +139,7 @@ pub unsafe extern "C" fn write_document(
     c_string(translate(crate::write_document(
         &config_from_ptr(writeable_path),
         Uuid::from_str(&str_from_ptr(id)).expect("Could not String -> Uuid"),
-        &DecryptedValue {
-            secret: str_from_ptr(content),
-        },
+        &str_from_ptr(content).into_bytes(),
     )))
 }
 

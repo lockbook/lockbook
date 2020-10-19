@@ -3,79 +3,70 @@ extern crate rsa;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use serde::de::DeserializeOwned;
+use std::marker::PhantomData;
+use std::fmt::Debug;
+
+pub type AESKey = [u8; 32];
+pub type DecryptedDocument = Vec<u8>;
+pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
+pub type EncryptedUserAccessKey = RSAEncrypted<AESKey>;
+pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct EncryptedValue {
-    pub garbage: String,
+pub struct AESEncrypted<T: DeserializeOwned> {
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub nonce: Vec<u8>,
+    pub _t: PhantomData<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash)]
-pub struct DecryptedValue {
-    pub secret: String,
-}
-
-impl From<&str> for DecryptedValue {
-    fn from(s: &str) -> Self {
-        DecryptedValue {
-            secret: s.to_string(),
+impl<T: DeserializeOwned> AESEncrypted<T> {
+    /// creates an AESEncrypted from a source of already-encrypted bytes
+    pub fn new<V: Into<Vec<u8>>, N: Into<Vec<u8>>>(value: V, nonce: N) -> Self {
+        AESEncrypted {
+            value: value.into(),
+            nonce: nonce.into(),
+            _t: PhantomData
         }
     }
 }
 
-impl From<String> for DecryptedValue {
-    fn from(secret: String) -> Self {
-        DecryptedValue { secret }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SignedValue {
-    pub content: String,
-    pub signature: String,
+pub struct RSAEncrypted<T: DeserializeOwned> {
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
+    pub _t: PhantomData<T>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct EncryptedValueWithNonce {
-    pub garbage: String,
-    // https://cryptologie.net/article/361/breaking-https-aes-gcm-or-a-part-of-it/
-    pub nonce: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct AesKey {
-    pub key: String,
-}
-
-impl From<DecryptedValue> for AesKey {
-    fn from(decrypted: DecryptedValue) -> Self {
-        AesKey {
-            key: decrypted.secret,
+impl<T: DeserializeOwned> RSAEncrypted<T> {
+    /// creates an RSAEncrypted from a source of already-encrypted bytes
+    pub fn new<V: Into<Vec<u8>>>(value: V) -> Self {
+        RSAEncrypted {
+            value: value.into(),
+            _t: PhantomData
         }
     }
 }
 
-impl AesKey {
-    pub fn to_decrypted_value(&self) -> DecryptedValue {
-        DecryptedValue {
-            secret: self.key.clone(),
-        }
-    }
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RSASigned<T> {
+    pub value: T,
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UserAccessInfo {
     pub username: String,
     pub public_key: RSAPublicKey,
-    pub access_key: EncryptedValue,
+    pub access_key: EncryptedUserAccessKey,
 }
 
+// TODO: remove all of this struct
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FolderAccessInfo {
     pub folder_id: Uuid, // TODO remove this?
-    pub access_key: EncryptedValueWithNonce,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct Document {
-    pub content: EncryptedValueWithNonce,
+    pub access_key: EncryptedFolderAccessKey,
 }

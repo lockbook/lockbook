@@ -17,16 +17,16 @@ pub enum DbError {
 }
 
 pub trait DocumentRepo {
-    fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error>;
-    fn get(db: &Db, id: Uuid) -> Result<Document, Error>;
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError>;
+    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
+    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error>;
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
     fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
 }
 
 pub struct DocumentRepoImpl;
 
 impl DocumentRepo for DocumentRepoImpl {
-    fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error> {
+    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
         tree.insert(
             id.as_bytes(),
@@ -36,22 +36,22 @@ impl DocumentRepo for DocumentRepoImpl {
         Ok(())
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<Document, Error> {
+    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error> {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
         let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
         let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let document: Document =
+        let document: EncryptedDocument =
             serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
 
         Ok(document)
     }
 
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError> {
+    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
         let tree = db.open_tree(b"documents").map_err(DbError::SledError)?;
         match tree.get(id.as_bytes()).map_err(DbError::SledError)? {
             None => Ok(None),
             Some(file) => {
-                let document: Document =
+                let document: EncryptedDocument =
                     serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
 
                 Ok(Some(document))
@@ -79,12 +79,7 @@ mod unit_tests {
 
     #[test]
     fn update_document() {
-        let test_document = Document {
-            content: EncryptedValueWithNonce {
-                garbage: "something".to_string(),
-                nonce: "nonce1".to_string(),
-            },
-        };
+        let test_document = EncryptedDocument::new("something", "nonce1");
 
         let config = dummy_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
@@ -94,33 +89,22 @@ mod unit_tests {
 
         let document = DocumentRepoImpl::get(&db, document_id).unwrap();
         assert_eq!(
-            document.content,
-            EncryptedValueWithNonce {
-                garbage: "something".to_string(),
-                nonce: "nonce1".to_string(),
-            }
+            document,
+            EncryptedDocument::new("something", "nonce1"),
         );
 
         DocumentRepoImpl::insert(
             &db,
             document_id,
-            &Document {
-                content: EncryptedValueWithNonce {
-                    garbage: "updated".to_string(),
-                    nonce: "nonce2".to_string(),
-                },
-            },
+            &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
         let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
 
         assert_eq!(
-            file_updated.content,
-            EncryptedValueWithNonce {
-                garbage: "updated".to_string(),
-                nonce: "nonce2".to_string(),
-            }
+            file_updated,
+            EncryptedDocument::new("updated", "nonce2")
         );
     }
 }

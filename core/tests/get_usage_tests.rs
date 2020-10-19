@@ -3,7 +3,6 @@ mod integration_test;
 #[cfg(test)]
 mod get_usage_tests {
     use crate::integration_test::{generate_account, random_filename, test_config};
-    use lockbook_core::model::crypto::*;
     use lockbook_core::{
         create_account, create_file, get_root, get_usage, sync_all, write_document,
     };
@@ -26,9 +25,7 @@ mod get_usage_tests {
         write_document(
             config,
             file.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
+            "0000000000".as_bytes(),
         )
         .unwrap();
 

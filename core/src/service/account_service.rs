@@ -4,7 +4,6 @@ use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api::{GetPublicKeyError, NewAccountError};
-use crate::model::crypto::SignedValue;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -115,15 +114,9 @@ impl<
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
-        let auth = SignedValue {
-            content: "".to_string(),
-            signature: "".to_string(),
-        };
-
         let version = ApiClient::new_account(
             api_url,
             &account.username,
-            &auth,
             account.keys.to_public_key(),
             file_metadata.id,
             file_metadata.folder_access_keys.clone(),
