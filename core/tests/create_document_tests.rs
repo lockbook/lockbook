@@ -2,9 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod create_document_tests {
-    use crate::integration_test::{
-        aes_encrypt, generate_account, random_filename, rsa_encrypt,
-    };
+    use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
