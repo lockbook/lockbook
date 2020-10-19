@@ -185,8 +185,6 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        errorHasOccurred(container!!, "This is a regular error!")
-
         return binding.root
     }
 
