@@ -95,7 +95,7 @@ impl PubKeyCryptoService for RSAImpl {
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
     ) -> Result<(), RSAVerifyError> {
-        let serialized = bincode::serialize(&to_verify).map_err(RSAVerifyError::Serialization)?;
+        let serialized = bincode::serialize(&to_verify.value).map_err(RSAVerifyError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
         public_key
             .verify(
