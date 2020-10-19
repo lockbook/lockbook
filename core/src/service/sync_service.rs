@@ -21,7 +21,6 @@ use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
-use crate::service::auth_service::AuthService;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::FileService;
 use crate::service::sync_service::CalculateWorkError::{
@@ -110,7 +109,6 @@ pub struct FileSyncService<
     ApiClient: Client,
     Files: FileService,
     FileCrypto: FileEncryptionService,
-    Auth: AuthService,
 > {
     _metadatas: FileMetadataDb,
     _changes: ChangeDb,
@@ -119,7 +117,6 @@ pub struct FileSyncService<
     _client: ApiClient,
     _file: Files,
     _file_crypto: FileCrypto,
-    _auth: Auth,
 }
 
 impl<
@@ -130,18 +127,8 @@ impl<
         ApiClient: Client,
         Files: FileService,
         FileCrypto: FileEncryptionService,
-        Auth: AuthService,
     > SyncService
-    for FileSyncService<
-        FileMetadataDb,
-        ChangeDb,
-        DocsDb,
-        AccountDb,
-        ApiClient,
-        Files,
-        FileCrypto,
-        Auth,
-    >
+    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Files, FileCrypto>
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");

@@ -503,7 +503,7 @@ mod unit_tests {
         Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            keys: DefaultCrypto::generate_key().unwrap(),
+            private_key: DefaultCrypto::generate_key().unwrap(),
         }
     }
 

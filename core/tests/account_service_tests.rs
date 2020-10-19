@@ -143,8 +143,7 @@ mod account_tests {
                 | AccountCreationError::FolderError(_)
                 | AccountCreationError::MetadataRepoError(_)
                 | AccountCreationError::ApiError(_)
-                | AccountCreationError::KeySerializationError(_)
-                | AccountCreationError::AuthGenFailure(_) => {
+                | AccountCreationError::KeySerializationError(_) => {
                     panic!("This action should have failed with AccountAlreadyExists!")
                 }
                 AccountCreationError::AccountExistsAlready => println!("Success."),
@@ -160,7 +159,7 @@ mod account_tests {
         let account = Account {
             username: "Smail".to_string(),
             api_url: generate_account().api_url,
-            keys: RSAPrivateKey::from_components(
+            private_key: RSAPrivateKey::from_components(
                 BigUint::from_bytes_be(b"Test"),
                 BigUint::from_bytes_be(b"Test"),
                 BigUint::from_bytes_be(b"Test"),

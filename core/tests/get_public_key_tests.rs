@@ -16,7 +16,7 @@ mod get_public_key_tests {
         let account = generate_account();
         let folder_id = Uuid::new_v4();
         let folder_key = AESImpl::generate_key();
-        let key = account.keys.to_public_key();
+        let key = account.private_key.to_public_key();
 
         assert_matches!(
             ClientImpl::new_account(

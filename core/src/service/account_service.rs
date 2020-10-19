@@ -14,7 +14,6 @@ use crate::service::account_service::AccountCreationError::{
 use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
-use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
 
@@ -27,7 +26,6 @@ pub enum AccountCreationError {
     MetadataRepoError(file_metadata_repo::DbError),
     ApiError(client::ApiError<NewAccountError>),
     KeySerializationError(serde_json::error::Error),
-    AuthGenFailure(AuthGenError),
     AccountExistsAlready,
 }
 
@@ -63,14 +61,12 @@ pub struct AccountServiceImpl<
     Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
     ApiClient: Client,
-    Auth: AuthService,
     FileCrypto: FileEncryptionService,
     FileMetadata: FileMetadataRepo,
 > {
     _encryption: Crypto,
     _accounts: AccountDb,
     _client: ApiClient,
-    _auth: Auth,
     _file_crypto: FileCrypto,
     _file_db: FileMetadata,
 }
@@ -79,11 +75,10 @@ impl<
         Crypto: PubKeyCryptoService,
         AccountDb: AccountRepo,
         ApiClient: Client,
-        Auth: AuthService,
         FileCrypto: FileEncryptionService,
         FileMetadata: FileMetadataRepo,
     > AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient, Auth, FileCrypto, FileMetadata>
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata>
 {
     fn create_account(
         db: &Db,
@@ -106,7 +101,7 @@ impl<
         let account = Account {
             username: String::from(username),
             api_url: api_url.to_string(),
-            keys,
+            private_key: keys,
         };
 
         info!("Generating Root Folder");
@@ -117,7 +112,7 @@ impl<
         let version = ApiClient::new_account(
             api_url,
             &account.username,
-            account.keys.to_public_key(),
+            account.private_key.to_public_key(),
             file_metadata.id,
             file_metadata.folder_access_keys.clone(),
             file_metadata
@@ -167,7 +162,7 @@ impl<
         debug!("Key was valid bincode");
 
         account
-            .keys
+            .private_key
             .validate()
             .map_err(AccountImportError::InvalidPrivateKey)?;
         debug!("RSA says the key is valid");
@@ -178,7 +173,7 @@ impl<
         );
         let server_public_key = ApiClient::get_public_key(&account.api_url, &account.username)
             .map_err(FailedToVerifyAccountServerSide)?;
-        if account.keys.to_public_key() != server_public_key {
+        if account.private_key.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }
 
