@@ -3,16 +3,16 @@ import Foundation
 public struct Account: Codable {
     public var username: Username
     public var apiUrl: ApiUrl
-    var keys: RSAPrivateKey
+    var private_key: RSAPrivateKey
     
-    public init(username: Username, apiUrl: ApiUrl, keys: RSAPrivateKey) {
+    public init(username: Username, apiUrl: ApiUrl, private_key: RSAPrivateKey) {
         self.username = username
         self.apiUrl = apiUrl
-        self.keys = keys
+        self.private_key = private_key
     }
     
     public static func fake(username: Username) -> Account {
-        Account(username: username, apiUrl: "test://api", keys: .empty)
+        Account(username: username, apiUrl: "test://api", private_key: .empty)
     }
     
     public func qualified() -> String {
