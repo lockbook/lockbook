@@ -8,6 +8,13 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace lockbook {
+    public static class Extensions {
+        public static T WaitResult<T>(this Task<T> task) {
+            task.Wait();
+            return task.Result;
+        }
+    }
+
     public class CoreService {
         public string path;
 
@@ -18,588 +25,286 @@ namespace lockbook {
         private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
-        private static extern IntPtr get_api_loc();
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr create_account(string path, string username);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr get_account(string path);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr import_account(string path, string account_string);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr list_metadatas(string path);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr create_file(string path, string name, string parent, string file_type);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr rename_file(string path, string id, string new_name);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr move_file(string path, string id, string new_parent);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr sync_all(string path);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr read_document(string path, string id);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr write_document(string path, string id, string content);
-
-        [DllImport("lockbook_core.dll")]
-        private static extern IntPtr calculate_work(string path);
-
-        [DllImport("lockbook_core.dll")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
+        [DllImport("lockbook_core.dll")]
+        private static extern void init_logger_safely(string writeable_path);
 
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_db_state(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr migrate_db(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr create_account(string writeable_path, string username, string api_url);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr import_account(string writeable_path, string account_string);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr export_account(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_account(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr create_file_at_path(string writeable_path, string path_and_name);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr write_document(string writeable_path, string id, string content);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr create_file(string writeable_path, string name, string parent, string file_type);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_root(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_children(string writeable_path, string id);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_file_by_path(string writeable_path, string path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr read_document(string writeable_path, string id);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr delete_file(string writeable_path, string id);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr list_paths(string writeable_path, string filter);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr rename_file(string writeable_path, string id, string new_name);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr list_metadatas(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr move_file(string writeable_path, string id, string new_parent);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr calculate_work(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr execute_work(string writeable_path, string work_unit);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr sync_all(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr set_last_synced(string writeable_path, ulong last_sync);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_last_synced(string writeable_path);
+
+        [DllImport("lockbook_core.dll")]
+        private static extern IntPtr get_usage(string writeable_path);
 
         private static string getStringAndRelease(IntPtr pointer) {
             string temp_string = Marshal.PtrToStringAnsi(pointer);
-            string result = (string)temp_string.Clone();
+            string IResult = (string)temp_string.Clone();
             release_pointer(pointer);
-            return result;
+            return IResult;
         }
 
-        public bool AccountExists() {
-            coreMutex.WaitOne();
-            string result = getStringAndRelease(get_account(path));
-            coreMutex.ReleaseMutex();
-            JObject obj = JObject.Parse(result);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-            return ok != null;
+        public async Task<bool> AccountExists() {
+            var getAccountIResult = await GetAccount();
+            return getAccountIResult.GetType() == typeof(Core.GetAccount.Success);
         }
 
-        public async Task<Core.CreateAccount.Result> CreateAccount(string username) {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(create_account(path, username));
-                coreMutex.ReleaseMutex();
+        private async Task<TIResult> FFICommon<TIResult, TExpectedErr, TPossibleErrs, TUnexpectedErr>(Func<IntPtr> func, Func<string, TIResult> parseOk)
+            where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
+            where TPossibleErrs : struct, Enum
+            where TUnexpectedErr : UnexpectedError, TIResult, new() {
+            var IResult = await Task.Run(() => {
+                string coreResponse;
+                try {
+                    coreMutex.WaitOne();
+                    coreResponse = getStringAndRelease(func());
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
                 return coreResponse;
             });
 
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.CreateAccount.UnexpectedError {
-                    errorMessage = result
-                };
+            var obj = JObject.Parse(IResult);
+            var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
+            var content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
+            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + IResult);
+            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + IResult);
+            switch (tag) {
+                case "Ok":
+                    return parseOk(content);
+                case "Err":
+                    var errObj = JObject.Parse(content);
+                    var errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
+                    var errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
+                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + IResult);
+                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + IResult);
+                    switch (errTag) {
+                        case "UiError":
+                            if (Enum.TryParse<TPossibleErrs>(errContent, out var value)) return ExpectedErrors.New<TIResult, TExpectedErr, TPossibleErrs>(value);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + IResult);
+                        case "Unexpected":
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>(errContent);
+                        default:
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + IResult);
+                    }
+                default:
+                    return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "InvalidUsername":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.InvalidUsername
-                        };
-                    case "UsernameTaken":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.UsernameTaken
-                        };
-                    case "CouldNotReachServer":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.CouldNotReachServer
-                        };
-                    case "AccountExistsAlready":
-                        return new Core.CreateAccount.ExpectedError {
-                            error = Core.CreateAccount.PossibleErrors.AccountExistsAlready
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.CreateAccount.Success { };
-            }
-
-            return new Core.CreateAccount.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
         }
 
-        public async Task<Core.GetAccount.Result> GetAccount() {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreRespose = getStringAndRelease(get_account(path));
-                coreMutex.ReleaseMutex();
-                return coreRespose;
-            });
-
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.GetAccount.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.GetAccount.ExpectedError {
-                            error = Core.GetAccount.PossibleErrors.NoAccount
-                        };
-                };
-            }
-
-            if (ok != null) {
-                return new Core.GetAccount.Success {
-                    accountJson = ok.ToString()
-                };
-            }
-
-            return new Core.GetAccount.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.GetDbState.IResult> GetDbState() {
+            return await FFICommon<Core.GetDbState.IResult, Core.GetDbState.ExpectedError, Core.GetDbState.PossibleErrors, Core.GetDbState.UnexpectedError>(
+                () => get_db_state(path),
+                s => {
+                    if (Enum.TryParse<DbState>(s, out var dbState)) {
+                        return new Core.GetDbState.Success { dbState = dbState };
+                    } else {
+                        return new Core.GetDbState.UnexpectedError { ErrorMessage = "contract error (unknown dbState variant): " + s };
+                    }
+                });
         }
 
-        public async Task<Core.ImportAccount.Result> ImportAccount(string account_string) {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(import_account(path, account_string));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.ImportAccount.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "AccountStringCorrupted":
-                        return new Core.ImportAccount.ExpectedError {
-                            error = Core.ImportAccount.PossibleErrors.AccountStringCorrupted
-                        };
-                    case "AccountExistsAlready":
-                        return new Core.ImportAccount.ExpectedError {
-                            error = Core.ImportAccount.PossibleErrors.AccountExistsAlready
-                        };
-                    case "AccountDoesNotExist":
-                        return new Core.ImportAccount.ExpectedError {
-                            error = Core.ImportAccount.PossibleErrors.AccountDoesNotExist
-                        };
-                    case "UsernamePKMismatch":
-                        return new Core.ImportAccount.ExpectedError {
-                            error = Core.ImportAccount.PossibleErrors.UsernamePKMismatch
-                        };
-                    case "CouldNotReachServer":
-                        return new Core.ImportAccount.ExpectedError {
-                            error = Core.ImportAccount.PossibleErrors.CouldNotReachServer
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.ImportAccount.Success { };
-            }
-
-            return new Core.ImportAccount.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.MigrateDb.IResult> MigrateDb() {
+            return await FFICommon<Core.MigrateDb.IResult, Core.MigrateDb.ExpectedError, Core.MigrateDb.PossibleErrors, Core.MigrateDb.UnexpectedError>(
+                () => migrate_db(path),
+                s => new Core.MigrateDb.Success());
         }
 
-        public async Task<Core.ListFileMetadata.Result> ListFileMetadata() {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResult = getStringAndRelease(list_metadatas(path));
-                coreMutex.ReleaseMutex();
-                return coreResult;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.ListFileMetadata.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (ok != null) {
-                return new Core.ListFileMetadata.Success {
-                    files = JsonConvert.DeserializeObject<List<FileMetadata>>(ok.ToString())
-                };
-            }
-
-            return new Core.ListFileMetadata.UnexpectedError {
-                errorMessage = result
-            };
-
+        public async Task<Core.CreateAccount.IResult> CreateAccount(string username) {
+            return await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
+                () => create_account(path, username, "http://qa.lockbook.app:8000"),
+                s => new Core.CreateAccount.Success());
         }
 
-        public async Task<Core.CreateFile.Result> CreateFile(string name, string parent, FileType ft) {
-            string fileType;
-
-            if (ft == FileType.Folder) {
-                fileType = "Folder";
-            } else {
-                fileType = "Document";
-            }
-
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(create_file(path, name, parent, fileType));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.CreateFile.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.CreateFile.ExpectedError {
-                            error = Core.CreateFile.PossibleErrors.NoAccount
-                        };
-                    case "DocumentTreatedAsFolder":
-                        return new Core.CreateFile.ExpectedError {
-                            error = Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder
-                        };
-                    case "CouldNotFindAParent":
-                        return new Core.CreateFile.ExpectedError {
-                            error = Core.CreateFile.PossibleErrors.CouldNotFindAParent
-                        };
-                    case "FileNameNotAvailable":
-                        return new Core.CreateFile.ExpectedError {
-                            error = Core.CreateFile.PossibleErrors.FileNameNotAvailable
-                        };
-                    case "FileNameContainsSlash":
-                        return new Core.CreateFile.ExpectedError {
-                            error = Core.CreateFile.PossibleErrors.FileNameContainsSlash
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.CreateFile.Success {
-                    NewFile = JsonConvert.DeserializeObject<FileMetadata>(ok.ToString())
-                };
-            }
-
-            return new Core.CreateFile.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.ImportAccount.IResult> ImportAccount(string accountString) {
+            return await FFICommon<Core.ImportAccount.IResult, Core.ImportAccount.ExpectedError, Core.ImportAccount.PossibleErrors, Core.ImportAccount.UnexpectedError>(
+                () => import_account(path, accountString),
+                s => new Core.ImportAccount.Success());
         }
 
-        public async Task<Core.SyncAll.Result> SyncAll() {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(sync_all(path));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.SyncAll.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.SyncAll.ExpectedError {
-                            error = Core.SyncAll.PossibleErrors.NoAccount
-                        };
-                    case "CouldNotReachServer":
-                        return new Core.SyncAll.ExpectedError {
-                            error = Core.SyncAll.PossibleErrors.CouldNotReachServer
-                        };
-                    case "ExecuteWorkError": // TODO perhaps not how this works
-                        return new Core.SyncAll.ExpectedError {
-                            error = Core.SyncAll.PossibleErrors.ExecuteWorkError
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.SyncAll.Success { };
-            }
-
-            return new Core.SyncAll.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.ExportAccount.IResult> ExportAccount() {
+            return await FFICommon<Core.ExportAccount.IResult, Core.ExportAccount.ExpectedError, Core.ExportAccount.PossibleErrors, Core.ExportAccount.UnexpectedError>(
+                () => export_account(path),
+                s => new Core.ExportAccount.Success { accountString = s });
         }
 
-        public async Task<Core.RenameFile.Result> RenameFile(string id, string newName) {
-
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(rename_file(path, id, newName));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.RenameFile.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "FileDoesNotExist":
-                        return new Core.RenameFile.ExpectedError {
-                            error = Core.RenameFile.PossibleErrors.FileDoesNotExist
-                        };
-                    case "NewNameContainsSlash":
-                        return new Core.RenameFile.ExpectedError {
-                            error = Core.RenameFile.PossibleErrors.NewNameContainsSlash
-                        };
-                    case "FileNameNotAvailable": // TODO perhaps not how this works
-                        return new Core.RenameFile.ExpectedError {
-                            error = Core.RenameFile.PossibleErrors.FileNameNotAvailable
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.RenameFile.Success { };
-            }
-
-            return new Core.RenameFile.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.GetAccount.IResult> GetAccount() {
+            return await FFICommon<Core.GetAccount.IResult, Core.GetAccount.ExpectedError, Core.GetAccount.PossibleErrors, Core.GetAccount.UnexpectedError>(
+                () => get_account(path),
+                s => new Core.GetAccount.Success { accountJson = s });
         }
 
-        public async Task<Core.MoveFile.Result> MoveFile(string id, string newParent) {
-
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(move_file(path, id, newParent));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.MoveFile.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.MoveFile.ExpectedError {
-                            error = Core.MoveFile.PossibleErrors.NoAccount
-                        };
-                    case "FileDoesNotExist":
-                        return new Core.MoveFile.ExpectedError {
-                            error = Core.MoveFile.PossibleErrors.FileDoesNotExist
-                        };
-                    case "DocumentTreatedAsFolder":
-                        return new Core.MoveFile.ExpectedError {
-                            error = Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder
-                        };
-                    case "TargetParentHasChildNamedThat":
-                        return new Core.MoveFile.ExpectedError {
-                            error = Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat
-                        };
-                    case "TargetParentDoesNotExist":
-                        return new Core.MoveFile.ExpectedError {
-                            error = Core.MoveFile.PossibleErrors.TargetParentDoesNotExist
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.MoveFile.Success { };
-            }
-
-            return new Core.MoveFile.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {
+            return await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
+                () => create_file_at_path(path, pathWithName),
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s)});
         }
 
-        public async Task<Core.ReadDocument.Result> ReadDocument(string id) {
-
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(read_document(path, id));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.ReadDocument.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.ReadDocument.ExpectedError {
-                            error = Core.ReadDocument.PossibleErrors.NoAccount
-                        };
-                    case "FileDoesNotExist":
-                        return new Core.ReadDocument.ExpectedError {
-                            error = Core.ReadDocument.PossibleErrors.FileDoesNotExist
-                        };
-                    case "TreatedFolderAsDocument":
-                        return new Core.ReadDocument.ExpectedError {
-                            error = Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.ReadDocument.Success {
-                    content = JsonConvert.DeserializeObject<DecryptedValue>(ok.ToString())
-                };
-            }
-
-            return new Core.ReadDocument.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.WriteDocument.IResult> WriteDocument(string id, string content) {
+            return await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
+                () => write_document(path, id, content),
+                s => new Core.WriteDocument.Success());
         }
 
-        public async Task<Core.WriteDocument.Result> WriteDocument(string id, string content) {
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(write_document(path, id, content));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
-
-            JObject obj = JObject.Parse(result);
-
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
-
-            if (unexpectedError != null) {
-                return new Core.WriteDocument.UnexpectedError {
-                    errorMessage = result
-                };
-            }
-
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.WriteDocument.ExpectedError {
-                            error = Core.WriteDocument.PossibleErrors.NoAccount
-                        };
-                    case "FileDoesNotExist":
-                        return new Core.WriteDocument.ExpectedError {
-                            error = Core.WriteDocument.PossibleErrors.FileDoesNotExist
-                        };
-                    case "TreatedFolderAsDocument":
-                        return new Core.WriteDocument.ExpectedError {
-                            error = Core.WriteDocument.PossibleErrors.TreatedFolderAsDocument
-                        };
-                }
-            }
-
-            if (ok != null) {
-                return new Core.WriteDocument.Success { };
-            }
-
-            return new Core.WriteDocument.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.CreateFile.IResult> CreateFile(string name, string parent, FileType ft) {
+            return await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
+                () => create_file(path, name, parent, ft == FileType.Folder ? "Folder" : "Document"),
+                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
         }
 
-        public async Task<Core.CalculateWork.Result> CalculateWork() {
+        public async Task<Core.GetRoot.IResult> GetRoot() {
+            return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
+                () => get_root(path),
+                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<FileMetadata>(s) });
+        }
 
-            string result = await Task.Run(() => {
-                coreMutex.WaitOne();
-                string coreResponse = getStringAndRelease(calculate_work(path));
-                coreMutex.ReleaseMutex();
-                return coreResponse;
-            });
+        public async Task<Core.GetChildren.IResult> GetChildren(string id) {
+            return await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
+                () => get_children(path, id),
+                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+        }
 
-            JObject obj = JObject.Parse(result);
+        public async Task<Core.ReadDocument.IResult> ReadDocument(string id) {
+            return await FFICommon<Core.ReadDocument.IResult, Core.ReadDocument.ExpectedError, Core.ReadDocument.PossibleErrors, Core.ReadDocument.UnexpectedError>(
+                () => read_document(path, id),
+                s => new Core.ReadDocument.Success { content = JsonConvert.DeserializeObject<DecryptedValue>(s) });
+        }
 
-            JToken unexpectedError = obj.SelectToken("Err.UnexpectedError", errorWhenNoMatch: false);
-            JToken expectedError = obj.SelectToken("Err", errorWhenNoMatch: false);
-            JToken ok = obj.SelectToken("Ok", errorWhenNoMatch: false);
+        public async Task<Core.GetFileByPath.IResult> GetFileByPath(string pathWithName) {
+            return await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
+                () => get_file_by_path(path, pathWithName),
+                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<FileMetadata>(s) });
+        }
 
-            if (unexpectedError != null) {
-                return new Core.CalculateWork.UnexpectedError {
-                    errorMessage = result
-                };
-            }
+        public async Task<Core.DeleteFile.IResult> DeleteFile(string id) {
+            return await FFICommon<Core.DeleteFile.IResult, Core.DeleteFile.ExpectedError, Core.DeleteFile.PossibleErrors, Core.DeleteFile.UnexpectedError>(
+                () => delete_file(path, id),
+                s => new Core.DeleteFile.Success());
+        }
 
-            if (expectedError != null) {
-                switch (expectedError.ToString()) {
-                    case "NoAccount":
-                        return new Core.CalculateWork.ExpectedError {
-                            error = Core.CalculateWork.PossibleErrors.NoAccount
-                        };
-                    case "CouldNotReachServer":
-                        return new Core.CalculateWork.ExpectedError {
-                            error = Core.CalculateWork.PossibleErrors.CouldNotReachServer
-                        };
-                }
-            }
+        public async Task<Core.ListPaths.IResult> ListPaths(string filter) {
+            return await FFICommon<Core.ListPaths.IResult, Core.ListPaths.ExpectedError, Core.ListPaths.PossibleErrors, Core.ListPaths.UnexpectedError>(
+                () => list_paths(path, filter),
+                s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s) });
+        }
 
-            if (ok != null) {
-                return new Core.CalculateWork.Success {
-                    workCalculated = JsonConvert.DeserializeObject<Core.CalculateWork.WorkCalculated>(ok.ToString())
-                };
-            }
+        public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
+            return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
+                () => list_metadatas(path),
+                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+        }
 
-            return new Core.CalculateWork.UnexpectedError {
-                errorMessage = "Contract error!"
-            };
+        public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {
+            return await FFICommon<Core.RenameFile.IResult, Core.RenameFile.ExpectedError, Core.RenameFile.PossibleErrors, Core.RenameFile.UnexpectedError>(
+                () => rename_file(path, id, newName),
+                s => new Core.RenameFile.Success());
+        }
+
+        public async Task<Core.MoveFile.IResult> MoveFile(string id, string newParent) {
+            return await FFICommon<Core.MoveFile.IResult, Core.MoveFile.ExpectedError, Core.MoveFile.PossibleErrors, Core.MoveFile.UnexpectedError>(
+                () => move_file(path, id, newParent),
+                s => new Core.MoveFile.Success());
+        }
+
+        public async Task<Core.SyncAll.IResult> SyncAll() {
+            return await FFICommon<Core.SyncAll.IResult, Core.SyncAll.ExpectedError, Core.SyncAll.PossibleErrors, Core.SyncAll.UnexpectedError>(
+                () => sync_all(path),
+                s => new Core.SyncAll.Success());
+        }
+
+        public async Task<Core.CalculateWork.IResult> CalculateWork() {
+            return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
+                () => calculate_work(path),
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s) });
+        }
+
+        public async Task<Core.ExecuteWork.IResult> ExecuteWork(string workUnit) {
+            return await FFICommon<Core.ExecuteWork.IResult, Core.ExecuteWork.ExpectedError, Core.ExecuteWork.PossibleErrors, Core.ExecuteWork.UnexpectedError>(
+                () => execute_work(path, workUnit),
+                s => new Core.ExecuteWork.Success());
+        }
+
+        public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
+            return await FFICommon<Core.SetLastSynced.IResult, Core.SetLastSynced.ExpectedError, Core.SetLastSynced.PossibleErrors, Core.SetLastSynced.UnexpectedError>(
+                () => set_last_synced(path, lastSync),
+                s => new Core.SetLastSynced.Success());
+        }
+
+        public async Task<Core.GetLastSynced.IResult> GetLastSynced() {
+            return await FFICommon<Core.GetLastSynced.IResult, Core.GetLastSynced.ExpectedError, Core.GetLastSynced.PossibleErrors, Core.GetLastSynced.UnexpectedError>(
+                () => get_last_synced(path),
+                s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s) });
+        }
+
+        public async Task<Core.GetUsage.IResult> GetUsage() {
+            return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
+                () => get_usage(path),
+                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<List<FileUsage>>(s) });
         }
     }
 }
