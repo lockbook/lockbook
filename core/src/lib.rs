@@ -168,8 +168,6 @@ pub enum MigrationError {
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    sleep(Duration::new(5, 0));
-
     match DefaultDbStateService::perform_migration(&db) {
         Ok(_) => Ok(()),
         Err(err) => match err {
