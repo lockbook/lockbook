@@ -1,4 +1,4 @@
-use crate::model::crypto::{UserAccessInfo, EncryptedDocument};
+use crate::model::crypto::{EncryptedDocument, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

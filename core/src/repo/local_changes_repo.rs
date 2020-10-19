@@ -1,7 +1,7 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::{UserAccessInfo, EncryptedDocument};
+use crate::model::crypto::{EncryptedDocument, UserAccessInfo};
 use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 
 #[derive(Debug)]
