@@ -123,7 +123,6 @@ pub async fn create_document(
         FileType::Document,
         &request.name,
         &request.username,
-        &request.signature,
         &request.parent_access_key,
     )
     .await;
@@ -400,7 +399,6 @@ pub async fn create_folder(
         FileType::Folder,
         &request.name,
         &request.username,
-        &request.signature,
         &request.parent_access_key,
     )
     .await;
