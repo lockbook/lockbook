@@ -27,6 +27,8 @@ import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
+const val STATEREQUIRESCLEANING =
+    "This version of lockbook is incompatible with the data on your device. Either downgrade your lockbook, or delete all application data from settings."
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var job = Job()
@@ -52,7 +54,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     State.MigrationRequired -> {
                         Snackbar.make(
                             splash_screen,
-                            "Your data is old and will require migrating, please wait...",
+                            "Upgrading data...",
                             Snackbar.LENGTH_LONG
                         ).show()
                         migrate_progress_bar.visibility = View.VISIBLE
@@ -62,7 +64,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         Timber.e("DB state requires cleaning!")
                         Snackbar.make(
                             splash_screen,
-                            "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
+                            STATEREQUIRESCLEANING,
                             Snackbar.LENGTH_SHORT
                         ).show()
                     }
@@ -116,7 +118,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 migrate_progress_bar.visibility = View.GONE
                                 Snackbar.make(
                                     splash_screen,
-                                    "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
+                                    STATEREQUIRESCLEANING,
                                     Snackbar.LENGTH_LONG
                                 ).addCallback(object : Snackbar.Callback() {
                                     override fun onDismissed(
@@ -148,7 +150,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
         }
     }
-
 
     private fun startFromExistingAccount() {
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
@@ -186,7 +187,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                        .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(

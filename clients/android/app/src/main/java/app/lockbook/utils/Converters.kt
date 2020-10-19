@@ -37,33 +37,35 @@ val getStateConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
-            okTag -> {
-                val ok = jv.obj?.string("content")
-                if (ok != null) {
-                    Ok(when(ok) {
+        okTag -> {
+            val ok = jv.obj?.string("content")
+            if (ok != null) {
+                Ok(
+                    when (ok) {
                         State.ReadyToUse.name -> State.ReadyToUse
                         State.Empty.name -> State.Empty
                         State.MigrationRequired.name -> State.MigrationRequired
                         State.StateRequiresClearing.name -> State.StateRequiresClearing
                         else -> {}
-                    })
+                    }
+                )
+            } else {
+                Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
+            }
+        }
+        errTag -> when (jv.obj?.obj("content")?.string("tag")) {
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(GetStateError.Unexpected(error))
                 } else {
                     Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            errTag -> when (jv.obj?.obj("content")?.string("tag")) {
-                unexpectedTag -> {
-                    val error = jv.obj?.obj("content")?.string("content")
-                    if (error != null) {
-                        Err(GetStateError.Unexpected(error))
-                    } else {
-                        Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
-                    }
-                }
-                else -> Err(GetStateError.Unexpected("Can't recognize an error tag."))
-            }
-            else -> Err(GetStateError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
+            else -> Err(GetStateError.Unexpected("Can't recognize an error tag."))
         }
+        else -> Err(GetStateError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
+    }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
@@ -77,10 +79,12 @@ val migrateDBConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        MigrationError.StateRequiresCleaning::class.simpleName -> MigrationError.StateRequiresCleaning
-                        else -> MigrationError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            MigrationError.StateRequiresCleaning::class.simpleName -> MigrationError.StateRequiresCleaning
+                            else -> MigrationError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(MigrationError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -101,7 +105,6 @@ val migrateDBConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-
 val createAccountConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
@@ -111,13 +114,15 @@ val createAccountConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        CreateAccountError.UsernameTaken::class.simpleName -> CreateAccountError.UsernameTaken
-                        CreateAccountError.InvalidUsername::class.simpleName -> CreateAccountError.InvalidUsername
-                        CreateAccountError.CouldNotReachServer::class.simpleName -> CreateAccountError.CouldNotReachServer
-                        CreateAccountError.AccountExistsAlready::class.simpleName -> CreateAccountError.AccountExistsAlready
-                        else -> CreateAccountError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            CreateAccountError.UsernameTaken::class.simpleName -> CreateAccountError.UsernameTaken
+                            CreateAccountError.InvalidUsername::class.simpleName -> CreateAccountError.InvalidUsername
+                            CreateAccountError.CouldNotReachServer::class.simpleName -> CreateAccountError.CouldNotReachServer
+                            CreateAccountError.AccountExistsAlready::class.simpleName -> CreateAccountError.AccountExistsAlready
+                            else -> CreateAccountError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(CreateAccountError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -147,14 +152,16 @@ val importAccountConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        ImportError.AccountStringCorrupted::class.simpleName -> ImportError.AccountStringCorrupted
-                        ImportError.AccountExistsAlready::class.simpleName -> ImportError.AccountExistsAlready
-                        ImportError.AccountDoesNotExist::class.simpleName -> ImportError.AccountDoesNotExist
-                        ImportError.UsernamePKMismatch::class.simpleName -> ImportError.UsernamePKMismatch
-                        ImportError.CouldNotReachServer::class.simpleName -> ImportError.CouldNotReachServer
-                        else -> ImportError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            ImportError.AccountStringCorrupted::class.simpleName -> ImportError.AccountStringCorrupted
+                            ImportError.AccountExistsAlready::class.simpleName -> ImportError.AccountExistsAlready
+                            ImportError.AccountDoesNotExist::class.simpleName -> ImportError.AccountDoesNotExist
+                            ImportError.UsernamePKMismatch::class.simpleName -> ImportError.UsernamePKMismatch
+                            ImportError.CouldNotReachServer::class.simpleName -> ImportError.CouldNotReachServer
+                            else -> ImportError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(ImportError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -191,10 +198,12 @@ val exportAccountConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        AccountExportError.NoAccount::class.simpleName -> AccountExportError.NoAccount
-                        else -> AccountExportError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            AccountExportError.NoAccount::class.simpleName -> AccountExportError.NoAccount
+                            else -> AccountExportError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(AccountExportError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -231,10 +240,12 @@ val getAccountConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        GetAccountError.NoAccount::class.simpleName -> GetAccountError.NoAccount
-                        else -> GetAccountError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            GetAccountError.NoAccount::class.simpleName -> GetAccountError.NoAccount
+                            else -> GetAccountError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(GetAccountError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -293,10 +304,12 @@ val getRootConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        GetRootError.NoRoot::class.simpleName -> GetRootError.NoRoot
-                        else -> GetRootError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            GetRootError.NoRoot::class.simpleName -> GetRootError.NoRoot
+                            else -> GetRootError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(GetRootError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -362,10 +375,12 @@ val getFileByIdConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        GetFileByIdError.NoFileWithThatId::class.simpleName -> GetFileByIdError.NoFileWithThatId
-                        else -> GetFileByIdError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            GetFileByIdError.NoFileWithThatId::class.simpleName -> GetFileByIdError.NoFileWithThatId
+                            else -> GetFileByIdError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(GetFileByIdError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -417,14 +432,16 @@ val renameFileConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        RenameFileError.FileDoesNotExist::class.simpleName -> RenameFileError.FileDoesNotExist
-                        RenameFileError.NewNameContainsSlash::class.simpleName -> RenameFileError.NewNameContainsSlash
-                        RenameFileError.FileNameNotAvailable::class.simpleName -> RenameFileError.FileNameNotAvailable
-                        RenameFileError.NewNameEmpty::class.simpleName -> RenameFileError.NewNameEmpty
-                        RenameFileError.CannotRenameRoot::class.simpleName -> RenameFileError.CannotRenameRoot
-                        else -> RenameFileError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            RenameFileError.FileDoesNotExist::class.simpleName -> RenameFileError.FileDoesNotExist
+                            RenameFileError.NewNameContainsSlash::class.simpleName -> RenameFileError.NewNameContainsSlash
+                            RenameFileError.FileNameNotAvailable::class.simpleName -> RenameFileError.FileNameNotAvailable
+                            RenameFileError.NewNameEmpty::class.simpleName -> RenameFileError.NewNameEmpty
+                            RenameFileError.CannotRenameRoot::class.simpleName -> RenameFileError.CannotRenameRoot
+                            else -> RenameFileError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(RenameFileError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -461,15 +478,17 @@ val createFileConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        CreateFileError.NoAccount::class.simpleName -> CreateFileError.NoAccount
-                        CreateFileError.DocumentTreatedAsFolder::class.simpleName -> CreateFileError.DocumentTreatedAsFolder
-                        CreateFileError.FileNameNotAvailable::class.simpleName -> CreateFileError.FileNameNotAvailable
-                        CreateFileError.CouldNotFindAParent::class.simpleName -> CreateFileError.CouldNotFindAParent
-                        CreateFileError.FileNameContainsSlash::class.simpleName -> CreateFileError.FileNameContainsSlash
-                        CreateFileError.FileNameEmpty::class.simpleName -> CreateFileError.FileNameEmpty
-                        else -> CreateFileError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            CreateFileError.NoAccount::class.simpleName -> CreateFileError.NoAccount
+                            CreateFileError.DocumentTreatedAsFolder::class.simpleName -> CreateFileError.DocumentTreatedAsFolder
+                            CreateFileError.FileNameNotAvailable::class.simpleName -> CreateFileError.FileNameNotAvailable
+                            CreateFileError.CouldNotFindAParent::class.simpleName -> CreateFileError.CouldNotFindAParent
+                            CreateFileError.FileNameContainsSlash::class.simpleName -> CreateFileError.FileNameContainsSlash
+                            CreateFileError.FileNameEmpty::class.simpleName -> CreateFileError.FileNameEmpty
+                            else -> CreateFileError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(CreateFileError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -499,10 +518,12 @@ val deleteFileConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        DeleteFileError.NoFileWithThatId::class.simpleName -> DeleteFileError.NoFileWithThatId
-                        else -> DeleteFileError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            DeleteFileError.NoFileWithThatId::class.simpleName -> DeleteFileError.NoFileWithThatId
+                            else -> DeleteFileError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(DeleteFileError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -539,12 +560,14 @@ val readDocumentConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        ReadDocumentError.TreatedFolderAsDocument::class.simpleName -> ReadDocumentError.TreatedFolderAsDocument
-                        ReadDocumentError.NoAccount::class.simpleName -> ReadDocumentError.NoAccount
-                        ReadDocumentError.FileDoesNotExist::class.simpleName -> ReadDocumentError.FileDoesNotExist
-                        else -> ReadDocumentError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            ReadDocumentError.TreatedFolderAsDocument::class.simpleName -> ReadDocumentError.TreatedFolderAsDocument
+                            ReadDocumentError.NoAccount::class.simpleName -> ReadDocumentError.NoAccount
+                            ReadDocumentError.FileDoesNotExist::class.simpleName -> ReadDocumentError.FileDoesNotExist
+                            else -> ReadDocumentError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(ReadDocumentError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -574,12 +597,14 @@ val writeDocumentConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        WriteToDocumentError.FolderTreatedAsDocument::class.simpleName -> WriteToDocumentError.FolderTreatedAsDocument
-                        WriteToDocumentError.NoAccount::class.simpleName -> WriteToDocumentError.NoAccount
-                        WriteToDocumentError.FileDoesNotExist::class.simpleName -> WriteToDocumentError.FileDoesNotExist
-                        else -> WriteToDocumentError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            WriteToDocumentError.FolderTreatedAsDocument::class.simpleName -> WriteToDocumentError.FolderTreatedAsDocument
+                            WriteToDocumentError.NoAccount::class.simpleName -> WriteToDocumentError.NoAccount
+                            WriteToDocumentError.FileDoesNotExist::class.simpleName -> WriteToDocumentError.FileDoesNotExist
+                            else -> WriteToDocumentError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(WriteToDocumentError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -609,15 +634,17 @@ val moveFileConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        MoveFileError.DocumentTreatedAsFolder::class.simpleName -> MoveFileError.DocumentTreatedAsFolder
-                        MoveFileError.NoAccount::class.simpleName -> MoveFileError.NoAccount
-                        MoveFileError.FileDoesNotExist::class.simpleName -> MoveFileError.FileDoesNotExist
-                        MoveFileError.TargetParentDoesNotExist::class.simpleName -> MoveFileError.TargetParentDoesNotExist
-                        MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> MoveFileError.TargetParentHasChildNamedThat
-                        MoveFileError.CannotMoveRoot::class.simpleName -> MoveFileError.CannotMoveRoot
-                        else -> MoveFileError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            MoveFileError.DocumentTreatedAsFolder::class.simpleName -> MoveFileError.DocumentTreatedAsFolder
+                            MoveFileError.NoAccount::class.simpleName -> MoveFileError.NoAccount
+                            MoveFileError.FileDoesNotExist::class.simpleName -> MoveFileError.FileDoesNotExist
+                            MoveFileError.TargetParentDoesNotExist::class.simpleName -> MoveFileError.TargetParentDoesNotExist
+                            MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> MoveFileError.TargetParentHasChildNamedThat
+                            MoveFileError.CannotMoveRoot::class.simpleName -> MoveFileError.CannotMoveRoot
+                            else -> MoveFileError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(MoveFileError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -647,12 +674,14 @@ val syncAllConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        SyncAllError.CouldNotReachServer::class.simpleName -> SyncAllError.CouldNotReachServer
-                        SyncAllError.NoAccount::class.simpleName -> SyncAllError.NoAccount
-                        SyncAllError.ExecuteWorkError::class.simpleName -> SyncAllError.ExecuteWorkError
-                        else -> SyncAllError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            SyncAllError.CouldNotReachServer::class.simpleName -> SyncAllError.CouldNotReachServer
+                            SyncAllError.NoAccount::class.simpleName -> SyncAllError.NoAccount
+                            SyncAllError.ExecuteWorkError::class.simpleName -> SyncAllError.ExecuteWorkError
+                            else -> SyncAllError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(SyncAllError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -689,11 +718,13 @@ val calculateSyncWorkConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        CalculateWorkError.CouldNotReachServer::class.simpleName -> CalculateWorkError.CouldNotReachServer
-                        CalculateWorkError.NoAccount::class.simpleName -> CalculateWorkError.NoAccount
-                        else -> CalculateWorkError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            CalculateWorkError.CouldNotReachServer::class.simpleName -> CalculateWorkError.CouldNotReachServer
+                            CalculateWorkError.NoAccount::class.simpleName -> CalculateWorkError.NoAccount
+                            else -> CalculateWorkError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(CalculateWorkError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
@@ -723,10 +754,12 @@ val executeSyncWorkConverter = object : Converter {
             uiErrorTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(when(error) {
-                        ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
-                        else -> ExecuteWorkError.Unexpected("Can't recognize UiError content.")
-                    })
+                    Err(
+                        when (error) {
+                            ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
+                            else -> ExecuteWorkError.Unexpected("Can't recognize UiError content.")
+                        }
+                    )
                 } else {
                     Err(ExecuteWorkError.Unexpected("Can't receive contents from UnexpectedError."))
                 }

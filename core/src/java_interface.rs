@@ -14,7 +14,12 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::{calculate_work, create_account, create_file, delete_file, execute_work, export_account, get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error, get_db_state, migrate_db};
+use crate::{
+    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
+    get_account, get_children, get_db_state, get_file_by_id, get_root, import_account, init_logger,
+    insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all,
+    write_document, Error,
+};
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -67,7 +72,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,
@@ -97,7 +102,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
             );
         }
     }
-        .into();
+    .into();
 
     let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
         Ok(ok) => ok,

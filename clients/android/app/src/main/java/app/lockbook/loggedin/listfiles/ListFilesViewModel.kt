@@ -111,7 +111,7 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = fileModel.unexpectedErrorHasOccurred
 
     val unexpectedErrorHasOccurred: LiveData<String>
-            get() = _unexpectedErrorHasOccurred
+        get() = _unexpectedErrorHasOccurred
 
     init {
         uiScope.launch {

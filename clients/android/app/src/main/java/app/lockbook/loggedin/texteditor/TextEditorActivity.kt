@@ -86,7 +86,6 @@ class TextEditorActivity : AppCompatActivity() {
 
         setUpView()
         startBackgroundSave()
-
     }
 
     private fun startBackgroundSave() {
