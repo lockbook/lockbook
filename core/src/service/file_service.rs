@@ -1,7 +1,6 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
@@ -34,6 +33,7 @@ use crate::service::file_service::NewFileFromPathError::{
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
 use sha2::{Digest, Sha256};
+use crate::model::crypto::DecryptedDocument;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -125,14 +125,14 @@ pub trait FileService {
     fn write_document(
         db: &Db,
         id: Uuid,
-        content: &DecryptedValue,
+        content: &[u8],
     ) -> Result<(), DocumentUpdateError>;
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
 
     fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), FileMoveError>;
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError>;
 }
 
 pub struct FileServiceImpl<
@@ -204,9 +204,7 @@ impl<
             Self::write_document(
                 &db,
                 new_metadata.id,
-                &DecryptedValue {
-                    secret: "".to_string(),
-                },
+                &Vec::<u8>::new(),
             )
             .map_err(FailedToWriteFileContent)?;
         }
@@ -289,7 +287,7 @@ impl<
     fn write_document(
         db: &Db,
         id: Uuid,
-        content: &DecryptedValue,
+        content: &[u8],
     ) -> Result<(), DocumentUpdateError> {
         let account =
             AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
@@ -328,8 +326,8 @@ impl<
                 file_metadata.id,
                 &old_encrypted,
                 &permanent_access_info,
-                Sha256::digest(decrypted.secret.as_bytes()).to_vec(),
-                Sha256::digest(content.secret.as_bytes()).to_vec(),
+                Sha256::digest(&decrypted).to_vec(),
+                Sha256::digest(&content).to_vec(),
             )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
@@ -436,7 +434,7 @@ impl<
         }
     }
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError> {
         let account =
             AccountDb::get_account(&db).map_err(ReadDocumentError::AccountRetrievalError)?;
 
@@ -463,7 +461,6 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
@@ -565,17 +562,14 @@ mod unit_tests {
         DefaultFileService::write_document(
             &db,
             file.id,
-            &DecryptedValue {
-                secret: "5 folders deep".to_string(),
-            },
+            "5 folders deep".as_bytes(),
         )
         .unwrap();
 
         assert_eq!(
             DefaultFileService::read_document(&db, file.id)
-                .unwrap()
-                .secret,
-            "5 folders deep".to_string()
+                .unwrap(),
+            "5 folders deep".as_bytes()
         );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
         assert_no_metadata_problems!(&db);
@@ -957,13 +951,13 @@ mod unit_tests {
         assert!(DefaultFileService::write_document(
             &db,
             folder1.id,
-            &DecryptedValue::from("should fail"),
+            &"should fail".as_bytes(),
         )
         .is_err());
 
         assert_no_metadata_problems!(&db);
 
-        DefaultFileService::write_document(&db, file1.id, &DecryptedValue::from("nice doc ;)"))
+        DefaultFileService::write_document(&db, file1.id, "nice doc ;)".as_bytes())
             .unwrap();
 
         assert_total_local_changes!(&db, 3);
@@ -978,9 +972,8 @@ mod unit_tests {
 
         assert_eq!(
             DefaultFileService::read_document(&db, file1.id)
-                .unwrap()
-                .secret,
-            "nice doc ;)"
+                .unwrap(),
+            "nice doc ;)".as_bytes()
         );
 
         assert_no_metadata_problems!(&db);
@@ -1013,7 +1006,7 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/file1.md").unwrap();
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes())
             .unwrap();
 
         assert!(
@@ -1029,14 +1022,14 @@ mod unit_tests {
             .is_none());
         assert_total_local_changes!(&db, 0);
 
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content2"))
+        DefaultFileService::write_document(&db, file.id, "fresh content2".as_bytes())
             .unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .unwrap()
             .content_edited
             .is_some());
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes())
             .unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
