@@ -83,6 +83,14 @@ Vestibulum ante ipsum primis in vel.
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
+
+    public func getState() -> FfiResult<DbState, GetStateError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+
+    public func migrateState() -> FfiResult<Empty, MigrationError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
     
     public let username: Account.Username = "jeff"
     public let root = FileMetadata(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false)
