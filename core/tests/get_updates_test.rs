@@ -38,13 +38,9 @@ mod get_updates_test {
 
         // get updates at version of root folder
         assert_eq!(
-            ClientImpl::get_updates(
-                &account.api_url,
-                &account.username,
-                version,
-            )
-            .unwrap()
-            .len(),
+            ClientImpl::get_updates(&account.api_url, &account.username, version,)
+                .unwrap()
+                .len(),
             0
         );
     }

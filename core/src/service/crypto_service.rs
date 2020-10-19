@@ -11,8 +11,8 @@ use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[derive(Debug)]
 pub enum RSAEncryptError {
@@ -46,7 +46,7 @@ pub trait PubKeyCryptoService {
     ) -> Result<RSAEncrypted<T>, RSAEncryptError>;
     fn sign<T: Serialize>(
         private_key: &RSAPrivateKey,
-        to_sign: T
+        to_sign: T,
     ) -> Result<RSASigned<T>, RSASignError>;
     fn verify<T: Serialize>(
         public_key: &RSAPublicKey,
@@ -69,8 +69,7 @@ impl PubKeyCryptoService for RSAImpl {
         public_key: &RSAPublicKey,
         to_encrypt: &T,
     ) -> Result<RSAEncrypted<T>, RSAEncryptError> {
-        let serialized = bincode::serialize(to_encrypt)
-            .map_err(RSAEncryptError::Serialization)?;
+        let serialized = bincode::serialize(to_encrypt).map_err(RSAEncryptError::Serialization)?;
         let encrypted = public_key
             .encrypt(&mut OsRng, PaddingScheme::PKCS1v15, &serialized)
             .map_err(RSAEncryptError::Encryption)?;
@@ -79,10 +78,9 @@ impl PubKeyCryptoService for RSAImpl {
 
     fn sign<T: Serialize>(
         private_key: &RSAPrivateKey,
-        to_sign: T
+        to_sign: T,
     ) -> Result<RSASigned<T>, RSASignError> {
-        let serialized = bincode::serialize(&to_sign)
-            .map_err(RSASignError::Serialization)?;
+        let serialized = bincode::serialize(&to_sign).map_err(RSASignError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
         let signature = private_key
             .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
@@ -97,8 +95,7 @@ impl PubKeyCryptoService for RSAImpl {
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
     ) -> Result<(), RSAVerifyError> {
-        let serialized = bincode::serialize(&to_verify)
-            .map_err(RSAVerifyError::Serialization)?;
+        let serialized = bincode::serialize(&to_verify).map_err(RSAVerifyError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
         public_key
             .verify(
@@ -118,8 +115,8 @@ impl PubKeyCryptoService for RSAImpl {
         let decrypted = private_key
             .decrypt(PaddingScheme::PKCS1v15, &to_decrypt.value)
             .map_err(RSADecryptError::Decryption)?;
-        let deserialized = bincode::deserialize(&decrypted)
-            .map_err(RSADecryptError::Deserialization)?;
+        let deserialized =
+            bincode::deserialize(&decrypted).map_err(RSADecryptError::Deserialization)?;
         Ok(deserialized)
     }
 }
@@ -156,11 +153,7 @@ mod unit_test_pubkey {
     fn test_encrypt_decrypt() {
         let key = RSAImpl::generate_key().unwrap();
 
-        let encrypted = RSAImpl::encrypt(
-            &key.to_public_key(),
-            &String::from("Secret")
-        )
-        .unwrap();
+        let encrypted = RSAImpl::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
         let decrypted = RSAImpl::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted, "Secret");
@@ -216,11 +209,16 @@ impl SymmetricCryptoService for AESImpl {
         key: &AESKey,
         to_encrypt: &T,
     ) -> Result<AESEncrypted<T>, AESEncryptError> {
-        let serialized = bincode::serialize(to_encrypt)
-            .map_err(AESEncryptError::Serialization)?;
+        let serialized = bincode::serialize(to_encrypt).map_err(AESEncryptError::Serialization)?;
         let nonce = &AESImpl::generate_nonce();
         let encrypted = AESImpl::convert_key(key)
-            .encrypt(&GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
+            .encrypt(
+                &GenericArray::from_slice(nonce),
+                aead::Payload {
+                    msg: &serialized,
+                    aad: &[],
+                },
+            )
             .map_err(AESEncryptError::Encryption)?;
         Ok(AESEncrypted::new(encrypted, nonce.to_vec()))
     }
@@ -231,10 +229,16 @@ impl SymmetricCryptoService for AESImpl {
     ) -> Result<T, AESDecryptError> {
         let nonce = GenericArray::from_slice(&to_decrypt.nonce);
         let decrypted = AESImpl::convert_key(key)
-            .decrypt(&nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
+            .decrypt(
+                &nonce,
+                aead::Payload {
+                    msg: &to_decrypt.value,
+                    aad: &[],
+                },
+            )
             .map_err(AESDecryptError::Decryption)?;
-        let deserialized = bincode::deserialize(&decrypted)
-            .map_err(AESDecryptError::Deserialization)?;
+        let deserialized =
+            bincode::deserialize(&decrypted).map_err(AESDecryptError::Deserialization)?;
         Ok(deserialized)
     }
 }
@@ -249,11 +253,7 @@ mod unit_test_symmetric {
     fn test_key_generation() {
         let key = AESImpl::generate_key();
         let test_value = Uuid::new_v4().to_string();
-        let encrypted = AESImpl::encrypt(
-            &key,
-            &test_value,
-        )
-        .unwrap();
+        let encrypted = AESImpl::encrypt(&key, &test_value).unwrap();
         let decrypted = AESImpl::decrypt(&key, &encrypted).unwrap();
         assert_eq!(test_value, decrypted)
     }

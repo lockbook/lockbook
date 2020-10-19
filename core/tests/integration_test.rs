@@ -4,17 +4,17 @@ use lockbook_core::model::account::Account;
 use lockbook_core::model::crypto::*;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
-use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl, Auth};
+use lockbook_core::service::auth_service::{Auth, AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
-use std::env;
-use uuid::Uuid;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::env;
+use uuid::Uuid;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -69,14 +69,23 @@ pub fn sign(account: &Account) -> RSASigned<Auth> {
     AuthServiceImpl::<ClockImpl, RSAImpl>::generate_auth(&account).unwrap()
 }
 
-pub fn aes_encrypt<T: Serialize + DeserializeOwned>(key: &AESKey, to_encrypt: &T) -> AESEncrypted<T> {
+pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
+    key: &AESKey,
+    to_encrypt: &T,
+) -> AESEncrypted<T> {
     AESImpl::encrypt(key, to_encrypt).unwrap()
 }
 
-pub fn aes_decrypt<T: Serialize + DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) -> T {
+pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
+    key: &AESKey,
+    to_decrypt: &AESEncrypted<T>,
+) -> T {
     AESImpl::decrypt(&key, &to_decrypt).unwrap()
 }
 
-pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(key: &RSAPublicKey, to_encrypt: &AESKey) -> RSAEncrypted<AESKey> {
+pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(
+    key: &RSAPublicKey,
+    to_encrypt: &AESKey,
+) -> RSAEncrypted<AESKey> {
     RSAImpl::encrypt(key, to_encrypt).unwrap()
 }

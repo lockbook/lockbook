@@ -150,12 +150,8 @@ impl<
         let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
-        let server_updates = ApiClient::get_updates(
-            &account.api_url,
-            &account.username,
-            last_sync,
-        )
-        .map_err(GetUpdatesError)?;
+        let server_updates = ApiClient::get_updates(&account.api_url, &account.username, last_sync)
+            .map_err(GetUpdatesError)?;
 
         let mut most_recent_update_from_server: u64 = last_sync;
         for metadata in server_updates {
@@ -336,12 +332,20 @@ impl<
                                         )
                                         .map_err(DecryptingOldVersionForMergeError)?;
 
-                                        debug!("{} Common ans: {}", metadata.id, String::from_utf8_lossy(&common_ancestor));
+                                        debug!(
+                                            "{} Common ans: {}",
+                                            metadata.id,
+                                            String::from_utf8_lossy(&common_ancestor)
+                                        );
 
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
                                                 .map_err(ReadingCurrentVersionError)?;
-                                        debug!("{} current: {}", metadata.id, String::from_utf8_lossy(&current_version));
+                                        debug!(
+                                            "{} current: {}",
+                                            metadata.id,
+                                            String::from_utf8_lossy(&current_version)
+                                        );
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
@@ -356,9 +360,14 @@ impl<
                                                 &server_document,
                                                 &edited_locally.access_info,
                                             )
-                                            .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
+                                            .map_err(DecryptingOldVersionForMergeError)?
+                                            // This assumes that a file is never re-keyed.
                                         };
-                                        debug!("{} server: {}", metadata.id, String::from_utf8_lossy(&server_version));
+                                        debug!(
+                                            "{} server: {}",
+                                            metadata.id,
+                                            String::from_utf8_lossy(&server_version)
+                                        );
 
                                         let result = match diffy::merge_bytes(
                                             &common_ancestor,
@@ -375,14 +384,14 @@ impl<
                                             }
                                         };
 
-                                        debug!("{} result: {}", metadata.id, String::from_utf8_lossy(&result));
-
-                                        Files::write_document(
-                                            &db,
+                                        debug!(
+                                            "{} result: {}",
                                             metadata.id,
-                                            &result,
-                                        )
-                                        .map_err(WritingMergedFileError)?;
+                                            String::from_utf8_lossy(&result)
+                                        );
+
+                                        Files::write_document(&db, metadata.id, &result)
+                                            .map_err(WritingMergedFileError)?;
                                     } else {
                                         debug!("File is not mergable: {}", metadata.id);
 

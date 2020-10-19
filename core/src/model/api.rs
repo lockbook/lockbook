@@ -35,7 +35,7 @@ pub enum ChangeDocumentContentError {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
-pub username: String,
+    pub username: String,
     pub client_version: String,
     pub id: Uuid,
     pub name: String,

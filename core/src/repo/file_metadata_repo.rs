@@ -469,7 +469,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::account::Account;
-    use crate::model::crypto::{FolderAccessInfo, EncryptedFolderAccessKey};
+    use crate::model::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;

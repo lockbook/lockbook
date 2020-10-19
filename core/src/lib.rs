@@ -21,6 +21,7 @@ use crate::model::api::{
     DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
     MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
 };
+use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
@@ -54,7 +55,6 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use std::str::FromStr;
-use crate::model::crypto::DecryptedDocument;
 
 pub mod c_interface;
 pub mod client;

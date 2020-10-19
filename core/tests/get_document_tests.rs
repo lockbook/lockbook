@@ -56,8 +56,7 @@ mod get_document_tests {
         assert_eq!(
             aes_decrypt(
                 &doc_key,
-                &ClientImpl::get_document(&account.api_url, doc_id, version)
-                    .unwrap(),
+                &ClientImpl::get_document(&account.api_url, doc_id, version).unwrap(),
             ),
             "doc content".as_bytes()
         );
