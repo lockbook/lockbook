@@ -143,7 +143,7 @@ mod unit_test_pubkey {
     fn test_sign_verify() {
         let key = RSAImpl::generate_key().unwrap();
 
-        let value = RSAImpl::sign(&key, "Test").unwrap();
+        let value = RSAImpl::sign(&key, String::from("Test")).unwrap();
         assert_eq!(value.value, "Test");
 
         RSAImpl::verify(&key.to_public_key(), &value).unwrap();

@@ -360,6 +360,6 @@ mod unit_tests {
         )
         .unwrap();
 
-        assert_eq!(private_content, "test content".as_bytes().to_vec());
+        assert_eq!(private_content, "test content".as_bytes());
     }
 }
