@@ -1,6 +1,7 @@
 use sled::Db;
 use uuid::Uuid;
 
+use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
@@ -33,7 +34,6 @@ use crate::service::file_service::NewFileFromPathError::{
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
 use sha2::{Digest, Sha256};
-use crate::model::crypto::DecryptedDocument;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -122,11 +122,7 @@ pub trait FileService {
 
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError>;
 
-    fn write_document(
-        db: &Db,
-        id: Uuid,
-        content: &[u8],
-    ) -> Result<(), DocumentUpdateError>;
+    fn write_document(db: &Db, id: Uuid, content: &[u8]) -> Result<(), DocumentUpdateError>;
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
 
@@ -201,12 +197,8 @@ impl<
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
-            Self::write_document(
-                &db,
-                new_metadata.id,
-                &Vec::<u8>::new(),
-            )
-            .map_err(FailedToWriteFileContent)?;
+            Self::write_document(&db, new_metadata.id, &Vec::<u8>::new())
+                .map_err(FailedToWriteFileContent)?;
         }
         Ok(new_metadata)
     }
@@ -284,11 +276,7 @@ impl<
         Ok(current)
     }
 
-    fn write_document(
-        db: &Db,
-        id: Uuid,
-        content: &[u8],
-    ) -> Result<(), DocumentUpdateError> {
+    fn write_document(db: &Db, id: Uuid, content: &[u8]) -> Result<(), DocumentUpdateError> {
         let account =
             AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
@@ -559,16 +547,10 @@ mod unit_tests {
         assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 1);
         assert_total_filtered_paths!(&db, Some(DocumentsOnly), 1);
 
-        DefaultFileService::write_document(
-            &db,
-            file.id,
-            "5 folders deep".as_bytes(),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db, file.id, "5 folders deep".as_bytes()).unwrap();
 
         assert_eq!(
-            DefaultFileService::read_document(&db, file.id)
-                .unwrap(),
+            DefaultFileService::read_document(&db, file.id).unwrap(),
             "5 folders deep".as_bytes()
         );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
@@ -948,17 +930,14 @@ mod unit_tests {
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
         let folder1 = DefaultFileService::create_at_path(&db, "username/folder2/").unwrap();
-        assert!(DefaultFileService::write_document(
-            &db,
-            folder1.id,
-            &"should fail".as_bytes(),
-        )
-        .is_err());
+        assert!(
+            DefaultFileService::write_document(&db, folder1.id, &"should fail".as_bytes(),)
+                .is_err()
+        );
 
         assert_no_metadata_problems!(&db);
 
-        DefaultFileService::write_document(&db, file1.id, "nice doc ;)".as_bytes())
-            .unwrap();
+        DefaultFileService::write_document(&db, file1.id, "nice doc ;)".as_bytes()).unwrap();
 
         assert_total_local_changes!(&db, 3);
         assert_no_metadata_problems!(&db);
@@ -971,8 +950,7 @@ mod unit_tests {
         DefaultFileService::move_file(&db, file1.id, folder1.id).unwrap();
 
         assert_eq!(
-            DefaultFileService::read_document(&db, file1.id)
-                .unwrap(),
+            DefaultFileService::read_document(&db, file1.id).unwrap(),
             "nice doc ;)".as_bytes()
         );
 
@@ -1006,8 +984,7 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/file1.md").unwrap();
-        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes())
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes()).unwrap();
 
         assert!(
             DefaultLocalChangesRepo::get_local_changes(&db, file.id)
@@ -1022,15 +999,13 @@ mod unit_tests {
             .is_none());
         assert_total_local_changes!(&db, 0);
 
-        DefaultFileService::write_document(&db, file.id, "fresh content2".as_bytes())
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content2".as_bytes()).unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .unwrap()
             .content_edited
             .is_some());
-        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes())
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes()).unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .is_none());

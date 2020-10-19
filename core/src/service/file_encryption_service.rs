@@ -6,7 +6,10 @@ use crate::model::account::Account;
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::Folder;
 use crate::model::file_metadata::{FileMetadata, FileType};
-use crate::service::crypto_service::{AESDecryptError, AESEncryptError, RSADecryptError, PubKeyCryptoService, SymmetricCryptoService, RSAEncryptError};
+use crate::service::crypto_service::{
+    AESDecryptError, AESEncryptError, PubKeyCryptoService, RSADecryptError, RSAEncryptError,
+    SymmetricCryptoService,
+};
 use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
 use std::collections::hash_map::RandomState;
 
@@ -153,8 +156,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         let parent_key = Self::decrypt_key_for_file(&personal_key, new_parent_id, parents)
             .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
 
-        let access_key = AES::encrypt(&parent_key, &file_key)
-            .map_err(FileCreationError::AesEncryptionFailed)?;
+        let access_key =
+            AES::encrypt(&parent_key, &file_key).map_err(FileCreationError::AesEncryptionFailed)?;
 
         Ok(FolderAccessInfo {
             folder_id: new_parent_id,
@@ -217,11 +220,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         let id = Uuid::new_v4();
         let public_key = account.keys.to_public_key();
         let key = AES::generate_key();
-        let encrypted_access_key = PK::encrypt(
-            &public_key,
-            &key,
-        )
-        .map_err(RootFolderCreationError::FailedToPKEncryptAccessKey)?;
+        let encrypted_access_key = PK::encrypt(&public_key, &key)
+            .map_err(RootFolderCreationError::FailedToPKEncryptAccessKey)?;
         let use_access_key = UserAccessInfo {
             username: account.username.clone(),
             public_key,
@@ -243,11 +243,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             user_access_keys,
             folder_access_keys: FolderAccessInfo {
                 folder_id: id,
-                access_key: AES::encrypt(
-                    &AES::generate_key(),
-                    &key,
-                )
-                .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
+                access_key: AES::encrypt(&AES::generate_key(), &key)
+                    .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
             },
         }) // TODO: sign
     }
@@ -281,8 +278,8 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
     ) -> Result<DecryptedDocument, UnableToReadFileAsUser> {
         let key = PK::decrypt(&account.keys, &user_access_info.access_key)
             .map_err(UnableToReadFileAsUser::FileKeyDecryptionFailed)?;
-        let content = AES::decrypt(&key, file)
-            .map_err(UnableToReadFileAsUser::AesDecryptionFailed)?;
+        let content =
+            AES::decrypt(&key, file).map_err(UnableToReadFileAsUser::AesDecryptionFailed)?;
         Ok(content)
     }
 }

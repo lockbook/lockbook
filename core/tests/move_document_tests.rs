@@ -2,9 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod move_document_tests {
-    use crate::integration_test::{
-        aes_encrypt, generate_account, random_filename, rsa_encrypt,
-    };
+    use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
@@ -254,12 +252,7 @@ mod move_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(
-                &account.api_url,
-                &account.username,
-                doc_id,
-                version,
-            ),
+            ClientImpl::delete_document(&account.api_url, &account.username, doc_id, version,),
             Ok(_)
         );
 

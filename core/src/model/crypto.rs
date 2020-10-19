@@ -1,11 +1,11 @@
 extern crate rand;
 extern crate rsa;
 use rsa::RSAPublicKey;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use serde::de::DeserializeOwned;
-use std::marker::PhantomData;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::marker::PhantomData;
+use uuid::Uuid;
 
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
@@ -28,7 +28,7 @@ impl<T: DeserializeOwned> AESEncrypted<T> {
         AESEncrypted {
             value: value.into(),
             nonce: nonce.into(),
-            _t: PhantomData
+            _t: PhantomData,
         }
     }
 }
@@ -45,7 +45,7 @@ impl<T: DeserializeOwned> RSAEncrypted<T> {
     pub fn new<V: Into<Vec<u8>>>(value: V) -> Self {
         RSAEncrypted {
             value: value.into(),
-            _t: PhantomData
+            _t: PhantomData,
         }
     }
 }

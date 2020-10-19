@@ -173,7 +173,7 @@ impl Client for ClientImpl {
                 new_content: new_content,
             },
         )
-            .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
+        .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
     }
     fn create_document(
         api_url: &str,
@@ -198,7 +198,7 @@ impl Client for ClientImpl {
                 parent_access_key: parent_access_key,
             },
         )
-            .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
+        .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
     }
     fn delete_document(
         api_url: &str,
@@ -217,7 +217,7 @@ impl Client for ClientImpl {
                 old_metadata_version: old_metadata_version,
             },
         )
-            .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
+        .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
     }
     fn move_document(
         api_url: &str,
@@ -240,7 +240,7 @@ impl Client for ClientImpl {
                 new_folder_access,
             },
         )
-            .map(|r: MoveDocumentResponse| r.new_metadata_version)
+        .map(|r: MoveDocumentResponse| r.new_metadata_version)
     }
     fn rename_document(
         api_url: &str,
@@ -261,7 +261,7 @@ impl Client for ClientImpl {
                 new_name: String::from(new_name),
             },
         )
-            .map(|r: RenameDocumentResponse| r.new_metadata_version)
+        .map(|r: RenameDocumentResponse| r.new_metadata_version)
     }
     fn create_folder(
         api_url: &str,
@@ -284,7 +284,7 @@ impl Client for ClientImpl {
                 parent_access_key: parent_access_key,
             },
         )
-            .map(|r: CreateFolderResponse| r.new_metadata_version)
+        .map(|r: CreateFolderResponse| r.new_metadata_version)
     }
     fn delete_folder(
         api_url: &str,
@@ -303,7 +303,7 @@ impl Client for ClientImpl {
                 old_metadata_version: old_metadata_version,
             },
         )
-            .map(|r: DeleteFolderResponse| r.new_metadata_version)
+        .map(|r: DeleteFolderResponse| r.new_metadata_version)
     }
     fn move_folder(
         api_url: &str,
@@ -326,7 +326,7 @@ impl Client for ClientImpl {
                 new_folder_access: new_access_keys,
             },
         )
-            .map(|r: MoveFolderResponse| r.new_metadata_version)
+        .map(|r: MoveFolderResponse| r.new_metadata_version)
     }
     fn rename_folder(
         api_url: &str,
@@ -347,7 +347,7 @@ impl Client for ClientImpl {
                 new_name: String::from(new_name),
             },
         )
-            .map(|r: RenameFolderResponse| r.new_metadata_version)
+        .map(|r: RenameFolderResponse| r.new_metadata_version)
     }
     fn get_public_key(
         api_url: &str,
@@ -362,7 +362,7 @@ impl Client for ClientImpl {
                 client_version: CORE_CODE_VERSION.to_string(),
             },
         )
-            .map(|r: GetPublicKeyResponse| r.key)
+        .map(|r: GetPublicKeyResponse| r.key)
     }
     fn get_updates(
         api_url: &str,
@@ -379,7 +379,7 @@ impl Client for ClientImpl {
                 since_metadata_version: since_metadata_version,
             },
         )
-            .map(|r: GetUpdatesResponse| r.file_metadata)
+        .map(|r: GetUpdatesResponse| r.file_metadata)
     }
     fn new_account(
         api_url: &str,
@@ -402,7 +402,7 @@ impl Client for ClientImpl {
                 user_access_key: user_access_key,
             },
         )
-            .map(|r: NewAccountResponse| r.folder_metadata_version)
+        .map(|r: NewAccountResponse| r.folder_metadata_version)
     }
     fn get_usage(
         api_url: &str,
