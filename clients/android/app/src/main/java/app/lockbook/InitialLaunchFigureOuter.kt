@@ -4,8 +4,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
-import android.widget.ProgressBar
-import android.widget.RelativeLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
@@ -26,11 +24,13 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.splash_screen.*
+import kotlinx.coroutines.*
 import timber.log.Timber
 
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
-    private lateinit var progressBar: ProgressBar
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,35 +48,14 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         startActivity(Intent(this, WelcomeActivity::class.java))
                         finish()
                     }
-                    State.ReadyToUse -> {
-                        val pref = PreferenceManager.getDefaultSharedPreferences(this)
-
-                        if (!isBiometricsOptionsAvailable() && pref.getString(
-                                BIOMETRIC_OPTION_KEY,
-                                BIOMETRIC_NONE
-                            ) != BIOMETRIC_NONE
-                        ) {
-                            pref.edit()
-                                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
-                                .apply()
-                        }
-                        performBiometricFlow(pref)
-                    }
+                    State.ReadyToUse -> startFromExistingAccount()
                     State.MigrationRequired -> {
                         Snackbar.make(
                             splash_screen,
-                            "Your Lockbook data is old and will require migrating to use this version, please wait...",
-                            Snackbar.LENGTH_SHORT
+                            "Your data is old and will require migrating, please wait...",
+                            Snackbar.LENGTH_LONG
                         ).show()
-                        progressBar = ProgressBar(
-                            applicationContext,
-                            null,
-                            android.R.attr.progressBarStyleLarge
-                        )
-                        val layoutParams = RelativeLayout.LayoutParams(100, 100)
-                        layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT)
-                        splash_screen.addView(progressBar, layoutParams)
-                        progressBar.visibility = View.VISIBLE
+                        migrate_progress_bar.visibility = View.VISIBLE
                         migrateDB()
                     }
                     State.StateRequiresClearing -> {
@@ -87,20 +66,12 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             Snackbar.LENGTH_SHORT
                         ).show()
                     }
-                    else -> {
-                        Timber.e("State enum not matched: ${getDBStateResult.value::class.simpleName}")
-                        Snackbar.make(
-                            splash_screen,
-                            UNEXPECTED_CLIENT_ERROR,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                    }
                 }
             }
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.Unexpected -> {
                     Timber.e("Unable to get DB State: ${error.error}")
-                    AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                    AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()
@@ -115,44 +86,83 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 }
             }
         }
-
-        finish()
     }
 
     private fun migrateDB() {
-        when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
-            is Ok -> {
-                progressBar.visibility = View.GONE
-                return
-            }
-            is Err -> when (val error = migrateDBResult.error) {
-                is MigrationError.StateRequiresCleaning -> {
-                    Timber.e("DB state requires cleaning!")
-                    Snackbar.make(
-                        splash_screen,
-                        "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                }
-                is MigrationError.Unexpected -> {
-                    Timber.e("Unable to migrate DB: ${error.error}")
-                    AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
-                        .setTitle(UNEXPECTED_ERROR)
-                        .setMessage(error.error)
-                        .show()
-                }
-                else -> {
-                    Timber.e("MigrationError not matched: ${error::class.simpleName}")
-                    Snackbar.make(
-                        splash_screen,
-                        UNEXPECTED_CLIENT_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                }
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
+                    is Ok -> {
+                        withContext(Dispatchers.Main) {
+                            migrate_progress_bar.visibility = View.GONE
+                            Snackbar.make(
+                                splash_screen,
+                                "Your data has been migrated.",
+                                Snackbar.LENGTH_SHORT
+                            ).addCallback(object : Snackbar.Callback() {
+                                override fun onDismissed(
+                                    transientBottomBar: Snackbar?,
+                                    event: Int
+                                ) {
+                                    super.onDismissed(transientBottomBar, event)
+                                    startFromExistingAccount()
+                                }
+                            }).show()
+                        }
+                    }
+                    is Err -> when (val error = migrateDBResult.error) {
+                        is MigrationError.StateRequiresCleaning -> {
+                            withContext(Dispatchers.Main) {
+                                migrate_progress_bar.visibility = View.GONE
+                                Snackbar.make(
+                                    splash_screen,
+                                    "Your data is too old to use this Lockbook version, please clear your data in settings and open the app again.",
+                                    Snackbar.LENGTH_LONG
+                                ).addCallback(object : Snackbar.Callback() {
+                                    override fun onDismissed(
+                                        transientBottomBar: Snackbar?,
+                                        event: Int
+                                    ) {
+                                        super.onDismissed(transientBottomBar, event)
+                                        finish()
+                                    }
+                                }).show()
+                            }
+                            Timber.e("DB state requires cleaning!")
+                        }
+                        is MigrationError.Unexpected -> {
+                            withContext(Dispatchers.Main) {
+                                migrate_progress_bar.visibility = View.GONE
+                                AlertDialog.Builder(this@InitialLaunchFigureOuter, R.style.DarkBlue_Dialog)
+                                    .setTitle(UNEXPECTED_ERROR)
+                                    .setMessage(error.error)
+                                    .setOnCancelListener {
+                                        finish()
+                                    }
+                                    .show()
+                            }
+                            Timber.e("Unable to migrate DB: ${error.error}")
+                        }
+                    }
+                }.exhaustive
             }
         }
+    }
 
-        finish()
+
+    private fun startFromExistingAccount() {
+        val pref = PreferenceManager.getDefaultSharedPreferences(this)
+
+        if (!isBiometricsOptionsAvailable() && pref.getString(
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
+            ) != BIOMETRIC_NONE
+        ) {
+            pref.edit()
+                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
+                .apply()
+        }
+        performBiometricFlow(pref)
     }
 
     private fun launchListFilesActivity() {
@@ -182,9 +192,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     Snackbar.make(
                         splash_screen,
                         UNEXPECTED_CLIENT_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    finish()
+                        Snackbar.LENGTH_LONG
+                    ).addCallback(object : Snackbar.Callback() {
+                        override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                            super.onDismissed(transientBottomBar, event)
+                            finish()
+                        }
+                    }).show()
                 }
 
                 val executor = ContextCompat.getMainExecutor(this)
@@ -203,9 +217,16 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                     Snackbar.make(
                                         splash_screen,
                                         UNEXPECTED_CLIENT_ERROR,
-                                        Snackbar.LENGTH_SHORT
-                                    ).show()
-                                    finish()
+                                        Snackbar.LENGTH_LONG
+                                    ).addCallback(object : Snackbar.Callback() {
+                                        override fun onDismissed(
+                                            transientBottomBar: Snackbar?,
+                                            event: Int
+                                        ) {
+                                            super.onDismissed(transientBottomBar, event)
+                                            finish()
+                                        }
+                                    }).show()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
                                     Snackbar.make(

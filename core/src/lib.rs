@@ -55,6 +55,8 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use std::str::FromStr;
+use std::thread::{Thread, sleep};
+use std::time::Duration;
 
 pub mod c_interface;
 pub mod client;
@@ -165,6 +167,8 @@ pub enum MigrationError {
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+
+    sleep(Duration::new(5, 0));
 
     match DefaultDbStateService::perform_migration(&db) {
         Ok(_) => Ok(()),

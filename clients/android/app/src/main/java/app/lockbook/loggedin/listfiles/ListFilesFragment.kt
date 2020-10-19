@@ -24,6 +24,7 @@ import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
+import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
 
@@ -34,7 +35,7 @@ class ListFilesFragment : Fragment() {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(list_files_layout)
+        ).setViewToMove(list_files_frame_layout)
     }
 
     private val syncSnackProgressBar by lazy {
@@ -155,14 +156,18 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
             }
         )
 
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
             }
         )
 
@@ -179,6 +184,8 @@ class ListFilesFragment : Fragment() {
                 unexpectedErrorHasOccurred(errorText)
             }
         )
+
+        errorHasOccurred(container!!, "This is a regular error!")
 
         return binding.root
     }
@@ -277,7 +284,7 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.hide()
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
-        list_files_layout.isClickable = false
+        list_files_frame_layout.isClickable = false
     }
 
     private fun showFABMenu() {
@@ -286,8 +293,8 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.show()
         list_files_fab_document.show()
         list_files_refresh.alpha = 0.7f
-        list_files_layout.isClickable = true
-        list_files_layout.setOnClickListener {
+        list_files_frame_layout.isClickable = true
+        list_files_frame_layout.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
     }
@@ -342,8 +349,8 @@ class ListFilesFragment : Fragment() {
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
-    private fun errorHasOccurred(error: String) {
-        Snackbar.make(list_files_layout, error, Snackbar.LENGTH_SHORT).show()
+    private fun errorHasOccurred(view: ViewGroup, error: String) {
+        Snackbar.make(requireActivity().findViewById<ViewGroup>(android.R.id.content).rootView, error, Snackbar.LENGTH_SHORT).show()
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
