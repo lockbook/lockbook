@@ -39,12 +39,10 @@ class TextEditorActivity : AppCompatActivity() {
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
-            finish()
             return
         }
         if (contents == null) {
             errorHasOccurred("Unable to retrieve contents.")
-            finish()
             return
         }
 
@@ -106,17 +104,22 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     private fun errorHasOccurred(error: String) {
-        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).show()
-        finish()
+        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).addCallback(object : Snackbar.Callback() {
+            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                super.onDismissed(transientBottomBar, event)
+                finish()
+            }
+        }).show()
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
+            .setOnCancelListener {
+                finish()
+            }
             .show()
-
-        finish()
     }
 
     private fun setUpView() {

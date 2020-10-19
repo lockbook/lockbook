@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
 import androidx.appcompat.app.AlertDialog
@@ -110,7 +112,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(
-                        splash_screen,
+                        requireActivity().findViewById(android.R.id.content),
                         UNEXPECTED_CLIENT_ERROR,
                         Snackbar.LENGTH_SHORT
                     ).show()
@@ -131,14 +133,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
                                     Snackbar.make(
-                                        splash_screen,
+                                        requireActivity().findViewById(android.R.id.content),
                                         UNEXPECTED_CLIENT_ERROR,
                                         Snackbar.LENGTH_SHORT
                                     ).show()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> {
                                     Snackbar.make(
-                                        splash_screen,
+                                        requireActivity().findViewById(android.R.id.content),
                                         "Too many tries, try again later!",
                                         Snackbar.LENGTH_SHORT
                                     ).show()
@@ -168,7 +170,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
                 Snackbar.make(
-                    splash_screen,
+                    requireActivity().findViewById(android.R.id.content),
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 ).show()
@@ -184,7 +186,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             else -> {
                 Timber.e("Shared preference key not matched: $key")
                 Snackbar.make(
-                    splash_screen,
+                    requireActivity().findViewById(android.R.id.content),
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 ).show()
@@ -218,7 +220,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             is Err -> {
                 when (val error = exportResult.error) {
                     is AccountExportError.NoAccount -> Snackbar.make(
-                        splash_screen,
+                        requireActivity().findViewById(android.R.id.content),
                         "Error! No account!",
                         Snackbar.LENGTH_SHORT
                     ).show()
@@ -232,7 +234,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     else -> {
                         Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
                         Snackbar.make(
-                            splash_screen,
+                            requireActivity().findViewById(android.R.id.content),
                             UNEXPECTED_CLIENT_ERROR,
                             Snackbar.LENGTH_SHORT
                         ).show()
@@ -250,14 +252,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
                 Snackbar.make(
-                    splash_screen,
+                    requireActivity().findViewById(android.R.id.content),
                     "Account string copied!",
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
             is Err -> when (val error = exportResult.error) {
                 is AccountExportError.NoAccount -> Snackbar.make(
-                    splash_screen,
+                    requireActivity().findViewById(android.R.id.content),
                     "Error! No account!",
                     Snackbar.LENGTH_SHORT
                 ).show()
@@ -271,7 +273,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 else -> {
                     Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
                     Snackbar.make(
-                        splash_screen,
+                        requireActivity().findViewById(android.R.id.content),
                         UNEXPECTED_CLIENT_ERROR,
                         Snackbar.LENGTH_SHORT
                     ).show()
