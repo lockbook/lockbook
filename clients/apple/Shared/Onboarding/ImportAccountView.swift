@@ -7,7 +7,7 @@ struct ImportAccountView: View {
     @State var isScanning: Bool = false
     
     var body: some View {
-        VStack {
+        let view = VStack(spacing: 40) {
             #if os(iOS)
             Button(action: {
                 self.isScanning = true
@@ -17,7 +17,7 @@ struct ImportAccountView: View {
             #endif
             TextField("Account String", text: self.$accountKey)
                 .disableAutocorrection(true)
-                .padding(.all, 40)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
             NotificationButton(
                 action: handleImport,
                 label: Label("Import", systemImage: "rectangle.stack.person.crop"),
@@ -25,11 +25,17 @@ struct ImportAccountView: View {
                 failureLabel: Label("Failure", systemImage: "exclamationmark.square")
             )
         }
-        .sheet(isPresented: self.$isScanning, content: {
-            #if os(iOS)
-            CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
-            #endif
-        })
+        .padding(.horizontal)
+
+        #if os(iOS)
+        return view
+            .autocapitalization(.none)
+            .sheet(isPresented: self.$isScanning, content: {
+                CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
+            })
+        #else
+        return view
+        #endif
     }
     
     func handleImport() -> Result<Void, Error> {
