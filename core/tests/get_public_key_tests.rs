@@ -28,7 +28,7 @@ mod get_public_key_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&key.clone(), &folder_key)
+                rsa_encrypt(&key.clone(), &folder_key)
             ),
             Ok(_)
         );

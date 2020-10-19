@@ -28,7 +28,7 @@ mod new_account_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -50,7 +50,7 @@ mod new_account_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -65,7 +65,7 @@ mod new_account_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::UsernameTaken
@@ -89,7 +89,7 @@ mod new_account_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::InvalidUsername
@@ -101,7 +101,7 @@ mod new_account_tests {
     // fn new_account_invalid_public_key() {
     //     let account = generate_account();
     //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AesImpl::generate_key();
+    //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
     //         ClientImpl::new_account(
@@ -122,7 +122,7 @@ mod new_account_tests {
     //                 folder_id: folder_id,
     //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.keys.to_public_key(), &folder_key)
     //         ),
     //         Err(ApiError::<NewAccountError>::Api(
     //             NewAccountError::InvalidPublicKey
@@ -134,7 +134,7 @@ mod new_account_tests {
     // fn new_account_invalid_signature() {
     //     let account = generate_account();
     //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AesImpl::generate_key();
+    //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
     //         ClientImpl::new_account(
@@ -149,7 +149,7 @@ mod new_account_tests {
     //                 folder_id: folder_id,
     //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.keys.to_public_key(), &folder_key)
     //         ),
     //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
     //     );

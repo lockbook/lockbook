@@ -85,7 +85,7 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
 
 pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(
     key: &RSAPublicKey,
-    to_encrypt: &AESKey,
-) -> RSAEncrypted<AESKey> {
+    to_encrypt: &T,
+) -> RSAEncrypted<T> {
     RSAImpl::encrypt(key, to_encrypt).unwrap()
 }

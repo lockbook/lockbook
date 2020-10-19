@@ -197,7 +197,7 @@ impl<
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
-            Self::write_document(&db, new_metadata.id, &Vec::<u8>::new())
+            Self::write_document(&db, new_metadata.id, &vec![])
                 .map_err(FailedToWriteFileContent)?;
         }
         Ok(new_metadata)
