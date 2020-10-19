@@ -28,7 +28,7 @@ mod delete_document_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -74,7 +74,7 @@ mod delete_document_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -105,7 +105,7 @@ mod delete_document_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -159,7 +159,7 @@ mod delete_document_tests {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt::<AESKey>(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
