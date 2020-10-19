@@ -40,41 +40,38 @@ pub fn api_request<Request: Serialize, Response: DeserializeOwned, E: Deserializ
     response.map_err(ApiError::Api)
 }
 
+// TODO: sign requests
 pub trait Client {
     fn get_document(
         api_url: &str,
         id: Uuid,
         content_version: u64,
-    ) -> Result<Document, ApiError<GetDocumentError>>;
+    ) -> Result<EncryptedDocument, ApiError<GetDocumentError>>;
     fn change_document_content(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-        new_content: EncryptedValueWithNonce,
+        new_content: EncryptedDocument,
     ) -> Result<u64, ApiError<ChangeDocumentContentError>>;
     fn create_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
-        content: EncryptedValueWithNonce,
+        content: EncryptedDocument,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateDocumentError>>;
     fn delete_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>>;
     fn move_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -83,7 +80,6 @@ pub trait Client {
     fn rename_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -91,7 +87,6 @@ pub trait Client {
     fn create_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -100,14 +95,12 @@ pub trait Client {
     fn delete_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>>;
     fn move_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -116,7 +109,6 @@ pub trait Client {
     fn rename_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -128,17 +120,15 @@ pub trait Client {
     fn get_updates(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>>;
     fn new_account(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
-        user_access_key: EncryptedValue,
+        user_access_key: EncryptedUserAccessKey,
     ) -> Result<u64, ApiError<NewAccountError>>;
     fn get_usage(
         api_url: &str,
@@ -152,7 +142,7 @@ impl Client for ClientImpl {
         api_url: &str,
         id: Uuid,
         content_version: u64,
-    ) -> Result<Document, ApiError<GetDocumentError>> {
+    ) -> Result<EncryptedDocument, ApiError<GetDocumentError>> {
         api_request(
             api_url,
             Method::GET,
@@ -163,15 +153,13 @@ impl Client for ClientImpl {
                 content_version: content_version,
             },
         )
-        .map(|r: GetDocumentResponse| Document { content: r.content })
     }
     fn change_document_content(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
-        new_content: EncryptedValueWithNonce,
+        new_content: EncryptedDocument,
     ) -> Result<u64, ApiError<ChangeDocumentContentError>> {
         api_request(
             api_url,
@@ -179,23 +167,21 @@ impl Client for ClientImpl {
             "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_content: new_content,
             },
         )
-        .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
+            .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
     }
     fn create_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
-        content: EncryptedValueWithNonce,
+        content: EncryptedDocument,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateDocumentError>> {
         api_request(
@@ -204,7 +190,6 @@ impl Client for ClientImpl {
             "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 name: String::from(name),
@@ -213,12 +198,11 @@ impl Client for ClientImpl {
                 parent_access_key: parent_access_key,
             },
         )
-        .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
+            .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
     }
     fn delete_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>> {
@@ -228,18 +212,16 @@ impl Client for ClientImpl {
             "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
         )
-        .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
+            .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
     }
     fn move_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -251,7 +233,6 @@ impl Client for ClientImpl {
             "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
@@ -259,12 +240,11 @@ impl Client for ClientImpl {
                 new_folder_access,
             },
         )
-        .map(|r: MoveDocumentResponse| r.new_metadata_version)
+            .map(|r: MoveDocumentResponse| r.new_metadata_version)
     }
     fn rename_document(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -275,19 +255,17 @@ impl Client for ClientImpl {
             "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
             },
         )
-        .map(|r: RenameDocumentResponse| r.new_metadata_version)
+            .map(|r: RenameDocumentResponse| r.new_metadata_version)
     }
     fn create_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         name: &str,
         parent: Uuid,
@@ -299,7 +277,6 @@ impl Client for ClientImpl {
             "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 name: String::from(name),
@@ -307,12 +284,11 @@ impl Client for ClientImpl {
                 parent_access_key: parent_access_key,
             },
         )
-        .map(|r: CreateFolderResponse| r.new_metadata_version)
+            .map(|r: CreateFolderResponse| r.new_metadata_version)
     }
     fn delete_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>> {
@@ -322,18 +298,16 @@ impl Client for ClientImpl {
             "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
             },
         )
-        .map(|r: DeleteFolderResponse| r.new_metadata_version)
+            .map(|r: DeleteFolderResponse| r.new_metadata_version)
     }
     fn move_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_parent: Uuid,
@@ -345,7 +319,6 @@ impl Client for ClientImpl {
             "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
@@ -353,12 +326,11 @@ impl Client for ClientImpl {
                 new_folder_access: new_access_keys,
             },
         )
-        .map(|r: MoveFolderResponse| r.new_metadata_version)
+            .map(|r: MoveFolderResponse| r.new_metadata_version)
     }
     fn rename_folder(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         id: Uuid,
         old_metadata_version: u64,
         new_name: &str,
@@ -369,14 +341,13 @@ impl Client for ClientImpl {
             "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
                 old_metadata_version: old_metadata_version,
                 new_name: String::from(new_name),
             },
         )
-        .map(|r: RenameFolderResponse| r.new_metadata_version)
+            .map(|r: RenameFolderResponse| r.new_metadata_version)
     }
     fn get_public_key(
         api_url: &str,
@@ -391,12 +362,11 @@ impl Client for ClientImpl {
                 client_version: CORE_CODE_VERSION.to_string(),
             },
         )
-        .map(|r: GetPublicKeyResponse| r.key)
+            .map(|r: GetPublicKeyResponse| r.key)
     }
     fn get_updates(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>> {
         api_request(
@@ -405,21 +375,19 @@ impl Client for ClientImpl {
             "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 since_metadata_version: since_metadata_version,
             },
         )
-        .map(|r: GetUpdatesResponse| r.file_metadata)
+            .map(|r: GetUpdatesResponse| r.file_metadata)
     }
     fn new_account(
         api_url: &str,
         username: &str,
-        signature: &SignedValue,
         public_key: RSAPublicKey,
         folder_id: Uuid,
         parent_access_key: FolderAccessInfo,
-        user_access_key: EncryptedValue,
+        user_access_key: EncryptedUserAccessKey,
     ) -> Result<u64, ApiError<NewAccountError>> {
         api_request(
             api_url,
@@ -427,7 +395,6 @@ impl Client for ClientImpl {
             "new-account",
             &NewAccountRequest {
                 username: String::from(username),
-                signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 public_key: public_key,
                 folder_id: folder_id,
@@ -435,7 +402,7 @@ impl Client for ClientImpl {
                 user_access_key: user_access_key,
             },
         )
-        .map(|r: NewAccountResponse| r.folder_metadata_version)
+            .map(|r: NewAccountResponse| r.folder_metadata_version)
     }
     fn get_usage(
         api_url: &str,

@@ -21,7 +21,6 @@ use crate::model::api::{
     DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
     MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
 };
-use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
@@ -40,7 +39,7 @@ use crate::service::account_service::{
 };
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
-use crate::service::crypto_service::{AesImpl, RsaImpl};
+use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
@@ -55,6 +54,7 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use std::str::FromStr;
+use crate::model::crypto::DecryptedDocument;
 
 pub mod c_interface;
 pub mod client;
@@ -70,8 +70,8 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultCrypto = RsaImpl;
-pub type DefaultSymmetric = AesImpl;
+pub type DefaultCrypto = RSAImpl;
+pub type DefaultSymmetric = AESImpl;
 pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
@@ -406,11 +406,11 @@ pub enum WriteToDocumentError {
 pub fn write_document(
     config: &Config,
     id: Uuid,
-    content: &DecryptedValue,
+    content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DefaultFileService::write_document(&db, id, &content) {
+    match DefaultFileService::write_document(&db, id, content) {
         Ok(_) => Ok(()),
         Err(err) => match err {
             DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
@@ -614,7 +614,7 @@ pub enum ReadDocumentError {
 pub fn read_document(
     config: &Config,
     id: Uuid,
-) -> Result<DecryptedValue, Error<ReadDocumentError>> {
+) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
     match DefaultFileService::read_document(&db, id) {

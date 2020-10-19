@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use crate::json_interface::translate;
 use crate::model::account::Account;
-use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
@@ -881,7 +880,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         }
     };
 
-    let deserialized_content: DecryptedValue = match serde_json::from_str(&serialized_content) {
+    let deserialized_content: String = match serde_json::from_str(&serialized_content) {
         Ok(ok) => ok,
         Err(_) => {
             return serialize_to_jstring(
@@ -896,7 +895,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         translate(write_document(
             &deserialized_config,
             deserialized_id,
-            &deserialized_content,
+            &deserialized_content.into_bytes(),
         )),
     )
 }
