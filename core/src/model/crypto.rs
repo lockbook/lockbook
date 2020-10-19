@@ -55,6 +55,8 @@ pub struct RSASigned<T> {
     pub value: T,
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
+    pub public_key: RSAPublicKey,
+    pub timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

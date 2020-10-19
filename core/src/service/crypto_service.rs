@@ -44,18 +44,19 @@ pub trait PubKeyCryptoService {
         public_key: &RSAPublicKey,
         to_encrypt: &T,
     ) -> Result<RSAEncrypted<T>, RSAEncryptError>;
+    fn decrypt<T: DeserializeOwned>(
+        private_key: &RSAPrivateKey,
+        to_decrypt: &RSAEncrypted<T>,
+    ) -> Result<T, RSADecryptError>;
     fn sign<T: Serialize>(
         private_key: &RSAPrivateKey,
         to_sign: T,
+        current_time: u64,
     ) -> Result<RSASigned<T>, RSASignError>;
     fn verify<T: Serialize>(
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
     ) -> Result<(), RSAVerifyError>;
-    fn decrypt<T: DeserializeOwned>(
-        private_key: &RSAPrivateKey,
-        to_decrypt: &RSAEncrypted<T>,
-    ) -> Result<T, RSADecryptError>;
 }
 
 pub struct RSAImpl;
@@ -76,38 +77,6 @@ impl PubKeyCryptoService for RSAImpl {
         Ok(RSAEncrypted::new(encrypted))
     }
 
-    fn sign<T: Serialize>(
-        private_key: &RSAPrivateKey,
-        to_sign: T,
-    ) -> Result<RSASigned<T>, RSASignError> {
-        let serialized = bincode::serialize(&to_sign).map_err(RSASignError::Serialization)?;
-        let digest = Sha256::digest(&serialized).to_vec();
-        let signature = private_key
-            .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
-            .map_err(RSASignError::Signing)?;
-        Ok(RSASigned {
-            value: to_sign,
-            signature: signature,
-        })
-    }
-
-    fn verify<T: Serialize>(
-        public_key: &RSAPublicKey,
-        to_verify: &RSASigned<T>,
-    ) -> Result<(), RSAVerifyError> {
-        let serialized = bincode::serialize(&to_verify.value).map_err(RSAVerifyError::Serialization)?;
-        let digest = Sha256::digest(&serialized).to_vec();
-        public_key
-            .verify(
-                PaddingScheme::PKCS1v15,
-                Some(&Hashes::SHA2_256),
-                &digest,
-                &to_verify.signature,
-            )
-            .map_err(RSAVerifyError::Verification)?;
-        Ok(())
-    }
-
     fn decrypt<T: DeserializeOwned>(
         private_key: &RSAPrivateKey,
         to_decrypt: &RSAEncrypted<T>,
@@ -118,6 +87,42 @@ impl PubKeyCryptoService for RSAImpl {
         let deserialized =
             bincode::deserialize(&decrypted).map_err(RSADecryptError::Deserialization)?;
         Ok(deserialized)
+    }
+
+    fn sign<T: Serialize>(
+        private_key: &RSAPrivateKey,
+        to_sign: T,
+        current_time: u64,
+    ) -> Result<RSASigned<T>, RSASignError> {
+        let serialized = bincode::serialize(&to_sign).map_err(RSASignError::Serialization)?;
+        let digest = Sha256::digest(&serialized).to_vec();
+        let signature = private_key
+            .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
+            .map_err(RSASignError::Signing)?;
+        Ok(RSASigned {
+            value: to_sign,
+            signature: signature,
+            public_key: private_key.to_public_key(),
+            timestamp: current_time,
+        })
+    }
+
+    fn verify<T: Serialize>(
+        public_key: &RSAPublicKey,
+        to_verify: &RSASigned<T>,
+    ) -> Result<(), RSAVerifyError> {
+        let serialized =
+            bincode::serialize(&to_verify.value).map_err(RSAVerifyError::Serialization)?;
+        let digest = Sha256::digest(&serialized).to_vec();
+        public_key
+            .verify(
+                PaddingScheme::PKCS1v15,
+                Some(&Hashes::SHA2_256),
+                &digest,
+                &to_verify.signature,
+            )
+            .map_err(RSAVerifyError::Verification)?;
+        Ok(())
     }
 }
 
@@ -143,7 +148,7 @@ mod unit_test_pubkey {
     fn test_sign_verify() {
         let key = RSAImpl::generate_key().unwrap();
 
-        let value = RSAImpl::sign(&key, String::from("Test")).unwrap();
+        let value = RSAImpl::sign(&key, String::from("Test"), 0).unwrap();
         assert_eq!(value.value, "Test");
 
         RSAImpl::verify(&key.to_public_key(), &value).unwrap();
