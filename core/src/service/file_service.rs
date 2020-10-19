@@ -197,8 +197,7 @@ impl<
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
-            Self::write_document(&db, new_metadata.id, &[])
-                .map_err(FailedToWriteFileContent)?;
+            Self::write_document(&db, new_metadata.id, &[]).map_err(FailedToWriteFileContent)?;
         }
         Ok(new_metadata)
     }
