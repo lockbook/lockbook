@@ -38,7 +38,6 @@ use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
-use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
@@ -70,20 +69,18 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultCrypto = RSAImpl;
+pub type DefaultClock = ClockImpl;
+pub type DefaultCrypto = RSAImpl<DefaultClock>;
 pub type DefaultSymmetric = AESImpl;
 pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultClient = ClientImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
 pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
-pub type DefaultClock = ClockImpl;
-pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
 pub type DefaultAccountService = AccountServiceImpl<
     DefaultCrypto,
     DefaultAccountRepo,
     DefaultClient,
-    DefaultAuthService,
     DefaultFileEncryptionService,
     DefaultFileMetadataRepo,
 >;
@@ -99,7 +96,6 @@ pub type DefaultSyncService = FileSyncService<
     DefaultClient,
     DefaultFileService,
     DefaultFileEncryptionService,
-    DefaultAuthService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
@@ -233,8 +229,7 @@ pub fn create_account(
             | AccountCreationError::FolderError(_)
             | AccountCreationError::MetadataRepoError(_)
             | AccountCreationError::KeySerializationError(_)
-            | AccountCreationError::AccountRepoDbError(_)
-            | AccountCreationError::AuthGenFailure(_) => {
+            | AccountCreationError::AccountRepoDbError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },

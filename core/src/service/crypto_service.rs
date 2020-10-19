@@ -11,6 +11,7 @@ use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use crate::service::clock_service::Clock;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -36,6 +37,9 @@ pub enum RSASignError {
 pub enum RSAVerifyError {
     Serialization(bincode::Error),
     Verification(rsa::errors::Error),
+    WrongPublicKey,
+    SignatureExpired(u64),
+    SignatureInTheFuture(u64),
 }
 
 pub trait PubKeyCryptoService {
@@ -48,20 +52,22 @@ pub trait PubKeyCryptoService {
         private_key: &RSAPrivateKey,
         to_decrypt: &RSAEncrypted<T>,
     ) -> Result<T, RSADecryptError>;
-    fn sign<T: Serialize>(
+    fn sign<T: Serialize + Timestamp>(
         private_key: &RSAPrivateKey,
         to_sign: T,
-        current_time: u64,
     ) -> Result<RSASigned<T>, RSASignError>;
-    fn verify<T: Serialize>(
+    fn verify<T: Serialize + Timestamp>(
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
+        max_delay_ms: u64,
     ) -> Result<(), RSAVerifyError>;
 }
 
-pub struct RSAImpl;
+pub struct RSAImpl<Time: Clock> {
+    _clock: Time,
+}
 
-impl PubKeyCryptoService for RSAImpl {
+impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
     fn generate_key() -> Result<RSAPrivateKey, rsa::errors::Error> {
         RSAPrivateKey::new(&mut OsRng, 2048)
     }
@@ -89,10 +95,9 @@ impl PubKeyCryptoService for RSAImpl {
         Ok(deserialized)
     }
 
-    fn sign<T: Serialize>(
+    fn sign<T: Serialize + Timestamp>(
         private_key: &RSAPrivateKey,
         to_sign: T,
-        current_time: u64,
     ) -> Result<RSASigned<T>, RSASignError> {
         let serialized = bincode::serialize(&to_sign).map_err(RSASignError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
@@ -103,18 +108,19 @@ impl PubKeyCryptoService for RSAImpl {
             value: to_sign,
             signature: signature,
             public_key: private_key.to_public_key(),
-            timestamp: current_time,
         })
     }
 
-    fn verify<T: Serialize>(
+    fn verify<T: Serialize + Timestamp>(
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
+        max_delay_ms: u64,
     ) -> Result<(), RSAVerifyError> {
         let serialized =
             bincode::serialize(&to_verify.value).map_err(RSAVerifyError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
-        public_key
+        to_verify
+            .public_key
             .verify(
                 PaddingScheme::PKCS1v15,
                 Some(&Hashes::SHA2_256),
@@ -122,19 +128,65 @@ impl PubKeyCryptoService for RSAImpl {
                 &to_verify.signature,
             )
             .map_err(RSAVerifyError::Verification)?;
+
+        if public_key != &to_verify.public_key {
+            return Err(RSAVerifyError::WrongPublicKey);
+        }
+
+        let auth_time = Timestamp::get_timestamp(&to_verify.value);
+        let current_time = Time::get_time();
+        if current_time < auth_time {
+            // TODO: introduce tolerance?
+            return Err(RSAVerifyError::SignatureInTheFuture(
+                current_time - auth_time,
+            ));
+        }
+        if current_time > auth_time + max_delay_ms {
+            return Err(RSAVerifyError::SignatureExpired(
+                auth_time + max_delay_ms - current_time,
+            ));
+        }
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod unit_test_pubkey {
-    use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
-
     use super::rsa::RSAPrivateKey;
+    use crate::model::crypto::Timestamp;
+    use crate::service::clock_service::Clock;
+    use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use serde::{Deserialize, Serialize};
+
+    struct EarlyClock;
+    impl Clock for EarlyClock {
+        fn get_time() -> u64 {
+            500
+        }
+    }
+
+    struct LateClock;
+    impl Clock for LateClock {
+        fn get_time() -> u64 {
+            520
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+    struct TimestampedString {
+        pub s: String,
+        pub t: u64,
+    }
+    impl Timestamp for TimestampedString {
+        fn get_timestamp(&self) -> u64 {
+            self.t
+        }
+    }
 
     #[test]
     fn test_key_generation_serde() {
-        let key = RSAImpl::generate_key().unwrap();
+        let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
 
         let key_read: RSAPrivateKey =
             serde_json::from_str(serde_json::to_string(&key).unwrap().as_str()).unwrap();
@@ -146,20 +198,34 @@ mod unit_test_pubkey {
 
     #[test]
     fn test_sign_verify() {
-        let key = RSAImpl::generate_key().unwrap();
+        let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
 
-        let value = RSAImpl::sign(&key, String::from("Test"), 0).unwrap();
-        assert_eq!(value.value, "Test");
+        let value = RSAImpl::<EarlyClock>::sign(
+            &key,
+            TimestampedString {
+                s: String::from("Test"),
+                t: 510,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            value.value,
+            TimestampedString {
+                s: String::from("Test"),
+                t: 510
+            }
+        );
 
-        RSAImpl::verify(&key.to_public_key(), &value).unwrap();
+        RSAImpl::<LateClock>::verify(&key.to_public_key(), &value, 10).unwrap();
     }
 
     #[test]
     fn test_encrypt_decrypt() {
-        let key = RSAImpl::generate_key().unwrap();
+        let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
 
-        let encrypted = RSAImpl::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
-        let decrypted = RSAImpl::decrypt(&key, &encrypted).unwrap();
+        let encrypted =
+            RSAImpl::<EarlyClock>::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
+        let decrypted = RSAImpl::<EarlyClock>::decrypt(&key, &encrypted).unwrap();
 
         assert_eq!(decrypted, "Secret");
     }

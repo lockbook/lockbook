@@ -140,7 +140,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
                 Ok(key)
             }
             Some(user_access) => {
-                let key = PK::decrypt(&account.keys, &user_access.access_key)
+                let key = PK::decrypt(&account.private_key, &user_access.access_key)
                     .map_err(KeyDecryptionFailure::PKDecryptionFailed)?;
                 Ok(key)
             }
@@ -172,7 +172,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
     ) -> Result<UserAccessInfo, UnableToGetKeyForUser> {
         let key = Self::decrypt_key_for_file(&account, id, parents).map_err(UnableToDecryptKey)?;
 
-        let public_key = account.keys.to_public_key();
+        let public_key = account.private_key.to_public_key();
 
         let access_key = PK::encrypt(&public_key, &key)
             .map_err(UnableToGetKeyForUser::FailedToPKEncryptAccessKey)?;
@@ -218,7 +218,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         account: &Account,
     ) -> Result<FileMetadata, RootFolderCreationError> {
         let id = Uuid::new_v4();
-        let public_key = account.keys.to_public_key();
+        let public_key = account.private_key.to_public_key();
         let key = AES::generate_key();
         let encrypted_access_key = PK::encrypt(&public_key, &key)
             .map_err(RootFolderCreationError::FailedToPKEncryptAccessKey)?;
@@ -276,7 +276,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         file: &EncryptedDocument,
         user_access_info: &UserAccessInfo,
     ) -> Result<DecryptedDocument, UnableToReadFileAsUser> {
-        let key = PK::decrypt(&account.keys, &user_access_info.access_key)
+        let key = PK::decrypt(&account.private_key, &user_access_info.access_key)
             .map_err(UnableToReadFileAsUser::FileKeyDecryptionFailed)?;
         let content =
             AES::decrypt(&key, file).map_err(UnableToReadFileAsUser::AesDecryptionFailed)?;
@@ -301,7 +301,7 @@ mod unit_tests {
         let account = Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            keys,
+            private_key: keys,
         };
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();

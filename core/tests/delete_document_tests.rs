@@ -22,13 +22,13 @@ mod delete_document_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -68,13 +68,13 @@ mod delete_document_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -99,13 +99,13 @@ mod delete_document_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -153,13 +153,13 @@ mod delete_document_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
