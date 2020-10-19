@@ -1,6 +1,6 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::account::Username;
-use lockbook_core::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use lockbook_core::model::crypto::{FolderAccessInfo, UserAccessInfo};
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
@@ -196,7 +196,6 @@ pub async fn create_file(
     file_type: FileType,
     name: &str,
     owner: &str,
-    signature: &SignedValue,
     access_key: &FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction
@@ -212,7 +211,7 @@ pub async fn create_file(
                 &(file_type == FileType::Folder),
                 &name,
                 &owner,
-                &serde_json::to_string(&signature).map_err(FileError::Serialize)?,
+                &serde_json::to_string("signature goes here").map_err(FileError::Serialize)?, // TODO: sign
             ],
         )
         .await?;
@@ -448,11 +447,12 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
         .map_err(FileError::Deserialize)?,
         name: row.try_get("name").map_err(FileError::Postgres)?,
         owner: row.try_get("owner").map_err(FileError::Postgres)?,
-        signature: serde_json::from_str(
-            row.try_get::<&str, &str>("signature")
-                .map_err(FileError::Postgres)?,
-        )
-        .map_err(FileError::Deserialize)?,
+        // TODO
+        // signature: serde_json::from_str(
+        //     row.try_get::<&str, &str>("signature")
+        //         .map_err(FileError::Postgres)?,
+        // )
+        // .map_err(FileError::Deserialize)?,
         metadata_version: row
             .try_get::<&str, i64>("metadata_version")
             .map_err(FileError::Postgres)? as u64,

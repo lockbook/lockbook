@@ -56,7 +56,6 @@ pub async fn new_account(
         FileType::Folder,
         &request.username,
         &request.username,
-        &request.signature,
         &request.parent_access_key,
     )
     .await;

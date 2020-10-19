@@ -1,5 +1,5 @@
 use lockbook_core::model::api::FileUsage;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_core::model::crypto::EncryptedDocument;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
@@ -14,7 +14,7 @@ pub async fn track(
     transaction: &Transaction<'_>,
     file_id: &Uuid,
     username: &String,
-    file_content: &EncryptedValueWithNonce,
+    file_content: &EncryptedDocument,
 ) -> Result<(), UsageTrackError> {
     let _ = transaction
         .execute(
@@ -23,7 +23,7 @@ pub async fn track(
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 username,
-                &(file_content.garbage.as_bytes().len() as i64),
+                &(file_content.value.len() as i64),
             ],
         )
         .await
