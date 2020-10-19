@@ -95,7 +95,7 @@ class ImportAccountActivity : AppCompatActivity() {
                     ).show()
                     is ImportError.Unexpected -> {
                         Timber.e("Unable to import an account.")
-                        AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                        AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
                             .setTitle(UNEXPECTED_ERROR)
                             .setMessage(error.error)
                             .show()
