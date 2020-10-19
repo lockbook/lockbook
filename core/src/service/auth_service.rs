@@ -92,13 +92,15 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         Ok(())
     }
 
-    fn generate_auth(_account: &Account) -> Result<RSASigned<Auth>, AuthGenError> {
+    fn generate_auth(account: &Account) -> Result<RSASigned<Auth>, AuthGenError> {
         // TODO: redo
         // let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
         // Ok(Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?)
         Ok(RSASigned {
             value: Auth {},
             signature: vec![],
+            public_key: account.keys.to_public_key(),
+            timestamp: Time::get_time(),
         })
     }
 }
@@ -118,7 +120,7 @@ mod unit_tests {
     struct EarlyClock;
 
     impl Clock for EarlyClock {
-        fn get_time() -> u128 {
+        fn get_time() -> u64 {
             500
         }
     }
@@ -126,7 +128,7 @@ mod unit_tests {
     struct LateClock;
 
     impl Clock for LateClock {
-        fn get_time() -> u128 {
+        fn get_time() -> u64 {
             520
         }
     }
