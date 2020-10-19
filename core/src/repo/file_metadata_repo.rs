@@ -636,7 +636,7 @@ mod unit_tests {
         let account = Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            keys,
+            private_key: keys,
         };
 
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
