@@ -88,10 +88,7 @@ mod unit_tests {
         DocumentRepoImpl::insert(&db, document_id, &test_document).unwrap();
 
         let document = DocumentRepoImpl::get(&db, document_id).unwrap();
-        assert_eq!(
-            document,
-            EncryptedDocument::new("something", "nonce1"),
-        );
+        assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
         DocumentRepoImpl::insert(
             &db,
@@ -102,9 +99,6 @@ mod unit_tests {
 
         let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
 
-        assert_eq!(
-            file_updated,
-            EncryptedDocument::new("updated", "nonce2")
-        );
+        assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }
 }

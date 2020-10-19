@@ -96,8 +96,8 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
         // TODO: redo
         // let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
         // Ok(Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?)
-        Ok(RSASigned{
-            value: Auth{},
+        Ok(RSASigned {
+            value: Auth {},
             signature: vec![],
         })
     }

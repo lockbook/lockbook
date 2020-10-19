@@ -22,12 +22,7 @@ mod get_usage_tests {
         let root = get_root(config).unwrap();
 
         let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file.id,
-            "0000000000".as_bytes(),
-        )
-        .unwrap();
+        write_document(config, file.id, "0000000000".as_bytes()).unwrap();
 
         assert!(
             get_usage(config).unwrap().is_empty(),
