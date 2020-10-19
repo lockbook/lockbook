@@ -1,13 +1,11 @@
-use std::fs;
-use std::fs::File;
-use std::path::Path;
-
-use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
     create_file_at_path, write_document, CreateFileAtPathError, Error as CoreError,
     WriteToDocumentError,
 };
+use std::fs;
+use std::fs::File;
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::utils::{
@@ -70,7 +68,7 @@ pub fn new(file_name: &str) {
 
     if edit_was_successful {
         let secret = match fs::read_to_string(temp_file_path) {
-            Ok(content) => DecryptedValue::from(content),
+            Ok(content) => content.into_bytes(),
             Err(err) => exit_with(
                 &format!(
                     "Could not read from temporary file, not deleting {}, err: {:#?}",

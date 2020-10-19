@@ -5,7 +5,6 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
     get_file_by_path, read_document, write_document, Error as CoreError, GetFileByPathError,
     ReadDocumentError, WriteToDocumentError,
@@ -63,17 +62,15 @@ pub fn edit(file_name: &str) {
         ),
     };
 
-    file_handle
-        .write_all(&file_content.secret.into_bytes())
-        .unwrap_or_else(|_| {
-            exit_with(
-                &format!(
-                    "Failed to write decrypted contents to temporary file, check {}",
-                    file_location
-                ),
-                COULD_NOT_WRITE_TO_OS_FILE,
-            )
-        });
+    file_handle.write_all(&file_content).unwrap_or_else(|_| {
+        exit_with(
+            &format!(
+                "Failed to write decrypted contents to temporary file, check {}",
+                file_location
+            ),
+            COULD_NOT_WRITE_TO_OS_FILE,
+        )
+    });
 
     file_handle.sync_all().unwrap_or_else(|_| {
         exit_with(
@@ -98,11 +95,7 @@ pub fn edit(file_name: &str) {
             )
         });
 
-        match write_document(
-            &get_config(),
-            file_metadata.id,
-            &DecryptedValue::from(secret),
-        ) {
+        match write_document(&get_config(), file_metadata.id, secret.as_bytes()) {
             Ok(_) => exit_with(
                 "Document encrypted and saved. Cleaning up temporary file.",
                 SUCCESS,

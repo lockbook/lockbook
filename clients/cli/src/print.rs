@@ -16,7 +16,7 @@ pub fn print(file_name: &str) {
     };
 
     match read_document(&get_config(), file_metadata.id) {
-        Ok(content) => print!("{}", content.secret),
+        Ok(content) => print!("{}", String::from_utf8_lossy(&content)),
         Err(error) => panic!("Unexpected error: {:?}", error),
     };
 }
