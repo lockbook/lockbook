@@ -8,5 +8,5 @@ pub type ApiUrl = String;
 pub struct Account {
     pub username: Username,
     pub api_url: ApiUrl,
-    pub keys: RSAPrivateKey,
+    pub private_key: RSAPrivateKey,
 }

@@ -4,7 +4,6 @@ use lockbook_core::model::account::Account;
 use lockbook_core::model::crypto::*;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
-use lockbook_core::service::auth_service::{Auth, AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
@@ -61,12 +60,8 @@ pub fn generate_account() -> Account {
     Account {
         username: random_username(),
         api_url: env::var("API_URL").expect("API_URL must be defined!"),
-        keys: RSAImpl::generate_key().unwrap(),
+        private_key: RSAImpl::<ClockImpl>::generate_key().unwrap(),
     }
-}
-
-pub fn sign(account: &Account) -> RSASigned<Auth> {
-    AuthServiceImpl::<ClockImpl, RSAImpl>::generate_auth(&account).unwrap()
 }
 
 pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
@@ -87,5 +82,5 @@ pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(
     key: &RSAPublicKey,
     to_encrypt: &T,
 ) -> RSAEncrypted<T> {
-    RSAImpl::encrypt(key, to_encrypt).unwrap()
+    RSAImpl::<ClockImpl>::encrypt(key, to_encrypt).unwrap()
 }

@@ -22,13 +22,13 @@ mod new_account_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -44,13 +44,13 @@ mod new_account_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Ok(_)
         );
@@ -59,13 +59,13 @@ mod new_account_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &account.username,
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::UsernameTaken
@@ -83,13 +83,13 @@ mod new_account_tests {
             ClientImpl::new_account(
                 &account.api_url,
                 &(account.username.clone() + " "),
-                account.keys.to_public_key(),
+                account.private_key.to_public_key(),
                 folder_id,
                 FolderAccessInfo {
                     folder_id: folder_id,
                     access_key: aes_encrypt(&folder_key, &folder_key),
                 },
-                rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
             ),
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::InvalidUsername
@@ -122,7 +122,7 @@ mod new_account_tests {
     //                 folder_id: folder_id,
     //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
     //         Err(ApiError::<NewAccountError>::Api(
     //             NewAccountError::InvalidPublicKey
@@ -143,13 +143,13 @@ mod new_account_tests {
     //                 content: String::default(),
     //                 signature: String::default(),
     //             },
-    //             account.keys.to_public_key(),
+    //             account.private_key.to_public_key(),
     //             folder_id,
     //             FolderAccessInfo {
     //                 folder_id: folder_id,
     //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_encrypt(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
     //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
     //     );
