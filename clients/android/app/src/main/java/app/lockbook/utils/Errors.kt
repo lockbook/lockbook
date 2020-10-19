@@ -117,16 +117,16 @@ sealed class SyncAllError {
     object NoAccount : SyncAllError()
     object CouldNotReachServer : SyncAllError()
     object ExecuteWorkError : SyncAllError()
-    data class Unexpected(val error: String): SyncAllError()
+    data class Unexpected(val error: String) : SyncAllError()
 }
 
 sealed class CalculateWorkError {
     object NoAccount : CalculateWorkError()
     object CouldNotReachServer : CalculateWorkError()
-    data class Unexpected(val error: String): CalculateWorkError()
+    data class Unexpected(val error: String) : CalculateWorkError()
 }
 
 sealed class ExecuteWorkError {
     object CouldNotReachServer : ExecuteWorkError()
-    data class Unexpected(val error: String): ExecuteWorkError()
+    data class Unexpected(val error: String) : ExecuteWorkError()
 }
