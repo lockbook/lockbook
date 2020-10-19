@@ -76,7 +76,7 @@ class NewAccountActivity : AppCompatActivity() {
                         ).show()
                         is CreateAccountError.Unexpected -> {
                             Timber.e("Unable to create account.")
-                            AlertDialog.Builder(applicationContext, R.style.DarkBlue_Dialog)
+                            AlertDialog.Builder(this@NewAccountActivity, R.style.DarkBlue_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)
                                 .setMessage(error.error)
                                 .show()

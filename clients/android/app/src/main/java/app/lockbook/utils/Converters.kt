@@ -40,7 +40,7 @@ val getStateConverter = object : Converter {
             okTag -> {
                 val ok = jv.obj?.string("content")
                 if (ok != null) {
-                    Err(when(ok) {
+                    Ok(when(ok) {
                         State.ReadyToUse.name -> State.ReadyToUse
                         State.Empty.name -> State.Empty
                         State.MigrationRequired.name -> State.MigrationRequired

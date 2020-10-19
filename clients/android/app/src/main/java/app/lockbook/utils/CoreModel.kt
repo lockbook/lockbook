@@ -35,9 +35,10 @@ object CoreModel {
     }
 
     fun migrateDB(config: Config): Result<Unit, MigrationError> {
+        Timber.e("LOL")
         val migrateDBResult: Result<Unit, MigrationError>? =
             Klaxon().converter(migrateDBConverter)
-                .parse(getDBState(Klaxon().toJsonString(config)))
+                .parse(migrateDB(Klaxon().toJsonString(config)))
 
         if (migrateDBResult != null) {
             return migrateDBResult
