@@ -12,7 +12,6 @@ use crate::model::api::{
     DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
     RenameFolderError,
 };
-use crate::model::crypto::{DecryptedValue, SignedValue};
 use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
@@ -154,10 +153,6 @@ impl<
         let server_updates = ApiClient::get_updates(
             &account.api_url,
             &account.username,
-            &SignedValue {
-                content: String::default(),
-                signature: String::default(),
-            },
             last_sync,
         )
         .map_err(GetUpdatesError)?;
@@ -334,21 +329,19 @@ impl<
                                     {
                                         debug!("File {} is mergable: {}", metadata.id, metadata.id);
 
-                                        let common_ansestor = FileCrypto::user_read_document(
+                                        let common_ancestor = FileCrypto::user_read_document(
                                             &account,
                                             &edited_locally.old_value,
                                             &edited_locally.access_info,
                                         )
-                                        .map_err(DecryptingOldVersionForMergeError)?
-                                        .secret;
+                                        .map_err(DecryptingOldVersionForMergeError)?;
 
-                                        debug!("{} Common ans: {}", metadata.id, &common_ansestor);
+                                        debug!("{} Common ans: {}", metadata.id, String::from_utf8_lossy(&common_ancestor));
 
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
-                                                .map_err(ReadingCurrentVersionError)?
-                                                .secret;
-                                        debug!("{} current: {}", metadata.id, &current_version);
+                                                .map_err(ReadingCurrentVersionError)?;
+                                        debug!("{} current: {}", metadata.id, String::from_utf8_lossy(&current_version));
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
@@ -364,12 +357,11 @@ impl<
                                                 &edited_locally.access_info,
                                             )
                                             .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
-                                            .secret
                                         };
-                                        debug!("{} server: {}", metadata.id, &server_version);
+                                        debug!("{} server: {}", metadata.id, String::from_utf8_lossy(&server_version));
 
-                                        let result = match diffy::merge(
-                                            &common_ansestor,
+                                        let result = match diffy::merge_bytes(
+                                            &common_ancestor,
                                             &current_version,
                                             &server_version,
                                         ) {
@@ -383,12 +375,12 @@ impl<
                                             }
                                         };
 
-                                        debug!("{} result: {}", metadata.id, &result);
+                                        debug!("{} result: {}", metadata.id, String::from_utf8_lossy(&result));
 
                                         Files::write_document(
                                             &db,
                                             metadata.id,
-                                            &DecryptedValue::from(result),
+                                            &result,
                                         )
                                         .map_err(WritingMergedFileError)?;
                                     } else {
@@ -494,11 +486,10 @@ impl<
                         let version = ApiClient::create_document(
                             &account.api_url,
                             &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             &metadata.name,
                             metadata.parent,
-                            content.content,
+                            content,
                             metadata.folder_access_keys.clone(),
                         )
                             .map_err(DocumentCreateError)?;
@@ -513,7 +504,6 @@ impl<
                         let version = ApiClient::create_folder(
                             &account.api_url,
                             &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             &metadata.name,
                             metadata.parent,
@@ -534,7 +524,6 @@ impl<
                             ApiClient::rename_document(
                                 &account.api_url,
                                 &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 &metadata.name)
                                 .map_err(DocumentRenameError)?
@@ -542,7 +531,6 @@ impl<
                             ApiClient::rename_folder(
                                 &account.api_url,
                                 &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 &metadata.name)
                                 .map_err(FolderRenameError)?
@@ -558,7 +546,6 @@ impl<
                             ApiClient::move_document(
                                 &account.api_url,
                                 &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
                                 metadata.folder_access_keys.clone()
@@ -567,7 +554,6 @@ impl<
                             ApiClient::move_folder(
                                 &account.api_url,
                                 &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
                                 metadata.folder_access_keys.clone()
@@ -584,10 +570,9 @@ impl<
                         let version = ApiClient::change_document_content(
                             &account.api_url,
                             &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             metadata.metadata_version,
-                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
+                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?,
                         ).map_err(DocumentChangeError)?;
 
                         metadata.content_version = version;
@@ -601,7 +586,6 @@ impl<
                         ApiClient::delete_document(
                             &account.api_url,
                             &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             metadata.metadata_version,
                         ).map_err(DocumentDeleteError)?;
@@ -615,7 +599,6 @@ impl<
                         ApiClient::delete_folder(
                             &account.api_url,
                             &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
                             metadata.metadata_version,
                         ).map_err(FolderDeleteError)?;

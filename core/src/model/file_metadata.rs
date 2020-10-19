@@ -1,5 +1,5 @@
 use crate::model::account::Username;
-use crate::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use crate::model::crypto::{FolderAccessInfo, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -30,7 +30,6 @@ pub struct FileMetadata {
     pub parent: Uuid,
     pub name: String,
     pub owner: String,
-    pub signature: SignedValue,
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,

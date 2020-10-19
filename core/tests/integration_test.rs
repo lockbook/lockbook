@@ -1,19 +1,20 @@
 #![allow(dead_code)]
 
 use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::SignedValue;
 use lockbook_core::model::crypto::*;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
-use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
+use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl, Auth};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
-    AesImpl, PubKeyCryptoService, RsaImpl, SymmetricCryptoService,
+    AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
 use lockbook_core::Db;
 use rsa::RSAPublicKey;
 use std::env;
 use uuid::Uuid;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -60,46 +61,22 @@ pub fn generate_account() -> Account {
     Account {
         username: random_username(),
         api_url: env::var("API_URL").expect("API_URL must be defined!"),
-        keys: RsaImpl::generate_key().unwrap(),
+        keys: RSAImpl::generate_key().unwrap(),
     }
 }
 
-pub fn sign(account: &Account) -> SignedValue {
-    AuthServiceImpl::<ClockImpl, RsaImpl>::generate_auth(&account).unwrap()
+pub fn sign(account: &Account) -> RSASigned<Auth> {
+    AuthServiceImpl::<ClockImpl, RSAImpl>::generate_auth(&account).unwrap()
 }
 
-pub fn aes_key(encrypting_key: &AesKey, encrypted_key: &AesKey) -> EncryptedValueWithNonce {
-    AesImpl::encrypt(
-        &encrypting_key,
-        &DecryptedValue {
-            secret: encrypted_key.key.clone(),
-        },
-    )
-    .unwrap()
+pub fn aes_encrypt<T: Serialize + DeserializeOwned>(key: &AESKey, to_encrypt: &T) -> AESEncrypted<T> {
+    AESImpl::encrypt(key, to_encrypt).unwrap()
 }
 
-pub fn aes_str(encrypting_key: &AesKey, encrypted_str: &str) -> EncryptedValueWithNonce {
-    AesImpl::encrypt(
-        &encrypting_key,
-        &DecryptedValue {
-            secret: String::from(encrypted_str),
-        },
-    )
-    .unwrap()
+pub fn aes_decrypt<T: Serialize + DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) -> T {
+    AESImpl::decrypt(&key, &to_decrypt).unwrap()
 }
 
-pub fn aes_decrypt_str(encrypting_key: &AesKey, encrypted_str: &EncryptedValueWithNonce) -> String {
-    AesImpl::decrypt(&encrypting_key, &encrypted_str)
-        .unwrap()
-        .secret
-}
-
-pub fn rsa_key(encrypting_key: &RSAPublicKey, encrypted_key: &AesKey) -> EncryptedValue {
-    RsaImpl::encrypt(
-        encrypting_key,
-        &DecryptedValue {
-            secret: encrypted_key.key.clone(),
-        },
-    )
-    .unwrap()
+pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(key: &RSAPublicKey, to_encrypt: &AESKey) -> RSAEncrypted<AESKey> {
+    RSAImpl::encrypt(key, to_encrypt).unwrap()
 }

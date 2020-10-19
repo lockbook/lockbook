@@ -1,7 +1,7 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::{Document, UserAccessInfo};
+use crate::model::crypto::{UserAccessInfo, EncryptedDocument};
 use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub trait LocalChangesRepo {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_version: &Document,
+        old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
@@ -179,7 +179,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_version: &Document,
+        old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
