@@ -187,7 +187,7 @@ class RenameFileTest {
     @Test
     fun renameFileUnexpectedError() {
         val renameFileResult: Result<Unit, RenameFileError>? =
-            Klaxon().converter(getUsageConverters).parse(renameFile("", "", ""))
+            Klaxon().converter(renameFileConverter).parse(renameFile("", "", ""))
 
         assertType<RenameFileError.Unexpected>(
             renameFileResult?.component2()
