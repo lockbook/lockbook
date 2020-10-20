@@ -153,6 +153,7 @@ impl Client for ClientImpl {
                 content_version: content_version,
             },
         )
+        .map(|r: GetDocumentResponse| r.content)
     }
     fn change_document_content(
         api_url: &str,
