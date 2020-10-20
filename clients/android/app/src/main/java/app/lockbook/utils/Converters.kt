@@ -5,7 +5,6 @@ import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 
 const val okTag = "Ok"
 const val errTag = "Err"
