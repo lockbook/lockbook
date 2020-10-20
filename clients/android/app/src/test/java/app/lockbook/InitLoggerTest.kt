@@ -1,8 +1,8 @@
 package app.lockbook
 
 import app.lockbook.utils.Config
-import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
+import app.lockbook.utils.InitLoggerError
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -32,7 +32,7 @@ class InitLoggerTest {
 
     @Test
     fun initLoggerUnexpected() {
-        assertType<CoreError.Unexpected>(
+        assertType<InitLoggerError.Unexpected>(
             CoreModel.setUpInitLogger("${config.writeable_path}/${generateAlphaString()}.txt").component2()
         )
     }
