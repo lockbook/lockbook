@@ -10,6 +10,7 @@
     </data>
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/fragment_list_files"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
@@ -33,7 +34,7 @@
         </LinearLayout>
 
         <FrameLayout
-            android:id="@+id/list_files_layout"
+            android:id="@+id/list_files_frame_layout"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:animateLayoutChanges="true">

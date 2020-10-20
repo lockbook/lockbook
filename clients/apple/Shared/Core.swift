@@ -6,16 +6,46 @@ import Combine
 class Core: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
+    @Published var state: DbState
     @Published var account: Account?
     @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
     @Published var grouped: [FileMetadataWithChildren] = []
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    let serialQueue = DispatchQueue(label: "syncQueue")
     
     private var passthrough = PassthroughSubject<Void, Error>()
     private var cancellableSet: Set<AnyCancellable> = []
-    
+
+    func load() {
+        switch api.getAccount() {
+        case .success(let acc):
+            account = acc
+        case .failure(let err):
+            handleError(err)
+        }
+    }
+
+    func migrate() {
+        let res = api.migrateState()
+            .eraseError()
+            .flatMap(transform: { _ in api.getState().eraseError() })
+        switch res {
+        case .success(let newState):
+            state = newState
+            load()
+            switch newState {
+            case .ReadyToUse:
+                break
+            default:
+                print("Weird state after migration: \(newState)")
+            }
+        case .failure(let err):
+            handleError(err)
+        }
+    }
+
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
@@ -27,7 +57,7 @@ class Core: ObservableObject {
     
     func sync() {
         self.syncing = true
-        DispatchQueue.global(qos: .background).async {
+        serialQueue.async {
             switch self.api.synchronize() {
             case .success(_):
                 self.passthrough.send(())
@@ -69,17 +99,11 @@ class Core: ObservableObject {
     
     init(documenstDirectory: String) {
         self.documenstDirectory = documenstDirectory
-        let api = CoreApi(documentsDirectory: documenstDirectory)
-        api.initializeLogger()
-        switch api.getAccount() {
-        case .success(let acc):
-            self.account = acc
-        case .failure(let err):
-            print(err) // TODO: Improve this
-        }
-        self.api = api
-        self.updateFiles()
-        
+        self.api = CoreApi(documentsDirectory: documenstDirectory)
+        self.state = (try? self.api.getState().get())!
+        self.account = (try? self.api.getAccount().get())
+        updateFiles()
+
         passthrough
             .receive(on: RunLoop.main)
             .sink(receiveCompletion: { err in
@@ -100,6 +124,7 @@ class Core: ObservableObject {
     init() {
         self.documenstDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
+        self.state = .ReadyToUse
         self.updateFiles()
     }
 }
