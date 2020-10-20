@@ -70,6 +70,7 @@
     </style>
 
     <style name="Text.Headline" parent="TextAppearance.AppCompat.Display1">
+        <item name="android:textColor">@color/light</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:textAlignment">center</item>
     </style>
@@ -78,7 +79,7 @@
 
     <style name="Button.Small" parent="Widget.AppCompat.Button.Small" />
 
-    <style name="Button.Colored" parent="Widget.AppCompat.Button.Colored" />
+    <style name="Button.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
 
     <style name="Button.Borderless" parent="Widget.AppCompat.Button.Borderless" />
 
