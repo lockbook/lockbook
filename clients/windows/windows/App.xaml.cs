@@ -60,7 +60,7 @@ namespace lockbook {
                     // configuring the new page by passing required information as a navigation
                     // parameter
 
-                    if (CoreService.AccountExists()) {
+                    if (CoreService.AccountExists().WaitResult()) {
                         rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
                     } else {
                         rootFrame.Navigate(typeof(SignUp), e.Arguments);

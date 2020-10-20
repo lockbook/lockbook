@@ -3,7 +3,8 @@ package app.lockbook
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.widget.Toast
+import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
@@ -12,37 +13,157 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.login.WelcomeActivity
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
-import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.google.android.material.snackbar.Snackbar
+import kotlinx.android.synthetic.main.splash_screen.*
+import kotlinx.coroutines.*
 import timber.log.Timber
 
+const val STATEREQUIRESCLEANING =
+    "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
+
 class InitialLaunchFigureOuter : AppCompatActivity() {
+    private var job = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.splash_screen)
         Timber.plant(Timber.DebugTree())
 
+        handleOnDBState()
+    }
+
+    private fun handleOnDBState() {
+        when (val getDBStateResult = CoreModel.getDBState(Config(filesDir.absolutePath))) {
+            is Ok -> {
+                when (getDBStateResult.value) {
+                    State.Empty -> {
+                        startActivity(Intent(this, WelcomeActivity::class.java))
+                        finish()
+                    }
+                    State.ReadyToUse -> startFromExistingAccount()
+                    State.MigrationRequired -> {
+                        Snackbar.make(
+                            splash_screen,
+                            "Upgrading data...",
+                            Snackbar.LENGTH_LONG
+                        ).show()
+                        migrate_progress_bar.visibility = View.VISIBLE
+                        migrateDB()
+                    }
+                    State.StateRequiresClearing -> {
+                        Timber.e("DB state requires cleaning!")
+                        Snackbar.make(
+                            splash_screen,
+                            STATEREQUIRESCLEANING,
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+            is Err -> when (val error = getDBStateResult.error) {
+                is GetStateError.Unexpected -> {
+                    Timber.e("Unable to get DB State: ${error.error}")
+                    AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+                        .setTitle(UNEXPECTED_ERROR)
+                        .setMessage(error.error)
+                        .show()
+                }
+                else -> {
+                    Timber.e("GetStateError not matched: ${error::class.simpleName}")
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_CLIENT_ERROR,
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun migrateDB() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
+                    is Ok -> {
+                        withContext(Dispatchers.Main) {
+                            migrate_progress_bar.visibility = View.GONE
+                            Snackbar.make(
+                                splash_screen,
+                                "Your data has been migrated.",
+                                Snackbar.LENGTH_SHORT
+                            ).addCallback(object : Snackbar.Callback() {
+                                override fun onDismissed(
+                                    transientBottomBar: Snackbar?,
+                                    event: Int
+                                ) {
+                                    super.onDismissed(transientBottomBar, event)
+                                    startFromExistingAccount()
+                                }
+                            }).show()
+                        }
+                    }
+                    is Err -> when (val error = migrateDBResult.error) {
+                        is MigrationError.StateRequiresCleaning -> {
+                            withContext(Dispatchers.Main) {
+                                migrate_progress_bar.visibility = View.GONE
+                                Snackbar.make(
+                                    splash_screen,
+                                    STATEREQUIRESCLEANING,
+                                    Snackbar.LENGTH_LONG
+                                ).addCallback(object : Snackbar.Callback() {
+                                    override fun onDismissed(
+                                        transientBottomBar: Snackbar?,
+                                        event: Int
+                                    ) {
+                                        super.onDismissed(transientBottomBar, event)
+                                        finish()
+                                    }
+                                }).show()
+                            }
+                            Timber.e("DB state requires cleaning!")
+                        }
+                        is MigrationError.Unexpected -> {
+                            withContext(Dispatchers.Main) {
+                                migrate_progress_bar.visibility = View.GONE
+                                AlertDialog.Builder(this@InitialLaunchFigureOuter, R.style.DarkBlue_Dialog)
+                                    .setTitle(UNEXPECTED_ERROR)
+                                    .setMessage(error.error)
+                                    .setOnCancelListener {
+                                        finish()
+                                    }
+                                    .show()
+                            }
+                            Timber.e("Unable to migrate DB: ${error.error}")
+                        }
+                    }
+                }.exhaustive
+            }
+        }
+    }
+
+    private fun startFromExistingAccount() {
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
 
-        if (pref.getBoolean(LOGGED_IN_KEY, false)) {
-            if (!isBiometricsOptionsAvailable() && pref.getString(
-                    BIOMETRIC_OPTION_KEY,
-                    BIOMETRIC_NONE
-                ) != BIOMETRIC_NONE
-            ) {
-                pref.edit()
-                    .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
-                    .apply()
-            }
-            performBiometricFlow(pref)
-        } else {
-            startActivity(Intent(this, WelcomeActivity::class.java))
-            finish()
+        if (!isBiometricsOptionsAvailable() && pref.getString(
+                BIOMETRIC_OPTION_KEY,
+                BIOMETRIC_NONE
+            ) != BIOMETRIC_NONE
+        ) {
+            pref.edit()
+                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
+                .apply()
         }
+        performBiometricFlow(pref)
     }
 
     private fun launchListFilesActivity() {
@@ -69,9 +190,16 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
-                        .show()
-                    finish()
+                    Snackbar.make(
+                        splash_screen,
+                        UNEXPECTED_CLIENT_ERROR,
+                        Snackbar.LENGTH_LONG
+                    ).addCallback(object : Snackbar.Callback() {
+                        override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                            super.onDismissed(transientBottomBar, event)
+                            finish()
+                        }
+                    }).show()
                 }
 
                 val executor = ContextCompat.getMainExecutor(this)
@@ -87,21 +215,26 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                             when (errorCode) {
                                 BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    Toast.makeText(
-                                        applicationContext,
-                                        UNEXPECTED_ERROR_OCCURRED,
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
-                                    finish()
+                                    Snackbar.make(
+                                        splash_screen,
+                                        UNEXPECTED_CLIENT_ERROR,
+                                        Snackbar.LENGTH_LONG
+                                    ).addCallback(object : Snackbar.Callback() {
+                                        override fun onDismissed(
+                                            transientBottomBar: Snackbar?,
+                                            event: Int
+                                        ) {
+                                            super.onDismissed(transientBottomBar, event)
+                                            finish()
+                                        }
+                                    }).show()
                                 }
                                 BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
-                                    Toast.makeText(
-                                        applicationContext,
+                                    Snackbar.make(
+                                        splash_screen,
                                         "Too many tries, try again later!",
-                                        Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
                                 else -> finish()
                             }
                         }
@@ -126,8 +259,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             BIOMETRIC_NONE, BIOMETRIC_RECOMMENDED -> launchListFilesActivity()
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Toast.makeText(this, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
-                    .show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
             }
         }
     }

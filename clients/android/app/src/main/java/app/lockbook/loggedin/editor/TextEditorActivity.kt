@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
@@ -7,19 +7,21 @@ import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 import java.util.*
 import java.util.concurrent.Executors
@@ -28,59 +30,57 @@ class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var timer: Timer = Timer()
     private val handler = Handler()
-    var menu: Menu? = null
+    private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
 
         val id = intent.getStringExtra("id")
-        val contents = intent.getStringExtra("contents")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
-            finish()
             return
         }
-        if (contents == null) {
-            errorHasOccurred("Unable to retrieve contents.")
-            finish()
-            return
-        }
-
-        val textEditorViewModelFactory =
-            TextEditorViewModelFactory(
-                id,
-                filesDir.absolutePath,
-                contents
-            )
 
         textEditorViewModel =
-            ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
+            ViewModelProvider(
+                this,
+                TextEditorViewModelFactory(
+                    application,
+                    id
+                )
+            ).get(TextEditorViewModel::class.java)
 
         textEditorViewModel.canUndo.observe(
             this,
-            Observer { canUndo ->
+            { canUndo ->
                 menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = canUndo
             }
         )
 
         textEditorViewModel.canRedo.observe(
             this,
-            Observer { canRedo ->
+            { canRedo ->
                 menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = canRedo
             }
         )
 
         textEditorViewModel.errorHasOccurred.observe(
             this,
-            Observer { errorText ->
+            { errorText ->
                 errorHasOccurred(errorText)
             }
         )
 
-        setUpView()
-        startBackgroundSave()
+        textEditorViewModel.unexpectedErrorHasOccurred.observe(
+            this,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
+            }
+        )
+
+        setUpView(id)
     }
 
     private fun startBackgroundSave() {
@@ -97,16 +97,29 @@ class TextEditorActivity : AppCompatActivity() {
         )
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        finish()
-        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).addCallback(object : Snackbar.Callback() {
+            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                super.onDismissed(transientBottomBar, event)
+                finish()
+            }
+        }).show()
     }
 
-    private fun setUpView() {
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+            .setTitle(UNEXPECTED_ERROR)
+            .setMessage(error)
+            .setOnCancelListener {
+                finish()
+            }
+            .show()
+    }
+
+    private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
-            finish()
             return
         }
 
@@ -144,9 +157,12 @@ class TextEditorActivity : AppCompatActivity() {
             )
         }
 
-        text_editor.setText(intent.getStringExtra("contents"))
-
-        text_editor.addTextChangedListener(textEditorViewModel)
+        val contents = textEditorViewModel.handleReadDocument(id)
+        if (contents != null) {
+            text_editor.setText(contents)
+            text_editor.addTextChangedListener(textEditorViewModel)
+            startBackgroundSave()
+        }
     }
 
     private fun viewMarkdown() {
@@ -184,7 +200,12 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG).show()
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                )
+                    .show()
             }
         }
 
