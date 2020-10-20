@@ -20,7 +20,8 @@
         android:id="@+id/qr_import_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:srcCompat="@drawable/ic_qr_code_scanner_black_48"
+        android:background="@null"
+        app:srcCompat="@drawable/baseline_qr_code_scanner_white_18dp"
         android:contentDescription="@string/qr_code_content_description"/>
 
     <EditText
