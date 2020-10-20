@@ -8,6 +8,13 @@
     android:orientation="vertical"
     tools:context=".login.WelcomeActivity">
 
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/list_files_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:background="@color/black" />
+
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/files_fragment"
         android:name="app.lockbook.loggedin.listfiles.ListFilesFragment"

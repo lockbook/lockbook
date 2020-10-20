@@ -46,7 +46,8 @@ val getStateConverter = object : Converter {
                         State.Empty.name -> State.Empty
                         State.MigrationRequired.name -> State.MigrationRequired
                         State.StateRequiresClearing.name -> State.StateRequiresClearing
-                        else -> {}
+                        else -> {
+                        }
                     }
                 )
             } else {
