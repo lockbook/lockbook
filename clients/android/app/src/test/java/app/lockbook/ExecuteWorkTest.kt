@@ -64,7 +64,7 @@ class ExecuteWorkTest {
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
                     CoreModel.executeFileSyncWork(
                         config,
@@ -133,7 +133,7 @@ class ExecuteWorkTest {
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
                     CoreModel.executeFileSyncWork(
                         config,
