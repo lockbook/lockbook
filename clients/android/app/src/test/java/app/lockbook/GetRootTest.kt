@@ -40,7 +40,7 @@ class GetRootTest {
         val getRootResult: Result<FileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(""))
 
-        assertType<GetRootError.UnexpectedError>(
+        assertType<GetRootError.Unexpected>(
             getRootResult?.component2()
         )
     }

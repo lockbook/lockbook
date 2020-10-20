@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
     create_file_at_path, get_file_by_path, write_document, CreateFileAtPathError,
-    GetFileByPathError,
+    Error as CoreError, GetFileByPathError,
 };
 
 use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
@@ -57,11 +57,11 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         let file_metadata = match create_file_at_path(&get_config(), &import_dest_with_filename) {
             Ok(file_metadata) => file_metadata,
             Err(err) => match err {
-                CreateFileAtPathError::FileAlreadyExists => {
+                CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
                     if edit {
                         get_file_by_path(&get_config(), &import_dest_with_filename).unwrap_or_else(|get_err| match get_err {
-                            GetFileByPathError::NoFileAtThatPath |
-                            GetFileByPathError::UnexpectedError(_) => exit_with(
+                            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) |
+                            CoreError::Unexpected(_) => exit_with(
                                 &format!("Unexpected error: {:?}", get_err),
                                 UNEXPECTED_ERROR,
                             ),
@@ -70,12 +70,12 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
                         exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename), FILE_ALREADY_EXISTS)
                     }
                 }
-                CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                CreateFileAtPathError::NoRoot => exit_with("No root folder, have you synced yet?", NO_ROOT),
-                CreateFileAtPathError::DocumentTreatedAsFolder => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest_with_filename), DOCUMENT_TREATED_AS_FOLDER),
-                CreateFileAtPathError::PathContainsEmptyFile => exit_with(&format!("Input destination {} contains an empty file!", import_dest_with_filename), PATH_CONTAINS_EMPTY_FILE),
-                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
-                CreateFileAtPathError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
+                CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
+                CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest_with_filename), DOCUMENT_TREATED_AS_FOLDER),
+                CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => exit_with(&format!("Input destination {} contains an empty file!", import_dest_with_filename), PATH_CONTAINS_EMPTY_FILE),
+                CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         };
 

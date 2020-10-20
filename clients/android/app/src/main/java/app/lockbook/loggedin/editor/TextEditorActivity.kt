@@ -6,17 +6,20 @@ import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.android.synthetic.main.activity_text_editor.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 import java.util.*
 import java.util.concurrent.Executors
@@ -35,7 +38,6 @@ class TextEditorActivity : AppCompatActivity() {
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
-            finish()
             return
         }
 
@@ -69,6 +71,13 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
+        textEditorViewModel.unexpectedErrorHasOccurred.observe(
+            this,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
+            }
+        )
+
         setUpView(id)
     }
 
@@ -86,16 +95,29 @@ class TextEditorActivity : AppCompatActivity() {
         )
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        finish()
-        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).addCallback(object : Snackbar.Callback() {
+            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                super.onDismissed(transientBottomBar, event)
+                finish()
+            }
+        }).show()
+    }
+
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+            .setTitle(UNEXPECTED_ERROR)
+            .setMessage(error)
+            .setOnCancelListener {
+                finish()
+            }
+            .show()
     }
 
     private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
-            finish()
             return
         }
 
@@ -167,7 +189,11 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                Toast.makeText(applicationContext, UNEXPECTED_ERROR_OCCURRED, Toast.LENGTH_LONG)
+                Snackbar.make(
+                    splash_screen,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                )
                     .show()
             }
         }
