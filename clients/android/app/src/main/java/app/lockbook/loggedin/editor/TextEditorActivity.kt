@@ -124,12 +124,16 @@ class TextEditorActivity : AppCompatActivity() {
         }
 
         val title = SpannableString(name)
-        title.setSpan(ForegroundColorSpan(
-            ResourcesCompat.getColor(
-                resources,
-                R.color.light,
-                null
-            )), 0, title.length, 0)
+        title.setSpan(
+            ForegroundColorSpan(
+                ResourcesCompat.getColor(
+                    resources,
+                    R.color.light,
+                    null
+                )
+            ),
+            0, title.length, 0
+        )
         text_editor_toolbar.title = title
         setSupportActionBar(text_editor_toolbar)
 

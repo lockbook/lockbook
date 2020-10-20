@@ -59,7 +59,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             this
         ) { errorText ->
             unexpectedErrorHasOccurred(errorText)
-
         }
 
         if (!startUpDrawingIfAble(id)) {
