@@ -6,15 +6,12 @@ struct OnboardingView: View {
     var body: some View {
         VStack {
             NavigationView {
-                VStack {
-                    VStack {
-                        NavigationLink(destination: CreateAccountView(core: self.core)) {
-                            Label("Create", systemImage: "person.crop.circle.badge.plus")
-                        }
-                            .padding(.bottom, 40)
-                        NavigationLink(destination: ImportAccountView(core: self.core)) {
-                            Label("Import", systemImage: "rectangle.stack.person.crop")
-                        }
+                VStack(spacing: 40) {
+                    NavigationLink(destination: CreateAccountView(core: self.core)) {
+                        Label("Create", systemImage: "person.crop.circle.badge.plus")
+                    }
+                    NavigationLink(destination: ImportAccountView(core: self.core)) {
+                        Label("Import", systemImage: "rectangle.stack.person.crop")
                     }
                 }
                 

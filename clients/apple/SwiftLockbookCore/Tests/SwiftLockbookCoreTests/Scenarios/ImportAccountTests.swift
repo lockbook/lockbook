@@ -6,7 +6,8 @@ class ImportAccountTests: SLCTest {
     
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let account = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let _ = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let account = try core.api.getAccount().get()
         let accountString = try core.api.exportAccount().get()
         known = (account, accountString)
         try core.cleanUp()
@@ -15,12 +16,16 @@ class ImportAccountTests: SLCTest {
     func testSimple() throws {
         let importResult = core.api.importAccount(accountString: known!.accountString)
         
-        assertSuccess(importResult) { $0.username == known!.account.username }
+        assertSuccess(importResult)
+        
+        let getResult = core.api.getAccount()
+        
+        assertSuccess(getResult) { $0.username == known!.account.username }
     }
     
     func testBadAccountString() throws {
         let importResult = core.api.importAccount(accountString: "JUNK-ACCOUNT-STRING")
         
-        assertFailure(importResult) { $0 == .Lockbook(.AccountStringCorrupted) }
+        assertFailure(importResult) { $0 == .init(.AccountStringCorrupted) }
     }
 }

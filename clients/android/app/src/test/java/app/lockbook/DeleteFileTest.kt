@@ -84,7 +84,7 @@ class DeleteFileTest {
         val deleteFile: Result<Unit, DeleteFileError>? =
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
 
-        assertType<DeleteFileError.UnexpectedError>(
+        assertType<DeleteFileError.Unexpected>(
             deleteFile?.component2()
         )
     }

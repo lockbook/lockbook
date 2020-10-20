@@ -68,7 +68,7 @@ class CreateAccountTest {
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount("", "", API_URL))
 
-        assertType<CreateAccountError.UnexpectedError>(
+        assertType<CreateAccountError.Unexpected>(
             createAccountOk?.component2()
         )
     }
