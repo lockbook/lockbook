@@ -6,15 +6,16 @@ import android.view.SurfaceHolder
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.observe
 import app.lockbook.R
 import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.beust.klaxon.Klaxon
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -50,8 +51,15 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
         handwritingEditorViewModel.errorHasOccurred.observe(
             this
-        ) { errorHasOccurred ->
-            errorHasOccurred(errorHasOccurred)
+        ) { errorText ->
+            errorHasOccurred(errorText)
+        }
+
+        handwritingEditorViewModel.unexpectedErrorHasOccurred.observe(
+            this
+        ) { errorText ->
+            unexpectedErrorHasOccurred(errorText)
+
         }
 
         if (!startUpDrawingIfAble(id)) {
@@ -180,8 +188,23 @@ class HandwritingEditorActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        finish()
-        Toast.makeText(applicationContext, errorText, Toast.LENGTH_LONG).show()
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(handwriting_editor_layout, error, Snackbar.LENGTH_SHORT)
+            .addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                    super.onDismissed(transientBottomBar, event)
+                    finish()
+                }
+            }).show()
+    }
+
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+            .setTitle(UNEXPECTED_ERROR)
+            .setMessage(error)
+            .setOnCancelListener {
+                finish()
+            }
+            .show()
     }
 }

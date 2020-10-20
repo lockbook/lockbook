@@ -10,7 +10,6 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
-import timber.log.Timber
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {

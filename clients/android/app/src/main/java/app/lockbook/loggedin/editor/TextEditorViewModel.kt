@@ -8,7 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.ReadDocumentError
 import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
@@ -27,6 +27,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
     private val _canUndo = MutableLiveData<Boolean>()
     private val _canRedo = MutableLiveData<Boolean>()
     private val _errorHasOccurred = MutableLiveData<String>()
+    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
     val canUndo: LiveData<Boolean>
         get() = _canUndo
@@ -36,6 +37,9 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
+
+    val unexpectedErrorHasOccurred: LiveData<String>
+        get() = _unexpectedErrorHasOccurred
 
     init {
         val contents = handleReadDocument(id)
@@ -53,15 +57,11 @@ class TextEditorViewModel(application: Application, private val id: String) :
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
                 is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.UnexpectedError -> {
+                is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_ERROR
                     )
-                }
-                else -> {
-                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                 }
             }
         }
@@ -127,15 +127,11 @@ class TextEditorViewModel(application: Application, private val id: String) :
                         is WriteToDocumentError.NoAccount -> {
                             _errorHasOccurred.postValue("Error! No account!")
                         }
-                        is WriteToDocumentError.UnexpectedError -> {
+                        is WriteToDocumentError.Unexpected -> {
                             Timber.e("Unable to write document changes: ${error.error}")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                                UNEXPECTED_ERROR
                             )
-                        }
-                        else -> {
-                            Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
                         }
                     }
                 }

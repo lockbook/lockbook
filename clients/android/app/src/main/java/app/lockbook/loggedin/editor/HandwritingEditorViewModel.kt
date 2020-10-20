@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -20,9 +21,13 @@ class HandwritingEditorViewModel(
     var lockBookDrawable: Drawing? = null
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private val _errorHasOccurred = MutableLiveData<String>()
+    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
+
+    val unexpectedErrorHasOccurred: LiveData<String>
+        get() = _unexpectedErrorHasOccurred
 
     fun handleReadDocument(id: String): String? {
         when (val documentResult = CoreModel.getDocumentContent(config, id)) {
@@ -33,15 +38,11 @@ class HandwritingEditorViewModel(
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
                 is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.UnexpectedError -> {
+                is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        Messages.UNEXPECTED_ERROR_OCCURRED
+                    _unexpectedErrorHasOccurred.postValue(
+                        UNEXPECTED_ERROR
                     )
-                }
-                else -> {
-                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(Messages.UNEXPECTED_ERROR_OCCURRED)
                 }
             }
         }
@@ -65,15 +66,11 @@ class HandwritingEditorViewModel(
                         is WriteToDocumentError.NoAccount -> {
                             _errorHasOccurred.postValue("Error! No account!")
                         }
-                        is WriteToDocumentError.UnexpectedError -> {
+                        is WriteToDocumentError.Unexpected -> {
                             Timber.e("Unable to write document changes: ${error.error}")
-                            _errorHasOccurred.postValue(
-                                Messages.UNEXPECTED_ERROR_OCCURRED
+                            _unexpectedErrorHasOccurred.postValue(
+                                UNEXPECTED_ERROR
                             )
-                        }
-                        else -> {
-                            Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(Messages.UNEXPECTED_ERROR_OCCURRED)
                         }
                     }
                 }

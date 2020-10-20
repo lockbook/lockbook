@@ -1,5 +1,6 @@
 use lockbook_core::{
-    calculate_work, execute_work, set_last_synced, CalculateWorkError, SetLastSyncedError,
+    calculate_work, execute_work, set_last_synced, CalculateWorkError, Error as CoreError,
+    SetLastSyncedError,
 };
 
 use crate::utils::{
@@ -17,10 +18,12 @@ pub fn sync() {
     let mut work_calculated = match calculate_work(&get_config()) {
         Ok(work) => work,
         Err(err) => match err {
-            CalculateWorkError::NoAccount => exit_with_no_account(),
-            CalculateWorkError::CouldNotReachServer => exit_with_offline(),
-            CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
-            CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
+            CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
+            CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
+                exit_with_upgrade_required()
+            }
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     };
 
@@ -41,10 +44,12 @@ pub fn sync() {
         work_calculated = match calculate_work(&get_config()) {
             Ok(work) => work,
             Err(err) => match err {
-                CalculateWorkError::NoAccount => exit_with_no_account(),
-                CalculateWorkError::CouldNotReachServer => exit_with_offline(),
-                CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
+                CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
+                CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
+                    exit_with_upgrade_required()
+                }
             },
         };
     }
@@ -55,7 +60,10 @@ pub fn sync() {
     ) {
         Ok(_) => {}
         Err(err) => match err {
-            SetLastSyncedError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(SetLastSyncedError::Stub) => {
+                exit_with("Impossible", UNEXPECTED_ERROR)
+            }
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
 

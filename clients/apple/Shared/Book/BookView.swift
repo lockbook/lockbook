@@ -22,7 +22,7 @@ struct BookView: View {
         case .success(let files):
             return files
         case .failure(let err):
-            core.displayError(error: err)
+            core.handleError(err)
             return []
         }
     }
@@ -81,17 +81,45 @@ struct FileListView: View {
         })
         
         #if os(iOS)
-            return baseView
-                .navigationBarItems(leading: HStack {
-                    Button(action: { showingAccount.toggle() }) {
-                        Image(systemName: "person.circle.fill")
+        return baseView
+            .navigationBarItems(leading: HStack {
+                Button(action: { showingAccount.toggle() }) {
+                    Image(systemName: "person.circle.fill")
+                }
+                .sheet(isPresented: $showingAccount, content: {
+                    AccountView(core: core, account: account)
+                })
+                Button(action: { showingCreate.toggle() }) {
+                    Image(systemName: "plus.circle")
+                }
+                .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
+                .popover(isPresented: $showingCreate, content: {
+                    if let folder = selectedFolder {
+                        CreateFileView(core: core, currentFolder: folder)
+                            .padding(50)
+                    } else {
+                        Text("Select a folder first!")
+                            .padding()
                     }
-                    .sheet(isPresented: $showingAccount, content: {
-                        AccountView(core: core, account: account)
-                    })
+                })
+            }, trailing: HStack {
+                Button(action: core.sync) {
+                    SyncIndicator(syncing: $core.syncing)
+                        .foregroundColor(core.syncing ? .pink : .accentColor)
+                }
+                .disabled(core.syncing)
+            })
+        #else
+        return baseView
+            .toolbar {
+                HStack {
+                    Button(action: core.sync) {
+                        SyncIndicator(syncing: $core.syncing)
+                    }.font(.title)
+                    .disabled(core.syncing)
                     Button(action: { showingCreate.toggle() }) {
                         Image(systemName: "plus.circle")
-                    }
+                    }.font(.title)
                     .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
                     .popover(isPresented: $showingCreate, content: {
                         if let folder = selectedFolder {
@@ -102,36 +130,8 @@ struct FileListView: View {
                                 .padding()
                         }
                     })
-                }, trailing: HStack {
-                    Button(action: core.sync) {
-                        SyncIndicator(syncing: $core.syncing)
-                            .foregroundColor(core.syncing ? .pink : .accentColor)
-                    }
-                    .disabled(core.syncing)
-                })
-        #else
-            return baseView
-                .toolbar {
-                    HStack {
-                        Button(action: core.sync) {
-                            SyncIndicator(syncing: $core.syncing)
-                        }.font(.title)
-                        .disabled(core.syncing)
-                        Button(action: { showingCreate.toggle() }) {
-                            Image(systemName: "plus.circle")
-                        }.font(.title)
-                        .keyboardShortcut(KeyEquivalent("j"), modifiers: .command)
-                        .popover(isPresented: $showingCreate, content: {
-                            if let folder = selectedFolder {
-                                CreateFileView(core: core, currentFolder: folder)
-                                    .padding(50)
-                            } else {
-                                Text("Select a folder first!")
-                                    .padding()
-                            }
-                        })
-                    }
                 }
+            }
         #endif
     }
 }

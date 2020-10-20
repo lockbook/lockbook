@@ -45,23 +45,23 @@ pub enum CalculateWorkError {
     MetadataRepoError(file_metadata_repo::Error),
     GetMetadataError(file_metadata_repo::DbError),
     AccountRetrievalError(account_repo::AccountRepoError),
-    GetUpdatesError(client::Error<api::GetUpdatesError>),
+    GetUpdatesError(client::ApiError<api::GetUpdatesError>),
 }
 
 #[derive(Debug)]
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
     MetadataRepoErrorOpt(file_metadata_repo::Error),
-    DocumentGetError(client::Error<GetDocumentError>),
-    DocumentRenameError(client::Error<RenameDocumentError>),
-    FolderRenameError(client::Error<RenameFolderError>),
-    DocumentMoveError(client::Error<MoveDocumentError>),
-    FolderMoveError(client::Error<MoveFolderError>),
-    DocumentCreateError(client::Error<CreateDocumentError>),
-    FolderCreateError(client::Error<CreateFolderError>),
-    DocumentChangeError(client::Error<ChangeDocumentContentError>),
-    DocumentDeleteError(client::Error<DeleteDocumentError>),
-    FolderDeleteError(client::Error<DeleteFolderError>),
+    DocumentGetError(client::ApiError<GetDocumentError>),
+    DocumentRenameError(client::ApiError<RenameDocumentError>),
+    FolderRenameError(client::ApiError<RenameFolderError>),
+    DocumentMoveError(client::ApiError<MoveDocumentError>),
+    FolderMoveError(client::ApiError<MoveFolderError>),
+    DocumentCreateError(client::ApiError<CreateDocumentError>),
+    FolderCreateError(client::ApiError<CreateFolderError>),
+    DocumentChangeError(client::ApiError<ChangeDocumentContentError>),
+    DocumentDeleteError(client::ApiError<DeleteDocumentError>),
+    FolderDeleteError(client::ApiError<DeleteFolderError>),
     SaveDocumentError(document_repo::Error), // Delete uses this and it shouldn't
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
