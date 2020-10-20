@@ -7,10 +7,11 @@ class ModifyFileTests: SLCTest {
     
     override func setUpWithError() throws {
         try super.setUpWithError()
-        account = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        let _ = try core.api.createAccount(username: randomUsername(), apiLocation: systemApiLocation()).get()
+        account = try core.api.getAccount().get()
         root = try core.api.getRoot().get()
     }
-
+    
     func testUpdateContent1KB() throws {
         let resultCreateFile = core.api.createFile(name: randomFilename(), dirId: root!.id, isFolder: false)
         assertSuccess(resultCreateFile)
@@ -18,11 +19,9 @@ class ModifyFileTests: SLCTest {
         
         /// 1 KB of data
         let data = Data(count: 1000)
-        measure {
-            assertSuccess(core.api.updateFile(id: createdFile.id, content: data.base64EncodedString()))
-            assertSuccess(core.api.synchronize())
-            assertSuccess(core.api.getFile(id: createdFile.id)) { $0.secret == data.base64EncodedString() }
-        }
+        assertSuccess(core.api.updateFile(id: createdFile.id, content: data.base64EncodedString()))
+        assertSuccess(core.api.synchronize())
+        assertSuccess(core.api.getFile(id: createdFile.id)) { $0.secret == data.base64EncodedString() }
     }
     
     func testUpdateContent1MB() throws {

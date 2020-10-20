@@ -1,5 +1,5 @@
 use lockbook_core::model::work_unit::WorkUnit;
-use lockbook_core::{calculate_work, CalculateWorkError};
+use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
 
 use crate::utils::{
     exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required,
@@ -16,10 +16,12 @@ pub fn status() {
             WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
         }),
         Err(err) => match err {
-            CalculateWorkError::NoAccount => exit_with_no_account(),
-            CalculateWorkError::CouldNotReachServer => exit_with_offline(),
-            CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
-            CalculateWorkError::UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
+            CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
+            CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
+                exit_with_upgrade_required()
+            }
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     };
 
