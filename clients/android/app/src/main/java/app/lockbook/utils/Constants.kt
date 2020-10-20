@@ -33,18 +33,21 @@ object SharedPreferences {
 object RequestResultCodes {
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
     const val POP_UP_INFO_REQUEST_CODE: Int = 103
+    const val HANDWRITING_EDITOR_REQUEST_CODE: Int = 104
 
     const val RENAME_RESULT_CODE: Int = 201
     const val DELETE_RESULT_CODE: Int = 202
 }
 
 object Messages {
-    const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
+    const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
+    const val UNEXPECTED_CLIENT_ERROR = "An error has occurred."
 }
 
 object WorkManagerTags {
     const val PERIODIC_SYNC_TAG = "periodic_sync"
 }
 
+const val CANVAS_SIZE = 2500
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
-const val LOG_FILE_NAME = "output.log"
+const val LOG_FILE_NAME = "lockbook.log"
