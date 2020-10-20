@@ -37,36 +37,36 @@ val getStateConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
-            okTag -> {
-                val ok = jv.obj?.string("content")
-                if (ok != null) {
-                    Ok(
-                        when (ok) {
-                            State.ReadyToUse.name -> State.ReadyToUse
-                            State.Empty.name -> State.Empty
-                            State.MigrationRequired.name -> State.MigrationRequired
-                            State.StateRequiresClearing.name -> State.StateRequiresClearing
-                            else -> {
-                            }
+        okTag -> {
+            val ok = jv.obj?.string("content")
+            if (ok != null) {
+                Ok(
+                    when (ok) {
+                        State.ReadyToUse.name -> State.ReadyToUse
+                        State.Empty.name -> State.Empty
+                        State.MigrationRequired.name -> State.MigrationRequired
+                        State.StateRequiresClearing.name -> State.StateRequiresClearing
+                        else -> {
                         }
-                    )
+                    }
+                )
+            } else {
+                Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
+            }
+        }
+        errTag -> when (jv.obj?.obj("content")?.string("tag")) {
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(GetStateError.Unexpected(error))
                 } else {
                     Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
                 }
             }
-            errTag -> when (jv.obj?.obj("content")?.string("tag")) {
-                unexpectedTag -> {
-                    val error = jv.obj?.obj("content")?.string("content")
-                    if (error != null) {
-                        Err(GetStateError.Unexpected(error))
-                    } else {
-                        Err(GetStateError.Unexpected("Can't receive contents from UnexpectedError."))
-                    }
-                }
-                else -> Err(GetStateError.Unexpected("Can't recognize an error tag."))
-            }
-            else -> Err(GetStateError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
+            else -> Err(GetStateError.Unexpected("Can't recognize an error tag."))
         }
+        else -> Err(GetStateError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
+    }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
