@@ -39,7 +39,8 @@ object RequestResultCodes {
 }
 
 object Messages {
-    const val UNEXPECTED_ERROR_OCCURRED = "An unexpected error has occurred!"
+    const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
+    const val UNEXPECTED_CLIENT_ERROR = "An error has occurred."
 }
 
 object WorkManagerTags {
@@ -47,4 +48,4 @@ object WorkManagerTags {
 }
 
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
-const val LOG_FILE_NAME = "output.log"
+const val LOG_FILE_NAME = "lockbook.log"
