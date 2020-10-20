@@ -54,7 +54,8 @@
                     android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
                     android:src="@drawable/round_folder_white_18dp"
                     android:visibility="gone"
-                    app:rippleColor="@color/light" />
+                    app:rippleColor="@color/light"
+                    android:contentDescription="@string/list_files_create_folder" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_document"
@@ -64,7 +65,8 @@
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked()}"
                     android:src="@drawable/round_insert_drive_file_white_18dp"
                     android:visibility="gone"
-                    app:rippleColor="@color/light" />
+                    app:rippleColor="@color/light"
+                    android:contentDescription="@string/list_files_create_document" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab"
@@ -76,7 +78,8 @@
                     android:layout_marginBottom="18dp"
                     android:onClick="@{() -> listFilesViewModel.collapseExpandFAB()}"
                     android:src="@drawable/ic_baseline_add_24"
-                    app:rippleColor="@color/light" />
+                    app:rippleColor="@color/light"
+                    android:contentDescription="@string/list_files_create_file" />
                 
             </LinearLayout>
         </FrameLayout>

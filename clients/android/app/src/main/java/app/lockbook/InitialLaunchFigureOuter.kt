@@ -28,7 +28,7 @@ import kotlinx.coroutines.*
 import timber.log.Timber
 
 const val STATEREQUIRESCLEANING =
-    "This version of lockbook is incompatible with the data on your device. Either downgrade your lockbook, or delete all application data from settings."
+    "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var job = Job()

@@ -35,21 +35,21 @@
         </activity>
         <activity
             android:name=".login.WelcomeActivity"
-
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
             android:name=".login.NewAccountActivity"
-
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
             android:name=".login.ImportAccountActivity"
-
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity android:name=".loggedin.settings.SettingsActivity" />
         <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
-        <activity android:name=".loggedin.texteditor.TextEditorActivity" />
+        <activity android:name=".loggedin.editor.TextEditorActivity" />
         <activity android:name=".loggedin.logs.LogActivity" />
+        <activity
+            android:name=".loggedin.editor.HandwritingEditorActivity"
+            android:theme="@style/DarkBlue.NoActionBar" />
     </application>
 
 </manifest>
