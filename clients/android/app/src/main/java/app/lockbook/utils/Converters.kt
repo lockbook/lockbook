@@ -37,9 +37,7 @@ val initLoggerConverter = object : Converter {
 val getStateConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
-        Timber.e(jv.obj?.toJsonString(prettyPrint = true))
-        return when (jv.obj?.string("tag")) {
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
             okTag -> {
                 val ok = jv.obj?.string("content")
                 if (ok != null) {
@@ -70,7 +68,6 @@ val getStateConverter = object : Converter {
             }
             else -> Err(GetStateError.Unexpected("Unable to parse tag: ${jv.obj?.toJsonString()}"))
         }
-    }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
