@@ -17,8 +17,10 @@ import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
+import app.lockbook.utils.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.RENAME_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
@@ -49,10 +51,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
-    val syncingStatus = SyncingStatus(false, 0)
+    val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var isDialogOpen = false
-    var alertDialogFileName = ""
+    var dialogStatus = DialogStatus()
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
@@ -61,10 +62,12 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
+    private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToPopUpInfo = SingleMutableLiveData<FileMetadata>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _createFileNameDialog = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
+    private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
@@ -90,6 +93,9 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
 
+    val navigateToHandwritingEditor: LiveData<EditableFile>
+        get() = _navigateToHandwritingEditor
+
     val navigateToPopUpInfo: LiveData<FileMetadata>
         get() = _navigateToPopUpInfo
 
@@ -104,6 +110,12 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val fileModelErrorHasOccurred: LiveData<String>
         get() = fileModel.errorHasOccurred
+
+    val fileModeUnexpectedErrorHasOccurred: LiveData<String>
+        get() = fileModel.unexpectedErrorHasOccurred
+
+    val unexpectedErrorHasOccurred: LiveData<String>
+        get() = _unexpectedErrorHasOccurred
 
     init {
         uiScope.launch {
@@ -139,17 +151,17 @@ class ListFilesViewModel(path: String, application: Application) :
                     incrementalSyncIfNotRunning()
                 }
             is Err -> when (val error = syncWorkResult.error) {
-                is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CoreError.CouldNotReachServer -> {
+                is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is CalculateWorkError.CouldNotReachServer -> {
                     Timber.e("Could not reach server despite being online.")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        "Error! Could not reach server."
                     )
                 }
-                is CoreError.Unexpected -> {
+                is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                    _unexpectedErrorHasOccurred.postValue(
+                        UNEXPECTED_ERROR
                     )
                 }
             }
@@ -205,7 +217,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> {
                 }
                 else -> {
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
                 }
             }
@@ -233,14 +245,23 @@ class ListFilesViewModel(path: String, application: Application) :
                         data
                     )
                     TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
+                    HANDWRITING_EDITOR_REQUEST_CODE == requestCode -> handleHandwritingEditorRequest()
                     resultCode == RESULT_CANCELED -> {
                     }
                     else -> {
                         Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }
             }
+        }
+    }
+
+    private fun handleHandwritingEditorRequest() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+        ) {
+            incrementalSyncIfNotRunning()
         }
     }
 
@@ -275,18 +296,18 @@ class ListFilesViewModel(path: String, application: Application) :
                         fileModel.renameRefreshFiles(id, newName)
                     } else {
                         Timber.e("new_name is null.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }
                 DELETE_RESULT_CODE -> fileModel.deleteRefreshFiles(id)
                 else -> {
                     Timber.e("Result code not matched: $resultCode")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                 }
             }
         } else {
             Timber.e("id is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
         }
     }
 
@@ -305,7 +326,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Document
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                isDialogOpen = true
+                dialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -317,7 +338,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Folder
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                isDialogOpen = true
+                dialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -357,7 +378,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     ).apply()
                     else -> {
                         Timber.e("Unrecognized sort item id.")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }
 
@@ -377,14 +398,14 @@ class ListFilesViewModel(path: String, application: Application) :
         val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
             is Ok -> accountResult.value
             is Err -> return when (val error = accountResult.error) {
-                is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CoreError.Unexpected -> {
+                is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                is GetAccountError.Unexpected -> {
                     Timber.e("Unable to get account: ${error.error}")
                 }
                 else -> {
                     Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                        UNEXPECTED_CLIENT_ERROR
                     )
                 }
             }
@@ -394,56 +415,56 @@ class ListFilesViewModel(path: String, application: Application) :
             when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
-                    is CoreError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CoreError.CouldNotReachServer -> {}
-                    is CoreError.Unexpected -> {
+                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                    is CalculateWorkError.CouldNotReachServer -> {}
+                    is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
-                        _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
+                        _unexpectedErrorHasOccurred.postValue(
+                            UNEXPECTED_ERROR
                         )
                     }
                     else -> {
                         Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                         _errorHasOccurred.postValue(
-                            UNEXPECTED_ERROR_OCCURRED
+                            UNEXPECTED_CLIENT_ERROR
                         )
                     }
                 }
             }
 
-        if (syncWork.work_units.isNotEmpty()) {
-            _showSyncSnackBar.postValue(syncWork.work_units.size)
+        if (syncWork.workUnits.isNotEmpty()) {
+            _showSyncSnackBar.postValue(syncWork.workUnits.size)
         }
 
         var currentProgress = 0
-        syncingStatus.maxProgress = syncWork.work_units.size
-        val syncErrors = hashMapOf<String, CoreError>()
+        syncingStatus.maxProgress = syncWork.workUnits.size
+        val syncErrors = hashMapOf<String, ExecuteWorkError>()
         repeat(10) {
-            if ((currentProgress + syncWork.work_units.size) > syncingStatus.maxProgress) {
-                syncingStatus.maxProgress = currentProgress + syncWork.work_units.size
+            if ((currentProgress + syncWork.workUnits.size) > syncingStatus.maxProgress) {
+                syncingStatus.maxProgress = currentProgress + syncWork.workUnits.size
                 _showSyncSnackBar.postValue(syncingStatus.maxProgress)
             }
 
-            if (syncWork.work_units.isEmpty()) {
+            if (syncWork.workUnits.isEmpty()) {
                 return if (syncErrors.isEmpty()) {
                     val setLastSyncedResult =
                         CoreModel.setLastSynced(
                             fileModel.config,
-                            syncWork.most_recent_update_from_server
+                            syncWork.mostRecentUpdateFromServer
                         )
                     if (setLastSyncedResult is Err) {
                         Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
-                        _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     } else {
-                        _showPreSyncSnackBar.postValue(syncWork.work_units.size)
+                        _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
                     }
                 } else {
                     Timber.e("Despite all work being gone, syncErrors still persist.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     _stopSyncSnackBar.postValue(Unit)
                 }
             }
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
                         CoreModel.executeFileSyncWork(fileModel.config, account, workUnit)
@@ -463,23 +484,23 @@ class ListFilesViewModel(path: String, application: Application) :
                 when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
                     is Ok -> syncWorkResult.value
                     is Err -> return when (val error = syncWorkResult.error) {
-                        is CoreError.NoAccount -> {
+                        is CalculateWorkError.NoAccount -> {
                             _errorHasOccurred.postValue("Error! No account!")
                             _stopSyncSnackBar.postValue(Unit)
                         }
-                        is CoreError.CouldNotReachServer -> {
+                        is CalculateWorkError.CouldNotReachServer -> {
                         }
-                        is CoreError.Unexpected -> {
+                        is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
-                            _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                            _unexpectedErrorHasOccurred.postValue(
+                                UNEXPECTED_ERROR
                             )
                             _stopSyncSnackBar.postValue(Unit)
                         }
                         else -> {
                             Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR_OCCURRED
+                                UNEXPECTED_CLIENT_ERROR
                             )
                             _stopSyncSnackBar.postValue(Unit)
                         }
@@ -492,7 +513,7 @@ class ListFilesViewModel(path: String, application: Application) :
             _stopSyncSnackBar.postValue(Unit)
         } else {
             _stopSyncSnackBar.postValue(Unit)
-            _showPreSyncSnackBar.postValue(syncWork.work_units.size)
+            _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
         }
     }
 
@@ -502,11 +523,14 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileModel.files.value?.let {
                     val fileMetadata = it[position]
 
-                    if (fileMetadata.file_type == FileType.Folder) {
+                    if (fileMetadata.fileType == FileType.Folder) {
                         fileModel.intoFolder(fileMetadata)
                     } else {
-                        val editableFileResult = fileModel.handleReadDocument(fileMetadata)
-                        if (editableFileResult is EditableFile) {
+                        val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)
+                        fileModel.lastDocumentAccessed = fileMetadata
+                        if (fileMetadata.name.endsWith(".draw")) {
+                            _navigateToHandwritingEditor.postValue(editableFileResult)
+                        } else {
                             _navigateToFileEditor.postValue(editableFileResult)
                         }
                     }

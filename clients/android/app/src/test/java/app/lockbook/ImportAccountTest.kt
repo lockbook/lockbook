@@ -43,18 +43,18 @@ class ImportAccountTest {
 
     @Test
     fun importAccountStringCorrupted() {
-        assertType<CoreError.AccountStringCorrupted>(
+        assertType<ImportError.AccountStringCorrupted>(
             CoreModel.importAccount(config, "!@#$%^&*()").component2()
         )
     }
 
     @Test
     fun importAccountUnexpectedError() {
-        val importResult: Result<Unit, CoreError>? =
+        val importResult: Result<Unit, ImportError>? =
             Klaxon().converter(importAccountConverter)
                 .parse(importAccount("", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<ImportError.Unexpected>(
             importResult?.component2()
         )
     }
