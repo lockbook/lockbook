@@ -30,7 +30,7 @@ namespace lockbook {
         /// will be used such as when the application is launched to open a specific file.
         /// </summary>
         /// <param name="e">Details about the launch request and process.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
             Frame rootFrame = Window.Current.Content as Frame;
 
@@ -60,7 +60,7 @@ namespace lockbook {
                     // configuring the new page by passing required information as a navigation
                     // parameter
 
-                    if (CoreService.AccountExists().WaitResult()) {
+                    if (await CoreService.AccountExists()) {
                         rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
                     } else {
                         rootFrame.Navigate(typeof(SignUp), e.Arguments);
