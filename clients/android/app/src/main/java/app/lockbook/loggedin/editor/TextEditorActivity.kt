@@ -1,4 +1,4 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
@@ -28,33 +28,27 @@ class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var timer: Timer = Timer()
     private val handler = Handler()
-    var menu: Menu? = null
+    private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
 
         val id = intent.getStringExtra("id")
-        val contents = intent.getStringExtra("contents")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
             return
         }
-        if (contents == null) {
-            errorHasOccurred("Unable to retrieve contents.")
-            return
-        }
-
-        val textEditorViewModelFactory =
-            TextEditorViewModelFactory(
-                id,
-                filesDir.absolutePath,
-                contents
-            )
 
         textEditorViewModel =
-            ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
+            ViewModelProvider(
+                this,
+                TextEditorViewModelFactory(
+                    application,
+                    id
+                )
+            ).get(TextEditorViewModel::class.java)
 
         textEditorViewModel.canUndo.observe(
             this,
@@ -77,15 +71,14 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
-        textEditorViewModel.errorHasOccurred.observe(
+        textEditorViewModel.unexpectedErrorHasOccurred.observe(
             this,
             { errorText ->
                 unexpectedErrorHasOccurred(errorText)
             }
         )
 
-        setUpView()
-        startBackgroundSave()
+        setUpView(id)
     }
 
     private fun startBackgroundSave() {
@@ -121,11 +114,10 @@ class TextEditorActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun setUpView() {
+    private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
-            finish()
             return
         }
 
@@ -154,9 +146,12 @@ class TextEditorActivity : AppCompatActivity() {
             )
         }
 
-        text_editor.setText(intent.getStringExtra("contents"))
-
-        text_editor.addTextChangedListener(textEditorViewModel)
+        val contents = textEditorViewModel.handleReadDocument(id)
+        if (contents != null) {
+            text_editor.setText(contents)
+            text_editor.addTextChangedListener(textEditorViewModel)
+            startBackgroundSave()
+        }
     }
 
     private fun viewMarkdown() {
@@ -198,7 +193,8 @@ class TextEditorActivity : AppCompatActivity() {
                     splash_screen,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
-                ).show()
+                )
+                    .show()
             }
         }
 

@@ -35,14 +35,14 @@ class FilesAdapter(val clickInterface: ClickInterface) :
     override fun onBindViewHolder(holder: ListFilesViewHolder, position: Int) {
         val item = files[position]
 
-        val date = Date(Timestamp(item.metadata_version).time)
+        val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
         holder.cardView.file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
-            if (item.metadata_version != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
+            if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
-        if (item.file_type == FileType.Document) {
+        if (item.fileType == FileType.Document) {
             holder.cardView.file_name.setTextColor(
                 ResourcesCompat.getColor(
                     holder.cardView.resources,

@@ -70,34 +70,3 @@ jarsigner -keystore $ANDROID_RELEASE_KEY -storepass $ANDROID_RELEASE_KEY_PASSWOR
 cd app/build/outputs/apk/release/
 $ANDROID_SDK_HOME/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
 
-echo "Extracting information from release apk."
-current_version=$($ANDROID_SDK_HOME/build-tools/29.0.3/aapt2 dump badging lockbook-android.apk | grep "VersionName" | sed -e "s/.*versionName='//" -e "s/' .*//")
-sha_description=$(shasum -a 256 lockbook-android.apk)
-sha=$(echo $sha_description | cut -d ' ' -f 1)
-
-echo "Releasing..."
-github-release release \
-	--user lockbook \
-	--repo lockbook \
-	--tag android-$current_version \
-	--name "Lockbook Android" \
-	--description "Android version of lockbook." \
-	--pre-release
-
-github-release upload \
-	--user lockbook \
-	--repo lockbook \
-	--tag android-$current_version \
-	--name "lockbook-android.apk" \
-	--file lockbook-android.apk
-
-echo $sha_description >> ANDROID-SHA256
-
-github-release upload \
-	--user lockbook \
-	--repo lockbook \
-	--tag android-$current_version \
-	--name "android-sha256-$sha" \
-	--file ANDROID-SHA256
-
-echo "Verify this sha is part of the realse on github: $sha"
