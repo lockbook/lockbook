@@ -12,7 +12,7 @@ struct TitleTextField: View {
             }
         })
         .textFieldStyle(PlainTextFieldStyle())
-        .font(.largeTitle)
+        .font(.system(.largeTitle, design: .monospaced))
         .multilineTextAlignment(.center)
         .border(Color.black, width: 0)
         #if os(macOS)

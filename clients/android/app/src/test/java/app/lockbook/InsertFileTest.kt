@@ -63,11 +63,11 @@ class InsertFileTest {
 
     @Test
     fun insertFileError() {
-        val insertResult: Result<Unit, CoreError>? =
+        val insertResult: Result<Unit, InsertFileError>? =
             Klaxon().converter(insertFileConverter)
                 .parse(insertFile("", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<InsertFileError.Unexpected>(
             insertResult?.component2()
         )
     }

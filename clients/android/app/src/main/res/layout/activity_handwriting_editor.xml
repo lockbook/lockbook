@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:id="@+id/handwriting_editor_layout">
+
+    <androidx.appcompat.widget.Toolbar
+        style="@style/Text.Medium"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:background="@color/black"
+        android:elevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="start"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/handwriting_editor_drawing_name"
+                style="@style/Toolbar.Title"
+                android:layout_width="150sp"
+                android:layout_height="wrap_content"
+                android:singleLine="true" />
+
+            <Spinner
+                android:id="@+id/handwriting_editor_pallete_spinner"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="5dp"
+                android:spinnerMode="dropdown"
+                android:src="@drawable/baseline_palette_white_pallete_18dp" />
+        </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <app.lockbook.loggedin.editor.HandwritingEditorView
+        android:id="@+id/handwriting_editor"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</LinearLayout>

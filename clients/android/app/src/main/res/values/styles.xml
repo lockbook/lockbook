@@ -7,9 +7,9 @@
         <item name="android:windowBackground">@color/black</item>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-<!--        <item name="android:actionBarStyle">@style/DarkBlue.Actionbar</item>-->
-<!--        <item name="titleTextStyle">@style/DarkBlue.Title</item>-->
-<!--        <item name="android:actionOverflowButtonStyle">@style/DarkBlue.Overflow</item>-->
+        <item name="android:actionBarStyle">@style/DarkBlue.Actionbar</item>
+        <item name="titleTextStyle">@style/DarkBlue.Title</item>
+        <item name="android:actionOverflowButtonStyle">@style/DarkBlue.Overflow</item>
     </style>
 
     <style name="DarkBlue.Dialog" parent="Theme.AppCompat.Dialog">
@@ -55,6 +55,8 @@
     <style name="Text.Medium" parent="TextAppearance.AppCompat.Medium">
         <item name="android:fontFamily">monospace</item>
     </style>
+
+    <style name="Toolbar.Title" parent="TextAppearance.AppCompat.Large"/>
 
     <style name="File.Title" parent="TextAppearance.AppCompat">
         <item name="android:textSize">14sp</item>

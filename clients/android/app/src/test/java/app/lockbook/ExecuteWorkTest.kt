@@ -64,7 +64,7 @@ class ExecuteWorkTest {
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
                     CoreModel.executeFileSyncWork(
                         config,
@@ -133,7 +133,7 @@ class ExecuteWorkTest {
                 CoreModel.calculateFileSyncWork(config).component1()
             )
 
-            for (workUnit in syncWork.work_units) {
+            for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
                     CoreModel.executeFileSyncWork(
                         config,
@@ -149,10 +149,10 @@ class ExecuteWorkTest {
 
     @Test
     fun executeWorkUnexpectedError() {
-        val executeSyncWorkResult: Result<Unit, CoreError>? =
+        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<ExecuteWorkError.Unexpected>(
             executeSyncWorkResult?.component2()
         )
     }

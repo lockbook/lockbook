@@ -18,16 +18,16 @@ namespace lockbook {
             ImportProgressRing.IsActive = true;
             importError.Visibility = Visibility.Collapsed;
 
-            Core.ImportAccount.Result importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
+            Core.ImportAccount.IResult importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
 
             switch (importAccountResult) {
                 case Core.ImportAccount.Success:
                     break;
                 case Core.ImportAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
+                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.ImportAccount.ExpectedError expectedError:
-                    switch (expectedError.error) {
+                    switch (expectedError.Error) {
                         case Core.ImportAccount.PossibleErrors.AccountDoesNotExist:
                             importError.Text = "That account does not exist on this server!";
                             newAccountError.Visibility = Visibility.Visible;
@@ -84,10 +84,10 @@ namespace lockbook {
                     Frame.Navigate(typeof(FileExplorer));
                     break;
                 case Core.CreateAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.errorMessage, "Unexpected Error!").ShowAsync();
+                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.CreateAccount.ExpectedError expectedError:
-                    switch (expectedError.error) {
+                    switch (expectedError.Error) {
                         case Core.CreateAccount.PossibleErrors.InvalidUsername:
                             newAccountError.Text = "Invalid username!";
                             newAccountError.Visibility = Visibility.Visible;

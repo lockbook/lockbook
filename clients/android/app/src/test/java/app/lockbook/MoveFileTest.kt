@@ -88,7 +88,7 @@ class MoveFileTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.FileDoesNotExist>(
+        assertType<MoveFileError.FileDoesNotExist>(
             CoreModel.moveFile(config, generateId(), folder.id).component2()
         )
     }
@@ -129,7 +129,7 @@ class MoveFileTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.DocumentTreatedAsFolder>(
+        assertType<MoveFileError.DocumentTreatedAsFolder>(
             CoreModel.moveFile(config, folder.id, document.id).component2()
         )
     }
@@ -157,7 +157,7 @@ class MoveFileTest {
             CoreModel.insertFile(config, document).component1()
         )
 
-        assertType<CoreError.TargetParentDoesNotExist>(
+        assertType<MoveFileError.TargetParentDoesNotExist>(
             CoreModel.moveFile(config, document.id, generateId()).component2()
         )
     }
@@ -172,7 +172,7 @@ class MoveFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CoreError.CannotMoveRoot>(
+        assertType<MoveFileError.CannotMoveRoot>(
             CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id).component2()
         )
     }
@@ -228,17 +228,17 @@ class MoveFileTest {
             CoreModel.insertFile(config, secondDocument).component1()
         )
 
-        assertType<CoreError.TargetParentHasChildNamedThat>(
+        assertType<MoveFileError.TargetParentHasChildNamedThat>(
             CoreModel.moveFile(config, firstDocument.id, folder.id).component2()
         )
     }
 
     @Test
     fun moveFileUnexpectedError() {
-        val moveResult: Result<Unit, CoreError>? =
+        val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter).parse(moveFile("", "", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<MoveFileError.Unexpected>(
             moveResult?.component2()
         )
     }
