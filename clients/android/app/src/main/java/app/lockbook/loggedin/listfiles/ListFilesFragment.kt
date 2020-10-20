@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -20,36 +19,25 @@ import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.Messages
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
+import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
+    private lateinit var alertDialog: AlertDialog
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(list_files_layout)
+        ).setViewToMove(list_files_frame_layout)
     }
-    private val offlineSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_offline_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private val preSyncSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_presync_snackbar, "n")
-        )
-            .setSwipeToDismiss(true)
-            .setAllowUserInput(true)
-    }
+
     private val syncSnackProgressBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_HORIZONTAL,
@@ -59,15 +47,6 @@ class ListFilesFragment : Fragment() {
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-    private val syncUpToDateSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_sync_finished_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -184,14 +163,32 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
             }
         )
 
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
+            }
+        )
+
+        listFilesViewModel.unexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
+            }
+        )
+
+        listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
             }
         )
 
@@ -251,23 +248,30 @@ class ListFilesFragment : Fragment() {
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(R.string.list_files_sync_finished_snackbar),
+                Snackbar.LENGTH_SHORT
+            ).show()
         } else {
-            snackProgressBarManager.show(
-                preSyncSnackBar.setMessage(
-                    resources.getString(
-                        R.string.list_files_presync_snackbar,
-                        amountToSync.toString()
-                    )
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(
+                    R.string.list_files_presync_snackbar,
+                    amountToSync.toString()
                 ),
-                SnackProgressBarManager.LENGTH_SHORT
-            )
+                Snackbar.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun showOfflineSnackBar() {
         snackProgressBarManager.dismiss()
-        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+        Snackbar.make(
+            fragment_list_files,
+            resources.getString(R.string.list_files_offline_snackbar),
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -284,7 +288,7 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.hide()
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
-        list_files_layout.isClickable = false
+        list_files_frame_layout.isClickable = false
     }
 
     private fun showFABMenu() {
@@ -293,8 +297,8 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.show()
         list_files_fab_document.show()
         list_files_refresh.alpha = 0.7f
-        list_files_layout.isClickable = true
-        list_files_layout.setOnClickListener {
+        list_files_frame_layout.isClickable = true
+        list_files_frame_layout.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
     }
@@ -355,8 +359,15 @@ class ListFilesFragment : Fragment() {
         startActivity(intent)
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        Toast.makeText(context, errorText, Toast.LENGTH_LONG).show()
+    private fun errorHasOccurred(view: ViewGroup, error: String) {
+        Snackbar.make(requireActivity().findViewById<ViewGroup>(android.R.id.content).rootView, error, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+            .setTitle(Messages.UNEXPECTED_ERROR)
+            .setMessage(error)
+            .show()
     }
 
     fun onBackPressed(): Boolean {
