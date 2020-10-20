@@ -12,8 +12,6 @@
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
-
-
     <!--
         allowBackup is set to false because it may backup keys in plaintext to google drive
 
@@ -29,7 +27,6 @@
         <activity
             android:name=".InitialLaunchFigureOuter"
             android:noHistory="true"
-
             android:theme="@style/DarkBlue.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

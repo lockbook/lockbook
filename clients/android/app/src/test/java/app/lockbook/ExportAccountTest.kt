@@ -37,18 +37,18 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountNoAccount() {
-        assertType<CoreError.NoAccount>(
+        assertType<AccountExportError.NoAccount>(
             CoreModel.exportAccount(config).component2()
         )
     }
 
     @Test
     fun exportAccountUnexpectedError() {
-        val exportAccountResult: Result<String, CoreError>? =
+        val exportAccountResult: Result<String, AccountExportError>? =
             Klaxon().converter(exportAccountConverter)
                 .parse(exportAccount(""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<AccountExportError.Unexpected>(
             exportAccountResult?.component2()
         )
     }

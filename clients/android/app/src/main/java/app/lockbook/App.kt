@@ -17,7 +17,6 @@ import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
-import kotlinx.coroutines.*
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
