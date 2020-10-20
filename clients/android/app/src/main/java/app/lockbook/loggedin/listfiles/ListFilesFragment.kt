@@ -14,8 +14,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
+import app.lockbook.loggedin.editor.HandwritingEditorActivity
+import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
-import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.Messages
@@ -26,7 +27,6 @@ import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
@@ -125,6 +125,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.navigateToHandwritingEditor.observe(
+            viewLifecycleOwner,
+            { editableFile ->
+                navigateToHandwritingEditor(editableFile)
+            }
+        )
+
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
             { editableFile ->
@@ -195,9 +202,8 @@ class ListFilesFragment : Fragment() {
 
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
-        if (listFilesViewModel.isDialogOpen) {
-            Timber.e(listFilesViewModel.alertDialogFileName)
-            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            createFileNameDialog(listFilesViewModel.dialogStatus.alertDialogFileName)
         }
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
@@ -210,8 +216,8 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setUpBeforeConfigChange() {
-        if (listFilesViewModel.isDialogOpen) {
-            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            listFilesViewModel.dialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
             alertDialog.dismiss()
         }
     }
@@ -309,12 +315,12 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
             }
             .create()
 
@@ -333,7 +339,6 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, TextEditorActivity::class.java)
         intent.putExtra("name", editableFile.name)
         intent.putExtra("id", editableFile.id)
-        intent.putExtra("contents", editableFile.contents)
         startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
     }
 
@@ -341,10 +346,17 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, PopUpInfoActivity::class.java)
         intent.putExtra("name", fileMetadata.name)
         intent.putExtra("id", fileMetadata.id)
-        intent.putExtra("fileType", fileMetadata.file_type.toString())
-        intent.putExtra("metadataVersion", fileMetadata.metadata_version.toString())
-        intent.putExtra("contentVersion", fileMetadata.content_version.toString())
+        intent.putExtra("fileType", fileMetadata.fileType.toString())
+        intent.putExtra("metadataVersion", fileMetadata.metadataVersion.toString())
+        intent.putExtra("contentVersion", fileMetadata.contentVersion.toString())
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
+    }
+
+    private fun navigateToHandwritingEditor(editableFile: EditableFile) {
+        val intent = Intent(context, HandwritingEditorActivity::class.java)
+        intent.putExtra("name", editableFile.name)
+        intent.putExtra("id", editableFile.id)
+        startActivity(intent)
     }
 
     private fun errorHasOccurred(view: ViewGroup, error: String) {
