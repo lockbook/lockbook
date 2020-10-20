@@ -23,6 +23,12 @@ inline fun <reified T> assertType(comparableValue: Any?) {
     }
 }
 
+fun assertEnumType(comparableValue: Any?, enum: Any) {
+    require(comparableValue == enum) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else (comparableValue as Enum<*>).name} is not of type ${(enum as Enum<*>).name}"
+    }
+}
+
 inline fun <reified T> assertTypeReturn(comparableValue: Any?): T {
     require(comparableValue is T) {
         "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"

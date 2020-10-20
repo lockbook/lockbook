@@ -6,9 +6,10 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.utils.Config
-import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.Messages
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
+import app.lockbook.utils.WriteToDocumentError
 import com.github.michaelbull.result.Err
 import timber.log.Timber
 
@@ -21,6 +22,7 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
     private val _canUndo = MutableLiveData<Boolean>()
     private val _canRedo = MutableLiveData<Boolean>()
     private val _errorHasOccurred = MutableLiveData<String>()
+    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
     val canUndo: LiveData<Boolean>
         get() = _canUndo
@@ -82,24 +84,24 @@ class TextEditorViewModel(private val id: String, path: String, initialContents:
         val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
         if (writeToDocumentResult is Err) {
             when (val error = writeToDocumentResult.error) {
-                is CoreError.FolderTreatedAsDocument -> {
+                is WriteToDocumentError.FolderTreatedAsDocument -> {
                     _errorHasOccurred.postValue("Error! Folder is treated as document!")
                 }
-                is CoreError.FileDoesNotExist -> {
+                is WriteToDocumentError.FileDoesNotExist -> {
                     _errorHasOccurred.postValue("Error! File does not exist!")
                 }
-                is CoreError.NoAccount -> {
+                is WriteToDocumentError.NoAccount -> {
                     _errorHasOccurred.postValue("Error! No account!")
                 }
-                is CoreError.Unexpected -> {
+                is WriteToDocumentError.Unexpected -> {
                     Timber.e("Unable to write document changes: ${error.error}")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR_OCCURRED
+                    _unexpectedErrorHasOccurred.postValue(
+                        UNEXPECTED_ERROR
                     )
                 }
                 else -> {
                     Timber.e("WriteToDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_ERROR_OCCURRED)
+                    _errorHasOccurred.postValue(Messages.UNEXPECTED_CLIENT_ERROR)
                 }
             }
         }

@@ -79,7 +79,7 @@ class RenameFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CoreError.FileDoesNotExist>(
+        assertType<RenameFileError.FileDoesNotExist>(
             CoreModel.renameFile(config, generateId(), generateAlphaString()).component2()
         )
     }
@@ -121,7 +121,7 @@ class RenameFileTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.FileNameNotAvailable>(
+        assertType<RenameFileError.FileNameNotAvailable>(
             CoreModel.renameFile(config, document.id, fileName).component2()
         )
     }
@@ -163,7 +163,7 @@ class RenameFileTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.NewNameEmpty>(
+        assertType<RenameFileError.NewNameEmpty>(
             CoreModel.renameFile(config, document.id, "").component2()
         )
     }
@@ -179,17 +179,17 @@ class RenameFileTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<CoreError.CannotRenameRoot>(
+        assertType<RenameFileError.CannotRenameRoot>(
             CoreModel.renameFile(config, rootFileMetadata.id, "not_root").component2()
         )
     }
 
     @Test
     fun renameFileUnexpectedError() {
-        val renameFileResult: Result<Unit, CoreError>? =
+        val renameFileResult: Result<Unit, RenameFileError>? =
             Klaxon().converter(renameFileConverter).parse(renameFile("", "", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<RenameFileError.Unexpected>(
             renameFileResult?.component2()
         )
     }
