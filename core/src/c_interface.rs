@@ -203,10 +203,10 @@ pub unsafe extern "C" fn read_document(
     writeable_path: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::read_document(
-        &config_from_ptr(writeable_path),
-        uuid_from_ptr(id),
-    ).map(|d| String::from(String::from_utf8_lossy(&d)))))
+    c_string(translate(
+        crate::read_document(&config_from_ptr(writeable_path), uuid_from_ptr(id))
+            .map(|d| String::from(String::from_utf8_lossy(&d))),
+    ))
 }
 
 #[no_mangle]
