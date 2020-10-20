@@ -1,7 +1,8 @@
-package app.lockbook.loggedin.texteditor
+package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
+import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
@@ -18,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
+import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.activity_text_editor.*
 import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
@@ -28,33 +30,27 @@ class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var timer: Timer = Timer()
     private val handler = Handler()
-    var menu: Menu? = null
+    private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_text_editor)
 
         val id = intent.getStringExtra("id")
-        val contents = intent.getStringExtra("contents")
 
         if (id == null) {
             errorHasOccurred("Unable to retrieve id.")
             return
         }
-        if (contents == null) {
-            errorHasOccurred("Unable to retrieve contents.")
-            return
-        }
-
-        val textEditorViewModelFactory =
-            TextEditorViewModelFactory(
-                id,
-                filesDir.absolutePath,
-                contents
-            )
 
         textEditorViewModel =
-            ViewModelProvider(this, textEditorViewModelFactory).get(TextEditorViewModel::class.java)
+            ViewModelProvider(
+                this,
+                TextEditorViewModelFactory(
+                    application,
+                    id
+                )
+            ).get(TextEditorViewModel::class.java)
 
         textEditorViewModel.canUndo.observe(
             this,
@@ -77,15 +73,14 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
-        textEditorViewModel.errorHasOccurred.observe(
+        textEditorViewModel.unexpectedErrorHasOccurred.observe(
             this,
             { errorText ->
                 unexpectedErrorHasOccurred(errorText)
             }
         )
 
-        setUpView()
-        startBackgroundSave()
+        setUpView(id)
     }
 
     private fun startBackgroundSave() {
@@ -121,15 +116,27 @@ class TextEditorActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun setUpView() {
+    private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
             errorHasOccurred("Unable to retrieve file name.")
-            finish()
             return
         }
 
-        title = name
+        val title = SpannableString(name)
+        title.setSpan(
+            ForegroundColorSpan(
+                ResourcesCompat.getColor(
+                    resources,
+                    R.color.light,
+                    null
+                )
+            ),
+            0, title.length, 0
+        )
+        text_editor_toolbar.title = title
+        setSupportActionBar(text_editor_toolbar)
+
         if (title.endsWith(".md")) {
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
@@ -154,9 +161,12 @@ class TextEditorActivity : AppCompatActivity() {
             )
         }
 
-        text_editor.setText(intent.getStringExtra("contents"))
-
-        text_editor.addTextChangedListener(textEditorViewModel)
+        val contents = textEditorViewModel.handleReadDocument(id)
+        if (contents != null) {
+            text_editor.setText(contents)
+            text_editor.addTextChangedListener(textEditorViewModel)
+            startBackgroundSave()
+        }
     }
 
     private fun viewMarkdown() {
@@ -198,7 +208,8 @@ class TextEditorActivity : AppCompatActivity() {
                     splash_screen,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
-                ).show()
+                )
+                    .show()
             }
         }
 
