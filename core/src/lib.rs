@@ -55,8 +55,6 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use std::str::FromStr;
-use std::thread::{sleep, Thread};
-use std::time::Duration;
 
 pub mod c_interface;
 pub mod client;
