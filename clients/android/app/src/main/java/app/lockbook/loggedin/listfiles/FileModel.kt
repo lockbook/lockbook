@@ -20,7 +20,7 @@ class FileModel(path: String) {
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     private lateinit var parentFileMetadata: FileMetadata
-    private lateinit var lastDocumentAccessed: FileMetadata
+    lateinit var lastDocumentAccessed: FileMetadata
     val config = Config(path)
 
     val files: LiveData<List<FileMetadata>>
@@ -148,7 +148,7 @@ class FileModel(path: String) {
         when (val documentResult = CoreModel.getDocumentContent(config, fileMetadata.id)) {
             is Ok -> {
                 lastDocumentAccessed = fileMetadata
-                return EditableFile(fileMetadata.name, fileMetadata.id, documentResult.value.secret)
+                return EditableFile(fileMetadata.name, fileMetadata.id)
             }
             is Err -> when (val error = documentResult.error) {
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
@@ -278,13 +278,13 @@ class FileModel(path: String) {
         if (inReverse) {
             _files.postValue(
                 files.sortedByDescending { fileMetadata ->
-                    fileMetadata.metadata_version
+                    fileMetadata.metadataVersion
                 }
             )
         } else {
             _files.postValue(
                 files.sortedBy { fileMetadata ->
-                    fileMetadata.metadata_version
+                    fileMetadata.metadataVersion
                 }
             )
         }
@@ -292,10 +292,10 @@ class FileModel(path: String) {
 
     private fun sortFilesType(files: List<FileMetadata>) {
         val tempFolders = files.filter { fileMetadata ->
-            fileMetadata.file_type.name == FileType.Folder.name
+            fileMetadata.fileType.name == FileType.Folder.name
         }
         val tempDocuments = files.filter { fileMetadata ->
-            fileMetadata.file_type.name == FileType.Document.name
+            fileMetadata.fileType.name == FileType.Document.name
         }
         _files.postValue(
             tempFolders.union(
@@ -332,7 +332,7 @@ class FileModel(path: String) {
 
     fun determineSizeOfSyncWork(): Result<Int, CalculateWorkError> {
         when (val syncWorkResult = CoreModel.calculateFileSyncWork(config)) {
-            is Ok -> return Ok(syncWorkResult.value.work_units.size)
+            is Ok -> return Ok(syncWorkResult.value.workUnits.size)
             is Err -> {
                 when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
