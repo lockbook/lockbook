@@ -72,22 +72,14 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.Unexpected -> {
-                    Timber.e("Unable to get DB State: ${error.error}")
                     AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()
-                }
-                else -> {
-                    Timber.e("GetStateError not matched: ${error::class.simpleName}")
-                    Snackbar.make(
-                        splash_screen,
-                        UNEXPECTED_CLIENT_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    Timber.e("Unable to get DB State: ${error.error}")
                 }
             }
-        }
+        }.exhaustive
     }
 
     private fun migrateDB() {
@@ -236,7 +228,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                         Snackbar.LENGTH_SHORT
                                     ).show()
                                 else -> finish()
-                            }
+                            }.exhaustive
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -265,6 +257,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
-        }
+        }.exhaustive
     }
 }
