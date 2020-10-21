@@ -9,7 +9,6 @@ import androidx.work.WorkerParameters
 import app.lockbook.App
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -49,7 +48,7 @@ class FileModel(path: String) {
                 is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
             }
@@ -79,12 +78,8 @@ class FileModel(path: String) {
                         is GetFileByIdError.Unexpected -> {
                             Timber.e("Unable to get the parent of the current path: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
-                                UNEXPECTED_ERROR
+                                error.error
                             )
-                        }
-                        else -> {
-                            Timber.e("GetFileByIdError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                         }
                     }
                 }
@@ -92,14 +87,10 @@ class FileModel(path: String) {
             is Err -> when (val error = getSiblingsOfParentResult.error) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get siblings of the parent: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
-                }
-                else -> {
-                    Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                    _unexpectedErrorHasOccurred.postValue(error.error)
                 }
             }
-        }
+        }.exhaustive
     }
 
     fun renameRefreshFiles(id: String, newName: String) {
@@ -114,15 +105,11 @@ class FileModel(path: String) {
                 is RenameFileError.Unexpected -> {
                     Timber.e("Unable to rename file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
-                else -> {
-                    Timber.e("RenameFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
             }
-        }
+        }.exhaustive
     }
 
     fun deleteRefreshFiles(id: String) {
@@ -133,41 +120,11 @@ class FileModel(path: String) {
                 is DeleteFileError.Unexpected -> {
                     Timber.e("Unable to delete file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
-                else -> {
-                    Timber.e("DeleteFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
             }
-        }
-    }
-
-    fun handleReadDocument(fileMetadata: FileMetadata): EditableFile? {
-        when (val documentResult = CoreModel.getDocumentContent(config, fileMetadata.id)) {
-            is Ok -> {
-                lastDocumentAccessed = fileMetadata
-                return EditableFile(fileMetadata.name, fileMetadata.id)
-            }
-            is Err -> when (val error = documentResult.error) {
-                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.Unexpected -> {
-                    Timber.e("Unable to get content of file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
-                    )
-                }
-                else -> {
-                    Timber.e("ReadDocumentError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
-            }
-        }
-
-        return null
+        }.exhaustive
     }
 
     fun intoFolder(fileMetadata: FileMetadata) {
@@ -186,15 +143,11 @@ class FileModel(path: String) {
                 is GetRootError.Unexpected -> {
                     Timber.e("Unable to set parent to root: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
-                else -> {
-                    Timber.e("GetRootError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
             }
-        }
+        }.exhaustive
     }
 
     fun createInsertRefreshFiles(name: String, fileType: String) {
@@ -208,11 +161,7 @@ class FileModel(path: String) {
                     when (val error = insertFileResult.error) {
                         is InsertFileError.Unexpected -> {
                             Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                            _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
-                        }
-                        else -> {
-                            Timber.e("InsertFileError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                            _unexpectedErrorHasOccurred.postValue(error.error)
                         }
                     }
                 }
@@ -229,15 +178,11 @@ class FileModel(path: String) {
                 is CreateFileError.Unexpected -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
-                else -> {
-                    Timber.e("CreateFileError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
             }
-        }
+        }.exhaustive
     }
 
     fun refreshFiles() {
@@ -248,14 +193,10 @@ class FileModel(path: String) {
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
-                    _unexpectedErrorHasOccurred.postValue(UNEXPECTED_ERROR)
-                }
-                else -> {
-                    Timber.e("GetChildrenError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                    _unexpectedErrorHasOccurred.postValue(error.error)
                 }
             }
-        }
+        }.exhaustive
     }
 
     private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean) {
@@ -327,27 +268,7 @@ class FileModel(path: String) {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
                 _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
             }
-        }
-    }
-
-    fun determineSizeOfSyncWork(): Result<Int, CalculateWorkError> {
-        when (val syncWorkResult = CoreModel.calculateFileSyncWork(config)) {
-            is Ok -> return Ok(syncWorkResult.value.workUnits.size)
-            is Err -> {
-                when (val error = syncWorkResult.error) {
-                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> Timber.e("Could not reach server.")
-                    is CalculateWorkError.Unexpected -> {
-                        Timber.e("Unable to calculate syncWork: ${error.error}")
-                        _unexpectedErrorHasOccurred.postValue(
-                            UNEXPECTED_ERROR
-                        )
-                    }
-                }
-
-                return syncWorkResult
-            }
-        }
+        }.exhaustive
     }
 
     class SyncWork(appContext: Context, workerParams: WorkerParameters) :

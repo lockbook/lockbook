@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import app.lockbook.utils.*
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -41,11 +40,11 @@ class HandwritingEditorViewModel(
                 is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
             }
-        }
+        }.exhaustive
 
         return null
     }
@@ -69,10 +68,10 @@ class HandwritingEditorViewModel(
                         is WriteToDocumentError.Unexpected -> {
                             Timber.e("Unable to write document changes: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
-                                UNEXPECTED_ERROR
+                                error.error
                             )
                         }
-                    }
+                    }.exhaustive
                 }
             }
         }
