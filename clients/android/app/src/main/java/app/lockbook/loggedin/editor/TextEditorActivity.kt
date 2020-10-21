@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import app.lockbook.utils.exhaustive
 import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
@@ -198,7 +199,6 @@ class TextEditorActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-//            R.id.menu_text_editor_search -> { }
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
             R.id.menu_text_editor_undo -> handleTextUndo()
@@ -211,7 +211,7 @@ class TextEditorActivity : AppCompatActivity() {
                 )
                     .show()
             }
-        }
+        }.exhaustive
 
         return true
     }
