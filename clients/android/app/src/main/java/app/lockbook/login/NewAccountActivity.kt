@@ -7,10 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.CreateAccountError
-import app.lockbook.utils.Messages
+import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
@@ -75,23 +72,15 @@ class NewAccountActivity : AppCompatActivity() {
                             Snackbar.LENGTH_SHORT
                         ).show()
                         is CreateAccountError.Unexpected -> {
-                            Timber.e("Unable to create account.")
                             AlertDialog.Builder(this@NewAccountActivity, R.style.DarkBlue_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)
                                 .setMessage(error.error)
                                 .show()
-                        }
-                        else -> {
-                            Timber.e("CreateAccountError not matched: ${error::class.simpleName}.")
-                            Snackbar.make(
-                                splash_screen,
-                                Messages.UNEXPECTED_CLIENT_ERROR,
-                                Snackbar.LENGTH_SHORT
-                            ).show()
+                            Timber.e("Unable to create account.")
                         }
                     }
                 }
-            }
+            }.exhaustive
         }
     }
 
