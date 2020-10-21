@@ -90,7 +90,12 @@ class ImportAccountActivity : AppCompatActivity() {
                     ).show()
                     is ImportError.CouldNotReachServer -> Snackbar.make(
                         splash_screen,
-                        "Could not access server to ensure this !",
+                        "Could not access server to ensure this!",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    is ImportError.ClientUpdateRequired -> Snackbar.make(
+                        splash_screen,
+                        "Update required.",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.Unexpected -> {
