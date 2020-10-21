@@ -153,12 +153,10 @@ class ListFilesViewModel(path: String, application: Application) :
             }
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> {
-                    Timber.e("Could not reach server despite being online.")
-                    _errorHasOccurred.postValue(
-                        "Error! Could not reach server."
-                    )
-                }
+                is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue(
+                    "You are offline."
+                )
+                is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                 is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
@@ -410,7 +408,8 @@ class ListFilesViewModel(path: String, application: Application) :
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> {}
+                    is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue("You are offline.")
+                    is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                     is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
@@ -476,8 +475,8 @@ class ListFilesViewModel(path: String, application: Application) :
                             _errorHasOccurred.postValue("Error! No account!")
                             _stopSyncSnackBar.postValue(Unit)
                         }
-                        is CalculateWorkError.CouldNotReachServer -> {
-                        }
+                        is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue("You are offline.")
+                        is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                         is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
