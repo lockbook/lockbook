@@ -121,6 +121,7 @@ val createAccountConverter = object : Converter {
                             CreateAccountError.InvalidUsername::class.simpleName -> CreateAccountError.InvalidUsername
                             CreateAccountError.CouldNotReachServer::class.simpleName -> CreateAccountError.CouldNotReachServer
                             CreateAccountError.AccountExistsAlready::class.simpleName -> CreateAccountError.AccountExistsAlready
+                            CreateAccountError.ClientUpdateRequired::class.simpleName -> CreateAccountError.ClientUpdateRequired
                             else -> CreateAccountError.Unexpected("Can't recognize UiError content.")
                         }
                     )
@@ -160,6 +161,7 @@ val importAccountConverter = object : Converter {
                             ImportError.AccountDoesNotExist::class.simpleName -> ImportError.AccountDoesNotExist
                             ImportError.UsernamePKMismatch::class.simpleName -> ImportError.UsernamePKMismatch
                             ImportError.CouldNotReachServer::class.simpleName -> ImportError.CouldNotReachServer
+                            ImportError.ClientUpdateRequired::class.simpleName -> ImportError.ClientUpdateRequired
                             else -> ImportError.Unexpected("Can't recognize UiError content.")
                         }
                     )
@@ -723,6 +725,7 @@ val calculateSyncWorkConverter = object : Converter {
                         when (error) {
                             CalculateWorkError.CouldNotReachServer::class.simpleName -> CalculateWorkError.CouldNotReachServer
                             CalculateWorkError.NoAccount::class.simpleName -> CalculateWorkError.NoAccount
+                            CalculateWorkError.ClientUpdateRequired::class.simpleName -> CalculateWorkError.ClientUpdateRequired
                             else -> CalculateWorkError.Unexpected("Can't recognize UiError content.")
                         }
                     )
@@ -758,6 +761,7 @@ val executeSyncWorkConverter = object : Converter {
                     Err(
                         when (error) {
                             ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
+                            ExecuteWorkError.ClientUpdateRequired::class.simpleName -> ExecuteWorkError.ClientUpdateRequired
                             else -> ExecuteWorkError.Unexpected("Can't recognize UiError content.")
                         }
                     )
