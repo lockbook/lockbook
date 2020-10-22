@@ -122,7 +122,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 setUpPreferenceChangeListener()
                 isThisAnImport()
                 fileModel.startUpInRoot()
-                setUpInternetListeners()
             }
         }
     }
@@ -153,9 +152,7 @@ class ListFilesViewModel(path: String, application: Application) :
             }
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue(
-                    "You are offline."
-                )
+                is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
                 is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                 is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
@@ -165,35 +162,6 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
         }.exhaustive
-    }
-
-    private fun setUpInternetListeners() {
-        val connectivityManager =
-            getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        val networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                if (fileModel.syncWorkAvailable()) {
-                    syncSnackBar()
-                }
-            }
-
-            override fun onLost(network: Network) {
-                _showOfflineSnackBar.postValue(Unit)
-            }
-        }
-
-        connectivityManager.registerNetworkCallback(
-            NetworkRequest.Builder().build(),
-            networkCallback
-        )
-        val wifiManager =
-            getApplication<Application>().applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val simManager =
-            getApplication<Application>().applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        if (wifiManager.connectionInfo.supplicantState != SupplicantState.COMPLETED && simManager.dataState != TelephonyManager.DATA_CONNECTED) {
-            _showOfflineSnackBar.postValue(Unit)
-        }
     }
 
     private fun incrementalSyncIfNotRunning() {
@@ -408,7 +376,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue("You are offline.")
+                    is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
                     is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                     is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
@@ -475,7 +443,7 @@ class ListFilesViewModel(path: String, application: Application) :
                             _errorHasOccurred.postValue("Error! No account!")
                             _stopSyncSnackBar.postValue(Unit)
                         }
-                        is CalculateWorkError.CouldNotReachServer -> _errorHasOccurred.postValue("You are offline.")
+                        is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
                         is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                         is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
