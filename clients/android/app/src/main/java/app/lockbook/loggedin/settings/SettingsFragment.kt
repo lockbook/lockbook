@@ -25,6 +25,7 @@ import app.lockbook.utils.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_RECOMMENDED
 import app.lockbook.utils.SharedPreferences.BIOMETRIC_STRICT
+import app.lockbook.utils.SharedPreferences.BYTE_USAGE_KEY
 import app.lockbook.utils.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.utils.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
@@ -35,7 +36,6 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
-import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 import java.io.File
 
@@ -65,9 +65,58 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 true
             )
 
+        setCurrentUsage()
+
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
+    }
+
+    private fun setCurrentUsage() {
+        when (val getUsageResult = CoreModel.getUsage(config)) {
+            is Ok -> {
+                var totalBytes = 0L
+                getUsageResult.value.forEach { fileUsage ->
+                    totalBytes += fileUsage.byteSections }
+                findPreference<Preference>(BYTE_USAGE_KEY)?.summary = totalBytes.toString()
+            }
+            is Err -> when (val error = getUsageResult.error) {
+                GetUsageError.NoAccount -> {
+                    Snackbar.make(
+                        requireActivity().findViewById(android.R.id.content),
+                        "Error! No account..",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
+                        "Error! No account."
+                }
+                GetUsageError.CouldNotReachServer -> {
+                    Snackbar.make(
+                        requireActivity().findViewById(android.R.id.content),
+                        "You are offline.",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
+                        "You are offline."
+                }
+                GetUsageError.ClientUpdateRequired -> {
+                    Snackbar.make(
+                        requireActivity().findViewById(android.R.id.content),
+                        "Update required.",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
+                        "Update required."
+                }
+                is GetUsageError.Unexpected -> {
+                    AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                        .setTitle(UNEXPECTED_ERROR)
+                        .setMessage(error.error)
+                        .show()
+                    Timber.e("Unable to get usage: ${error.error}")
+                }
+            }
+        }.exhaustive
     }
 
     override fun onDisplayPreferenceDialog(preference: Preference?) {

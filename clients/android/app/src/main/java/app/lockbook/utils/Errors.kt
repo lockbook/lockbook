@@ -7,6 +7,13 @@ sealed class InitLoggerError {
     data class Unexpected(val error: String) : InitLoggerError()
 }
 
+sealed class GetUsageError {
+    object NoAccount : GetUsageError()
+    object CouldNotReachServer : GetUsageError()
+    object ClientUpdateRequired : GetUsageError()
+    data class Unexpected(val error: String) : GetUsageError()
+}
+
 sealed class GetStateError {
     data class Unexpected(val error: String) : GetStateError()
 }
