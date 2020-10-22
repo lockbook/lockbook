@@ -14,12 +14,7 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::{
-    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
-    get_account, get_children, get_db_state, get_file_by_id, get_root, import_account, init_logger,
-    insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all,
-    write_document, Error,
-};
+use crate::{calculate_work, create_account, create_file, delete_file, execute_work, export_account, get_account, get_children, get_db_state, get_file_by_id, get_root, import_account, init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error, get_usage};
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -55,6 +50,36 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
     let path = Path::new(&absolute_path);
 
     string_to_jstring(&env, translate(init_logger(path)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env.get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
+            );
+        }
+    }
+        .into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(get_usage(&deserialized_config)))
 }
 
 #[no_mangle]
