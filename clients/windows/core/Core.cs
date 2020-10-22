@@ -25,7 +25,7 @@ namespace lockbook {
         private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core.dll")]
-        private static extern void release_pointer(IntPtr str_pointer);
+        private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         [DllImport("lockbook_core.dll")]
         private static extern void init_logger_safely(string writeable_path);
