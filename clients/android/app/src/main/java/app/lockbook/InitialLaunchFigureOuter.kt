@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -27,7 +28,7 @@ import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
-const val STATEREQUIRESCLEANING =
+const val STATE_REQUIRES_CLEANING =
     "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
@@ -64,7 +65,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         Timber.e("DB state requires cleaning!")
                         Snackbar.make(
                             splash_screen,
-                            STATEREQUIRESCLEANING,
+                            STATE_REQUIRES_CLEANING,
                             Snackbar.LENGTH_SHORT
                         ).show()
                     }
@@ -110,7 +111,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 migrate_progress_bar.visibility = View.GONE
                                 Snackbar.make(
                                     splash_screen,
-                                    STATEREQUIRESCLEANING,
+                                    STATE_REQUIRES_CLEANING,
                                     Snackbar.LENGTH_LONG
                                 ).addCallback(object : Snackbar.Callback() {
                                     override fun onDismissed(
