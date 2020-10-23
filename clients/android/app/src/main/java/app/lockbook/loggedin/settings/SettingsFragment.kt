@@ -84,7 +84,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 GetUsageError.NoAccount -> {
                     Snackbar.make(
                         requireActivity().findViewById(android.R.id.content),
-                        "Error! No account..",
+                        "Error! No account.",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
