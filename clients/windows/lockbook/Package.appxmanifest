@@ -8,14 +8,14 @@
 
   <Identity
     Name="f2b67865-90b6-4ca9-965a-2ca644a7eec1"
-    Publisher="CN=tvand"
+    Publisher="CN=lockbook"
     Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="f2b67865-90b6-4ca9-965a-2ca644a7eec1" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>lockbook</DisplayName>
-    <PublisherDisplayName>tvand</PublisherDisplayName>
+    <PublisherDisplayName>lockbook</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
