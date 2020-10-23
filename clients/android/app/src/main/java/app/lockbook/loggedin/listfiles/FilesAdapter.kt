@@ -43,22 +43,8 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
         if (item.fileType == FileType.Document) {
-            holder.cardView.file_name.setTextColor(
-                ResourcesCompat.getColor(
-                    holder.cardView.resources,
-                    R.color.light,
-                    null
-                )
-            )
             holder.cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
         } else {
-            holder.cardView.file_name.setTextColor(
-                ResourcesCompat.getColor(
-                    holder.cardView.resources,
-                    R.color.blue,
-                    null
-                )
-            )
             holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
         }
     }
