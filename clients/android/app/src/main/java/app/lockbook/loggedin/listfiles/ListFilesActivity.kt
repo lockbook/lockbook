@@ -34,18 +34,7 @@ class ListFilesActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
 
-        val title = SpannableString("Lockbook")
-        title.setSpan(
-            ForegroundColorSpan(
-                ResourcesCompat.getColor(
-                    resources,
-                    R.color.light,
-                    null
-                )
-            ),
-            0, title.length, 0
-        )
-        list_files_toolbar.title = title
+        list_files_toolbar.title = "Lockbook"
         setSupportActionBar(list_files_toolbar)
     }
 
