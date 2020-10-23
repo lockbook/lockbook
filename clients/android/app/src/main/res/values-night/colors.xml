@@ -21,5 +21,6 @@
   <color name="colorPrimaryDark">@color/black</color>
   <color name="windowBackground">@color/black</color>
   <color name="textColor">@color/light</color>
+  <color name="scannerIconColor">@color/light</color>
   <color name="documentNameTextColor">@color/light</color>
 </resources>
