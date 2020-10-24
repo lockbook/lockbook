@@ -6,84 +6,90 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       mc:Ignorable="d">
-
-    <Page.Resources>
-        <DataTemplate x:Key="NavigationViewMenuItem"
-                      x:DataType="local:UIFile">
-            <muxc:NavigationViewItem Tag="{x:Bind Id}"
-                                     AllowDrop="True"
-                                     BorderThickness="1"
-                                     CanDrag="True"
-                                     Drop="NavigationViewItem_Drop"
-                                     DragStarting="NavigationViewItem_DragStarting"
-                                     DragOver="NavigationViewItem_DragOver"
-                                     SelectsOnInvoked="{x:Bind IsDocument}"
-                                     Content="{x:Bind Name}"
-                                     MenuItemsSource="{x:Bind Children}">
-                <muxc:NavigationViewItem.Icon>
-                    <FontIcon FontFamily="Segoe MDL2 Assets"
-                              Glyph="{x:Bind Icon}" />
-                </muxc:NavigationViewItem.Icon>
-                <muxc:NavigationViewItem.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="New Folder"
+    <SplitView IsPaneOpen="True"
+        DisplayMode="Inline"
+        OpenPaneLength="296"
+        Loaded="NavigationViewLoaded">
+        <SplitView.Pane >
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Lockbook" Margin="13,30,0,20"
+                           Style="{StaticResource SubheaderTextBlockStyle}"
+                           />
+                <muxc:TreeView ItemsSource="{x:Bind Files}" Grid.Row="1" AllowDrop="True" CanDragItems="True" DragItemsCompleted="NavigationViewItem_Drop" DragItemsStarting="NavigationViewItem_DragStarting">
+                    <muxc:TreeView.ItemTemplate>
+                        <DataTemplate x:DataType="local:UIFile">
+                            <muxc:TreeViewItem 
+                                ItemsSource="{x:Bind Children}" 
+                                IsExpanded="{x:Bind Expanded}" 
+                                x:DefaultBindMode="TwoWay"
+                                Tapped="DocumentSelected"
+                                Tag="{x:Bind Id}">
+                                <StackPanel Orientation="Horizontal" >
+                                    <FontIcon 
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="15"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"
+                                        Glyph="{x:Bind Icon}" />
+                                    <TextBlock Text="{x:Bind Name}" />
+                                </StackPanel>
+                                <muxc:TreeViewItem.ContextFlyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="New Folder"
                                         Click="NewFolder"
                                         Tag="{x:Bind Id}" />
-                        <MenuFlyoutItem Text="New Document"
+                                        <MenuFlyoutItem Text="New Document"
                                         Tag="{x:Bind Id}"
                                         Click="NewDocument" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Rename"
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Rename"
                                         Click="RenameFile"
                                         Tag="{x:Bind Id}" />
-                        <MenuFlyoutItem Text="Delete"
+                                        <MenuFlyoutItem Text="Delete"
                                         Click="Unimplemented"
                                         Tag="{x:Bind Id}" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Nuke all data"
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Nuke all data"
                                         Click="ClearStateClicked" />
-                    </MenuFlyout>
-                </muxc:NavigationViewItem.ContextFlyout>
-            </muxc:NavigationViewItem>
-        </DataTemplate>
-        <SolidColorBrush x:Key="TextControlBorderBrushFocused"
-                         Color="Transparent" />
-        <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver"
-                         Color="Transparent" />
-        <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed"
-                         Color="Transparent" />
-        <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed"
-                         Color="Transparent" />
-    </Page.Resources>
-    <Grid>
-        <muxc:NavigationView x:Name="navview"
-                             Loaded="NavigationViewLoaded"
-                             IsBackButtonVisible="Collapsed"
-                             SelectionChanged="DocumentSelected"
-                             MenuItemsSource="{x:Bind Files, Mode=TwoWay}"
-                             MenuItemTemplate="{StaticResource NavigationViewMenuItem}">
-            <muxc:NavigationView.PaneFooter>
-                <muxc:NavigationViewItem Tag="sync"
-                                         Tapped="SyncCalled"
-                                         x:Name="sync"
-                                         Content="Sync">
-                    <muxc:NavigationViewItem.Icon>
-                        <FontIcon x:Name="syncIcon"
-                                  FontFamily="Segoe MDL2 Assets"
-                                  Glyph="&#xE895;" />
-                    </muxc:NavigationViewItem.Icon>
-                </muxc:NavigationViewItem>
-            </muxc:NavigationView.PaneFooter>
+                                    </MenuFlyout>
+                                </muxc:TreeViewItem.ContextFlyout>
+                            </muxc:TreeViewItem>
+                        </DataTemplate>
+                    </muxc:TreeView.ItemTemplate>
+                </muxc:TreeView>
+                <StackPanel Grid.Row="2" Margin="0,30,0,0">
+                    <ListView x:Name="Fruits" SelectionMode="None" IsItemClickEnabled="True">
+                        <ListViewItem x:Name="syncContainer" Tapped="SyncCalled">
+                            <StackPanel Tag="numeric" Orientation="Horizontal">
+                                <FontIcon x:Name="syncIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xF146;" />
+                                <TextBlock x:Name="syncText" Text="Numeric" Margin="8,0" />
+                            </StackPanel>
+                        </ListViewItem>
+                        <ListViewItem>
+                            <StackPanel Tag="numeric" Orientation="Horizontal">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xF146;"/>
+                                <TextBlock Text="Numeric" Margin="8,0"/>
+                            </StackPanel>
+                        </ListViewItem>
+                    </ListView>
+                </StackPanel>
+            </Grid>
+        </SplitView.Pane>
+        <SplitView.Content>
             <RichEditBox x:Name="editor"
                          IsEnabled="True"
                          TextChanged="TextChanged"
                          BorderThickness="0"
                          DisabledFormattingAccelerators="All"
                          Background="Black">
-
             </RichEditBox>
-        </muxc:NavigationView>
+        </SplitView.Content>
+    </SplitView>
 
-
-    </Grid>
 </Page>
