@@ -4,22 +4,6 @@
              xmlns:muxm="using:Microsoft.UI.Xaml.Media"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-                <ResourceDictionary>
-                    <ResourceDictionary.ThemeDictionaries>
-                        <ResourceDictionary x:Key="Default">
-                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
-                                          BackgroundSource="HostBackdrop"
-                                          TintColor="Black"
-                                          TintOpacity="0.8"
-                                          FallbackColor="#111111" />
-
-                        </ResourceDictionary>
-                    </ResourceDictionary.ThemeDictionaries>
-                </ResourceDictionary>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
+        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls"/>
     </Application.Resources>
 </Application>
