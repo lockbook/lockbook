@@ -139,6 +139,7 @@ class TextEditorActivity : AppCompatActivity() {
         setSupportActionBar(text_editor_toolbar)
 
         if (title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
                     CustomPunctuationSpan::class.java
@@ -189,11 +190,12 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
-        if (title.endsWith(".md")) {
-            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
-        }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
+        Timber.e("$menu, $title")
+        if (text_editor_toolbar.title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+        }
         return true
     }
 
@@ -205,7 +207,7 @@ class TextEditorActivity : AppCompatActivity() {
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
                 Snackbar.make(
-                    splash_screen,
+                    text_editor_layout,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 )
