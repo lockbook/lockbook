@@ -6,11 +6,7 @@ import android.text.TextWatcher
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR
-import app.lockbook.utils.ReadDocumentError
-import app.lockbook.utils.WriteToDocumentError
+import app.lockbook.utils.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -60,11 +56,11 @@ class TextEditorViewModel(application: Application, private val id: String) :
                 is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
                     _errorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
             }
-        }
+        }.exhaustive
 
         return null
     }
@@ -130,10 +126,10 @@ class TextEditorViewModel(application: Application, private val id: String) :
                         is WriteToDocumentError.Unexpected -> {
                             Timber.e("Unable to write document changes: ${error.error}")
                             _errorHasOccurred.postValue(
-                                UNEXPECTED_ERROR
+                                error.error
                             )
                         }
-                    }
+                    }.exhaustive
                 }
             }
         }

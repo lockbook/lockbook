@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+import app.lockbook.utils.exhaustive
 import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
@@ -138,6 +139,7 @@ class TextEditorActivity : AppCompatActivity() {
         setSupportActionBar(text_editor_toolbar)
 
         if (title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
                     CustomPunctuationSpan::class.java
@@ -188,30 +190,30 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
-        if (title.endsWith(".md")) {
-            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
-        }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
+        Timber.e("$menu, $title")
+        if (text_editor_toolbar.title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+        }
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-//            R.id.menu_text_editor_search -> { }
             R.id.menu_text_editor_view_md -> viewMarkdown()
             R.id.menu_text_editor_redo -> handleTextRedo()
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
                 Snackbar.make(
-                    splash_screen,
+                    text_editor_layout,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 )
                     .show()
             }
-        }
+        }.exhaustive
 
         return true
     }

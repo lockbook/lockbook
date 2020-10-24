@@ -48,6 +48,7 @@ object CoreModel {
     }
 
     fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
+        Timber.e("HERE2")
         val createAccountResult: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount(Klaxon().toJsonString(config), account, API_URL))

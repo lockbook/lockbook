@@ -19,7 +19,7 @@ import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
-import app.lockbook.utils.Messages
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
@@ -360,12 +360,12 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun errorHasOccurred(view: ViewGroup, error: String) {
-        Snackbar.make(requireActivity().findViewById<ViewGroup>(android.R.id.content).rootView, error, Snackbar.LENGTH_SHORT).show()
+        Snackbar.make(view, error, Snackbar.LENGTH_SHORT).show()
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
         AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
-            .setTitle(Messages.UNEXPECTED_ERROR)
+            .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .show()
     }
