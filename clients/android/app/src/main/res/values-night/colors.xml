@@ -16,6 +16,7 @@
   <color name="grey">#787878</color>
 
   <color name="navigationBarColor">@color/black</color>
+  <color name="iconStatusBarColor">@color/light</color>
   <color name="colorPrimary">@color/blue</color>
   <color name="colorAccent">@color/blue</color>
   <color name="colorPrimaryDark">@color/black</color>
