@@ -12,7 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="?attr/actionBarSize"
-        android:background="@color/black" />
+        android:theme="@style/DarkBlue.Actionbar" />
 
     <ScrollView
         android:id="@+id/text_editor_scroller"
@@ -25,7 +25,7 @@
             style="@style/Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/light"
+            android:textColor="@color/textColor"
             android:background="@null"
             android:gravity="top|start"
             android:importantForAutofill="no"
