@@ -2,12 +2,9 @@ package app.lockbook.loggedin.listfiles
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.res.ResourcesCompat
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.settings.SettingsActivity
