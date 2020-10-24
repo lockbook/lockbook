@@ -9,7 +9,6 @@ import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.observe
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
