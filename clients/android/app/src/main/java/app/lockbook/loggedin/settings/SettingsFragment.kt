@@ -144,7 +144,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                     ).show()
                                 }
                                 else -> {}
-                            }
+                            }.exhaustive
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -173,7 +173,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
-        }
+        }.exhaustive
     }
 
     private fun matchKey(key: String, newValue: String) {
@@ -189,7 +189,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
-        }
+        }.exhaustive
     }
 
     private fun changeBiometricPreference(newValue: String) {
@@ -223,23 +223,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is AccountExportError.Unexpected -> {
-                        Timber.e("Unable to export account: ${error.error}")
                         AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
                             .setTitle(UNEXPECTED_ERROR)
                             .setMessage(error.error)
                             .show()
-                    }
-                    else -> {
-                        Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                        Snackbar.make(
-                            requireActivity().findViewById(android.R.id.content),
-                            UNEXPECTED_CLIENT_ERROR,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                        Timber.e("Unable to export account: ${error.error}")
                     }
                 }
             }
-        }
+        }.exhaustive
     }
 
     private fun exportAccountRaw() {
@@ -262,22 +254,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Snackbar.LENGTH_SHORT
                 ).show()
                 is AccountExportError.Unexpected -> {
-                    Timber.e("Unable to export account: ${error.error}")
                     AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()
-                }
-                else -> {
-                    Timber.e("AccountExportError not matched: ${error::class.simpleName}.")
-                    Snackbar.make(
-                        requireActivity().findViewById(android.R.id.content),
-                        UNEXPECTED_CLIENT_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    Timber.e("Unable to export account: ${error.error}")
                 }
             }
-        }
+        }.exhaustive
     }
 
     private fun isBiometricsOptionsAvailable(): Boolean =

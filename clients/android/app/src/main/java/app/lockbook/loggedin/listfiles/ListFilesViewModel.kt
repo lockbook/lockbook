@@ -18,7 +18,6 @@ import androidx.work.WorkManager
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.utils.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
@@ -143,13 +142,15 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun syncSnackBar() {
-        when (val syncWorkResult = fileModel.determineSizeOfSyncWork()) {
-            is Ok ->
+        when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
+            is Ok -> {
                 if (PreferenceManager.getDefaultSharedPreferences(getApplication())
                     .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
                 ) {
                     incrementalSyncIfNotRunning()
                 }
+                Unit
+            }
             is Err -> when (val error = syncWorkResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is CalculateWorkError.CouldNotReachServer -> {
@@ -161,11 +162,11 @@ class ListFilesViewModel(path: String, application: Application) :
                 is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(
-                        UNEXPECTED_ERROR
+                        error.error
                     )
                 }
             }
-        }
+        }.exhaustive
     }
 
     private fun setUpInternetListeners() {
@@ -209,18 +210,17 @@ class ListFilesViewModel(path: String, application: Application) :
     private fun setUpPreferenceChangeListener() {
         val listener = OnSharedPreferenceChangeListener { _, key ->
             when (key) {
-                BACKGROUND_SYNC_ENABLED_KEY ->
+                BACKGROUND_SYNC_ENABLED_KEY -> {
                     WorkManager.getInstance(getApplication())
                         .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
-                SYNC_AUTOMATICALLY_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY -> {
+                    Unit
                 }
-                IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> {
-                }
+                SYNC_AUTOMATICALLY_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> Unit
                 else -> {
                     _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
                 }
-            }
+            }.exhaustive
         }
 
         PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -252,7 +252,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
-                }
+                }.exhaustive
             }
         }
     }
@@ -304,7 +304,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     Timber.e("Result code not matched: $resultCode")
                     _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                 }
-            }
+            }.exhaustive
         } else {
             Timber.e("id is null.")
             _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
@@ -380,7 +380,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         Timber.e("Unrecognized sort item id.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
-                }
+                }.exhaustive
 
                 val files = fileModel.files.value
                 if (files is List<FileMetadata>) {
@@ -402,14 +402,8 @@ class ListFilesViewModel(path: String, application: Application) :
                 is GetAccountError.Unexpected -> {
                     Timber.e("Unable to get account: ${error.error}")
                 }
-                else -> {
-                    Timber.e("GetAccountError not matched: ${error::class.simpleName}.")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_CLIENT_ERROR
-                    )
-                }
             }
-        }
+        }.exhaustive
 
         var syncWork =
             when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
@@ -420,17 +414,11 @@ class ListFilesViewModel(path: String, application: Application) :
                     is CalculateWorkError.Unexpected -> {
                         Timber.e("Unable to calculate syncWork: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
-                            UNEXPECTED_ERROR
-                        )
-                    }
-                    else -> {
-                        Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
-                        _errorHasOccurred.postValue(
-                            UNEXPECTED_CLIENT_ERROR
+                            error.error
                         )
                     }
                 }
-            }
+            }.exhaustive
 
         if (syncWork.workUnits.isNotEmpty()) {
             _showSyncSnackBar.postValue(syncWork.workUnits.size)
@@ -471,13 +459,13 @@ class ListFilesViewModel(path: String, application: Application) :
                 ) {
                     is Ok -> {
                         currentProgress++
-                        _updateProgressSnackBar.postValue(currentProgress)
                         syncErrors.remove(workUnit.content.metadata.id)
+                        _updateProgressSnackBar.postValue(currentProgress)
                     }
                     is Err ->
                         syncErrors[workUnit.content.metadata.id] =
                             executeFileSyncWorkResult.error
-                }
+                }.exhaustive
             }
 
             syncWork =
@@ -493,19 +481,12 @@ class ListFilesViewModel(path: String, application: Application) :
                         is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
                             _unexpectedErrorHasOccurred.postValue(
-                                UNEXPECTED_ERROR
-                            )
-                            _stopSyncSnackBar.postValue(Unit)
-                        }
-                        else -> {
-                            Timber.e("CalculateWorkError not matched: ${error::class.simpleName}.")
-                            _errorHasOccurred.postValue(
-                                UNEXPECTED_CLIENT_ERROR
+                                error.error
                             )
                             _stopSyncSnackBar.postValue(Unit)
                         }
                     }
-                }
+                }.exhaustive
         }
         if (syncErrors.isNotEmpty()) {
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
