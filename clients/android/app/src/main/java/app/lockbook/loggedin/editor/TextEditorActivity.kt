@@ -2,7 +2,6 @@ package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
-import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
