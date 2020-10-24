@@ -2,15 +2,8 @@ package app.lockbook.loggedin.listfiles
 
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkRequest
-import android.net.wifi.SupplicantState
-import android.net.wifi.WifiManager
-import android.telephony.TelephonyManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
