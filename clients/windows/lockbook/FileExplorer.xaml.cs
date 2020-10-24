@@ -15,23 +15,20 @@ namespace lockbook {
 
     public class UIFile {
         public string Id { get; set; }
-
         public string Icon { get; set; }
-
         public string Name { get; set; }
-
         public bool IsDocument { get; set; }
-
+        public bool IsFolder() { return !IsDocument; }
+        public bool Expanded { get; set; }
         public ObservableCollection<UIFile> Children { get; set; }
     }
-
 
     public sealed partial class FileExplorer : Page {
 
         public string currentDocumentId = "";
 
-        public string folderGlyph = ""; // "\uED25";
-        public string documentGlyph = ""; //"\uE9F9";
+        public string folderGlyph = "\uED25";
+        public string documentGlyph = "\uE9F9";
         public string rootGlyph = "\uEC25";
         public string checkGlyph = "\uE73E";
         public string syncGlyph = "\uE895";
@@ -62,25 +59,25 @@ namespace lockbook {
                 switch (result) {
                     case Core.CalculateWork.Success success:
                         int work = success.workCalculated.workUnits.Count;
-                        if (sync.IsEnabled) {
+                        if (syncContainer.IsEnabled) {
                             if (work == 0) {
                                 syncIcon.Glyph = checkGlyph;
-                                sync.Content = "Up to date!";
+                                syncText.Text = "Up to date!";
                             } else {
                                 syncIcon.Glyph = syncGlyph;
                                 if (work == 1)
-                                    sync.Content = work + " item need to be synced.";
+                                    syncText.Text = work + " item need to be synced.";
                                 else
-                                    sync.Content = work + " items need to be synced.";
+                                    syncText.Text = work + " items need to be synced.";
                             }
                         }
                         break;
                     case Core.CalculateWork.ExpectedError error:
                         switch (error.Error) {
                             case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
-                                if (sync.IsEnabled) {
+                                if (syncContainer.IsEnabled) {
                                     syncIcon.Glyph = offlineGlyph;
-                                    sync.Content = "Offline";
+                                    syncText.Text = "Offline";
                                 }
                                 break;
                             default:
@@ -112,8 +109,16 @@ namespace lockbook {
 
         }
 
+        // TODO consider diffing trees and performing the min update to prevent the UI from flashing
         private async Task PopulateTree(List<FileMetadata> coreFiles) {
-            Files.Clear();
+
+            var expandedItems = new HashSet<string>();
+
+            foreach (var file in uiFiles.Values) {
+                if (file.Expanded)
+                    expandedItems.Add(file.Id);
+            }
+
             uiFiles.Clear();
 
             FileMetadata root = null;
@@ -132,9 +137,8 @@ namespace lockbook {
 
             // Explore and find children
             Queue<FileMetadata> toExplore = new Queue<FileMetadata>();
-            uiFiles[root.Id] = new UIFile { Id = root.Id, Name = root.Name, IsDocument = false, Icon = rootGlyph, Children = new ObservableCollection<UIFile>() };
+            uiFiles[root.Id] = new UIFile { Icon = rootGlyph, Expanded = true, Id = root.Id, Name = root.Name, IsDocument = false, Children = new ObservableCollection<UIFile>() };
             toExplore.Enqueue(root);
-            Files.Add(uiFiles[root.Id]);
 
             while (toExplore.Count != 0) {
                 var current = toExplore.Dequeue();
@@ -155,12 +159,17 @@ namespace lockbook {
                             children = null;
                         }
 
-                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon = icon, IsDocument = file.Type == "Document", Children = children };
+                        var expanded = expandedItems.Contains(file.Id);
+
+                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon = icon, IsDocument = file.Type == "Document", Children = children, Expanded = expanded };
                         uiFiles[file.Id] = newUi;
                         uiFiles[current.Id].Children.Add(newUi);
                     }
                 }
             }
+
+            Files.Clear();
+            Files.Add(uiFiles[root.Id]);
         }
 
         private async void NewFolder(object sender, RoutedEventArgs e) {
@@ -169,7 +178,7 @@ namespace lockbook {
 
             await AddFile(FileType.Folder, name, parent);
         }
-      
+
         private async void NewDocument(object sender, RoutedEventArgs e) {
             string parent = (string)((MenuFlyoutItem)sender).Tag;
             string name = await InputTextDialogAsync("Choose a document name");
@@ -225,8 +234,8 @@ namespace lockbook {
         }
 
         private async void SyncCalled(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
-            sync.IsEnabled = false;
-            sync.Content = "Syncing...";
+            syncContainer.IsEnabled = false;
+            syncText.Text = "Syncing...";
 
             var result = await App.CoreService.SyncAll();
 
@@ -239,8 +248,8 @@ namespace lockbook {
                     break;
             }
             syncIcon.Glyph = checkGlyph;
-            sync.Content = "Upto date!";
-            sync.IsEnabled = true;
+            syncText.Text = "Up to date!";
+            syncContainer.IsEnabled = true;
         }
 
         private async void RenameFile(object sender, RoutedEventArgs e) {
@@ -280,70 +289,69 @@ namespace lockbook {
         }
 
         // Move things
-        private void NavigationViewItem_DragStarting(UIElement sender, DragStartingEventArgs args) {
-            System.Diagnostics.Debug.WriteLine("drag starting");
+        // TODO supporting multiple file moves would simply require iterating through this list, 
+        // perhaps also it would require figuring out if a move is going to fail, maybe staging it
+        // as a transaction or something like that could be what we need to do this.
+        private void NavigationViewItem_DragStarting(UIElement sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
+            string id = (args.Items[0] as UIFile)?.Id;
+            System.Diagnostics.Debug.WriteLine("drag starting: " + args.Items[0]);
 
-            string tag = (string)((sender as FrameworkElement)?.Tag);
-
-            if (tag != null) {
-                args.AllowedOperations = DataPackageOperation.Move;
-                args.Data.SetData("id", tag);
+            if (id != null) {
+                args.Data.SetData("id", id); // TODO we do not need to do this
             } else {
                 System.Diagnostics.Debug.WriteLine("tag was null");
             }
-
         }
-        
+
         private void NavigationViewItem_DragOver(object sender, DragEventArgs e) {
-            e.AcceptedOperation = DataPackageOperation.Move;
+            e.AcceptedOperation = DataPackageOperation.Move; // TODO show none over documents
         }
 
-        private async void NavigationViewItem_Drop(object sender, DragEventArgs e) {
-            if ((e.OriginalSource as FrameworkElement)?.Tag is string newParent) {
-                if (await (e.DataView.GetDataAsync("id")) is string oldFileId) {
-                    e.Handled = true;
+        private async void NavigationViewItem_Drop(object sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsCompletedEventArgs e) {
+            string toMove = (e.Items[0] as UIFile)?.Id;
+            string newParent = (e.NewParentItem as UIFile)?.Id;
 
-                    var result = await App.CoreService.MoveFile(oldFileId, newParent);
+            var result = await App.CoreService.MoveFile(toMove, newParent);
 
-                    switch (result) {
-                        case Core.MoveFile.Success:
-                            await RefreshFiles();
+            switch (result) {
+                case Core.MoveFile.Success:
+                    break;
+                case Core.MoveFile.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.MoveFile.PossibleErrors.NoAccount:
+                            await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
                             break;
-                        case Core.MoveFile.ExpectedError error:
-                            switch (error.Error) {
-                                case Core.MoveFile.PossibleErrors.NoAccount:
-                                    await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                    break;
-                                case Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder:
-                                    await new MessageDialog("You cannot move a file into a document", "Bad move destination!").ShowAsync();
-                                    break;
-                                case Core.MoveFile.PossibleErrors.FileDoesNotExist:
-                                    await new MessageDialog("Could not locate the file you're trying to move! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                    break;
-                                case Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat:
-                                    await new MessageDialog("A file with that name exists at the target location!", "Name conflict!").ShowAsync();
-                                    break;
-                                case Core.MoveFile.PossibleErrors.TargetParentDoesNotExist:
-                                    await new MessageDialog("Could not locate the file you're trying to move to! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                    break;
-                                case Core.MoveFile.PossibleErrors.CannotMoveRoot:
-                                    await new MessageDialog("Cannot move root folder!", "Cannot move root!").ShowAsync();
-                                    break;
-                            }
+                        case Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder:
+                            await new MessageDialog("You cannot move a file into a document", "Bad move destination!").ShowAsync();
                             break;
-                        case Core.MoveFile.UnexpectedError uhOh:
-                            await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                        case Core.MoveFile.PossibleErrors.FileDoesNotExist:
+                            await new MessageDialog("Could not locate the file you're trying to move! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat:
+                            await new MessageDialog("A file with that name exists at the target location!", "Name conflict!").ShowAsync();
+                            break;
+                        case Core.MoveFile.PossibleErrors.TargetParentDoesNotExist:
+                            await new MessageDialog("Could not locate the file you're trying to move to! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.MoveFile.PossibleErrors.CannotMoveRoot:
+                            await new MessageDialog("Cannot move root folder!", "Cannot move root!").ShowAsync();
                             break;
                     }
-                }
+                    break;
+                case Core.MoveFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
             }
+
+            await RefreshFiles();
         }
 
-        private async void DocumentSelected(Microsoft.UI.Xaml.Controls.NavigationView sender, Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs args) {
-            string tag = (string)args.SelectedItemContainer?.Tag;
+        private async void DocumentSelected(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+            string tag = (string)((FrameworkElement)sender).Tag;
+            var file = uiFiles[tag];
 
-            if (tag != null) {
-                currentDocumentId = (string)args.SelectedItemContainer.Tag;
+            if (file.IsDocument) {
+                currentDocumentId = tag;
                 var result = await App.CoreService.ReadDocument(currentDocumentId);
 
                 switch (result) {
@@ -409,6 +417,19 @@ namespace lockbook {
                         break;
                 }
             }
+        }
+
+
+        private void TreeView_DragItemsStarting_1(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
+
+        }
+
+        private void TreeView_DragItemsStarting(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
+
+        }
+
+        private void TreeView_DragItemsCompleted(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsCompletedEventArgs args) {
+
         }
     }
 }
