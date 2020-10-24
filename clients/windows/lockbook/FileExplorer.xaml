@@ -73,8 +73,8 @@
                         </ListViewItem>
                         <ListViewItem>
                             <StackPanel Tag="numeric" Orientation="Horizontal">
-                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xF146;"/>
-                                <TextBlock Text="Numeric" Margin="8,0"/>
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xEF58;"/>
+                                <TextBlock Text="Settings" Margin="8,0"/>
                             </StackPanel>
                         </ListViewItem>
                     </ListView>
