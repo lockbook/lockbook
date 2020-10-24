@@ -18,6 +18,7 @@ import app.lockbook.utils.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.utils.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.utils.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.utils.SharedPreferences.SORT_FILES_Z_A
+import app.lockbook.utils.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -74,12 +75,12 @@ class ListFilesActivity : AppCompatActivity() {
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
                 Snackbar.make(
-                    splash_screen,
+                    list_files_activity_layout,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
-        }
+        }.exhaustive
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -104,7 +105,7 @@ class ListFilesActivity : AppCompatActivity() {
                 true
             }
             else -> false
-        }
+        }.exhaustive
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {
@@ -126,6 +127,6 @@ class ListFilesActivity : AppCompatActivity() {
                 Timber.e("Unable to get result of back press.")
                 Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
             }
-        }
+        }.exhaustive
     }
 }
