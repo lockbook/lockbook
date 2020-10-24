@@ -77,7 +77,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
             is Ok -> {
                 var totalBytes = 0L
                 getUsageResult.value.forEach { fileUsage ->
-                    totalBytes += fileUsage.byteSections }
+                    totalBytes += fileUsage.byteSections
+                }
                 findPreference<Preference>(BYTE_USAGE_KEY)?.summary = totalBytes.toString()
             }
             is Err -> when (val error = getUsageResult.error) {
