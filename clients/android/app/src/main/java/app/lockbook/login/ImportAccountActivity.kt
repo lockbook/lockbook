@@ -10,10 +10,10 @@ import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
 import app.lockbook.utils.CoreModel
 import app.lockbook.utils.ImportError
-import app.lockbook.utils.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -69,47 +69,39 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
                 is Err -> when (val error = importAccountResult.error) {
                     is ImportError.AccountStringCorrupted -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Invalid account string!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.AccountExistsAlready -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Account already exists!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.AccountDoesNotExist -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "That account does not exist on this server!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.UsernamePKMismatch -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "That username does not correspond with that public_key on this server!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.CouldNotReachServer -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Could not access server to ensure this !",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.Unexpected -> {
-                        Timber.e("Unable to import an account.")
                         AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
                             .setTitle(UNEXPECTED_ERROR)
                             .setMessage(error.error)
                             .show()
-                    }
-                    else -> {
-                        Timber.e("ImportError not matched: ${error::class.simpleName}.")
-                        Snackbar.make(
-                            splash_screen,
-                            UNEXPECTED_CLIENT_ERROR,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                        Timber.e("Unable to import an account.")
                     }
                 }
-            }
+            }.exhaustive
         }
     }
 
