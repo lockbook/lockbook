@@ -24,4 +24,6 @@
   <color name="textColor">@color/light</color>
   <color name="scannerIconColor">@color/light</color>
   <color name="documentNameTextColor">@color/light</color>
+
+  <bool name="windowLightStatusBar">false</bool>
 </resources>
