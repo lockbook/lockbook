@@ -20,7 +20,6 @@ import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
-import app.lockbook.utils.RequestResultCodes
 import app.lockbook.utils.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
