@@ -1,6 +1,7 @@
 package app.lockbook
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
@@ -26,6 +27,8 @@ class App : Application() {
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver())
         instance = this
+
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 
     companion object {
