@@ -62,12 +62,12 @@ class NewAccountActivity : AppCompatActivity() {
                             new_account_username.error =
                                 "Invalid username!"
                         is CreateAccountError.CouldNotReachServer -> Snackbar.make(
-                            splash_screen,
+                            new_account_layout,
                             "Network unavailable.",
                             Snackbar.LENGTH_SHORT
                         ).show()
                         is CreateAccountError.AccountExistsAlready -> Snackbar.make(
-                            splash_screen,
+                            new_account_layout,
                             "Account already exists.",
                             Snackbar.LENGTH_SHORT
                         ).show()

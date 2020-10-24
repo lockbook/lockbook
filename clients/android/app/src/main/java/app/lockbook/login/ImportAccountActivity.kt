@@ -69,27 +69,27 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
                 is Err -> when (val error = importAccountResult.error) {
                     is ImportError.AccountStringCorrupted -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Invalid account string!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.AccountExistsAlready -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Account already exists!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.AccountDoesNotExist -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "That account does not exist on this server!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.UsernamePKMismatch -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "That username does not correspond with that public_key on this server!",
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is ImportError.CouldNotReachServer -> Snackbar.make(
-                        splash_screen,
+                        import_account_layout,
                         "Could not access server to ensure this !",
                         Snackbar.LENGTH_SHORT
                     ).show()
