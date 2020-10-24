@@ -71,6 +71,11 @@ class NewAccountActivity : AppCompatActivity() {
                             "Account already exists.",
                             Snackbar.LENGTH_SHORT
                         ).show()
+                        is CreateAccountError.ClientUpdateRequired -> Snackbar.make(
+                            splash_screen,
+                            "Update required.",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
                         is CreateAccountError.Unexpected -> {
                             AlertDialog.Builder(this@NewAccountActivity, R.style.DarkBlue_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)
