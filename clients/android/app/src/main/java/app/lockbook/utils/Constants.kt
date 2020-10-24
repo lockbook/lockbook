@@ -28,6 +28,8 @@ object SharedPreferences {
     const val CLEAR_LOGS_KEY = "clear_logs"
 
     const val IS_THIS_AN_IMPORT_KEY = "import"
+
+    const val BYTE_USAGE_KEY = "usage_amount"
 }
 
 object RequestResultCodes {
