@@ -75,7 +75,7 @@ class ListFilesActivity : AppCompatActivity() {
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
                 Snackbar.make(
-                    splash_screen,
+                    list_files_activity_layout,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 ).show()
