@@ -177,7 +177,7 @@ namespace lockbook {
 
         public async Task<Core.CreateAccount.IResult> CreateAccount(string username) {
             return await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
-                () => create_account(path, username, "http://qa.lockbook.app:8000"),
+                () => create_account(path, username, "http://api.lockbook.app:8000"),
                 s => new Core.CreateAccount.Success());
         }
 
