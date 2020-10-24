@@ -7,6 +7,7 @@
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
+    android:id="@+id/import_account_layout"
     tools:context=".login.WelcomeActivity">
 
     <TextView
@@ -21,7 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@null"
-        app:srcCompat="@drawable/baseline_qr_code_scanner_white_18dp"
+        app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24"
         android:contentDescription="@string/qr_code_content_description"/>
 
     <EditText

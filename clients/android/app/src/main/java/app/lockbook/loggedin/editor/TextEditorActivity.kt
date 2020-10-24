@@ -2,7 +2,6 @@ package app.lockbook.loggedin.editor
 
 import android.os.Bundle
 import android.os.Handler
-import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
@@ -124,21 +123,11 @@ class TextEditorActivity : AppCompatActivity() {
             return
         }
 
-        val title = SpannableString(name)
-        title.setSpan(
-            ForegroundColorSpan(
-                ResourcesCompat.getColor(
-                    resources,
-                    R.color.light,
-                    null
-                )
-            ),
-            0, title.length, 0
-        )
-        text_editor_toolbar.title = title
+        text_editor_toolbar.title = name
         setSupportActionBar(text_editor_toolbar)
 
         if (title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
                     CustomPunctuationSpan::class.java
@@ -189,11 +178,12 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_text_editor, menu)
         this.menu = menu
-        if (title.endsWith(".md")) {
-            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
-        }
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
+        Timber.e("$menu, $title")
+        if (text_editor_toolbar.title.endsWith(".md")) {
+            menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+        }
         return true
     }
 
@@ -205,7 +195,7 @@ class TextEditorActivity : AppCompatActivity() {
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
                 Snackbar.make(
-                    splash_screen,
+                    text_editor_layout,
                     UNEXPECTED_CLIENT_ERROR,
                     Snackbar.LENGTH_SHORT
                 )
