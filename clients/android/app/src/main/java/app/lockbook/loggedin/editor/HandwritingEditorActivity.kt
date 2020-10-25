@@ -159,13 +159,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                     Event(
                                         if (event.stroke == null) null else Stroke(
                                             event.stroke.color,
-                                            event.stroke.points.map { point ->
-                                                PressurePoint(
-                                                    point.x,
-                                                    point.y,
-                                                    point.pressure
-                                                )
-                                            }.toMutableList()
+                                            event.stroke.points.toMutableList()
                                         )
                                     )
                                 }.toMutableList()
