@@ -2,6 +2,7 @@ package app.lockbook.loggedin.editor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
@@ -122,8 +123,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         } else {
             holder.lockCanvas()
         }
-        canvasBitmap =
-            Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
+
+        canvasBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+
         tempCanvas = Canvas(canvasBitmap)
         val currentPaint = Paint()
         currentPaint.color = Color.WHITE
@@ -144,20 +146,22 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
-                for (pointIndex in 0 until event.stroke.points.size) {
-                    currentPaint.strokeWidth = event.stroke.points[pointIndex].pressure
+                var pointIndex = 0
+                while (pointIndex < event.stroke.points.size) {
                     if (pointIndex != 0) {
+                        currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
                         activePath.moveTo(
-                            event.stroke.points[pointIndex - 1].x,
-                            event.stroke.points[pointIndex - 1].y
+                            event.stroke.points[pointIndex - 2],
+                            event.stroke.points[pointIndex - 1]
                         )
                         activePath.lineTo(
-                            event.stroke.points[pointIndex].x,
-                            event.stroke.points[pointIndex].y
+                            event.stroke.points[pointIndex + 1],
+                            event.stroke.points[pointIndex + 2]
                         )
                         tempCanvas.drawPath(activePath, currentPaint)
                         activePath.reset()
                     }
+                    pointIndex += 3
                 }
 
                 activePath.reset()
@@ -187,6 +191,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         if (modelY < 0) modelY = 0f
         if (modelY > tempCanvas.clipBounds.height()) modelY =
             tempCanvas.clipBounds.height().toFloat()
+
+        modelX -= (modelX % 0.01f)
+        modelY -= (modelY % 0.01f)
 
         return PointF(modelX, modelY)
     }
@@ -234,13 +241,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
         val penPath = Stroke(activePaint.color)
-        penPath.points.add(
-            PressurePoint(
-                point.x,
-                point.y,
-                pressure * 7 // TODO: This should become a setting, maybe called sensitivity
-            )
-        )
+        penPath.points.add(pressure * 7)
+        penPath.points.add(point.x)
+        penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
     }
 
@@ -263,7 +266,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(PressurePoint(point.x, point.y, pressure * 7))
+                currentEvent.points.add(pressure * 7)
+                currentEvent.points.add(point.x)
+                currentEvent.points.add(point.y)
                 break
             }
         }
