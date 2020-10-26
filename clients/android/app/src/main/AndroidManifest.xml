@@ -6,8 +6,6 @@
     <uses-sdk tools:overrideLibrary="com.google.zxing.client.android" />
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -36,20 +34,20 @@
         <activity
             android:name=".login.WelcomeActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
-        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity
             android:name=".login.NewAccountActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
             android:name=".login.ImportAccountActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
+        <activity
+            android:name=".loggedin.editor.HandwritingEditorActivity"
+            android:theme="@style/DarkBlue.NoActionBar" />
+        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
         <activity android:name=".loggedin.settings.SettingsActivity" />
         <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
         <activity android:name=".loggedin.editor.TextEditorActivity" />
         <activity android:name=".loggedin.logs.LogActivity" />
-        <activity
-            android:name=".loggedin.editor.HandwritingEditorActivity"
-            android:theme="@style/DarkBlue.NoActionBar" />
     </application>
 
 </manifest>

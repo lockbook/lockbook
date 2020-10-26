@@ -31,32 +31,6 @@ class FileModel(path: String) {
     val unexpectedErrorHasOccurred: LiveData<String>
         get() = _unexpectedErrorHasOccurred
 
-    fun syncWorkAvailable(): Boolean {
-        when (val syncWorkResult = CoreModel.calculateFileSyncWork(config)) {
-            is Ok -> return true
-            is Err -> when (val error = syncWorkResult.error) {
-                is CalculateWorkError.NoAccount -> {
-                    Timber.e("No account.")
-                    _errorHasOccurred.postValue("Error! No account!")
-                }
-                is CalculateWorkError.CouldNotReachServer -> {
-                    Timber.e("Could not reach server despite being online.")
-                    _errorHasOccurred.postValue(
-                        UNEXPECTED_CLIENT_ERROR
-                    )
-                }
-                is CalculateWorkError.Unexpected -> {
-                    Timber.e("Unable to calculate syncWork: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
-        }.exhaustive
-
-        return false
-    }
-
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
 
     fun upADirectory() {
