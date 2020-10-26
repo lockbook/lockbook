@@ -57,9 +57,9 @@ namespace Core {
     public class FileUsage {
         [JsonProperty("file_id")]
         public string fileId;
-        [JsonProperty("byte_seconds")]
+        [JsonProperty("byte_secs")]
         public ulong byteSeconds;
-        [JsonProperty("seconds")]
+        [JsonProperty("secs")]
         public ulong seconds;
     }
 
