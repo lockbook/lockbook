@@ -135,6 +135,9 @@
     <string name="list_files_create_folder">Create a new folder.</string>
     <string name="list_files_create_document">Create a new document.</string>
     <string name="list_files_create_file">Create a new file.</string>
+    <string name="settings_preference_debug">Debug</string>
+    <string name="settings_preference_usage">Usage</string>
+    <string name="settings_bytes_usage">Bytes used</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
