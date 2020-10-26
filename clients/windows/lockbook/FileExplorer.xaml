@@ -71,7 +71,7 @@
                                 <TextBlock x:Name="syncText" Text="Numeric" Margin="8,0" />
                             </StackPanel>
                         </ListViewItem>
-                        <ListViewItem>
+                        <ListViewItem Tapped="ListViewItem_Tapped">
                             <StackPanel Tag="numeric" Orientation="Horizontal">
                                 <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xEF58;"/>
                                 <TextBlock Text="Settings" Margin="8,0"/>
