@@ -22,6 +22,18 @@ object CoreModel {
         return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
     }
 
+    fun getUsage(config: Config): Result<List<FileUsage>, GetUsageError> {
+        val getUsageResult: Result<List<FileUsage>, GetUsageError>? =
+            Klaxon().converter(getUsageConverter)
+                .parse(getUsage(Klaxon().toJsonString(config)))
+
+        if (getUsageResult != null) {
+            return getUsageResult
+        }
+
+        return Err(GetUsageError.Unexpected("getUsageConverter was unable to be called!"))
+    }
+
     fun getDBState(config: Config): Result<State, GetStateError> {
         val getStateResult: Result<State, GetStateError>? =
             Klaxon().converter(getStateConverter)
