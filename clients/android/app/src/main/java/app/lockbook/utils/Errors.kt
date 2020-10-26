@@ -7,6 +7,13 @@ sealed class InitLoggerError {
     data class Unexpected(val error: String) : InitLoggerError()
 }
 
+sealed class GetUsageError {
+    object NoAccount : GetUsageError()
+    object CouldNotReachServer : GetUsageError()
+    object ClientUpdateRequired : GetUsageError()
+    data class Unexpected(val error: String) : GetUsageError()
+}
+
 sealed class GetStateError {
     data class Unexpected(val error: String) : GetStateError()
 }
@@ -21,6 +28,7 @@ sealed class CreateAccountError {
     object InvalidUsername : CreateAccountError()
     object CouldNotReachServer : CreateAccountError()
     object AccountExistsAlready : CreateAccountError()
+    object ClientUpdateRequired : CreateAccountError()
     data class Unexpected(val error: String) : CreateAccountError()
 }
 
@@ -30,6 +38,7 @@ sealed class ImportError {
     object AccountDoesNotExist : ImportError()
     object UsernamePKMismatch : ImportError()
     object CouldNotReachServer : ImportError()
+    object ClientUpdateRequired : ImportError()
     data class Unexpected(val error: String) : ImportError()
 }
 
@@ -123,10 +132,12 @@ sealed class SyncAllError {
 sealed class CalculateWorkError {
     object NoAccount : CalculateWorkError()
     object CouldNotReachServer : CalculateWorkError()
+    object ClientUpdateRequired : CalculateWorkError()
     data class Unexpected(val error: String) : CalculateWorkError()
 }
 
 sealed class ExecuteWorkError {
     object CouldNotReachServer : ExecuteWorkError()
+    object ClientUpdateRequired : ExecuteWorkError()
     data class Unexpected(val error: String) : ExecuteWorkError()
 }
