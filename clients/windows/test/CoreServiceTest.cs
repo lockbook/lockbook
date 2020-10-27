@@ -224,14 +224,16 @@ namespace test {
             var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
             Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
         }
-        public void WriteDocNoAccount() {
-            var id = ((Core.CreateFile.Success)createfileResult).NewFile.Id;
 
-            var getwriteDocResult = CoreService.WriteDocument(id, "content").WaitResult();
-            Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getwriteDocResult.GetType());
-            Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
-               ((Core.WriteDocument.ExpectedError)getwriteDocResult).error);
-        }
+        //[TestMethod]
+        //public void WriteDocNoAccount() {
+        //    var id = ((Core.CreateFile.Success)createfileResult).NewFile.Id;
+
+        //    var getwriteDocResult = CoreService.WriteDocument(id, "content").WaitResult();
+        //    Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getwriteDocResult.GetType());
+        //    Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
+        //       ((Core.WriteDocument.ExpectedError)getwriteDocResult).error);
+        //}
 
         [TestMethod]
         public void ReadDoc() {
