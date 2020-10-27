@@ -20,7 +20,7 @@ namespace test {
         }
 
         [TestInitialize]
-        public void Init() {
+        public void DeleteAccount() {
             try {
                 Directory.Delete(lockbookDir, true);
             } catch (DirectoryNotFoundException) { }
@@ -205,10 +205,16 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
 
-            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
 
-            Assert.IsFalse(CoreService.AccountExists().WaitResult());
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
+            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            DeleteAccount();
+
+            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.ExpectedError), createFileResult.GetType());
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
+                ((Core.CreateFile.ExpectedError)createFileResult).Error);
         }
 
         [TestMethod]
@@ -217,23 +223,35 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
 
-            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
+            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+
+            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
             Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var id = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
             Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
         }
 
-        //[TestMethod]
-        //public void WriteDocNoAccount() {
-        //    var id = ((Core.CreateFile.Success)createfileResult).NewFile.Id;
+        [TestMethod]
+        public void WriteDocNoAccount() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
 
-        //    var getwriteDocResult = CoreService.WriteDocument(id, "content").WaitResult();
-        //    Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getwriteDocResult.GetType());
-        //    Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
-        //       ((Core.WriteDocument.ExpectedError)getwriteDocResult).error);
-        //}
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
+            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+
+            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+
+            var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
+            Assert.AreEqual(typeof(Core.WriteDocument.ExpectedError), writeDocResult.GetType());
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
+                ((Core.CreateFile.ExpectedError)createFileResult).Error);
+        }
 
         [TestMethod]
         public void ReadDoc() {
