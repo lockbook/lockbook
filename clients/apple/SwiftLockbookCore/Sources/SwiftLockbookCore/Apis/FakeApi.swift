@@ -48,8 +48,8 @@ public struct FakeApi: LockbookApi {
         return .success(fileMetas)
     }
     
-    public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
-        .success("""
+    public func getFile(id: UUID) -> FfiResult<DecryptedValue, ReadDocumentError> {
+        .success(DecryptedValue(secret: """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mattis mattis arcu a commodo.
 Maecenas dapibus mollis lacinia. Nunc ut mi felis. Donec efficitur, nulla venenatis sodales sagittis, elit tellus ullamcorper leo, in fringilla turpis nisl at sapien.
 Morbi et sagittis dolor, auctor sollicitudin lorem.
@@ -64,7 +64,7 @@ Nulla facilisi.
 Fusce ac risus ut sem vulputate euismod vitae ac massa.
 Quisque feugiat, risus in posuere varius, metus metus cursus lorem, at sollicitudin odio libero vel elit.
 Vestibulum ante ipsum primis in vel.
-""")
+"""))
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
