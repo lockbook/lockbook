@@ -201,7 +201,12 @@ namespace test {
 
         [TestMethod]
         public void CreateFileNoAccount() {
-            //create file
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+
+            var createFileResult = CoreService.CreateFile("TestFile", username, FileType.Document).WaitResult();
+            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
 
             Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
@@ -218,6 +223,14 @@ namespace test {
 
             var writeDocResult = CoreService.WriteDocument(id, "content").WaitResult();
             Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
+        }
+        public void WriteDocNoAccount() {
+            var id = ((Core.CreateFile.Success)createfileResult).NewFile.Id;
+
+            var getwriteDocResult = CoreService.WriteDocument(id, "content").WaitResult();
+            Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getwriteDocResult.GetType());
+            Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
+               ((Core.WriteDocument.ExpectedError)getwriteDocResult).error);
         }
 
         [TestMethod]
