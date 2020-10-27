@@ -41,7 +41,7 @@ struct EditorView: View, Equatable {
                 .onAppear {
                     switch core.api.getFile(id: meta.id) {
                     case .success(let decrypted):
-                        contentBuffer.content = decrypted
+                        contentBuffer.content = decrypted.secret
                         contentBuffer.succeeded = true
                     case .failure(let err):
                         core.handleError(err)
