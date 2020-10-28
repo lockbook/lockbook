@@ -2,7 +2,6 @@ package app.lockbook.loggedin.editor
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
@@ -11,6 +10,8 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
+import app.lockbook.utils.Point
+import java.text.DecimalFormat
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
@@ -19,6 +20,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var tempCanvas: Canvas
     private var thread = Thread(this)
     private var isThreadRunning = false
+    private val pointFormat = DecimalFormat("##.00")
 
     // Current drawing stroke state
     private val activePaint = Paint()
@@ -192,8 +194,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         if (modelY > tempCanvas.clipBounds.height()) modelY =
             tempCanvas.clipBounds.height().toFloat()
 
-        modelX -= (modelX % 0.01f)
-        modelY -= (modelY % 0.01f)
+        modelX = pointFormat.format(modelX).toFloat()
+        modelY = pointFormat.format(modelY).toFloat()
 
         return PointF(modelX, modelY)
     }
@@ -232,11 +234,15 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleStylusEvent(event: MotionEvent) {
         val modelPoint = screenToModel(PointF(event.x, event.y))
+        val pressure = compressPressure(event.pressure)
+
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
-            MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
+            MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
+            MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
         }
     }
+
+    private fun compressPressure(pressure: Float): Float = pointFormat.format(pressure).toFloat()
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
@@ -246,6 +252,38 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
     }
+
+//    private fun eraseLine(point: PointF) {
+//        val drawing = Drawing(
+//            Page(
+//                Transformation(
+//                    Point(
+//                        drawingModel.currentView.transformation.translation.x,
+//                        drawingModel.currentView.transformation.translation.y
+//                    ),
+//                     drawingModel.currentView.transformation.scale,
+//                )
+//            ),
+//            drawingModel.events.map { event ->
+//                Event(
+//                    if (event.stroke == null) null else Stroke(
+//                        event.stroke.color,
+//                        event.stroke.points.toMutableList()
+//                    )
+//                )
+//            }.toMutableList()
+//        )
+//
+//        for (event in drawingModel.events) {
+//            val stroke = event.stroke
+//            if (stroke != null) {
+//                for(pointIndex in event.stroke.points.size - 1 downTo 0) {
+//                    val pointRange = stroke.points[pointIndex]
+//                    if (stroke.points[pointIndex])
+//                }
+//            }
+//        }
+//    }
 
     private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure * 7
