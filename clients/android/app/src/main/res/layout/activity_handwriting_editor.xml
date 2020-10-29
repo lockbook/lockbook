@@ -37,6 +37,17 @@
 
     </androidx.appcompat.widget.Toolbar>
 
+    <ProgressBar
+        android:id="@+id/handwriting_editor_progress_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:visibility="gone"
+        android:layout_marginBottom="-8dp"
+        android:layout_marginTop="-4dp"
+        android:minHeight="20dp" />
+
     <app.lockbook.loggedin.editor.HandwritingEditorView
         android:id="@+id/handwriting_editor"
         android:layout_width="match_parent"
