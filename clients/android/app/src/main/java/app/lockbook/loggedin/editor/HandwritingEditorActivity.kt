@@ -15,16 +15,36 @@ import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.beust.klaxon.Klaxon
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
+import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
+    private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder?) {
+            addDrawingToView()
+        }
+
+        override fun surfaceChanged(
+            holder: SurfaceHolder?,
+            format: Int,
+            width: Int,
+            height: Int
+        ) {
+        }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder?) {
+
+        }
+    }
+
     private var timer: Timer = Timer()
     private val handler = Handler()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_handwriting_editor)
+        Timber.e("STARTED ACTIVITY")
 
         val id = intent.getStringExtra("id")
         val name = intent.getStringExtra("name")
@@ -60,48 +80,36 @@ class HandwritingEditorActivity : AppCompatActivity() {
             unexpectedErrorHasOccurred(errorText)
         }
 
-        if (!startUpDrawingIfAble(id)) {
-            finish()
-            return
+        startDrawing(id)
+
+        handwritingEditorViewModel.drawableReady.observe(
+            this
+        ) {
+            handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
+
+            if(!handwriting_editor.holder.isCreating) {
+                addDrawingToView()
+            }
         }
 
         startBackgroundSave()
         setUpHandwritingToolbar()
     }
 
-    private fun startUpDrawingIfAble(id: String): Boolean {
-        val priorContents = handwritingEditorViewModel.handleReadDocument(id)
+    private fun addDrawingToView() {
+        handwriting_editor.isTouchable = true
+        handwriting_editor_progress_bar.visibility = View.GONE
+        handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
+    }
 
-        if (priorContents != null && priorContents.isNotEmpty()) {
-            if (handwritingEditorViewModel.lockBookDrawable == null) {
-                handwritingEditorViewModel.lockBookDrawable = Klaxon().parse<Drawing>(priorContents)
-            }
+    private fun startDrawing(id: String) {
+        handwriting_editor_progress_bar.visibility = View.VISIBLE
 
-            if (handwritingEditorViewModel.lockBookDrawable == null) {
-                errorHasOccurred("Unable to load this drawing.")
-                return false
-            }
+        if (handwritingEditorViewModel.lockBookDrawable == null) {
+            handwritingEditorViewModel.getDrawing(id)
+        } else {
+            handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
         }
-
-        handwriting_editor.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder?) {
-                handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
-            }
-
-            override fun surfaceChanged(
-                holder: SurfaceHolder?,
-                format: Int,
-                width: Int,
-                height: Int
-            ) {
-            }
-
-            override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                handwriting_editor.endThread()
-            }
-        })
-
-        return true
     }
 
     override fun onRestart() {
