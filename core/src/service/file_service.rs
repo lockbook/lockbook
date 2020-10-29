@@ -112,6 +112,10 @@ pub enum FileMoveError {
     CouldNotFindParents(FindingParentsFailed),
 }
 
+pub enum DeleteFileError {
+
+}
+
 pub trait FileService {
     fn create(
         db: &Db,
@@ -133,6 +137,8 @@ pub trait FileService {
     fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), FileMoveError>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
+
+    fn delete_file(db: &Db, id: Uuid) -> Result<(), DeleteFileError>;
 }
 
 pub struct FileServiceImpl<
@@ -457,6 +463,10 @@ impl<
             .map_err(ReadDocumentError::FileCryptoError)?;
 
         Ok(contents)
+    }
+
+    fn delete_file(_db: &Db, _id: Uuid) -> Result<(), DeleteFileError> {
+        unimplemented!()
     }
 }
 
