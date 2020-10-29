@@ -10,8 +10,9 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
-import app.lockbook.utils.Point
+import java.math.RoundingMode
 import java.text.DecimalFormat
+import kotlin.math.roundToInt
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
@@ -20,7 +21,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var tempCanvas: Canvas
     private var thread = Thread(this)
     private var isThreadRunning = false
-    private val pointFormat = DecimalFormat("##.00")
 
     // Current drawing stroke state
     private val activePaint = Paint()
@@ -194,8 +194,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         if (modelY > tempCanvas.clipBounds.height()) modelY =
             tempCanvas.clipBounds.height().toFloat()
 
-        modelX = pointFormat.format(modelX).toFloat()
-        modelY = pointFormat.format(modelY).toFloat()
+        modelX = (modelX * 100).roundToInt() / 100f
+        modelY = (modelY * 100).roundToInt() / 100f
 
         return PointF(modelX, modelY)
     }
@@ -242,12 +242,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun compressPressure(pressure: Float): Float = pointFormat.format(pressure).toFloat()
+    private fun compressPressure(pressure: Float): Float = ((pressure * 7) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
         val penPath = Stroke(activePaint.color)
-        penPath.points.add(pressure * 7)
+        penPath.points.add(pressure)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
@@ -286,7 +286,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 //    }
 
     private fun lineTo(point: PointF, pressure: Float) {
-        activePaint.strokeWidth = pressure * 7
+        activePaint.strokeWidth = pressure
         activePath.moveTo(
             lastPoint.x,
             lastPoint.y
@@ -304,7 +304,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(pressure * 7)
+                currentEvent.points.add(pressure)
                 currentEvent.points.add(point.x)
                 currentEvent.points.add(point.y)
                 break
