@@ -137,6 +137,10 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
+
+        handwriting_editor_erase.setOnCheckedChangeListener { _, isChecked ->
+            handwriting_editor.isErasing = isChecked
+        }
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
