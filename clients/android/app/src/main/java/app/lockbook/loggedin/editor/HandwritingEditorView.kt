@@ -258,6 +258,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF, pressure: Float) {
+
+        val newPressure = if(pressure > 5) pressure else 5f
+
         val drawing = Drawing(
             Page(
                 Transformation(
@@ -288,9 +291,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
                 while (pointIndex < stroke.points.size) {
                     val pointRangeX =
-                        stroke.points[pointIndex + 1] - pressure..stroke.points[pointIndex + 1] + pressure
+                        stroke.points[pointIndex + 1] - newPressure..stroke.points[pointIndex + 1] + newPressure
                     val pointRangeY =
-                        stroke.points[pointIndex + 2] - pressure..stroke.points[pointIndex + 2] + pressure
+                        stroke.points[pointIndex + 2] - newPressure..stroke.points[pointIndex + 2] + newPressure
 
                     if (pointRangeX.contains(point.x) && pointRangeY.contains(point.y)) {
                         deletedStroke = true
