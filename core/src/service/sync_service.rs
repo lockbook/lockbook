@@ -32,9 +32,8 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
-    FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
-    ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
-    WritingMergedFileError,
+    FolderCreateError, FolderMoveError, FolderRenameError, ReadingCurrentVersionError,
+    ResolveConflictByCreatingNewFileError, SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
