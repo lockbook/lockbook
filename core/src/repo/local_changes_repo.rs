@@ -29,7 +29,6 @@ pub trait LocalChangesRepo {
     fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn untrack_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError>;
 }
 
@@ -256,14 +255,23 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 .map_err(DbError::SledError)?;
                 Ok(())
             }
-            Some(mut change) => {
+            Some(change) => {
                 if change.deleted {
                     Ok(())
+                } else if change.new {
+                    Self::delete_if_exists(&db, id)
                 } else {
-                    change.deleted = true;
+                    let delete_tracked = LocalChange {
+                        id,
+                        renamed: None,
+                        moved: None,
+                        new: false,
+                        content_edited: None,
+                        deleted: true,
+                    };
                     tree.insert(
                         id.as_bytes(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::SledError)?;
                     Ok(())
@@ -343,10 +351,6 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 Ok(())
             }
         }
-    }
-
-    fn untrack_delete(_db: &Db, _id: Uuid) -> Result<(), DbError> {
-        unimplemented!()
     }
 
     fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
