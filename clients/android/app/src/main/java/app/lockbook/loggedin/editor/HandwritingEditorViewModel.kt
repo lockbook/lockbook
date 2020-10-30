@@ -32,7 +32,6 @@ class HandwritingEditorViewModel(
     val drawableReady: LiveData<Unit>
         get() = _drawableReady
 
-
     fun getDrawing(id: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -46,7 +45,6 @@ class HandwritingEditorViewModel(
                 _drawableReady.postValue(Unit)
             }
         }
-
     }
 
     private fun readDocument(id: String): String? {
