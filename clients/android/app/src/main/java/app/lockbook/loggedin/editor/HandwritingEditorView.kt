@@ -10,8 +10,7 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
-import java.math.RoundingMode
-import java.text.DecimalFormat
+import app.lockbook.utils.Point
 import kotlin.math.roundToInt
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
@@ -21,6 +20,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var tempCanvas: Canvas
     private var thread = Thread(this)
     private var isThreadRunning = false
+    var isErasing = false
 
     // Current drawing stroke state
     private val activePaint = Paint()
@@ -129,18 +129,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         canvasBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
 
         tempCanvas = Canvas(canvasBitmap)
-        val currentPaint = Paint()
-        currentPaint.color = Color.WHITE
-        currentPaint.strokeWidth = 10f
-        currentPaint.style = Paint.Style.STROKE
-        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
+
         holder.unlockCanvasAndPost(canvas)
     }
 
     private fun restoreFromModel() {
         val currentPaint = Paint()
-        currentPaint.isAntiAlias = true
+        currentPaint.color = Color.WHITE
+        currentPaint.strokeWidth = 10f
         currentPaint.style = Paint.Style.STROKE
+        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
+
+        currentPaint.isAntiAlias = true
         currentPaint.strokeJoin = Paint.Join.ROUND
         currentPaint.strokeCap = Paint.Cap.ROUND
 
@@ -236,9 +236,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
         val pressure = compressPressure(event.pressure)
 
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
-            MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
+        if(isErasing) {
+            eraseAtPoint(modelPoint, pressure)
+        } else {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
+                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
+            }
         }
     }
 
@@ -253,37 +257,65 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
-//    private fun eraseLine(point: PointF) {
-//        val drawing = Drawing(
-//            Page(
-//                Transformation(
-//                    Point(
-//                        drawingModel.currentView.transformation.translation.x,
-//                        drawingModel.currentView.transformation.translation.y
-//                    ),
-//                     drawingModel.currentView.transformation.scale,
-//                )
-//            ),
-//            drawingModel.events.map { event ->
-//                Event(
-//                    if (event.stroke == null) null else Stroke(
-//                        event.stroke.color,
-//                        event.stroke.points.toMutableList()
-//                    )
-//                )
-//            }.toMutableList()
-//        )
-//
-//        for (event in drawingModel.events) {
-//            val stroke = event.stroke
-//            if (stroke != null) {
-//                for(pointIndex in event.stroke.points.size - 1 downTo 0) {
-//                    val pointRange = stroke.points[pointIndex]
-//                    if (stroke.points[pointIndex])
-//                }
-//            }
-//        }
-//    }
+    private fun eraseAtPoint(point: PointF, pressure: Float) {
+        val drawing = Drawing(
+            Page(
+                Transformation(
+                    Point(
+                        drawingModel.currentView.transformation.translation.x,
+                        drawingModel.currentView.transformation.translation.y
+                    ),
+                    drawingModel.currentView.transformation.scale,
+                )
+            ),
+            drawingModel.events.map { event ->
+                Event(
+                    if (event.stroke == null) null else Stroke(
+                        event.stroke.color,
+                        event.stroke.points.toMutableList()
+                    )
+                )
+            }.toMutableList()
+        )
+
+        var refreshScreen = false
+
+        for (eventIndex in drawing.events.size - 1 downTo 0) {
+            val stroke = drawing.events[eventIndex].stroke
+            if (stroke != null) {
+                var deletedStroke = false
+                var pointIndex = 0
+
+                while (pointIndex < stroke.points.size) {
+                    val pointRangeX =
+                        stroke.points[pointIndex + 1] - pressure..stroke.points[pointIndex + 1] + pressure
+                    val pointRangeY =
+                        stroke.points[pointIndex + 2] - pressure..stroke.points[pointIndex + 2] + pressure
+
+                    if (pointRangeX.contains(point.x) && pointRangeY.contains(point.y)) {
+                        deletedStroke = true
+                        break
+                    }
+
+                    pointIndex += 3
+                }
+
+                if (deletedStroke) {
+                    drawing.events.removeAt(eventIndex)
+                    refreshScreen = true
+                }
+            }
+        }
+
+        if(refreshScreen) {
+            drawingModel = drawing
+            tempCanvas.drawColor(
+                Color.TRANSPARENT,
+                PorterDuff.Mode.CLEAR
+            )
+            restoreFromModel()
+        }
+    }
 
     private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure
