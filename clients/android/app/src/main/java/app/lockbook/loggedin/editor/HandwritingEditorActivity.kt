@@ -12,7 +12,6 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
-import com.beust.klaxon.Klaxon
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
 import timber.log.Timber
@@ -34,7 +33,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder?) {
-
         }
     }
 
@@ -87,7 +85,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         ) {
             handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
 
-            if(!handwriting_editor.holder.isCreating) {
+            if (!handwriting_editor.holder.isCreating) {
                 addDrawingToView()
             }
         }

@@ -10,7 +10,6 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
-import timber.log.Timber
 import java.text.DecimalFormat
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
