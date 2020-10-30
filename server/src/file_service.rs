@@ -206,7 +206,7 @@ pub async fn delete_document(
         FileType::Document,
     )
     .await;
-    let (old_content_version, new_version) = index_result.map_err(|e| match e {
+    let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
         file_index_repo::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
@@ -219,10 +219,17 @@ pub async fn delete_document(
         }
     })?;
 
+    let single_index_response = if let Some(result) = index_responses.responses.iter().last() {
+        result
+    } else {
+        error!("Internal server error! Unexpected zero or multiple postgres rows");
+        return Err(DeleteDocumentError::InternalError);
+    };
+
     let files_result = file_content_client::delete(
         &server_state.files_db_client,
         request.id,
-        old_content_version,
+        single_index_response.old_content_version,
     )
     .await;
     if files_result.is_err() {
@@ -235,7 +242,7 @@ pub async fn delete_document(
 
     match transaction.commit().await {
         Ok(()) => Ok(DeleteDocumentResponse {
-            new_metadata_and_content_version: new_version,
+            new_metadata_and_content_version: single_index_response.new_metadata_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -448,14 +455,14 @@ pub async fn delete_folder(
         }
     };
 
-    let result = file_index_repo::delete_file(
+    let index_result = file_index_repo::delete_file(
         &transaction,
         request.id,
         request.old_metadata_version,
         FileType::Folder,
     )
     .await;
-    let (_, new_version) = result.map_err(|e| match e {
+    let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
         file_index_repo::FileError::Deleted => DeleteFolderError::FolderDeleted,
@@ -468,9 +475,38 @@ pub async fn delete_folder(
         }
     })?;
 
+    let root_result = if let Some(result) = index_responses
+        .responses
+        .iter()
+        .filter(|r| r.id == request.id)
+        .last()
+    {
+        result
+    } else {
+        error!("Internal server error! Unexpected zero or multiple postgres rows for delete folder root");
+        return Err(DeleteFolderError::InternalError);
+    };
+    for r in index_responses.responses.iter() {
+        if !r.is_folder {
+            let files_result = file_content_client::delete(
+                &server_state.files_db_client,
+                r.id,
+                r.old_content_version,
+            )
+            .await;
+            if files_result.is_err() {
+                error!(
+                    "Internal server error! Cannot delete file in S3: {:?}",
+                    files_result
+                );
+                return Err(DeleteFolderError::InternalError);
+            };
+        }
+    }
+
     match transaction.commit().await {
         Ok(()) => Ok(DeleteFolderResponse {
-            new_metadata_version: new_version,
+            new_metadata_version: root_result.new_metadata_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
