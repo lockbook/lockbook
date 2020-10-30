@@ -180,7 +180,6 @@ class TextEditorActivity : AppCompatActivity() {
         this.menu = menu
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
-        Timber.e("$menu, $title")
         if (text_editor_toolbar.title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
         }
