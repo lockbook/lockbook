@@ -226,22 +226,32 @@ pub async fn delete_file(
     id: Uuid,
     old_metadata_version: u64,
     file_type: FileType,
-) -> Result<(u64, u64), FileError> {
+) -> Result<FileDeleteResponses, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            "WITH RECURSIVE file_descendants AS (
+                SELECT * FROM files AS parent
+                WHERE parent.id = $1
+                AND parent.is_folder = $3
+                    UNION
+                SELECT children.* FROM files AS children
+                JOIN file_descendants ON file_descendants.id = children.parent
+            ),
+            old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE),
+            max AS (SELECT MAX(metadata_version) AS version FROM old)
             UPDATE files new
             SET
                 deleted =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted AND max.version = $2
                     THEN TRUE
                     ELSE old.deleted END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted AND max.version = $2
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
-            FROM old WHERE old.id = new.id
+            FROM old CROSS JOIN max WHERE old.id = new.id
             RETURNING
+                old.id AS id,
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
                 old.content_version AS old_content_version,
@@ -255,9 +265,9 @@ pub async fn delete_file(
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type)?;
-    Ok((metadata.old_content_version, metadata.new_metadata_version))
+    let metadata =
+        FileDeleteResponses::from_rows(&rows)?.validate(old_metadata_version, id, file_type)?;
+    Ok(metadata)
 }
 
 pub async fn move_file(
@@ -391,8 +401,8 @@ struct FileUpdateResponse {
 }
 
 impl FileUpdateResponse {
-    fn from_row(row: &tokio_postgres::row::Row) -> Result<FileUpdateResponse, FileError> {
-        Ok(FileUpdateResponse {
+    fn from_row(row: &tokio_postgres::row::Row) -> Result<Self, FileError> {
+        Ok(Self {
             old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
@@ -411,12 +421,81 @@ impl FileUpdateResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
-    ) -> Result<FileUpdateResponse, FileError> {
+    ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
         } else if self.old_deleted {
             Err(FileError::Deleted)
         } else if self.old_metadata_version != expected_old_metadata_version {
+            Err(FileError::IncorrectOldVersion)
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+pub struct FileDeleteResponse {
+    pub id: Uuid,
+    pub old_deleted: bool,
+    pub old_metadata_version: u64,
+    pub old_content_version: u64,
+    pub new_metadata_version: u64,
+    pub is_folder: bool,
+}
+
+pub struct FileDeleteResponses {
+    pub responses: Vec<FileDeleteResponse>,
+}
+
+impl FileDeleteResponses {
+    fn from_rows(rows: &Vec<tokio_postgres::row::Row>) -> Result<Self, FileError> {
+        rows.iter()
+            .map(|row| {
+                Ok(FileDeleteResponse {
+                    id: serde_json::from_str::<Uuid>(
+                        row.try_get::<&str, &str>("id")
+                            .map_err(FileError::Postgres)?,
+                    )
+                    .map_err(FileError::Deserialize)?,
+                    old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
+                    old_metadata_version: row
+                        .try_get::<&str, i64>("old_metadata_version")
+                        .map_err(FileError::Postgres)?
+                        as u64,
+                    old_content_version: row
+                        .try_get::<&str, i64>("old_content_version")
+                        .map_err(FileError::Postgres)?
+                        as u64,
+                    new_metadata_version: row
+                        .try_get::<&str, i64>("new_metadata_version")
+                        .map_err(FileError::Postgres)?
+                        as u64,
+                    is_folder: row.try_get("is_folder").map_err(FileError::Postgres)?,
+                })
+            })
+            .collect::<Result<Vec<FileDeleteResponse>, FileError>>()
+            .map(|r| FileDeleteResponses { responses: r })
+    }
+
+    fn validate(
+        self,
+        expected_max_old_metadata_version: u64,
+        root_id: Uuid,
+        expected_root_file_type: FileType,
+    ) -> Result<Self, FileError> {
+        if !self.responses.iter().all(|r| {
+            r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
+        }) {
+            Err(FileError::WrongFileType)
+        } else if !self
+            .responses
+            .iter()
+            .all(|r| r.id != root_id || !r.old_deleted)
+        {
+            Err(FileError::Deleted)
+        } else if self.responses.iter().map(|r| r.old_metadata_version).max()
+            != Some(expected_max_old_metadata_version)
+        {
             Err(FileError::IncorrectOldVersion)
         } else {
             Ok(self)
