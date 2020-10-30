@@ -112,8 +112,14 @@ pub enum FileMoveError {
     CouldNotFindParents(FindingParentsFailed),
 }
 
-pub enum DeleteFileError {
-
+pub enum DeleteDocumentError {
+    CouldNotFindFile,
+    FolderTreatedAsDocument,
+    FailedToRecordChange(local_changes_repo::DbError),
+    FailedToDeleteMetadata(file_metadata_repo::Error),
+    FailedToDeleteDocument(document_repo::Error),
+    FailedToTrackDelete(local_changes_repo::DbError),
+    DbError(file_metadata_repo::DbError),
 }
 
 pub trait FileService {
@@ -138,7 +144,7 @@ pub trait FileService {
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 
-    fn delete_file(db: &Db, id: Uuid) -> Result<(), DeleteFileError>;
+    fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError>;
 }
 
 pub struct FileServiceImpl<
@@ -465,8 +471,20 @@ impl<
         Ok(contents)
     }
 
-    fn delete_file(_db: &Db, _id: Uuid) -> Result<(), DeleteFileError> {
-        unimplemented!()
+    fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError> {
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(DeleteDocumentError::DbError)?
+            .ok_or(DeleteDocumentError::CouldNotFindFile)?;
+
+        if file_metadata.file_type == Folder {
+            return Err(DeleteDocumentError::FolderTreatedAsDocument);
+        }
+
+        FileMetadataDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteMetadata)?;
+        FileDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
+        ChangesDb::track_delete(&db, id).map_err(DeleteDocumentError::FailedToTrackDelete)?;
+
+        Ok(())
     }
 }
 
