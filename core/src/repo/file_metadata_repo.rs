@@ -75,7 +75,7 @@ pub trait FileMetadataRepo {
     ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
-    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
+    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
@@ -279,8 +279,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(paths)
     }
 
-    fn actually_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
-        // TODO should this be recursive?
+    fn delete(db: &Db, id: Uuid) -> Result<u64, Error> {
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
         tree.remove(id.as_bytes()).map_err(Error::SledError)?;
         Ok(1)
