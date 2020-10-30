@@ -11,6 +11,7 @@ import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Point
+import timber.log.Timber
 import kotlin.math.roundToInt
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
@@ -18,6 +19,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     var drawingModel: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
+    var isTouchable = false
     private var thread = Thread(this)
     private var isThreadRunning = false
     var isErasing = false
@@ -40,7 +42,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null) {
+                    if (detector != null && isTouchable) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                         modelFocusPoint = screenToModel(onScreenFocusPoint)
                     }
@@ -48,35 +50,36 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (isTouchable) {
+                        drawingModel.currentView.transformation.scale *= detector.scaleFactor
 
-                    drawingModel.currentView.transformation.scale *= detector.scaleFactor
+                        val screenLocationNormalized = PointF(
+                            onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
+                            onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                        )
 
-                    val screenLocationNormalized = PointF(
-                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
-                    )
+                        val currentViewPortWidth =
+                            tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
+                        val currentViewPortHeight =
+                            tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
 
-                    val currentViewPortWidth =
-                        tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
-                    val currentViewPortHeight =
-                        tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
+                        driftWhileScalingX =
+                            (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
+                        driftWhileScalingY =
+                            (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
 
-                    driftWhileScalingX =
-                        (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
-                    driftWhileScalingY =
-                        (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
+                        val left =
+                            ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
+                        val top =
+                            ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
+                        val right = left + currentViewPortWidth
+                        val bottom = top + currentViewPortHeight
 
-                    val left =
-                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
-                    val top =
-                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
-                    val right = left + currentViewPortWidth
-                    val bottom = top + currentViewPortHeight
+                        viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                    viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
-
-                    drawingModel.currentView.transformation.translation.x = -left
-                    drawingModel.currentView.transformation.translation.y = -top
+                        drawingModel.currentView.transformation.translation.x = -left
+                        drawingModel.currentView.transformation.translation.y = -top
+                    }
 
                     return true
                 }
@@ -120,17 +123,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun initializeCanvasesAndBitmaps() {
-        val canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-            holder.lockHardwareCanvas()
-        } else {
-            holder.lockCanvas()
-        }
-
         canvasBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
 
         tempCanvas = Canvas(canvasBitmap)
-
-        holder.unlockCanvasAndPost(canvas)
     }
 
     private fun restoreFromModel() {
@@ -212,7 +207,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (event != null) {
+        if (event != null && isTouchable) {
             if (event.pointerCount > 0) {
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
@@ -236,7 +231,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
         val pressure = compressPressure(event.pressure)
 
-        if(isErasing) {
+        Timber.e("New Point: [${modelPoint.x}, ${modelPoint.y}] $pressure $isErasing")
+        if (isErasing) {
             eraseAtPoint(modelPoint, pressure)
         } else {
             when (event.action) {
@@ -258,8 +254,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF, pressure: Float) {
-
-        val newPressure = if(pressure > 5) pressure else 5f
+        val newPressure = if (pressure > 5) pressure else 5f
 
         val drawing = Drawing(
             Page(
@@ -310,7 +305,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
         }
 
-        if(refreshScreen) {
+        if (refreshScreen) {
             drawingModel = drawing
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
