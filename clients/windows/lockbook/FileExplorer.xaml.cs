@@ -419,17 +419,9 @@ namespace lockbook {
             }
         }
 
-
-        private void TreeView_DragItemsStarting_1(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
-
-        }
-
-        private void TreeView_DragItemsStarting(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
-
-        }
-
-        private void TreeView_DragItemsCompleted(Microsoft.UI.Xaml.Controls.TreeView sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsCompletedEventArgs args) {
-
+        private async void ListViewItem_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
+            SignInContentDialog signInDialog = new SignInContentDialog();
+            await signInDialog.ShowAsync();
         }
     }
 }
