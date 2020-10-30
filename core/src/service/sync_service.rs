@@ -62,7 +62,8 @@ pub enum WorkExecutionError {
     DocumentChangeError(client::ApiError<ChangeDocumentContentError>),
     DocumentDeleteError(client::ApiError<DeleteDocumentError>),
     FolderDeleteError(client::ApiError<DeleteFolderError>),
-    SaveDocumentError(document_repo::Error), // Delete uses this and it shouldn't
+    SaveDocumentError(document_repo::Error),
+    // Delete uses this and it shouldn't
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
     AutoRenameError(file_service::DocumentRenameError),
@@ -265,7 +266,7 @@ impl<
                         // It has no modifications of any sort, just update it
                         if metadata.deleted {
                             // Delete this file, server deleted it and we have no local changes
-                            FileMetadataDb::actually_delete(&db, metadata.id)
+                            FileMetadataDb::delete(&db, metadata.id) // TODO do we need to call the file_service version of this?
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                             if metadata.file_type == Document {
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
@@ -332,8 +333,6 @@ impl<
                                     if metadata.name.ends_with(".md")
                                         || metadata.name.ends_with(".txt")
                                     {
-                                        debug!("File {} is mergable: {}", metadata.id, metadata.id);
-
                                         let common_ansestor = FileCrypto::user_read_document(
                                             &account,
                                             &edited_locally.old_value,
@@ -342,13 +341,10 @@ impl<
                                         .map_err(DecryptingOldVersionForMergeError)?
                                         .secret;
 
-                                        debug!("{} Common ans: {}", metadata.id, &common_ansestor);
-
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
                                                 .map_err(ReadingCurrentVersionError)?
                                                 .secret;
-                                        debug!("{} current: {}", metadata.id, &current_version);
 
                                         let server_version = {
                                             let server_document = ApiClient::get_document(
@@ -366,24 +362,15 @@ impl<
                                             .map_err(DecryptingOldVersionForMergeError)? // This assumes that a file is never re-keyed.
                                             .secret
                                         };
-                                        debug!("{} server: {}", metadata.id, &server_version);
 
                                         let result = match diffy::merge(
                                             &common_ansestor,
                                             &current_version,
                                             &server_version,
                                         ) {
-                                            Ok(no_conflicts) => {
-                                                info!("File {} was merged cleanly", metadata.id);
-                                                no_conflicts
-                                            }
-                                            Err(conflicts) => {
-                                                info!("File {} has merge conflicts!", metadata.id);
-                                                conflicts
-                                            }
+                                            Ok(no_conflicts) => no_conflicts,
+                                            Err(conflicts) => conflicts,
                                         };
-
-                                        debug!("{} result: {}", metadata.id, &result);
 
                                         Files::write_document(
                                             &db,
@@ -392,8 +379,6 @@ impl<
                                         )
                                         .map_err(WritingMergedFileError)?;
                                     } else {
-                                        debug!("File is not mergable: {}", metadata.id);
-
                                         // Create a new file
                                         let new_file = DefaultFileService::create(
                                             &db,
@@ -437,14 +422,30 @@ impl<
                             if local_changes.deleted
                                 && local_metadata.content_version != metadata.content_version
                             {
-                                ChangeDb::untrack_delete(&db, metadata.id)
+                                // Untrack the delete
+                                ChangeDb::delete_if_exists(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                                // Get the new file contents
+                                if metadata.file_type == Document
+                                    && local_metadata.metadata_version != metadata.metadata_version
+                                {
+                                    let document = ApiClient::get_document(
+                                        &account.api_url,
+                                        metadata.id,
+                                        metadata.content_version,
+                                    )
+                                    .map_err(DocumentGetError)?;
+
+                                    DocsDb::insert(&db, metadata.id, &document)
+                                        .map_err(SaveDocumentError)?;
+                                }
                             }
 
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
                         } else if local_changes.content_edited.is_none() {
-                            FileMetadataDb::actually_delete(&db, metadata.id)
+                            FileMetadataDb::delete(&db, metadata.id)
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
 
                             ChangeDb::delete_if_exists(&db, metadata.id)
@@ -454,8 +455,8 @@ impl<
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
                             }
                         } else {
-                            error!("The server deleted this file, and you have local changes! You have to undelete this file unimplemented!() server wins for now");
-                            FileMetadataDb::actually_delete(&db, metadata.id)
+                            // server's metadata == true && there are local changes for this file which are not content
+                            FileMetadataDb::delete(&db, metadata.id)
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                             if metadata.file_type == Document {
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
@@ -480,11 +481,10 @@ impl<
             Some(local_change) => {
                 if local_change.new {
                     if local_change.deleted {
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                         if metadata.file_type == Document {
-                            DocsDb::delete(&db, metadata.id)
-                                .map_err(SaveDocumentError)?
+                            error!("A new file should be removed out of local_changes repo when it is deleted! id: {:?}", metadata.id);
+                        } else {
+                            error!("Deferred delete of folders is not allowed! id: {:?}", metadata.id);
                         }
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
@@ -561,7 +561,7 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
-                                metadata.folder_access_keys.clone()
+                                metadata.folder_access_keys.clone(),
                             ).map_err(DocumentMoveError)?
                         } else {
                             ApiClient::move_folder(
@@ -570,7 +570,7 @@ impl<
                                 &SignedValue { content: "".to_string(), signature: "".to_string() },
                                 metadata.id, metadata.metadata_version,
                                 metadata.parent,
-                                metadata.folder_access_keys.clone()
+                                metadata.folder_access_keys.clone(),
                             ).map_err(FolderMoveError)?
                         };
 
@@ -603,27 +603,16 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.metadata_version,
+                            metadata.metadata_version
                         ).map_err(DocumentDeleteError)?;
 
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                        DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?;
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
-                        ApiClient::delete_folder(
-                            &account.api_url,
-                            &account.username,
-                            &SignedValue { content: "".to_string(), signature: "".to_string() },
-                            metadata.id,
-                            metadata.metadata_version,
-                        ).map_err(FolderDeleteError)?;
-
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                        error!(
+                            "Deferred delete of folders is not allowed! id: {:?} this code should be unreachable",
+                            metadata.id
+                        );
                     }
                 }
             }
