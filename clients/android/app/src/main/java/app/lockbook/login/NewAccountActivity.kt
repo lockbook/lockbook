@@ -2,6 +2,7 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
@@ -33,6 +34,7 @@ class NewAccountActivity : AppCompatActivity() {
     }
 
     private fun onClickCreateAccount() {
+        new_account_progress_bar.visibility = View.VISIBLE
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 handleCreateAccountResult()
@@ -49,11 +51,13 @@ class NewAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (createAccountResult) {
                 is Ok -> {
+                    new_account_progress_bar.visibility = View.GONE
                     setUpLoggedInState()
                     startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> {
+                    new_account_progress_bar.visibility = View.GONE
                     when (val error = createAccountResult.error) {
                         is CreateAccountError.UsernameTaken ->
                             new_account_username.error =
