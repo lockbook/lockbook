@@ -3,12 +3,14 @@
 extern crate log;
 extern crate reqwest;
 
+use std::env;
+use std::path::Path;
+use std::str::FromStr;
+
 use serde::Serialize;
 use serde_json::json;
 use serde_json::value::Value;
 pub use sled::Db;
-use std::env;
-use std::path::Path;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
@@ -54,7 +56,6 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use std::str::FromStr;
 
 pub mod c_interface;
 pub mod client;
@@ -1121,6 +1122,8 @@ pub fn execute_work(
             | WorkExecutionError::DecryptingOldVersionForMergeError(_)
             | WorkExecutionError::ReadingCurrentVersionError(_)
             | WorkExecutionError::WritingMergedFileError(_)
+            | WorkExecutionError::ErrorCreatingRecoveryFile(_)
+            | WorkExecutionError::ErrorCalculatingCurrentTime(_)
             | WorkExecutionError::FindingParentsForConflictingFileError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
