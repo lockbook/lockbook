@@ -458,7 +458,7 @@ pub async fn delete_folder(
     let index_result = file_index_repo::delete_file(
         &transaction,
         request.id,
-        request.old_metadata_version,
+        request.max_metadata_version_of_children,
         FileType::Folder,
     )
     .await;

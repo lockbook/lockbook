@@ -36,6 +36,13 @@ pub enum FindingParentsFailed {
     DbError(DbError),
 }
 
+#[derive(Debug)]
+pub enum FindingChildrenFailed {
+    FileDoesNotExist,
+    DocumentTreatedAsFolder,
+    DbError(DbError),
+}
+
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,
@@ -73,9 +80,11 @@ pub trait FileMetadataRepo {
         db: &Db,
         id: Uuid,
     ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
+    fn get_with_all_children(db: &Db, id: Uuid)
+        -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
-    fn delete(db: &Db, id: Uuid) -> Result<u64, Error>;
+    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
@@ -212,6 +221,39 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
+    fn get_with_all_children(
+        db: &Db,
+        id: Uuid,
+    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
+        let all = Self::get_all(&db).map_err(FindingChildrenFailed::DbError)?;
+        let target_file = all
+            .into_iter()
+            .find(|file| file.id == id)
+            .ok_or(FindingChildrenFailed::FileDoesNotExist)?;
+        let mut result = vec![target_file];
+
+        if target_file.file_type == Document {
+            return Err(FindingChildrenFailed::DocumentTreatedAsFolder);
+        }
+
+        let mut to_explore = all
+            .into_iter()
+            .filter(|file| file.parent == target_file.id && file.id != target_file.id)
+            .collect::<Vec<FileMetadata>>();
+
+        while !to_explore.is_empty() {
+            for file in to_explore {
+                if file.file_type == Folder {
+                    to_explore.push(file.clone());
+                }
+
+                result.push(file.clone());
+            }
+        }
+
+        Ok(result)
+    }
+
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
         let value: Result<Vec<_>, _> = tree
@@ -279,7 +321,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(paths)
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<u64, Error> {
+    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
         tree.remove(id.as_bytes()).map_err(Error::SledError)?;
         Ok(1)

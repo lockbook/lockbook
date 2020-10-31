@@ -211,7 +211,7 @@ pub struct DeleteFolderRequest {
     pub signature: SignedValue,
     pub client_version: String,
     pub id: Uuid,
-    pub old_metadata_version: u64,
+    pub max_metadata_version_of_children: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
