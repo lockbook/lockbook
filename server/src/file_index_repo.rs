@@ -483,7 +483,9 @@ impl FileDeleteResponses {
         root_id: Uuid,
         expected_root_file_type: FileType,
     ) -> Result<Self, FileError> {
-        if !self.responses.iter().all(|r| {
+        if self.responses.is_empty() {
+            Err(FileError::DoesNotExist)
+        } else if !self.responses.iter().all(|r| {
             r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
         }) {
             Err(FileError::WrongFileType)
