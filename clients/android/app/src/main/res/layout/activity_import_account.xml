@@ -21,7 +21,7 @@
         android:id="@+id/qr_import_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@null"
+        android:background="?android:selectableItemBackground"
         app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24"
         android:contentDescription="@string/qr_code_content_description"/>
 
