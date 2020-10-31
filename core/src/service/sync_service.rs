@@ -24,7 +24,7 @@ use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::service::file_service::FileService;
+use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
@@ -32,11 +32,13 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
-    FolderCreateError, FolderMoveError, FolderRenameError, ReadingCurrentVersionError,
-    ResolveConflictByCreatingNewFileError, SaveDocumentError, WritingMergedFileError,
+    ErrorCalculatingCurrentTime, ErrorCreatingRecoveryFile, FolderCreateError, FolderMoveError,
+    FolderRenameError, ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError,
+    SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
+use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 
 #[derive(Debug)]
 pub enum CalculateWorkError {
@@ -47,6 +49,7 @@ pub enum CalculateWorkError {
     GetUpdatesError(client::ApiError<api::GetUpdatesError>),
 }
 
+// TODO standardize enum variant notation within core
 #[derive(Debug)]
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
@@ -71,6 +74,8 @@ pub enum WorkExecutionError {
     ReadingCurrentVersionError(file_service::ReadDocumentError),
     WritingMergedFileError(file_service::DocumentUpdateError),
     FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
+    ErrorCreatingRecoveryFile(NewFileFromPathError),
+    ErrorCalculatingCurrentTime(SystemTimeError),
 }
 
 #[derive(Debug)]
@@ -454,7 +459,33 @@ impl<
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
                             }
                         } else {
-                            // server's metadata == true && there are local changes for this file which are not content
+                            // server's metadata == true && there is un synced content for this file
+
+                            let current_version = Files::read_document(&db, metadata.id)
+                                .map_err(ReadingCurrentVersionError)?
+                                .secret;
+
+                            let timestamp = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map_err(ErrorCalculatingCurrentTime)?
+                                .as_millis();
+
+                            let new_file = Files::create_at_path(
+                                &db,
+                                &format!(
+                                    "{}/recovered/{}/{}/{}",
+                                    account.username, metadata.id, timestamp, metadata.name
+                                ),
+                            )
+                            .map_err(ErrorCreatingRecoveryFile)?;
+
+                            Files::write_document(
+                                &db,
+                                new_file.id,
+                                &DecryptedValue::from(current_version),
+                            )
+                            .map_err(WritingMergedFileError)?;
+
                             FileMetadataDb::delete(&db, metadata.id)
                                 .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                             if metadata.file_type == Document {
