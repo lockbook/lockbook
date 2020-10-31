@@ -389,7 +389,7 @@ mod unit_tests {
     );
 
     #[test]
-    fn local_changes_runthrough() {
+    fn set_and_unset_fields() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         assert_total_local_changes!(&db, 0);
 
@@ -397,7 +397,6 @@ mod unit_tests {
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
         LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
-        assert_total_local_changes!(&db, 1);
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
             Some(LocalChange {
@@ -409,38 +408,24 @@ mod unit_tests {
                 deleted: false,
             })
         );
+        assert_total_local_changes!(&db, 1);
+
+        LocalChangesRepoImpl::track_rename(&db, id, "old_file", "unused_name").unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: Some(Renamed::from("old_file")),
+                moved: None,
+                new: true,
+                content_edited: None,
+                deleted: false,
+            })
+        );
+        assert_total_local_changes!(&db, 1);
 
         let id2 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_rename(&db, id, "old_file", "unused_name").unwrap();
-        LocalChangesRepoImpl::track_rename(&db, id2, "old_file2", "unused_name").unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
-            Some(LocalChange {
-                id,
-                renamed: Some(Renamed::from("old_file")),
-                moved: None,
-                new: true,
-                content_edited: None,
-                deleted: false,
-            })
-        );
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id2).unwrap(),
-            Some(LocalChange {
-                id: id2,
-                renamed: Some(Renamed::from("old_file2")),
-                moved: None,
-                new: false,
-                content_edited: None,
-                deleted: false,
-            })
-        );
-
-        let id3 = Uuid::new_v4();
         LocalChangesRepoImpl::track_move(&db, id, id2, Uuid::new_v4()).unwrap();
-        LocalChangesRepoImpl::track_move(&db, id3, id2, Uuid::new_v4()).unwrap();
-
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
             Some(LocalChange {
@@ -452,74 +437,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id3).unwrap(),
-            Some(LocalChange {
-                id: id3,
-                renamed: None,
-                moved: Some(Moved::from(id2)),
-                new: false,
-                content_edited: None,
-                deleted: false,
-            })
-        );
 
-        let id4 = Uuid::new_v4();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
-            Some(LocalChange {
-                id,
-                renamed: Some(Renamed::from("old_file")),
-                moved: Some(Moved::from(id2)),
-                new: true,
-                content_edited: None,
-                deleted: false,
-            })
-        );
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
-            None
-        );
-
-        let id5 = Uuid::new_v4();
-        LocalChangesRepoImpl::track_delete(&db, id).unwrap();
-        LocalChangesRepoImpl::track_delete(&db, id5).unwrap();
-
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
-            Some(LocalChange {
-                id,
-                renamed: Some(Renamed::from("old_file")),
-                moved: Some(Moved::from(id2)),
-                new: true,
-                content_edited: None,
-                deleted: true,
-            })
-        );
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id5).unwrap(),
-            Some(LocalChange {
-                id: id5,
-                renamed: None,
-                moved: None,
-                new: false,
-                content_edited: None,
-                deleted: true,
-            })
-        );
-        assert_total_local_changes!(&db, 4);
-
-        LocalChangesRepoImpl::untrack_edit(&db, id4).unwrap();
-        assert_eq!(
-            LocalChangesRepoImpl::get_local_changes(&db, id4).unwrap(),
-            None
-        );
-        assert_total_local_changes!(&db, 4);
+        assert_total_local_changes!(&db, 1);
 
         LocalChangesRepoImpl::untrack_edit(&db, id).unwrap();
-        assert_total_local_changes!(&db, 4);
-
         assert_eq!(
             LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
             Some(LocalChange {
@@ -528,9 +449,143 @@ mod unit_tests {
                 moved: Some(Moved::from(id2)),
                 new: true,
                 content_edited: None,
+                deleted: false,
+            })
+        );
+
+        LocalChangesRepoImpl::untrack_rename(&db, id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: None,
+                moved: Some(Moved::from(id2)),
+                new: true,
+                content_edited: None,
+                deleted: false,
+            })
+        );
+
+        LocalChangesRepoImpl::untrack_move(&db, id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: None,
+                moved: None,
+                new: true,
+                content_edited: None,
+                deleted: false,
+            })
+        );
+
+        LocalChangesRepoImpl::untrack_new_file(&db, id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            None
+        );
+        assert_total_local_changes!(&db, 0);
+
+        // Deleting a file should unset it's other fields
+        LocalChangesRepoImpl::track_rename(&db, id, "old", "new").unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: Some(Renamed::from("old")),
+                moved: None,
+                new: false,
+                content_edited: None,
+                deleted: false,
+            })
+        );
+        assert_total_local_changes!(&db, 1);
+
+        LocalChangesRepoImpl::track_delete(&db, id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: None,
+                moved: None,
+                new: false,
+                content_edited: None,
                 deleted: true,
             })
         );
+        assert_total_local_changes!(&db, 1);
+    }
+
+    #[test]
+    fn new_document_deleted() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let id = Uuid::new_v4();
+        LocalChangesRepoImpl::track_new_file(&db, id).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            Some(LocalChange {
+                id,
+                renamed: None,
+                moved: None,
+                new: true,
+                content_edited: None,
+                deleted: false,
+            })
+        );
+        LocalChangesRepoImpl::track_delete(&db, id).unwrap();
+
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, id).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn track_changes_on_multiple_files() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let id1 = Uuid::new_v4();
+        LocalChangesRepoImpl::track_new_file(&db, id1).unwrap();
+        assert_total_local_changes!(&db, 1);
+
+        let id2 = Uuid::new_v4();
+        LocalChangesRepoImpl::track_rename(&db, id2, "old", "new").unwrap();
+        assert_total_local_changes!(&db, 2);
+
+        let id3 = Uuid::new_v4();
+        LocalChangesRepoImpl::track_move(&db, id3, id3, Uuid::new_v4()).unwrap();
+        assert_total_local_changes!(&db, 3);
+
+        let id4 = Uuid::new_v4();
+        LocalChangesRepoImpl::track_delete(&db, id4).unwrap();
+        assert_total_local_changes!(&db, 4);
+
+        LocalChangesRepoImpl::untrack_new_file(&db, id1).unwrap();
+        assert_total_local_changes!(&db, 3);
+
+        LocalChangesRepoImpl::untrack_rename(&db, id2).unwrap();
+        assert_total_local_changes!(&db, 2);
+
+        LocalChangesRepoImpl::untrack_move(&db, id3).unwrap();
+        assert_total_local_changes!(&db, 1);
+
+        // Untrack not supported because no one can undelete files
+    }
+
+    #[test]
+    fn unknown_id() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let the_wrong_id = Uuid::new_v4();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, the_wrong_id).unwrap(),
+            None
+        );
+        LocalChangesRepoImpl::untrack_edit(&db, the_wrong_id).unwrap();
+        assert_eq!(
+            LocalChangesRepoImpl::get_local_changes(&db, the_wrong_id).unwrap(),
+            None
+        );
+        assert_total_local_changes!(&db, 0);
     }
 
     #[test]

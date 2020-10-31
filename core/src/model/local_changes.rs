@@ -54,7 +54,7 @@ impl From<Uuid> for Moved {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Edited {
-    pub old_value: Document,
+    pub old_value: Document, // Stored so sync can perform merges
     pub access_info: UserAccessInfo,
     pub old_content_checksum: Vec<u8>,
 }
