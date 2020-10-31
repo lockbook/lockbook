@@ -11,18 +11,19 @@ import android.view.SurfaceView
 import app.lockbook.R
 import app.lockbook.utils.*
 import app.lockbook.utils.Point
-import timber.log.Timber
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
     var drawingModel: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    var isTouchable = false
     private var thread = Thread(this)
     private var isThreadRunning = false
     var isErasing = false
+    var isTouchable = false
 
     // Current drawing stroke state
     private val activePaint = Paint()
@@ -231,8 +232,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
         val pressure = compressPressure(event.pressure)
 
-        Timber.e("New Point: [${modelPoint.x}, ${modelPoint.y}] $pressure $isErasing")
-        if (isErasing) {
+        if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
             eraseAtPoint(modelPoint, pressure)
         } else {
             when (event.action) {
@@ -254,7 +254,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF, pressure: Float) {
-        val newPressure = if (pressure > 5) pressure else 5f
+        val roundedPressure = if (pressure > 5) pressure.toInt() else 8
+        val roundedPoint = PointF(point.x.roundToInt().toFloat(), point.y.roundToInt().toFloat())
 
         val drawing = Drawing(
             Page(
@@ -281,24 +282,35 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         for (eventIndex in drawing.events.size - 1 downTo 0) {
             val stroke = drawing.events[eventIndex].stroke
             if (stroke != null) {
-                var deletedStroke = false
+                var deleteStroke = false
                 var pointIndex = 0
 
-                while (pointIndex < stroke.points.size) {
-                    val pointRangeX =
-                        stroke.points[pointIndex + 1] - newPressure..stroke.points[pointIndex + 1] + newPressure
-                    val pointRangeY =
-                        stroke.points[pointIndex + 2] - newPressure..stroke.points[pointIndex + 2] + newPressure
+                pointLoop@ while (pointIndex < stroke.points.size) {
+                    if (pointIndex != 0) {
 
-                    if (pointRangeX.contains(point.x) && pointRangeY.contains(point.y)) {
-                        deletedStroke = true
-                        break
+                        for (pixel in 1..roundedPressure) {
+                            val initialPoint =
+                                PointF(stroke.points[pointIndex - 2].roundToInt().toFloat(), stroke.points[pointIndex - 1].roundToInt().toFloat())
+                            val endPoint =
+                                PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
+
+                            if ((
+                                distanceBetweenPoints(initialPoint, roundedPoint) +
+                                    distanceBetweenPoints(roundedPoint, endPoint) - roundedPressure..distanceBetweenPoints(initialPoint, roundedPoint) +
+                                    distanceBetweenPoints(roundedPoint, endPoint) + roundedPressure
+                                ).contains(distanceBetweenPoints(initialPoint, endPoint))
+                            ) {
+
+                                deleteStroke = true
+                                break@pointLoop
+                            }
+                        }
                     }
 
                     pointIndex += 3
                 }
 
-                if (deletedStroke) {
+                if (deleteStroke) {
                     drawing.events.removeAt(eventIndex)
                     refreshScreen = true
                 }
@@ -314,6 +326,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             restoreFromModel()
         }
     }
+
+    private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
+        sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
 
     private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure
