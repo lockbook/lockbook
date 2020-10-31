@@ -1,6 +1,8 @@
+use sha2::{Digest, Sha256};
 use sled::Db;
 use uuid::Uuid;
 
+use crate::client::{ApiError, Client};
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
@@ -33,7 +35,6 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
-use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -122,6 +123,16 @@ pub enum DeleteDocumentError {
     DbError(file_metadata_repo::DbError),
 }
 
+pub enum DeleteFolderError {
+    AccountRetrievalError(account_repo::AccountRepoError),
+    FailedToDeleteMetadata(file_metadata_repo::Error),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
+    ServerDeletionError(ApiError<DeleteFolderError>),
+    CouldNotFindParents(FindingParentsFailed),
+    FailedToDeleteDocument(document_repo::Error),
+    FailedToDeleteChangeEntry(local_changes_repo::DbError),
+}
+
 pub trait FileService {
     fn create(
         db: &Db,
@@ -145,6 +156,12 @@ pub trait FileService {
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
 
     fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError>;
+
+    fn delete_folder(
+        db: &Db,
+        id: Uuid,
+        wait_for_server_to_delete_before_deleting: bool,
+    ) -> Result<(), DeleteFolderError>;
 }
 
 pub struct FileServiceImpl<
@@ -153,12 +170,14 @@ pub struct FileServiceImpl<
     ChangesDb: LocalChangesRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
+    ApiClient: Client,
 > {
     _metadatas: FileMetadataDb,
     _files: FileDb,
     _changes_db: ChangesDb,
     _account: AccountDb,
     _file_crypto: FileCrypto,
+    _client: ApiClient,
 }
 
 impl<
@@ -167,7 +186,9 @@ impl<
         ChangesDb: LocalChangesRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto>
+        ApiClient: Client,
+    > FileService
+    for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto, ApiClient>
 {
     fn create(
         db: &Db,
@@ -480,9 +501,60 @@ impl<
             return Err(DeleteDocumentError::FolderTreatedAsDocument);
         }
 
-        FileMetadataDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteMetadata)?;
+        FileMetadataDb::non_recursive_delete(&db, id)
+            .map_err(DeleteDocumentError::FailedToDeleteMetadata)?;
         FileDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(&db, id).map_err(DeleteDocumentError::FailedToTrackDelete)?;
+
+        Ok(())
+    }
+
+    fn delete_folder(
+        db: &Db,
+        id: Uuid,
+        wait_for_server_to_delete_before_deleting: bool,
+    ) -> Result<(), DeleteFolderError> {
+        let account =
+            AccountDb::get_account(&db).map_err(DeleteFolderError::AccountRetrievalError)?;
+
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(DeleteFolderError::DbError)?
+            .ok_or(DeleteFolderError::CouldNotFindFile)?; // TODO remove if not used also remove error
+
+        let files_to_delete =
+            FileMetadataDb::get_with_all_children(&db, id).map_err(DeleteFolderError::DbError)?;
+
+        if wait_for_server_to_delete_before_deleting {
+            let max_metadata_version = files_to_delete
+                .into_iter()
+                .map(|file| file.metadata_version)
+                .max()
+                .ok_or(DeleteFolderError::CouldNotFindFile)?;
+
+            ApiClient::delete_folder(
+                &account.api_url,
+                &account.username,
+                &SignedValue {
+                    content: "".to_string(),
+                    signature: "".to_string(),
+                },
+                id,
+                max_metadata_version,
+            )
+            .map_err(DeleteFolderError::ServerDeletionError)?;
+        }
+
+        // Server has told us we have the most recent version of all children in this directory and that we can delete now
+        for file in files_to_delete {
+            if file.file_type == Document {
+                FileDb::delete(&db, file.id).map_err(DeleteFolderError::FailedToDeleteDocument)?;
+            }
+
+            FileMetadataDb::non_recursive_delete(&db, file.id)
+                .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
+            ChangesDb::delete_if_exists(&db, file.id)
+                .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
+        }
 
         Ok(())
     }
@@ -490,6 +562,8 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
+    use uuid::Uuid;
+
     use crate::model::account::Account;
     use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
@@ -508,7 +582,6 @@ mod unit_tests {
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
-    use uuid::Uuid;
 
     type DefaultDbProvider = TempBackedDB;
 
