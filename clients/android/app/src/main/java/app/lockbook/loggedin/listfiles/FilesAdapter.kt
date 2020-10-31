@@ -42,7 +42,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
         if (item.fileType == FileType.Document) {
-            holder.cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
+            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
         } else {
             holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
         }
