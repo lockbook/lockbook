@@ -8,7 +8,6 @@ mod server_version_tests {
     use lockbook_core::service::clock_service::ClockImpl;
     use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::{create_account, get_account};
-    use reqwest::Method;
     use rsa::RSAPublicKey;
 
     #[test]
@@ -24,10 +23,8 @@ mod server_version_tests {
         let account = get_account(&cfg).unwrap();
 
         let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
-            ClientImpl::<RSAImpl<ClockImpl>>::api_request(
+            ClientImpl::<RSAImpl<ClockImpl>>::request(
                 &generated_account.api_url,
-                Method::GET,
-                "get-public-key",
                 &GetPublicKeyRequest {
                     username: String::from(&account.username),
                     client_version: "0.0.0".to_string(),
