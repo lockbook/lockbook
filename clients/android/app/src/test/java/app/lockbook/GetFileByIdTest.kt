@@ -86,7 +86,7 @@ class GetFileByIdTest {
             Klaxon().converter(getFileByIdConverter)
                 .parse(exportAccount(""))
 
-        assertType<GetFileByIdError.UnexpectedError>(
+        assertType<GetFileByIdError.Unexpected>(
             getFileByIdResult?.component2()
         )
     }

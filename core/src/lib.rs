@@ -761,6 +761,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
     NoAccount,
+    ClientUpdateRequired,
     CouldNotReachServer,
     ExecuteWorkError, // TODO: @parth ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
 }
@@ -792,6 +793,9 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                 SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
                     ApiError::SendFailed(_) => {
                         Err(Error::UiError(SyncAllError::CouldNotReachServer))
+                    }
+                    ApiError::Api(GetUpdatesError::ClientUpdateRequired) => {
+                        Err(Error::UiError(SyncAllError::ClientUpdateRequired))
                     }
                     ApiError::Serialize(_)
                     | ApiError::ReceiveFailed(_)
@@ -952,6 +956,7 @@ pub fn execute_work(
                     | MoveDocumentError::NotPermissioned
                     | MoveDocumentError::UserNotFound
                     | MoveDocumentError::DocumentNotFound
+                    | MoveDocumentError::ParentNotFound
                     | MoveDocumentError::EditConflict
                     | MoveDocumentError::DocumentDeleted
                     | MoveDocumentError::DocumentPathTaken => {
@@ -979,7 +984,8 @@ pub fn execute_work(
                     | MoveFolderError::FolderNotFound
                     | MoveFolderError::EditConflict
                     | MoveFolderError::FolderDeleted
-                    | MoveFolderError::FolderPathTaken => {
+                    | MoveFolderError::FolderPathTaken
+                    | MoveFolderError::ParentNotFound => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
@@ -1026,7 +1032,8 @@ pub fn execute_work(
                     | CreateFolderError::NotPermissioned
                     | CreateFolderError::UserNotFound
                     | CreateFolderError::FileIdTaken
-                    | CreateFolderError::FolderPathTaken => {
+                    | CreateFolderError::FolderPathTaken
+                    | CreateFolderError::ParentNotFound => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
