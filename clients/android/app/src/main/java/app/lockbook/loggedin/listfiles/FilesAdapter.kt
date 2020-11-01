@@ -3,7 +3,6 @@ package app.lockbook.loggedin.listfiles
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
-import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.utils.ClickInterface
@@ -35,30 +34,16 @@ class FilesAdapter(val clickInterface: ClickInterface) :
     override fun onBindViewHolder(holder: ListFilesViewHolder, position: Int) {
         val item = files[position]
 
-        val date = Date(Timestamp(item.metadata_version).time)
+        val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
         holder.cardView.file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
-            if (item.metadata_version != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
+            if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
-        if (item.file_type == FileType.Document) {
-            holder.cardView.file_name.setTextColor(
-                ResourcesCompat.getColor(
-                    holder.cardView.resources,
-                    R.color.light,
-                    null
-                )
-            )
+        if (item.fileType == FileType.Document) {
             holder.cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
         } else {
-            holder.cardView.file_name.setTextColor(
-                ResourcesCompat.getColor(
-                    holder.cardView.resources,
-                    R.color.blue,
-                    null
-                )
-            )
             holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
         }
     }

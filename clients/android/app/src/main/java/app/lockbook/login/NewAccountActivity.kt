@@ -2,19 +2,19 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
-import app.lockbook.utils.Config
-import app.lockbook.utils.CoreError
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.*
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_new_account.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -55,41 +55,37 @@ class NewAccountActivity : AppCompatActivity() {
                 }
                 is Err -> {
                     when (val error = createAccountResult.error) {
-                        is CoreError.UsernameTaken ->
+                        is CreateAccountError.UsernameTaken ->
                             new_account_username.error =
                                 "Username taken!"
-                        is CoreError.InvalidUsername ->
+                        is CreateAccountError.InvalidUsername ->
                             new_account_username.error =
                                 "Invalid username!"
-                        is CoreError.CouldNotReachServer -> Toast.makeText(
-                            applicationContext,
+                        is CreateAccountError.CouldNotReachServer -> Snackbar.make(
+                            new_account_layout,
                             "Network unavailable.",
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_SHORT
                         ).show()
-                        is CoreError.AccountExistsAlready -> Toast.makeText(
-                            applicationContext,
-                            "Account already exists!",
-                            Toast.LENGTH_LONG
+                        is CreateAccountError.AccountExistsAlready -> Snackbar.make(
+                            new_account_layout,
+                            "Account already exists.",
+                            Snackbar.LENGTH_SHORT
                         ).show()
-                        is CoreError.Unexpected -> {
+                        is CreateAccountError.ClientUpdateRequired -> Snackbar.make(
+                            splash_screen,
+                            "Update required.",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is CreateAccountError.Unexpected -> {
+                            AlertDialog.Builder(this@NewAccountActivity, R.style.DarkBlue_Dialog)
+                                .setTitle(UNEXPECTED_ERROR)
+                                .setMessage(error.error)
+                                .show()
                             Timber.e("Unable to create account.")
-                            Toast.makeText(
-                                applicationContext,
-                                UNEXPECTED_ERROR_OCCURRED,
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        else -> {
-                            Timber.e("CreateAccountError not matched: ${error::class.simpleName}.")
-                            Toast.makeText(
-                                applicationContext,
-                                UNEXPECTED_ERROR_OCCURRED,
-                                Toast.LENGTH_LONG
-                            ).show()
                         }
                     }
                 }
-            }
+            }.exhaustive
         }
     }
 

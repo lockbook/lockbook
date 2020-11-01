@@ -75,7 +75,7 @@ class ReadDocumentTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.TreatedFolderAsDocument>(
+        assertType<ReadDocumentError.TreatedFolderAsDocument>(
             CoreModel.getDocumentContent(config, folder.id).component2()
         )
     }
@@ -86,17 +86,17 @@ class ReadDocumentTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<CoreError.FileDoesNotExist>(
+        assertType<ReadDocumentError.FileDoesNotExist>(
             CoreModel.getDocumentContent(config, generateId()).component2()
         )
     }
 
     @Test
     fun readDocumentUnexpectedError() {
-        val getDocumentResult: Result<DecryptedValue, CoreError>? =
+        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<ReadDocumentError.Unexpected>(
             getDocumentResult?.component2()
         )
     }
