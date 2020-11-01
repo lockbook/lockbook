@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/text_editor_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="5dp">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/text_editor_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="@style/DarkBlue.Actionbar" />
 
     <ScrollView
         android:id="@+id/text_editor_scroller"
@@ -16,6 +25,7 @@
             style="@style/Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:textColor="@color/textColor"
             android:background="@null"
             android:gravity="top|start"
             android:importantForAutofill="no"

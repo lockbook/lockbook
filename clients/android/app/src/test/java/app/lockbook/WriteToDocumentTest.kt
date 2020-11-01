@@ -58,7 +58,7 @@ class WriteToDocumentTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<CoreError.FileDoesNotExist>(
+        assertType<WriteToDocumentError.FileDoesNotExist>(
             CoreModel.writeContentToDocument(config, generateId(), "").component2()
         )
     }
@@ -86,17 +86,17 @@ class WriteToDocumentTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<CoreError.FolderTreatedAsDocument>(
+        assertType<WriteToDocumentError.FolderTreatedAsDocument>(
             CoreModel.writeContentToDocument(config, folder.id, "").component2()
         )
     }
 
     @Test
     fun writeToDocumentUnexpectedError() {
-        val writeResult: Result<Unit, CoreError>? =
+        val writeResult: Result<Unit, WriteToDocumentError>? =
             Klaxon().converter(writeDocumentConverter).parse(writeDocument("", "", ""))
 
-        assertType<CoreError.Unexpected>(
+        assertType<WriteToDocumentError.Unexpected>(
             writeResult?.component2()
         )
     }

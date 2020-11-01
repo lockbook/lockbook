@@ -2,22 +2,25 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.loggedin.listfiles.ListFilesActivity
 import app.lockbook.utils.Config
-import app.lockbook.utils.CoreError
 import app.lockbook.utils.CoreModel
-import app.lockbook.utils.Messages.UNEXPECTED_ERROR_OCCURRED
+import app.lockbook.utils.ImportError
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.utils.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
+import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -56,7 +59,7 @@ class ImportAccountActivity : AppCompatActivity() {
             .initiateScan()
     }
 
-    private suspend fun handleImportResult(importAccountResult: Result<Unit, CoreError>) {
+    private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
@@ -65,49 +68,45 @@ class ImportAccountActivity : AppCompatActivity() {
                     finishAffinity()
                 }
                 is Err -> when (val error = importAccountResult.error) {
-                    is CoreError.AccountStringCorrupted -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountStringCorrupted -> Snackbar.make(
+                        import_account_layout,
                         "Invalid account string!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is CoreError.AccountExistsAlready -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountExistsAlready -> Snackbar.make(
+                        import_account_layout,
                         "Account already exists!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is CoreError.AccountDoesNotExist -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.AccountDoesNotExist -> Snackbar.make(
+                        import_account_layout,
                         "That account does not exist on this server!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is CoreError.UsernamePKMismatch -> Toast.makeText(
-                        applicationContext,
+                    is ImportError.UsernamePKMismatch -> Snackbar.make(
+                        import_account_layout,
                         "That username does not correspond with that public_key on this server!",
-                        Toast.LENGTH_LONG
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is CoreError.CouldNotReachServer -> Toast.makeText(
-                        applicationContext,
-                        "Could not access server to ensure this !",
-                        Toast.LENGTH_LONG
+                    is ImportError.CouldNotReachServer -> Snackbar.make(
+                        import_account_layout,
+                        "Could not access server to ensure this!",
+                        Snackbar.LENGTH_SHORT
                     ).show()
-                    is CoreError.Unexpected -> {
+                    is ImportError.ClientUpdateRequired -> Snackbar.make(
+                        import_account_layout,
+                        "Update required.",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    is ImportError.Unexpected -> {
+                        AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
+                            .setTitle(UNEXPECTED_ERROR)
+                            .setMessage(error.error)
+                            .show()
                         Timber.e("Unable to import an account.")
-                        Toast.makeText(
-                            applicationContext,
-                            UNEXPECTED_ERROR_OCCURRED,
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    else -> {
-                        Timber.e("ImportError not matched: ${error::class.simpleName}.")
-                        Toast.makeText(
-                            applicationContext,
-                            UNEXPECTED_ERROR_OCCURRED,
-                            Toast.LENGTH_LONG
-                        ).show()
                     }
                 }
-            }
+            }.exhaustive
         }
     }
 

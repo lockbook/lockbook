@@ -169,6 +169,17 @@ pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_cha
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_children(
+    writeable_path: *const c_char,
+    id: *const c_char,
+) -> *const c_char {
+    c_string(translate(crate::get_children(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
+    )))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn get_file_by_path(
     writeable_path: *const c_char,
     path: *const c_char,
@@ -176,6 +187,17 @@ pub unsafe extern "C" fn get_file_by_path(
     c_string(translate(crate::get_file_by_path(
         &config_from_ptr(writeable_path),
         &str_from_ptr(path),
+    )))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn delete_file(
+    writeable_path: *const c_char,
+    id: *const c_char,
+) -> *const c_char {
+    c_string(translate(crate::delete_file(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
     )))
 }
 

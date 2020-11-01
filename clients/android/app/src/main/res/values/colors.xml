@@ -12,6 +12,18 @@
   <color name="dark">#3F3F41</color>
   <color name="black">#000000</color>
   <color name="light">#E3E5EB</color>
+  <color name="white">#FFFFFF</color>
   <color name="grey">#787878</color>
-  <color name="colorAccent">#03DAC5</color>
+
+  <color name="navigationBarColor">@color/white</color>
+  <color name="iconStatusBarColor">@color/white</color>
+  <color name="colorPrimary">@color/blue</color>
+  <color name="colorAccent">@color/blue</color>
+  <color name="colorPrimaryDark">@color/white</color>
+  <color name="windowBackground">@color/white</color>
+  <color name="textColor">@color/black</color>
+  <color name="scannerIconColor">@color/black</color>
+  <color name="documentNameTextColor">@color/black</color>
+
+  <bool name="windowLightStatusBar">true</bool>
 </resources>
