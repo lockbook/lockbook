@@ -23,76 +23,162 @@ pub enum ApiError<E> {
 pub trait Request: Serialize {
     type Response: DeserializeOwned;
     type Error: DeserializeOwned;
+    fn method() -> Method;
+    fn endpoint() -> &'static str;
 }
 
 impl Request for ChangeDocumentContentRequest {
     type Response = ChangeDocumentContentResponse;
     type Error = ChangeDocumentContentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "change-document-content"
+    }
 }
 
 impl Request for CreateDocumentRequest {
     type Response = CreateDocumentResponse;
     type Error = CreateDocumentError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        "create-document"
+    }
 }
 
 impl Request for DeleteDocumentRequest {
     type Response = DeleteDocumentResponse;
     type Error = DeleteDocumentError;
+    fn method() -> Method {
+        Method::DELETE
+    }
+    fn endpoint() -> &'static str {
+        "delete-document"
+    }
 }
 
 impl Request for MoveDocumentRequest {
     type Response = MoveDocumentResponse;
     type Error = MoveDocumentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "move-document"
+    }
 }
 
 impl Request for RenameDocumentRequest {
     type Response = RenameDocumentResponse;
     type Error = RenameDocumentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "rename-document"
+    }
 }
 
 impl Request for GetDocumentRequest {
     type Response = GetDocumentResponse;
     type Error = GetDocumentError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-document"
+    }
 }
 
 impl Request for CreateFolderRequest {
     type Response = CreateFolderResponse;
     type Error = CreateFolderError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        "create-folder"
+    }
 }
 
 impl Request for DeleteFolderRequest {
     type Response = DeleteFolderResponse;
     type Error = DeleteFolderError;
+    fn method() -> Method {
+        Method::DELETE
+    }
+    fn endpoint() -> &'static str {
+        "delete-folder"
+    }
 }
 
 impl Request for MoveFolderRequest {
     type Response = MoveFolderResponse;
     type Error = MoveFolderError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "move-folder"
+    }
 }
 
 impl Request for RenameFolderRequest {
     type Response = RenameFolderResponse;
     type Error = RenameFolderError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "rename-folder"
+    }
 }
 
 impl Request for GetPublicKeyRequest {
     type Response = GetPublicKeyResponse;
     type Error = GetPublicKeyError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-public-key"
+    }
 }
 
 impl Request for GetUsageRequest {
     type Response = GetUsageResponse;
     type Error = GetUsageError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-usage"
+    }
 }
 
 impl Request for GetUpdatesRequest {
     type Response = GetUpdatesResponse;
     type Error = GetUpdatesError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-updates"
+    }
 }
 
 impl Request for NewAccountRequest {
     type Response = NewAccountResponse;
     type Error = NewAccountError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        ""
+    }
 }
 
 pub trait Client {
@@ -195,16 +281,17 @@ pub struct ClientImpl<Crypto: PubKeyCryptoService> {
 }
 
 impl<Crypto: PubKeyCryptoService> ClientImpl<Crypto> {
-    pub fn api_request<T: Request>(
+    pub fn request<T: Request>(
         api_url: &str,
-        method: Method,
-        endpoint: &str,
         request: &T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let client = ReqwestClient::new();
         let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
         let serialized_response = client
-            .request(method, format!("{}/{}", api_url, endpoint).as_str())
+            .request(
+                T::method(),
+                format!("{}/{}", api_url, T::endpoint()).as_str(),
+            )
             .body(serialized_request)
             .send()
             .map_err(ApiError::SendFailed)?
@@ -222,17 +309,15 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         id: Uuid,
         content_version: u64,
     ) -> Result<EncryptedDocument, ApiError<GetDocumentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::GET,
-            "get-document",
             &GetDocumentRequest {
                 id: id,
                 client_version: CORE_CODE_VERSION.to_string(),
                 content_version: content_version,
             },
         )
-        .map(|r: GetDocumentResponse| r.content)
+        .map(|r| r.content)
     }
     fn change_document_content(
         api_url: &str,
@@ -241,10 +326,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         old_metadata_version: u64,
         new_content: EncryptedDocument,
     ) -> Result<u64, ApiError<ChangeDocumentContentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::PUT,
-            "change-document-content",
             &ChangeDocumentContentRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -253,7 +336,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 new_content: new_content,
             },
         )
-        .map(|r: ChangeDocumentContentResponse| r.new_metadata_and_content_version)
+        .map(|r| r.new_metadata_and_content_version)
     }
     fn create_document(
         api_url: &str,
@@ -264,10 +347,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         content: EncryptedDocument,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateDocumentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::POST,
-            "create-document",
             &CreateDocumentRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -278,7 +359,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 parent_access_key: parent_access_key,
             },
         )
-        .map(|r: CreateDocumentResponse| r.new_metadata_and_content_version)
+        .map(|r| r.new_metadata_and_content_version)
     }
     fn delete_document(
         api_url: &str,
@@ -286,10 +367,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::DELETE,
-            "delete-document",
             &DeleteDocumentRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -297,7 +376,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 old_metadata_version: old_metadata_version,
             },
         )
-        .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
+        .map(|r| r.new_metadata_and_content_version)
     }
     fn move_document(
         api_url: &str,
@@ -307,10 +386,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         new_parent: Uuid,
         new_folder_access: FolderAccessInfo,
     ) -> Result<u64, ApiError<MoveDocumentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::PUT,
-            "move-document",
             &MoveDocumentRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -320,7 +397,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 new_folder_access,
             },
         )
-        .map(|r: MoveDocumentResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn rename_document(
         api_url: &str,
@@ -329,10 +406,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         old_metadata_version: u64,
         new_name: &str,
     ) -> Result<u64, ApiError<RenameDocumentError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::PUT,
-            "rename-document",
             &RenameDocumentRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -341,7 +416,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 new_name: String::from(new_name),
             },
         )
-        .map(|r: RenameDocumentResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn create_folder(
         api_url: &str,
@@ -351,10 +426,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         parent: Uuid,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateFolderError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::POST,
-            "create-folder",
             &CreateFolderRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -364,7 +437,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 parent_access_key: parent_access_key,
             },
         )
-        .map(|r: CreateFolderResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn delete_folder(
         api_url: &str,
@@ -372,10 +445,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::DELETE,
-            "delete-folder",
             &DeleteFolderRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -383,7 +454,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 old_metadata_version: old_metadata_version,
             },
         )
-        .map(|r: DeleteFolderResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn move_folder(
         api_url: &str,
@@ -393,10 +464,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         new_parent: Uuid,
         new_access_keys: FolderAccessInfo,
     ) -> Result<u64, ApiError<MoveFolderError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::PUT,
-            "move-folder",
             &MoveFolderRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -406,7 +475,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 new_folder_access: new_access_keys,
             },
         )
-        .map(|r: MoveFolderResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn rename_folder(
         api_url: &str,
@@ -415,10 +484,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         old_metadata_version: u64,
         new_name: &str,
     ) -> Result<u64, ApiError<RenameFolderError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::PUT,
-            "rename-folder",
             &RenameFolderRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -427,39 +494,35 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 new_name: String::from(new_name),
             },
         )
-        .map(|r: RenameFolderResponse| r.new_metadata_version)
+        .map(|r| r.new_metadata_version)
     }
     fn get_public_key(
         api_url: &str,
         username: &str,
     ) -> Result<RSAPublicKey, ApiError<GetPublicKeyError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::GET,
-            "get-public-key",
             &GetPublicKeyRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
             },
         )
-        .map(|r: GetPublicKeyResponse| r.key)
+        .map(|r| r.key)
     }
     fn get_updates(
         api_url: &str,
         username: &str,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::GET,
-            "get-updates",
             &GetUpdatesRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
                 since_metadata_version: since_metadata_version,
             },
         )
-        .map(|r: GetUpdatesResponse| r.file_metadata)
+        .map(|r| r.file_metadata)
     }
     fn new_account(
         api_url: &str,
@@ -469,10 +532,8 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedUserAccessKey,
     ) -> Result<u64, ApiError<NewAccountError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::POST,
-            "new-account",
             &NewAccountRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
@@ -482,16 +543,14 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
                 user_access_key: user_access_key,
             },
         )
-        .map(|r: NewAccountResponse| r.folder_metadata_version)
+        .map(|r| r.folder_metadata_version)
     }
     fn get_usage(
         api_url: &str,
         username: &str,
     ) -> Result<GetUsageResponse, ApiError<GetUsageError>> {
-        Self::api_request(
+        Self::request(
             api_url,
-            Method::GET,
-            "get-usage",
             &GetUsageRequest {
                 username: String::from(username),
                 client_version: CORE_CODE_VERSION.to_string(),
