@@ -20,6 +20,81 @@ pub enum ApiError<E> {
     Api(E),
 }
 
+pub trait Request : Serialize{
+    type Response : DeserializeOwned;
+    type Error: DeserializeOwned;
+}
+
+impl Request for ChangeDocumentContentRequest {
+    type Response = ChangeDocumentContentResponse;
+    type Error = ChangeDocumentContentError;
+}
+
+impl Request for CreateDocumentRequest {
+    type Response = CreateDocumentResponse;
+    type Error = CreateDocumentError;
+}
+
+impl Request for DeleteDocumentRequest {
+    type Response = DeleteDocumentResponse;
+    type Error = DeleteDocumentError;
+}
+
+impl Request for MoveDocumentRequest {
+    type Response = MoveDocumentResponse;
+    type Error = MoveDocumentError;
+}
+
+impl Request for RenameDocumentRequest {
+    type Response = RenameDocumentResponse;
+    type Error = RenameDocumentError;
+}
+
+impl Request for GetDocumentRequest {
+    type Response = GetDocumentResponse;
+    type Error = GetDocumentError;
+}
+
+impl Request for CreateFolderRequest {
+    type Response = CreateFolderResponse;
+    type Error = CreateFolderError;
+}
+
+impl Request for DeleteFolderRequest {
+    type Response = DeleteFolderResponse;
+    type Error = DeleteFolderError;
+}
+
+impl Request for MoveFolderRequest {
+    type Response = MoveFolderResponse;
+    type Error = MoveFolderError;
+}
+
+impl Request for RenameFolderRequest {
+    type Response = RenameFolderResponse;
+    type Error = RenameFolderError;
+}
+
+impl Request for GetPublicKeyRequest {
+    type Response = GetPublicKeyResponse;
+    type Error = GetPublicKeyError;
+}
+
+impl Request for GetUsageRequest {
+    type Response = GetUsageResponse;
+    type Error = GetUsageError;
+}
+
+impl Request for GetUpdatesRequest {
+    type Response = GetUpdatesResponse;
+    type Error = GetUpdatesError;
+}
+
+impl Request for NewAccountRequest {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+}
+
 pub trait Client {
     fn get_document(
         api_url: &str,
@@ -120,14 +195,13 @@ pub struct ClientImpl<Crypto: PubKeyCryptoService> {
 }
 
 impl<Crypto: PubKeyCryptoService> ClientImpl<Crypto> {
-    pub fn api_request<Request: Serialize, Response: DeserializeOwned, E: DeserializeOwned>(
+    pub fn api_request<T: Request>(
         api_url: &str,
         method: Method,
         endpoint: &str,
-        request: &Request,
-    ) -> Result<Response, ApiError<E>> {
+        request: &T,
+    ) -> Result<T::Response, ApiError<T::Error>> {
         let client = ReqwestClient::new();
-        // Crypto::sign(&Crypto::generate_key().unwrap(), request);
         let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
         let serialized_response = client
             .request(method, format!("{}/{}", api_url, endpoint).as_str())
@@ -136,7 +210,7 @@ impl<Crypto: PubKeyCryptoService> ClientImpl<Crypto> {
             .map_err(ApiError::SendFailed)?
             .text()
             .map_err(ApiError::ReceiveFailed)?;
-        let response: Result<Response, E> =
+        let response: Result<T::Response, T::Error> =
             serde_json::from_str(&serialized_response).map_err(ApiError::Deserialize)?;
         response.map_err(ApiError::Api)
     }
