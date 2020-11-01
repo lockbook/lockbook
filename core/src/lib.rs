@@ -3,23 +3,14 @@
 extern crate log;
 extern crate reqwest;
 
-use serde::Serialize;
-use serde_json::json;
-use serde_json::value::Value;
-pub use sled::Db;
-use std::env;
-use std::path::Path;
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
 use crate::client::{ApiError, Client, ClientImpl};
 use crate::model::account::Account;
 use crate::model::api;
 use crate::model::api::{
     ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
     DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
-    MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
+    GetUsageRequest, MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError,
+    RenameFolderError,
 };
 use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::{FileMetadata, FileType};
@@ -53,7 +44,16 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use serde::Serialize;
+use serde_json::json;
+use serde_json::value::Value;
+pub use sled::Db;
+use std::env;
+use std::path::Path;
 use std::str::FromStr;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use uuid::Uuid;
 
 pub mod c_interface;
 pub mod client;
@@ -220,9 +220,10 @@ pub fn create_account(
                 ApiError::SendFailed(_) => {
                     Err(Error::UiError(CreateAccountError::CouldNotReachServer))
                 }
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", network)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", network))),
             },
             AccountCreationError::KeyGenerationError(_)
             | AccountCreationError::AccountRepoError(_)
@@ -276,9 +277,10 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", client_err)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", client_err))),
             },
             AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
@@ -795,7 +797,8 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                     ApiError::Serialize(_)
                     | ApiError::ReceiveFailed(_)
                     | ApiError::Deserialize(_)
-                    | ApiError::Api(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
+                    | ApiError::Api(_)
+                    | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
                 },
             },
             SyncError::WorkExecutionError(_) => Err(Error::UiError(SyncAllError::ExecuteWorkError)),
@@ -845,9 +848,10 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
                         Err(Error::Unexpected(format!("{:#?}", get_updates_error)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api_err)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
             },
         },
     }
@@ -882,9 +886,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentRenameError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -907,9 +912,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderRenameError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -932,9 +938,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentMoveError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -958,9 +965,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderMoveError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -984,9 +992,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentCreateError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -1008,9 +1017,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderCreateError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -1032,9 +1042,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentChangeError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -1056,9 +1067,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::DocumentDeleteError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -1080,9 +1092,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::FolderDeleteError(api) => match api {
                 ApiError::SendFailed(_) => {
@@ -1104,9 +1117,10 @@ pub fn execute_work(
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
-                ApiError::Serialize(_) | ApiError::ReceiveFailed(_) | ApiError::Deserialize(_) => {
-                    Err(Error::Unexpected(format!("{:#?}", api)))
-                }
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
             },
             WorkExecutionError::MetadataRepoError(_)
             | WorkExecutionError::MetadataRepoErrorOpt(_)
@@ -1169,17 +1183,23 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
     let acc = DefaultAccountRepo::get_account(&db)
         .map_err(|_| Error::UiError(GetUsageError::NoAccount))?;
 
-    DefaultClient::get_usage(&acc.api_url, acc.username.as_str())
-        .map(|resp| resp.usages)
-        .map_err(|err| match err {
-            ApiError::Api(api::GetUsageError::ClientUpdateRequired) => {
-                Error::UiError(GetUsageError::ClientUpdateRequired)
-            }
-            ApiError::SendFailed(_) | ApiError::ReceiveFailed(_) => {
-                Error::UiError(GetUsageError::CouldNotReachServer)
-            }
-            _ => Error::Unexpected(format!("{:#?}", err)),
-        })
+    DefaultClient::request(
+        &acc.api_url,
+        &acc.private_key,
+        GetUsageRequest {
+            username: acc.username,
+        },
+    )
+    .map(|resp| resp.usages)
+    .map_err(|err| match err {
+        ApiError::Api(api::GetUsageError::ClientUpdateRequired) => {
+            Error::UiError(GetUsageError::ClientUpdateRequired)
+        }
+        ApiError::SendFailed(_) | ApiError::ReceiveFailed(_) => {
+            Error::UiError(GetUsageError::CouldNotReachServer)
+        }
+        _ => Error::Unexpected(format!("{:#?}", err)),
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,
