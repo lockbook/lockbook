@@ -52,11 +52,11 @@ pub trait PubKeyCryptoService {
         private_key: &RSAPrivateKey,
         to_decrypt: &RSAEncrypted<T>,
     ) -> Result<T, RSADecryptError>;
-    fn sign<T: Serialize + Timestamp>(
+    fn sign<T: Serialize>(
         private_key: &RSAPrivateKey,
         to_sign: T,
     ) -> Result<RSASigned<T>, RSASignError>;
-    fn verify<T: Serialize + Timestamp>(
+    fn verify<T: Serialize>(
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
         max_delay_ms: u64,
@@ -95,7 +95,7 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
         Ok(deserialized)
     }
 
-    fn sign<T: Serialize + Timestamp>(
+    fn sign<T: Serialize>(
         private_key: &RSAPrivateKey,
         to_sign: T,
     ) -> Result<RSASigned<T>, RSASignError> {
@@ -105,35 +105,22 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
             .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
             .map_err(RSASignError::Signing)?;
         Ok(RSASigned {
-            value: to_sign,
+            timestamped_value: Time::timestamp(to_sign),
             signature: signature,
             public_key: private_key.to_public_key(),
         })
     }
 
-    fn verify<T: Serialize + Timestamp>(
+    fn verify<T: Serialize>(
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
         max_delay_ms: u64,
     ) -> Result<(), RSAVerifyError> {
-        let serialized =
-            bincode::serialize(&to_verify.value).map_err(RSAVerifyError::Serialization)?;
-        let digest = Sha256::digest(&serialized).to_vec();
-        to_verify
-            .public_key
-            .verify(
-                PaddingScheme::PKCS1v15,
-                Some(&Hashes::SHA2_256),
-                &digest,
-                &to_verify.signature,
-            )
-            .map_err(RSAVerifyError::Verification)?;
-
         if public_key != &to_verify.public_key {
             return Err(RSAVerifyError::WrongPublicKey);
         }
 
-        let auth_time = Timestamp::get_timestamp(&to_verify.value);
+        let auth_time = to_verify.timestamped_value.timestamp;
         let current_time = Time::get_time();
         if current_time < auth_time {
             // TODO: introduce tolerance?
@@ -147,6 +134,19 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
             ));
         }
 
+        let serialized = bincode::serialize(&to_verify.timestamped_value)
+            .map_err(RSAVerifyError::Serialization)?;
+        let digest = Sha256::digest(&serialized).to_vec();
+        to_verify
+            .public_key
+            .verify(
+                PaddingScheme::PKCS1v15,
+                Some(&Hashes::SHA2_256),
+                &digest,
+                &to_verify.signature,
+            )
+            .map_err(RSAVerifyError::Verification)?;
+
         Ok(())
     }
 }
@@ -154,10 +154,8 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
 #[cfg(test)]
 mod unit_test_pubkey {
     use super::rsa::RSAPrivateKey;
-    use crate::model::crypto::Timestamp;
     use crate::service::clock_service::Clock;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
-    use serde::{Deserialize, Serialize};
 
     struct EarlyClock;
     impl Clock for EarlyClock {
@@ -170,17 +168,6 @@ mod unit_test_pubkey {
     impl Clock for LateClock {
         fn get_time() -> u64 {
             520
-        }
-    }
-
-    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-    struct TimestampedString {
-        pub s: String,
-        pub t: u64,
-    }
-    impl Timestamp for TimestampedString {
-        fn get_timestamp(&self) -> u64 {
-            self.t
         }
     }
 
@@ -199,34 +186,15 @@ mod unit_test_pubkey {
     #[test]
     fn test_sign_verify() {
         let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
-
-        let value = RSAImpl::<EarlyClock>::sign(
-            &key,
-            TimestampedString {
-                s: String::from("Test"),
-                t: 510,
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            value.value,
-            TimestampedString {
-                s: String::from("Test"),
-                t: 510
-            }
-        );
-
-        RSAImpl::<LateClock>::verify(&key.to_public_key(), &value, 10).unwrap();
+        let value = RSAImpl::<EarlyClock>::sign(&key, "Test").unwrap();
+        RSAImpl::<LateClock>::verify(&key.to_public_key(), &value, 20).unwrap();
     }
 
     #[test]
     fn test_encrypt_decrypt() {
         let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
-
-        let encrypted =
-            RSAImpl::<EarlyClock>::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
+        let encrypted = RSAImpl::<EarlyClock>::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
         let decrypted = RSAImpl::<EarlyClock>::decrypt(&key, &encrypted).unwrap();
-
         assert_eq!(decrypted, "Secret");
     }
 }

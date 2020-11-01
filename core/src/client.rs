@@ -1,7 +1,6 @@
 use crate::model::api::*;
 use crate::model::crypto::*;
 use rsa::RSAPublicKey;
-
 use crate::model::file_metadata::FileMetadata;
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::CORE_CODE_VERSION;
@@ -21,7 +20,6 @@ pub enum ApiError<E> {
     Api(E),
 }
 
-// TODO: sign requests
 pub trait Client {
     fn get_document(
         api_url: &str,
@@ -129,6 +127,7 @@ impl<Crypto: PubKeyCryptoService> ClientImpl<Crypto> {
         request: &Request,
     ) -> Result<Response, ApiError<E>> {
         let client = ReqwestClient::new();
+        // Crypto::sign(&Crypto::generate_key().unwrap(), request);
         let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
         let serialized_response = client
             .request(method, format!("{}/{}", api_url, endpoint).as_str())

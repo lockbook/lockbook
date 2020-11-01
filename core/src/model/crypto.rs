@@ -50,14 +50,15 @@ impl<T: DeserializeOwned> RSAEncrypted<T> {
     }
 }
 
-pub trait Timestamp {
-    /// returns the timestamp of the object in Unix milliseconds
-    fn get_timestamp(&self) -> u64;
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct Timestamped<T> {
+    pub value: T,
+    pub timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RSASigned<T: Timestamp> {
-    pub value: T,
+pub struct RSASigned<T> {
+    pub timestamped_value: Timestamped<T>,
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
     pub public_key: RSAPublicKey,
