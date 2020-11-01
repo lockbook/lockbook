@@ -73,7 +73,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "API_URL"
-            value = "http://nyx:69"
+            value = "http://localhost:8000"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

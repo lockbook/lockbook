@@ -4,8 +4,8 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
+    android:id="@+id/new_account_layout"
     android:paddingHorizontal="25dp">
-
 
     <TextView
         style="@style/Text.Headline"
