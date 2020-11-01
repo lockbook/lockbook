@@ -6,7 +6,7 @@ mod get_document_tests {
     use crate::integration_test::{
         aes_decrypt, aes_encrypt, generate_account, random_filename, rsa_encrypt,
     };
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
+    use lockbook_core::client::{ApiError, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::clock_service::ClockImpl;

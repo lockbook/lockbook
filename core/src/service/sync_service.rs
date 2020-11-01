@@ -8,9 +8,12 @@ use crate::client::Client;
 use crate::model::account::Account;
 use crate::model::api;
 use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
-    RenameFolderError,
+    ChangeDocumentContentError, ChangeDocumentContentRequest, CreateDocumentError,
+    CreateDocumentRequest, CreateFolderError, CreateFolderRequest, DeleteDocumentError,
+    DeleteDocumentRequest, DeleteFolderError, DeleteFolderRequest, GetDocumentError,
+    GetDocumentRequest, GetUpdatesRequest, MoveDocumentError, MoveDocumentRequest, MoveFolderError,
+    MoveFolderRequest, RenameDocumentError, RenameDocumentRequest, RenameFolderError,
+    RenameFolderRequest,
 };
 use crate::model::file_metadata::FileMetadata;
 use crate::model::file_metadata::FileType::{Document, Folder};
@@ -137,8 +140,16 @@ impl<
         let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
-        let server_updates = ApiClient::get_updates(&account.api_url, &account.username, last_sync)
-            .map_err(GetUpdatesError)?;
+        let server_updates = ApiClient::request(
+            &account.api_url,
+            &account.private_key,
+            GetUpdatesRequest {
+                username: account.username,
+                since_metadata_version: last_sync,
+            },
+        )
+        .map_err(GetUpdatesError)?
+        .file_metadata;
 
         let mut most_recent_update_from_server: u64 = last_sync;
         for metadata in server_updates {
@@ -218,12 +229,16 @@ impl<
                     FileMetadataDb::insert(&db, &metadata)
                         .map_err(WorkExecutionError::MetadataRepoError)?;
                     if metadata.file_type == Document {
-                        let document = ApiClient::get_document(
+                        let document = ApiClient::request(
                             &account.api_url,
-                            metadata.id,
-                            metadata.content_version,
+                            &account.private_key,
+                            GetDocumentRequest {
+                                id: metadata.id,
+                                content_version: metadata.content_version,
+                            },
                         )
-                        .map_err(DocumentGetError)?;
+                        .map_err(DocumentGetError)?
+                        .content;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
                     }
@@ -255,12 +270,16 @@ impl<
                             if metadata.file_type == Document
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
-                                let document = ApiClient::get_document(
+                                let document = ApiClient::request(
                                     &account.api_url,
-                                    metadata.id,
-                                    metadata.content_version,
+                                    &account.private_key,
+                                    GetDocumentRequest {
+                                        id: metadata.id,
+                                        content_version: metadata.content_version,
+                                    },
                                 )
-                                .map_err(DocumentGetError)?;
+                                .map_err(DocumentGetError)?
+                                .content;
 
                                 DocsDb::insert(&db, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
@@ -335,12 +354,16 @@ impl<
                                         );
 
                                         let server_version = {
-                                            let server_document = ApiClient::get_document(
+                                            let server_document = ApiClient::request(
                                                 &account.api_url,
-                                                metadata.id,
-                                                metadata.content_version,
+                                                &account.private_key,
+                                                GetDocumentRequest {
+                                                    id: metadata.id,
+                                                    content_version: metadata.content_version,
+                                                },
                                             )
-                                            .map_err(DocumentGetError)?;
+                                            .map_err(DocumentGetError)?
+                                            .content;
 
                                             FileCrypto::user_read_document(
                                                 &account,
@@ -404,12 +427,16 @@ impl<
                                         .map_err(SaveDocumentError)?;
 
                                         // Overwrite local file with server copy
-                                        let new_content = ApiClient::get_document(
+                                        let new_content = ApiClient::request(
                                             &account.api_url,
-                                            metadata.id,
-                                            metadata.content_version,
+                                            &account.private_key,
+                                            GetDocumentRequest {
+                                                id: metadata.id,
+                                                content_version: metadata.content_version,
+                                            },
                                         )
-                                        .map_err(DocumentGetError)?;
+                                        .map_err(DocumentGetError)?
+                                        .content;
 
                                         DocsDb::insert(&db, metadata.id, &new_content)
                                             .map_err(SaveDocumentError)?;
@@ -479,16 +506,20 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
-                        let version = ApiClient::create_document(
+                        let version = ApiClient::request(
                             &account.api_url,
-                            &account.username,
-                            metadata.id,
-                            &metadata.name,
-                            metadata.parent,
-                            content,
-                            metadata.folder_access_keys.clone(),
+                            &account.private_key,
+                            CreateDocumentRequest {
+                                username: account.username.clone(),
+                                id: metadata.id,
+                                name: metadata.name.clone(),
+                                parent: metadata.parent,
+                                content,
+                                parent_access_key: metadata.folder_access_keys.clone()
+                            },
                         )
-                            .map_err(DocumentCreateError)?;
+                            .map_err(DocumentCreateError)?
+                            .new_metadata_and_content_version;
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
@@ -497,15 +528,19 @@ impl<
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
-                        let version = ApiClient::create_folder(
+                        let version = ApiClient::request(
                             &account.api_url,
-                            &account.username,
-                            metadata.id,
-                            &metadata.name,
-                            metadata.parent,
-                            metadata.folder_access_keys.clone(),
+                            &account.private_key,
+                            CreateFolderRequest {
+                                username: account.username.clone(),
+                                id: metadata.id,
+                                name: metadata.name.clone(),
+                                parent: metadata.parent,
+                                parent_access_key: metadata.folder_access_keys.clone()
+                            },
                         )
-                            .map_err(FolderCreateError)?;
+                            .map_err(FolderCreateError)?
+                            .new_metadata_version;
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
@@ -517,19 +552,31 @@ impl<
                 } else if !local_change.deleted { // not new and not deleted
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
-                            ApiClient::rename_document(
+                            ApiClient::request(
                                 &account.api_url,
-                                &account.username,
-                                metadata.id, metadata.metadata_version,
-                                &metadata.name)
+                                &account.private_key,
+                                RenameDocumentRequest {
+                                    username: account.username.clone(),
+                                    id: metadata.id,
+                                    old_metadata_version: metadata.metadata_version,
+                                    new_name: metadata.name.clone()
+                                },
+                            )
                                 .map_err(DocumentRenameError)?
+                                .new_metadata_version
                         } else {
-                            ApiClient::rename_folder(
+                            ApiClient::request(
                                 &account.api_url,
-                                &account.username,
-                                metadata.id, metadata.metadata_version,
-                                &metadata.name)
+                                &account.private_key,
+                                RenameFolderRequest {
+                                    username: account.username.clone(),
+                                    id: metadata.id,
+                                    old_metadata_version: metadata.metadata_version,
+                                    new_name: metadata.name.clone()
+                                },
+                            )
                                 .map_err(FolderRenameError)?
+                                .new_metadata_version
                         };
                         metadata.metadata_version = version;
                         FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
@@ -539,21 +586,33 @@ impl<
 
                     if local_change.moved.is_some() {
                         let version = if metadata.file_type == Document {
-                            ApiClient::move_document(
+                            ApiClient::request(
                                 &account.api_url,
-                                &account.username,
-                                metadata.id, metadata.metadata_version,
-                                metadata.parent,
-                                metadata.folder_access_keys.clone()
-                            ).map_err(DocumentMoveError)?
+                                &account.private_key,
+                                MoveDocumentRequest {
+                                    username: account.username.clone(),
+                                    id: metadata.id,
+                                    old_metadata_version: metadata.metadata_version,
+                                    new_parent: metadata.parent,
+                                    new_folder_access: metadata.folder_access_keys.clone()
+                                },
+                            )
+                                .map_err(DocumentMoveError)?
+                                .new_metadata_version
                         } else {
-                            ApiClient::move_folder(
+                            ApiClient::request(
                                 &account.api_url,
-                                &account.username,
-                                metadata.id, metadata.metadata_version,
-                                metadata.parent,
-                                metadata.folder_access_keys.clone()
-                            ).map_err(FolderMoveError)?
+                                &account.private_key,
+                                MoveFolderRequest {
+                                    username: account.username.clone(),
+                                    id: metadata.id,
+                                    old_metadata_version: metadata.metadata_version,
+                                    new_parent: metadata.parent,
+                                    new_folder_access: metadata.folder_access_keys.clone()
+                                },
+                            )
+                                .map_err(FolderMoveError)?
+                                .new_metadata_version
                         };
 
                         metadata.metadata_version = version;
@@ -563,13 +622,16 @@ impl<
                     }
 
                     if local_change.content_edited.is_some() && metadata.file_type == Document {
-                        let version = ApiClient::change_document_content(
+                        let version = ApiClient::request(
                             &account.api_url,
-                            &account.username,
-                            metadata.id,
-                            metadata.metadata_version,
-                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?,
-                        ).map_err(DocumentChangeError)?;
+                            &account.private_key,
+                            ChangeDocumentContentRequest {
+                                username: account.username.clone(),
+                                id: metadata.id,
+                                old_metadata_version: metadata.metadata_version,
+                                new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?
+                            },
+                        ).map_err(DocumentChangeError)?.new_metadata_and_content_version;
 
                         metadata.content_version = version;
                         metadata.metadata_version = version;
@@ -579,11 +641,14 @@ impl<
                     }
                 } else { // not new and deleted
                     if metadata.file_type == Document {
-                        ApiClient::delete_document(
+                        ApiClient::request(
                             &account.api_url,
-                            &account.username,
-                            metadata.id,
-                            metadata.metadata_version,
+                            &account.private_key,
+                            DeleteDocumentRequest {
+                                username: account.username.clone(),
+                                id: metadata.id,
+                                old_metadata_version: metadata.metadata_version,
+                            },
                         ).map_err(DocumentDeleteError)?;
 
                         FileMetadataDb::actually_delete(&db, metadata.id)
@@ -592,11 +657,14 @@ impl<
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
-                        ApiClient::delete_folder(
+                        ApiClient::request(
                             &account.api_url,
-                            &account.username,
-                            metadata.id,
-                            metadata.metadata_version,
+                            &account.private_key,
+                            DeleteFolderRequest {
+                                username: account.username.clone(),
+                                id: metadata.id,
+                                old_metadata_version: metadata.metadata_version,
+                            },
                         ).map_err(FolderDeleteError)?;
 
                         FileMetadataDb::actually_delete(&db, metadata.id)

@@ -3,7 +3,9 @@ use sled::Db;
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
-use crate::model::api::{GetPublicKeyError, NewAccountError};
+use crate::model::api::{
+    GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
+};
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -109,20 +111,24 @@ impl<
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
-        let version = ApiClient::new_account(
-            api_url,
-            &account.username,
-            account.private_key.to_public_key(),
-            file_metadata.id,
-            file_metadata.folder_access_keys.clone(),
-            file_metadata
-                .user_access_keys
-                .get(&account.username)
-                .unwrap()
-                .access_key
-                .clone(),
+        let version = ApiClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest {
+                username: account.username.clone(),
+                public_key: account.private_key.to_public_key(),
+                folder_id: file_metadata.id,
+                parent_access_key: file_metadata.folder_access_keys.clone(),
+                user_access_key: file_metadata
+                    .user_access_keys
+                    .get(&account.username)
+                    .unwrap()
+                    .access_key
+                    .clone(),
+            },
         )
-        .map_err(AccountCreationError::ApiError)?;
+        .map_err(AccountCreationError::ApiError)?
+        .folder_metadata_version;
         info!("Account creation success!");
 
         file_metadata.metadata_version = version;
@@ -171,8 +177,15 @@ impl<
             "Checking this username, public_key pair exists at {}",
             account.api_url
         );
-        let server_public_key = ApiClient::get_public_key(&account.api_url, &account.username)
-            .map_err(FailedToVerifyAccountServerSide)?;
+        let server_public_key = ApiClient::request(
+            &account.api_url,
+            &account.private_key,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .map_err(FailedToVerifyAccountServerSide)?
+        .key;
         if account.private_key.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }
