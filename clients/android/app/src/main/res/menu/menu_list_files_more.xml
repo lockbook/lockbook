@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/menu_list_files_rename"
+        android:icon="@drawable/ic_baseline_text_format_24"
+        android:orderInCategory="3"
+        android:title="@string/menu_list_files_rename"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_delete"
+        android:icon="@drawable/ic_baseline_delete_24"
+        android:orderInCategory="2"
+        android:title="@string/menu_list_files_delete"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_info"
+        android:icon="@drawable/ic_baseline_info_24"
+        android:orderInCategory="1"
+        android:title="@string/menu_list_files_info"
+        app:showAsAction="always" />
+
+    <item
+        android:icon="@drawable/ic_baseline_more_vert_24"
+        android:orderInCategory="4"
+        app:showAsAction="always"
+        android:title="@string/overflow">
+        <menu>
+            <item
+                android:id="@+id/menu_list_files_move"
+                android:title="@string/settings_title"
+                app:showAsAction="always" />
+        </menu>
+    </item>
+
+</menu>

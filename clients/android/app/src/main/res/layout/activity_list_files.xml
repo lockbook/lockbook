@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
-    tools:context=".login.WelcomeActivity">
+    tools:context=".screen.WelcomeActivity">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/list_files_toolbar"
