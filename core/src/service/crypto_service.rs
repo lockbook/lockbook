@@ -99,13 +99,14 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
         private_key: &RSAPrivateKey,
         to_sign: T,
     ) -> Result<RSASigned<T>, RSASignError> {
-        let serialized = bincode::serialize(&to_sign).map_err(RSASignError::Serialization)?;
+        let timestamped = Time::timestamp(to_sign);
+        let serialized = bincode::serialize(&timestamped).map_err(RSASignError::Serialization)?;
         let digest = Sha256::digest(&serialized).to_vec();
         let signature = private_key
             .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
             .map_err(RSASignError::Signing)?;
         Ok(RSASigned {
-            timestamped_value: Time::timestamp(to_sign),
+            timestamped_value: timestamped,
             signature: signature,
             public_key: private_key.to_public_key(),
         })
@@ -193,7 +194,8 @@ mod unit_test_pubkey {
     #[test]
     fn test_encrypt_decrypt() {
         let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
-        let encrypted = RSAImpl::<EarlyClock>::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
+        let encrypted =
+            RSAImpl::<EarlyClock>::encrypt(&key.to_public_key(), &String::from("Secret")).unwrap();
         let decrypted = RSAImpl::<EarlyClock>::decrypt(&key, &encrypted).unwrap();
         assert_eq!(decrypted, "Secret");
     }
