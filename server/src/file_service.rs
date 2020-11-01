@@ -277,6 +277,7 @@ pub async fn move_document(
         file_index_repo::FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
         file_index_repo::FileError::Deleted => MoveDocumentError::DocumentDeleted,
         file_index_repo::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
+        file_index_repo::FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
         _ => {
             error!(
                 "Internal server error! Cannot move document in Postgres: {:?}",
@@ -406,6 +407,8 @@ pub async fn create_folder(
     let new_version = result.map_err(|e| match e {
         file_index_repo::FileError::IdTaken => CreateFolderError::FileIdTaken,
         file_index_repo::FileError::PathTaken => CreateFolderError::FolderPathTaken,
+        file_index_repo::FileError::OwnerDoesNotExist => CreateFolderError::UserNotFound,
+        file_index_repo::FileError::ParentDoesNotExist => CreateFolderError::ParentNotFound,
         _ => {
             error!(
                 "Internal server error! Cannot create folder in Postgres: {:?}",
@@ -509,6 +512,7 @@ pub async fn move_folder(
         file_index_repo::FileError::IncorrectOldVersion => MoveFolderError::EditConflict,
         file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
+        file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
         _ => {
             error!(
                 "Internal server error! Cannot move folder in Postgres: {:?}",
