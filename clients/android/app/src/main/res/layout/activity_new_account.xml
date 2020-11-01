@@ -67,4 +67,13 @@
         android:layout_height="wrap_content"
         android:text="@string/new_account_submit" />
 
+    <ProgressBar
+        android:id="@+id/new_account_progress_bar"
+        style="?android:attr/progressBarStyle"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:minHeight="20dp" />
+
 </LinearLayout>
