@@ -2,14 +2,15 @@ mod integration_test;
 
 #[cfg(test)]
 mod rename_document_tests {
+    use crate::assert_matches;
     use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
+    use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use uuid::Uuid;
-
-    use crate::assert_matches;
 
     #[test]
     fn rename_document() {
@@ -19,7 +20,7 @@ mod rename_document_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -36,7 +37,7 @@ mod rename_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -52,7 +53,7 @@ mod rename_document_tests {
 
         // rename document
         assert_matches!(
-            ClientImpl::rename_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::rename_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -71,7 +72,7 @@ mod rename_document_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -87,7 +88,7 @@ mod rename_document_tests {
 
         // rename document that wasn't created
         assert_matches!(
-            ClientImpl::rename_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::rename_document(
                 &account.api_url,
                 &account.username,
                 Uuid::new_v4(),
@@ -108,7 +109,7 @@ mod rename_document_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -125,7 +126,7 @@ mod rename_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -141,13 +142,18 @@ mod rename_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::delete_document(&account.api_url, &account.username, doc_id, version,),
+            ClientImpl::<RSAImpl::<ClockImpl>>::delete_document(
+                &account.api_url,
+                &account.username,
+                doc_id,
+                version,
+            ),
             Ok(_)
         );
 
         // rename deleted document
         assert_matches!(
-            ClientImpl::rename_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::rename_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -168,7 +174,7 @@ mod rename_document_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -185,7 +191,7 @@ mod rename_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -201,7 +207,7 @@ mod rename_document_tests {
 
         // rename document
         assert_matches!(
-            ClientImpl::rename_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::rename_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -222,7 +228,7 @@ mod rename_document_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -239,7 +245,7 @@ mod rename_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -258,7 +264,7 @@ mod rename_document_tests {
         let doc_key2 = AESImpl::generate_key();
         let doc_name2 = random_filename();
         assert_matches!(
-            ClientImpl::create_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::create_document(
                 &account.api_url,
                 &account.username,
                 doc_id2,
@@ -275,7 +281,7 @@ mod rename_document_tests {
 
         // move document
         assert_matches!(
-            ClientImpl::rename_document(
+            ClientImpl::<RSAImpl::<ClockImpl>>::rename_document(
                 &account.api_url,
                 &account.username,
                 doc_id,

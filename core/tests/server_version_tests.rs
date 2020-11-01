@@ -3,9 +3,10 @@ mod integration_test;
 #[cfg(test)]
 mod server_version_tests {
     use crate::integration_test::{generate_account, test_config};
-
-    use lockbook_core::client::{api_request, ApiError};
+    use lockbook_core::client::{ApiError, ClientImpl};
     use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
+    use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::{create_account, get_account};
     use reqwest::Method;
     use rsa::RSAPublicKey;
@@ -22,16 +23,17 @@ mod server_version_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> = api_request(
-            &generated_account.api_url,
-            Method::GET,
-            "get-public-key",
-            &GetPublicKeyRequest {
-                username: String::from(&account.username),
-                client_version: "0.0.0".to_string(),
-            },
-        )
-        .map(|r: GetPublicKeyResponse| r.key);
+        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
+            ClientImpl::<RSAImpl<ClockImpl>>::api_request(
+                &generated_account.api_url,
+                Method::GET,
+                "get-public-key",
+                &GetPublicKeyRequest {
+                    username: String::from(&account.username),
+                    client_version: "0.0.0".to_string(),
+                },
+            )
+            .map(|r: GetPublicKeyResponse| r.key);
 
         match result {
             Ok(_) => {

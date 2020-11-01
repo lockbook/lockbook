@@ -3,6 +3,7 @@ use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 
 use crate::model::file_metadata::FileMetadata;
+use crate::service::crypto_service::PubKeyCryptoService;
 use crate::CORE_CODE_VERSION;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
@@ -18,26 +19,6 @@ pub enum ApiError<E> {
     ReceiveFailed(ReqwestError),
     Deserialize(serde_json::error::Error),
     Api(E),
-}
-
-pub fn api_request<Request: Serialize, Response: DeserializeOwned, E: DeserializeOwned>(
-    api_url: &str,
-    method: Method,
-    endpoint: &str,
-    request: &Request,
-) -> Result<Response, ApiError<E>> {
-    let client = ReqwestClient::new();
-    let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
-    let serialized_response = client
-        .request(method, format!("{}/{}", api_url, endpoint).as_str())
-        .body(serialized_request)
-        .send()
-        .map_err(ApiError::SendFailed)?
-        .text()
-        .map_err(ApiError::ReceiveFailed)?;
-    let response: Result<Response, E> =
-        serde_json::from_str(&serialized_response).map_err(ApiError::Deserialize)?;
-    response.map_err(ApiError::Api)
 }
 
 // TODO: sign requests
@@ -136,14 +117,39 @@ pub trait Client {
     ) -> Result<GetUsageResponse, ApiError<GetUsageError>>;
 }
 
-pub struct ClientImpl;
-impl Client for ClientImpl {
+pub struct ClientImpl<Crypto: PubKeyCryptoService> {
+    _crypto: Crypto,
+}
+
+impl<Crypto: PubKeyCryptoService> ClientImpl<Crypto> {
+    pub fn api_request<Request: Serialize, Response: DeserializeOwned, E: DeserializeOwned>(
+        api_url: &str,
+        method: Method,
+        endpoint: &str,
+        request: &Request,
+    ) -> Result<Response, ApiError<E>> {
+        let client = ReqwestClient::new();
+        let serialized_request = serde_json::to_string(&request).map_err(ApiError::Serialize)?;
+        let serialized_response = client
+            .request(method, format!("{}/{}", api_url, endpoint).as_str())
+            .body(serialized_request)
+            .send()
+            .map_err(ApiError::SendFailed)?
+            .text()
+            .map_err(ApiError::ReceiveFailed)?;
+        let response: Result<Response, E> =
+            serde_json::from_str(&serialized_response).map_err(ApiError::Deserialize)?;
+        response.map_err(ApiError::Api)
+    }
+}
+
+impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
     fn get_document(
         api_url: &str,
         id: Uuid,
         content_version: u64,
     ) -> Result<EncryptedDocument, ApiError<GetDocumentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::GET,
             "get-document",
@@ -162,7 +168,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
         new_content: EncryptedDocument,
     ) -> Result<u64, ApiError<ChangeDocumentContentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::PUT,
             "change-document-content",
@@ -185,7 +191,7 @@ impl Client for ClientImpl {
         content: EncryptedDocument,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateDocumentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::POST,
             "create-document",
@@ -207,7 +213,7 @@ impl Client for ClientImpl {
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::DELETE,
             "delete-document",
@@ -228,7 +234,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
         new_folder_access: FolderAccessInfo,
     ) -> Result<u64, ApiError<MoveDocumentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::PUT,
             "move-document",
@@ -250,7 +256,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
         new_name: &str,
     ) -> Result<u64, ApiError<RenameDocumentError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::PUT,
             "rename-document",
@@ -272,7 +278,7 @@ impl Client for ClientImpl {
         parent: Uuid,
         parent_access_key: FolderAccessInfo,
     ) -> Result<u64, ApiError<CreateFolderError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::POST,
             "create-folder",
@@ -293,7 +299,7 @@ impl Client for ClientImpl {
         id: Uuid,
         old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::DELETE,
             "delete-folder",
@@ -314,7 +320,7 @@ impl Client for ClientImpl {
         new_parent: Uuid,
         new_access_keys: FolderAccessInfo,
     ) -> Result<u64, ApiError<MoveFolderError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::PUT,
             "move-folder",
@@ -336,7 +342,7 @@ impl Client for ClientImpl {
         old_metadata_version: u64,
         new_name: &str,
     ) -> Result<u64, ApiError<RenameFolderError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::PUT,
             "rename-folder",
@@ -354,7 +360,7 @@ impl Client for ClientImpl {
         api_url: &str,
         username: &str,
     ) -> Result<RSAPublicKey, ApiError<GetPublicKeyError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::GET,
             "get-public-key",
@@ -370,7 +376,7 @@ impl Client for ClientImpl {
         username: &str,
         since_metadata_version: u64,
     ) -> Result<Vec<FileMetadata>, ApiError<GetUpdatesError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::GET,
             "get-updates",
@@ -390,7 +396,7 @@ impl Client for ClientImpl {
         parent_access_key: FolderAccessInfo,
         user_access_key: EncryptedUserAccessKey,
     ) -> Result<u64, ApiError<NewAccountError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::POST,
             "new-account",
@@ -409,7 +415,7 @@ impl Client for ClientImpl {
         api_url: &str,
         username: &str,
     ) -> Result<GetUsageResponse, ApiError<GetUsageError>> {
-        api_request(
+        Self::api_request(
             api_url,
             Method::GET,
             "get-usage",

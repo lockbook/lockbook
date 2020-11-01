@@ -2,15 +2,15 @@ mod integration_test;
 
 #[cfg(test)]
 mod new_account_tests {
+    use crate::assert_matches;
     use crate::integration_test::{aes_encrypt, generate_account, rsa_encrypt};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
+    use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
-    // use rsa::{BigUint, RSAPrivateKey};
     use uuid::Uuid;
-
-    use crate::assert_matches;
 
     #[test]
     fn new_account() {
@@ -19,7 +19,7 @@ mod new_account_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -41,7 +41,7 @@ mod new_account_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -56,7 +56,7 @@ mod new_account_tests {
         );
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 account.private_key.to_public_key(),
@@ -80,7 +80,7 @@ mod new_account_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &(account.username.clone() + " "),
                 account.private_key.to_public_key(),
@@ -104,7 +104,7 @@ mod new_account_tests {
     //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::new_account(
+    //         ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
     //                 //             &account.username,
     //             &sign(&account),
     //             RSAPrivateKey::from_components(
@@ -137,7 +137,7 @@ mod new_account_tests {
     //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::new_account(
+    //         ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
     //                 //             &account.username,
     //             &SignedValue {
     //                 content: String::default(),

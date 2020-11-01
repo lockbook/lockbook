@@ -2,14 +2,14 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_public_key_tests {
+    use crate::assert_matches;
     use crate::integration_test::{aes_encrypt, generate_account, rsa_encrypt};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
+    use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::{AESImpl, RSAImpl, SymmetricCryptoService};
     use uuid::Uuid;
-
-    use crate::assert_matches;
 
     #[test]
     fn get_public_key() {
@@ -19,7 +19,7 @@ mod get_public_key_tests {
         let key = account.private_key.to_public_key();
 
         assert_matches!(
-            ClientImpl::new_account(
+            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
                 &account.api_url,
                 &account.username,
                 key.clone(),
@@ -33,7 +33,9 @@ mod get_public_key_tests {
             Ok(_)
         );
 
-        let key2 = ClientImpl::get_public_key(&account.api_url, &account.username).unwrap();
+        let key2 =
+            ClientImpl::<RSAImpl<ClockImpl>>::get_public_key(&account.api_url, &account.username)
+                .unwrap();
 
         assert_eq!(key, key2);
     }
@@ -43,7 +45,7 @@ mod get_public_key_tests {
         let account = generate_account();
 
         assert_matches!(
-            ClientImpl::get_public_key(&account.api_url, &account.username),
+            ClientImpl::<RSAImpl::<ClockImpl>>::get_public_key(&account.api_url, &account.username),
             Err(ApiError::<GetPublicKeyError>::Api(
                 GetPublicKeyError::UserNotFound
             ))
