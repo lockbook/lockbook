@@ -139,6 +139,9 @@
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_bytes_usage">Bytes used</string>
     <string name="handwriting_editor_erase">Erase</string>
+    <string name="menu_list_files_rename">Rename file</string>
+    <string name="menu_list_files_delete">Delete file</string>
+    <string name="menu_list_files_info">File info</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

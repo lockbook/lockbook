@@ -23,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/DarkBlue">
         <activity
-            android:name=".InitialLaunchFigureOuter"
+            android:name=".screen.InitialLaunchFigureOuter"
             android:noHistory="true"
             android:theme="@style/DarkBlue.NoActionBar">
             <intent-filter>
@@ -32,22 +32,22 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".login.WelcomeActivity"
+            android:name=".screen.WelcomeActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
-            android:name=".login.NewAccountActivity"
+            android:name=".screen.NewAccountActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
-            android:name=".login.ImportAccountActivity"
+            android:name=".screen.ImportAccountActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity
-            android:name=".loggedin.editor.HandwritingEditorActivity"
+            android:name=".screen.HandwritingEditorActivity"
             android:theme="@style/DarkBlue.NoActionBar" />
-        <activity android:name=".loggedin.listfiles.ListFilesActivity" />
-        <activity android:name=".loggedin.settings.SettingsActivity" />
-        <activity android:name=".loggedin.popupinfo.PopUpInfoActivity" />
-        <activity android:name=".loggedin.editor.TextEditorActivity" />
-        <activity android:name=".loggedin.logs.LogActivity" />
+        <activity android:name=".screen.ListFilesActivity" />
+        <activity android:name=".screen.SettingsActivity" />
+        <activity android:name=".screen.PopUpInfoActivity" />
+        <activity android:name=".screen.TextEditorActivity" />
+        <activity android:name=".screen.LogActivity" />
     </application>
 
 </manifest>
