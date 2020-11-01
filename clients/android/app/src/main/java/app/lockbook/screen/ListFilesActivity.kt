@@ -25,6 +25,7 @@ import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
+    private var moreMenuShowing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,6 +132,26 @@ class ListFilesActivity : AppCompatActivity() {
             }
             else -> false
         }.exhaustive
+    }
+
+    fun switchMenu() {
+        if(moreMenuShowing) {
+            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_settings)?.isVisible = true
+        } else {
+            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_settings)?.isVisible = false
+        }
+
+        moreMenuShowing = !moreMenuShowing
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {

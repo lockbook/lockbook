@@ -19,6 +19,7 @@ import app.lockbook.modelfactory.ListFilesViewModelFactory
 import app.lockbook.model.FilesAdapter
 import app.lockbook.util.EditableFile
 import app.lockbook.util.FileMetadata
+import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
@@ -343,13 +344,11 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun moreOptionsMenu(fileMetadata: FileMetadata) {
-        val intent = Intent(context, PopUpInfoActivity::class.java)
-        intent.putExtra("name", fileMetadata.name)
-        intent.putExtra("id", fileMetadata.id)
-        intent.putExtra("fileType", fileMetadata.fileType.toString())
-        intent.putExtra("metadataVersion", fileMetadata.metadataVersion.toString())
-        intent.putExtra("contentVersion", fileMetadata.contentVersion.toString())
-        startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
+        if(activity is ListFilesActivity) {
+            (activity as ListFilesActivity).switchMenu()
+        } else {
+            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
+        }
     }
 
     private fun navigateToHandwritingEditor(editableFile: EditableFile) {
