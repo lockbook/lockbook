@@ -4,6 +4,15 @@ use crate::model::file_metadata::FileMetadata;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use serde::de::DeserializeOwned;
+use reqwest::Method;
+
+pub trait Request: Serialize {
+    type Response: DeserializeOwned;
+    type Error: DeserializeOwned;
+    fn method() -> Method;
+    fn endpoint() -> &'static str;
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
@@ -30,6 +39,17 @@ pub enum ChangeDocumentContentError {
     EditConflict,
     DocumentDeleted,
     ClientUpdateRequired,
+}
+
+impl Request for ChangeDocumentContentRequest {
+    type Response = ChangeDocumentContentResponse;
+    type Error = ChangeDocumentContentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "change-document-content"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -61,6 +81,17 @@ pub enum CreateDocumentError {
     ClientUpdateRequired,
 }
 
+impl Request for CreateDocumentRequest {
+    type Response = CreateDocumentResponse;
+    type Error = CreateDocumentError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        "create-document"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
     pub username: String,
@@ -85,6 +116,17 @@ pub enum DeleteDocumentError {
     EditConflict,
     DocumentDeleted,
     ClientUpdateRequired,
+}
+
+impl Request for DeleteDocumentRequest {
+    type Response = DeleteDocumentResponse;
+    type Error = DeleteDocumentError;
+    fn method() -> Method {
+        Method::DELETE
+    }
+    fn endpoint() -> &'static str {
+        "delete-document"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -117,6 +159,17 @@ pub enum MoveDocumentError {
     ClientUpdateRequired,
 }
 
+impl Request for MoveDocumentRequest {
+    type Response = MoveDocumentResponse;
+    type Error = MoveDocumentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "move-document"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
     pub username: String,
@@ -145,6 +198,17 @@ pub enum RenameDocumentError {
     ClientUpdateRequired,
 }
 
+impl Request for RenameDocumentRequest {
+    type Response = RenameDocumentResponse;
+    type Error = RenameDocumentError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "rename-document"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentRequest {
     pub id: Uuid,
@@ -161,6 +225,17 @@ pub enum GetDocumentError {
     InternalError,
     DocumentNotFound,
     ClientUpdateRequired,
+}
+
+impl Request for GetDocumentRequest {
+    type Response = GetDocumentResponse;
+    type Error = GetDocumentError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-document"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -191,6 +266,17 @@ pub enum CreateFolderError {
     ClientUpdateRequired,
 }
 
+impl Request for CreateFolderRequest {
+    type Response = CreateFolderResponse;
+    type Error = CreateFolderError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        "create-folder"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
     pub username: String,
@@ -215,6 +301,17 @@ pub enum DeleteFolderError {
     EditConflict,
     FolderDeleted,
     ClientUpdateRequired,
+}
+
+impl Request for DeleteFolderRequest {
+    type Response = DeleteFolderResponse;
+    type Error = DeleteFolderError;
+    fn method() -> Method {
+        Method::DELETE
+    }
+    fn endpoint() -> &'static str {
+        "delete-folder"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -247,6 +344,17 @@ pub enum MoveFolderError {
     ClientUpdateRequired,
 }
 
+impl Request for MoveFolderRequest {
+    type Response = MoveFolderResponse;
+    type Error = MoveFolderError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "move-folder"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
     pub username: String,
@@ -275,6 +383,17 @@ pub enum RenameFolderError {
     ClientUpdateRequired,
 }
 
+impl Request for RenameFolderRequest {
+    type Response = RenameFolderResponse;
+    type Error = RenameFolderError;
+    fn method() -> Method {
+        Method::PUT
+    }
+    fn endpoint() -> &'static str {
+        "rename-folder"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyRequest {
     pub username: String,
@@ -291,6 +410,17 @@ pub enum GetPublicKeyError {
     InvalidUsername,
     UserNotFound,
     ClientUpdateRequired,
+}
+
+impl Request for GetPublicKeyRequest {
+    type Response = GetPublicKeyResponse;
+    type Error = GetPublicKeyError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-public-key"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -318,6 +448,17 @@ pub enum GetUsageError {
     ClientUpdateRequired,
 }
 
+impl Request for GetUsageRequest {
+    type Response = GetUsageResponse;
+    type Error = GetUsageError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-usage"
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub username: String,
@@ -338,6 +479,17 @@ pub enum GetUpdatesError {
     UserNotFound,
     InvalidUsername,
     ClientUpdateRequired,
+}
+
+impl Request for GetUpdatesRequest {
+    type Response = GetUpdatesResponse;
+    type Error = GetUpdatesError;
+    fn method() -> Method {
+        Method::GET
+    }
+    fn endpoint() -> &'static str {
+        "get-updates"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -365,4 +517,15 @@ pub enum NewAccountError {
     InvalidUsername,
     FileIdTaken,
     ClientUpdateRequired,
+}
+
+impl Request for NewAccountRequest {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+    fn method() -> Method {
+        Method::POST
+    }
+    fn endpoint() -> &'static str {
+        "new-account"
+    }
 }
