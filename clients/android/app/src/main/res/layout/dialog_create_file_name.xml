@@ -10,6 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         style="@style/Text.Medium"
+        android:fontFamily="sans-serif"
         android:paddingTop="8dp"
         android:textAlignment="center"
         android:text="@string/new_file_title" />
