@@ -34,6 +34,30 @@
     </item>
 
     <item
+        android:id="@+id/menu_list_files_rename"
+        android:icon="@drawable/ic_baseline_text_format_24"
+        android:orderInCategory="3"
+        android:title="@string/menu_list_files_rename"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_delete"
+        android:icon="@drawable/ic_baseline_delete_24"
+        android:orderInCategory="2"
+        android:title="@string/menu_list_files_delete"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_info"
+        android:icon="@drawable/ic_baseline_info_24"
+        android:orderInCategory="1"
+        android:title="@string/menu_list_files_info"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
         android:icon="@drawable/ic_baseline_more_vert_24"
         android:orderInCategory="2"
         app:showAsAction="always"
@@ -42,6 +66,12 @@
             <item
                 android:id="@+id/menu_list_files_settings"
                 android:title="@string/settings_title"
+                app:showAsAction="always" />
+
+            <item
+                android:id="@+id/menu_list_files_move"
+                android:title="@string/settings_title"
+                android:visible="false"
                 app:showAsAction="always" />
         </menu>
     </item>
