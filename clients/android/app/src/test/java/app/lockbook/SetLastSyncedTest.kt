@@ -40,7 +40,7 @@ class SetLastSyncedTest {
         val lastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter).parse(setLastSynced("", 0))
 
-        assertType<SetLastSyncedError.UnexpectedError>(
+        assertType<SetLastSyncedError.Unexpected>(
             lastSyncedResult?.component2()
         )
     }

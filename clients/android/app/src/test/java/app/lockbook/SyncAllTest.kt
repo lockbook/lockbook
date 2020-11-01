@@ -77,7 +77,7 @@ class SyncAllTest {
         val syncResult: Result<Unit, SyncAllError>? =
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
 
-        assertType<SyncAllError.UnexpectedError>(
+        assertType<SyncAllError.Unexpected>(
             syncResult?.component2()
         )
     }

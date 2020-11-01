@@ -96,7 +96,7 @@ class ReadDocumentTest {
         val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
 
-        assertType<ReadDocumentError.UnexpectedError>(
+        assertType<ReadDocumentError.Unexpected>(
             getDocumentResult?.component2()
         )
     }

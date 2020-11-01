@@ -8,6 +8,7 @@ use jni::JNIEnv;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::json_interface::translate;
 use crate::model::account::Account;
 use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
@@ -15,14 +16,21 @@ use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
-    get_account, get_children, get_file_by_id, get_root, import_account, init_logger, insert_file,
-    move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error,
+    get_account, get_children, get_db_state, get_file_by_id, get_root, get_usage, import_account,
+    init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
+    sync_all, write_document, Error,
 };
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
         serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
     env.new_string(serialized_result)
+        .expect("Couldn't create JString from rust string!")
+        .into_inner()
+}
+
+fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
+    env.new_string(result)
         .expect("Couldn't create JString from rust string!")
         .into_inner()
 }
@@ -46,7 +54,97 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
 
     let path = Path::new(&absolute_path);
 
-    serialize_to_jstring(&env, init_logger(path))
+    string_to_jstring(&env, translate(init_logger(path)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env.get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
+            );
+        }
+    }
+    .into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(get_usage(&deserialized_config)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env.get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
+            );
+        }
+    }
+    .into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(get_db_state(&deserialized_config)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let serialized_config: String = match env.get_string(jconfig) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't get config out of JNI!".to_string()),
+            );
+        }
+    }
+    .into();
+
+    let deserialized_config: Config = match serde_json::from_str(&serialized_config) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return serialize_to_jstring(
+                &env,
+                Error::<()>::Unexpected("Couldn't deserialize config!".to_string()),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(migrate_db(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -100,9 +198,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        create_account(&deserialized_config, &username, &api_url),
+        translate(create_account(&deserialized_config, &username, &api_url)),
     )
 }
 
@@ -145,9 +243,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        import_account(&deserialized_config, serialized_account.as_str()),
+        translate(import_account(
+            &deserialized_config,
+            serialized_account.as_str(),
+        )),
     )
 }
 
@@ -178,7 +279,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
         }
     };
 
-    serialize_to_jstring(&env, export_account(&deserialized_config))
+    string_to_jstring(&env, translate(export_account(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -208,7 +309,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
         }
     };
 
-    serialize_to_jstring(&env, get_account(&deserialized_config))
+    string_to_jstring(&env, translate(get_account(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -239,9 +340,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        set_last_synced(&deserialized_config, jlastsynced as u64),
+        translate(set_last_synced(&deserialized_config, jlastsynced as u64)),
     )
 }
 
@@ -272,7 +373,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
         }
     };
 
-    serialize_to_jstring(&env, get_root(&deserialized_config))
+    string_to_jstring(&env, translate(get_root(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -324,7 +425,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         }
     };
 
-    serialize_to_jstring(&env, get_children(&deserialized_config, deserialized_id))
+    string_to_jstring(
+        &env,
+        translate(get_children(&deserialized_config, deserialized_id)),
+    )
 }
 
 #[no_mangle]
@@ -376,7 +480,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         }
     };
 
-    serialize_to_jstring(&env, get_file_by_id(&deserialized_config, deserialized_id))
+    string_to_jstring(
+        &env,
+        translate(get_file_by_id(&deserialized_config, deserialized_id)),
+    )
 }
 
 #[no_mangle]
@@ -429,9 +536,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
             }
         };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        insert_file(&deserialized_config, deserialized_file_metadata),
+        translate(insert_file(
+            &deserialized_config,
+            deserialized_file_metadata,
+        )),
     )
 }
 
@@ -496,9 +606,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        rename_file(&deserialized_config, deserialized_id, name.as_str()),
+        translate(rename_file(
+            &deserialized_config,
+            deserialized_id,
+            name.as_str(),
+        )),
     )
 }
 
@@ -585,14 +699,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        create_file(
+        translate(create_file(
             &deserialized_config,
             name.as_str(),
             deserialized_id,
             deserialized_filetype,
-        ),
+        )),
     )
 }
 
@@ -645,7 +759,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         }
     };
 
-    serialize_to_jstring(&env, delete_file(&deserialized_config, deserialized_id))
+    string_to_jstring(
+        &env,
+        translate(delete_file(&deserialized_config, deserialized_id)),
+    )
 }
 
 #[no_mangle]
@@ -697,7 +814,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         }
     };
 
-    serialize_to_jstring(&env, read_document(&deserialized_config, deserialized_id))
+    string_to_jstring(
+        &env,
+        translate(read_document(&deserialized_config, deserialized_id)),
+    )
 }
 
 #[no_mangle]
@@ -771,9 +891,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        write_document(&deserialized_config, deserialized_id, &deserialized_content),
+        translate(write_document(
+            &deserialized_config,
+            deserialized_id,
+            &deserialized_content,
+        )),
     )
 }
 
@@ -848,13 +972,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        move_file(
+        translate(move_file(
             &deserialized_config,
             deserialized_id,
             deserialized_parent_id,
-        ),
+        )),
     )
 }
 
@@ -885,7 +1009,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         }
     };
 
-    serialize_to_jstring(&env, sync_all(&deserialized_config))
+    string_to_jstring(&env, translate(sync_all(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -915,7 +1039,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
         }
     };
 
-    serialize_to_jstring(&env, calculate_work(&deserialized_config))
+    string_to_jstring(&env, translate(calculate_work(&deserialized_config)))
 }
 
 #[no_mangle]
@@ -989,12 +1113,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         }
     };
 
-    serialize_to_jstring(
+    string_to_jstring(
         &env,
-        execute_work(
+        translate(execute_work(
             &deserialized_config,
             &deserialized_account,
             deserialized_work_unit,
-        ),
+        )),
     )
 }

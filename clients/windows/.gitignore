@@ -5,3 +5,5 @@ AppPackages/
 BundleArtifacts/
 windows.csproj.user
 *.pfx
+packages/
+TestResults/

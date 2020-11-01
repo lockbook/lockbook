@@ -6,8 +6,8 @@
 
     <PreferenceCategory
         android:key="view_logs_title"
-        android:title="Debug"
-        app:iconSpaceReserved="false">
+        android:title="@string/settings_preference_debug"
+        android:icon="@drawable/ic_baseline_bug_report_24">
         <Preference
             android:key="view_logs"
             android:title="@string/settings_preference_logs"
@@ -19,9 +19,19 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="usage_category"
+        android:title="@string/settings_preference_usage"
+        android:icon="@drawable/ic_baseline_data_usage_24">
+        <Preference
+            android:key="usage_amount"
+            android:title="@string/settings_bytes_usage"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="biometric_category"
         android:title="@string/settings_preference_title_biometrics"
-        app:iconSpaceReserved="false">
+        android:icon="@drawable/ic_baseline_fingerprint_24">
         <ListPreference
             android:defaultValue="@string/biometric_none_value"
             android:entries="@array/settings_biometric_names"
@@ -34,7 +44,7 @@
 
     <PreferenceCategory
         android:title="@string/settings_preference_title_account"
-        app:iconSpaceReserved="false">
+        android:icon="@drawable/ic_baseline_import_export_24">
         <Preference
             android:key="export_account_raw"
             android:title="@string/settings_export_account_raw"
@@ -49,7 +59,7 @@
 
     <PreferenceCategory
         android:title="@string/settings_preference_title_background_sync"
-        app:iconSpaceReserved="false">
+        android:icon="@drawable/ic_baseline_sync_24">
 
         <SwitchPreference
             android:defaultValue="true"
@@ -69,7 +79,7 @@
 
     <PreferenceCategory
         android:title="@string/settings_preference_title_incremental_sync"
-        app:iconSpaceReserved="false">
+        android:icon="@drawable/ic_baseline_sync_alt_24">
 
         <SwitchPreference
             android:defaultValue="false"

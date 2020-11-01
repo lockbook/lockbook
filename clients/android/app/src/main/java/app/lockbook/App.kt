@@ -1,6 +1,7 @@
 package app.lockbook
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
@@ -17,7 +18,6 @@ import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
-import kotlinx.coroutines.*
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -27,6 +27,8 @@ class App : Application() {
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver())
         instance = this
+
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 
     companion object {

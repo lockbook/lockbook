@@ -1,15 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/text_editor_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="5dp">
+    android:paddingHorizontal="5dp">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/text_editor_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="@style/DarkBlue.Actionbar"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_editor_absoluteX="5dp" />
 
     <ScrollView
         android:id="@+id/text_editor_scroller"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toTopOf="@+id/markdown_toolbar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
         <EditText
             android:id="@+id/text_editor"
@@ -20,15 +36,108 @@
             android:gravity="top|start"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences"
-            android:labelFor="@id/text_editor"/>
+            android:labelFor="@id/text_editor"
+            android:textColor="@color/textColor" />
 
     </ScrollView>
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/markdown_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/menu_markdown_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:backgroundTint="?attr/colorPrimaryDark"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_title"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_title_24" />
+
+            <ImageButton
+                android:id="@+id/menu_markdown_bold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:backgroundTint="?attr/colorPrimaryDark"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_bold"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_format_bold_24" />
+
+            <ImageButton
+                android:id="@+id/menu_markdown_italics"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:backgroundTint="?attr/colorPrimaryDark"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_italics"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_format_italic_24" />
+
+            <ImageButton
+                android:id="@+id/menu_markdown_image"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:backgroundTint="?attr/colorPrimaryDark"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_image"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_image_24" />
+
+            <ImageButton
+                android:id="@+id/menu_markdown_link"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_link"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_link_24" />
+
+            <ImageButton
+                android:id="@+id/menu_markdown_code"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:backgroundTint="?attr/colorPrimaryDark"
+                android:clickable="true"
+                android:contentDescription="@string/menu_markdown_code"
+                android:focusable="true"
+                android:src="@drawable/ic_baseline_code_24" />
+
+        </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
 
     <ScrollView
         android:id="@+id/markdown_viewer_scroller"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone">
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
         <TextView
             android:id="@+id/markdown_viewer"
@@ -38,4 +147,6 @@
             android:gravity="top|start" />
 
     </ScrollView>
-</LinearLayout>
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

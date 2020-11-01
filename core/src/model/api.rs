@@ -119,6 +119,7 @@ pub enum MoveDocumentError {
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
+    ParentNotFound,
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
@@ -200,6 +201,7 @@ pub enum CreateFolderError {
     UserNotFound,
     FileIdTaken,
     FolderPathTaken,
+    ParentNotFound,
     ClientUpdateRequired,
 }
 
@@ -256,6 +258,7 @@ pub enum MoveFolderError {
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
+    ParentNotFound,
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
