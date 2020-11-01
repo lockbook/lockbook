@@ -20,8 +20,8 @@ pub enum ApiError<E> {
     Api(E),
 }
 
-pub trait Request : Serialize{
-    type Response : DeserializeOwned;
+pub trait Request: Serialize {
+    type Response: DeserializeOwned;
     type Error: DeserializeOwned;
 }
 
