@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -15,41 +14,31 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
+import app.lockbook.loggedin.editor.HandwritingEditorActivity
+import app.lockbook.loggedin.editor.TextEditorActivity
 import app.lockbook.loggedin.popupinfo.PopUpInfoActivity
-import app.lockbook.loggedin.texteditor.TextEditorActivity
 import app.lockbook.utils.EditableFile
 import app.lockbook.utils.FileMetadata
+import app.lockbook.utils.Messages.UNEXPECTED_ERROR
+import app.lockbook.utils.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.utils.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
+import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     private lateinit var listFilesViewModel: ListFilesViewModel
+    private lateinit var alertDialog: AlertDialog
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(list_files_layout)
+        ).setViewToMove(list_files_frame_layout)
     }
-    private val offlineSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_offline_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private val preSyncSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_presync_snackbar, "n")
-        )
-            .setSwipeToDismiss(true)
-            .setAllowUserInput(true)
-    }
+
     private val syncSnackProgressBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_HORIZONTAL,
@@ -59,15 +48,6 @@ class ListFilesFragment : Fragment() {
             .setSwipeToDismiss(false)
             .setAllowUserInput(true)
     }
-    private val syncUpToDateSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            resources.getString(R.string.list_files_sync_finished_snackbar)
-        )
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-    private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -146,6 +126,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.navigateToHandwritingEditor.observe(
+            viewLifecycleOwner,
+            { editableFile ->
+                navigateToHandwritingEditor(editableFile)
+            }
+        )
+
         listFilesViewModel.navigateToFileEditor.observe(
             viewLifecycleOwner,
             { editableFile ->
@@ -177,14 +164,32 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
             }
         )
 
         listFilesViewModel.errorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                errorHasOccurred(errorText)
+                if (container != null) {
+                    errorHasOccurred(container, errorText)
+                }
+            }
+        )
+
+        listFilesViewModel.unexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
+            }
+        )
+
+        listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner,
+            { errorText ->
+                unexpectedErrorHasOccurred(errorText)
             }
         )
 
@@ -198,9 +203,8 @@ class ListFilesFragment : Fragment() {
 
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
-        if (listFilesViewModel.isDialogOpen) {
-            Timber.e(listFilesViewModel.alertDialogFileName)
-            createFileNameDialog(listFilesViewModel.alertDialogFileName)
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            createFileNameDialog(listFilesViewModel.dialogStatus.alertDialogFileName)
         }
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
@@ -213,8 +217,8 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setUpBeforeConfigChange() {
-        if (listFilesViewModel.isDialogOpen) {
-            listFilesViewModel.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+        if (listFilesViewModel.dialogStatus.isDialogOpen) {
+            listFilesViewModel.dialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
             alertDialog.dismiss()
         }
     }
@@ -245,23 +249,30 @@ class ListFilesFragment : Fragment() {
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            snackProgressBarManager.show(syncUpToDateSnackBar, SnackProgressBarManager.LENGTH_LONG)
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(R.string.list_files_sync_finished_snackbar),
+                Snackbar.LENGTH_SHORT
+            ).show()
         } else {
-            snackProgressBarManager.show(
-                preSyncSnackBar.setMessage(
-                    resources.getString(
-                        R.string.list_files_presync_snackbar,
-                        amountToSync.toString()
-                    )
+            Snackbar.make(
+                fragment_list_files,
+                resources.getString(
+                    R.string.list_files_presync_snackbar,
+                    amountToSync.toString()
                 ),
-                SnackProgressBarManager.LENGTH_SHORT
-            )
+                Snackbar.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun showOfflineSnackBar() {
         snackProgressBarManager.dismiss()
-        snackProgressBarManager.show(offlineSnackBar, SnackProgressBarManager.LENGTH_SHORT)
+        Snackbar.make(
+            fragment_list_files,
+            resources.getString(R.string.list_files_offline_snackbar),
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -278,7 +289,7 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.hide()
         list_files_fab_document.hide()
         list_files_refresh.alpha = 1f
-        list_files_layout.isClickable = false
+        list_files_frame_layout.isClickable = false
     }
 
     private fun showFABMenu() {
@@ -287,8 +298,8 @@ class ListFilesFragment : Fragment() {
         list_files_fab_folder.show()
         list_files_fab_document.show()
         list_files_refresh.alpha = 0.7f
-        list_files_layout.isClickable = true
-        list_files_layout.setOnClickListener {
+        list_files_frame_layout.isClickable = true
+        list_files_frame_layout.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
     }
@@ -305,12 +316,12 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
-                listFilesViewModel.isDialogOpen = false
+                listFilesViewModel.dialogStatus.isDialogOpen = false
             }
             .create()
 
@@ -329,7 +340,6 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, TextEditorActivity::class.java)
         intent.putExtra("name", editableFile.name)
         intent.putExtra("id", editableFile.id)
-        intent.putExtra("contents", editableFile.contents)
         startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
     }
 
@@ -337,14 +347,28 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, PopUpInfoActivity::class.java)
         intent.putExtra("name", fileMetadata.name)
         intent.putExtra("id", fileMetadata.id)
-        intent.putExtra("fileType", fileMetadata.file_type.toString())
-        intent.putExtra("metadataVersion", fileMetadata.metadata_version.toString())
-        intent.putExtra("contentVersion", fileMetadata.content_version.toString())
+        intent.putExtra("fileType", fileMetadata.fileType.toString())
+        intent.putExtra("metadataVersion", fileMetadata.metadataVersion.toString())
+        intent.putExtra("contentVersion", fileMetadata.contentVersion.toString())
         startActivityForResult(intent, POP_UP_INFO_REQUEST_CODE)
     }
 
-    private fun errorHasOccurred(errorText: String) {
-        Toast.makeText(context, errorText, Toast.LENGTH_LONG).show()
+    private fun navigateToHandwritingEditor(editableFile: EditableFile) {
+        val intent = Intent(context, HandwritingEditorActivity::class.java)
+        intent.putExtra("name", editableFile.name)
+        intent.putExtra("id", editableFile.id)
+        startActivityForResult(intent, HANDWRITING_EDITOR_REQUEST_CODE)
+    }
+
+    private fun errorHasOccurred(view: ViewGroup, error: String) {
+        Snackbar.make(view, error, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun unexpectedErrorHasOccurred(error: String) {
+        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+            .setTitle(UNEXPECTED_ERROR)
+            .setMessage(error)
+            .show()
     }
 
     fun onBackPressed(): Boolean {
