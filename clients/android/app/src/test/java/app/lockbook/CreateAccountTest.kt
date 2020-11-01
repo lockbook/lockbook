@@ -40,14 +40,14 @@ class CreateAccountTest {
         )
         config = Config(createRandomPath())
 
-        assertType<CoreError.UsernameTaken>(
+        assertType<CreateAccountError.UsernameTaken>(
             CoreModel.generateAccount(config, username).component2()
         )
     }
 
     @Test
     fun createAccountInvalidUsername() {
-        assertType<CoreError.InvalidUsername>(
+        assertType<CreateAccountError.InvalidUsername>(
             CoreModel.generateAccount(config, "!@#$%^&*()").component2()
         )
     }
@@ -57,18 +57,18 @@ class CreateAccountTest {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
-        assertType<CoreError.AccountExistsAlready>(
+        assertType<CreateAccountError.AccountExistsAlready>(
             CoreModel.generateAccount(config, generateAlphaString()).component2()
         )
     }
 
     @Test
     fun createAccountUnexpectedError() {
-        val createAccountOk: Result<Unit, CoreError>? =
+        val createAccountOk: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount("", "", API_URL))
 
-        assertType<CoreError.Unexpected>(
+        assertType<CreateAccountError.Unexpected>(
             createAccountOk?.component2()
         )
     }

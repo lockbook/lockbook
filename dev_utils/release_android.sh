@@ -79,7 +79,7 @@ echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag android-$current_version \
+	--tag $current_version \
 	--name "Lockbook Android" \
 	--description "Android version of lockbook." \
 	--pre-release
@@ -87,7 +87,7 @@ github-release release \
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag android-$current_version \
+	--tag $current_version \
 	--name "lockbook-android.apk" \
 	--file lockbook-android.apk
 
@@ -96,8 +96,12 @@ echo $sha_description >> ANDROID-SHA256
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag android-$current_version \
+	--tag $current_version \
 	--name "android-sha256-$sha" \
 	--file ANDROID-SHA256
+
+echo "Cleaning up old apks"
+cd ../../../../../
+./gradlew clean
 
 echo "Verify this sha is part of the realse on github: $sha"
