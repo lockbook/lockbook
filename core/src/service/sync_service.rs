@@ -509,14 +509,7 @@ impl<
                         let version = ApiClient::request(
                             &account.api_url,
                             &account.private_key,
-                            CreateDocumentRequest {
-                                username: account.username.clone(),
-                                id: metadata.id,
-                                name: metadata.name.clone(),
-                                parent: metadata.parent,
-                                content,
-                                parent_access_key: metadata.folder_access_keys.clone()
-                            },
+                            CreateDocumentRequest::new(&account.username, &metadata, content),
                         )
                             .map_err(DocumentCreateError)?
                             .new_metadata_and_content_version;
@@ -531,13 +524,7 @@ impl<
                         let version = ApiClient::request(
                             &account.api_url,
                             &account.private_key,
-                            CreateFolderRequest {
-                                username: account.username.clone(),
-                                id: metadata.id,
-                                name: metadata.name.clone(),
-                                parent: metadata.parent,
-                                parent_access_key: metadata.folder_access_keys.clone()
-                            },
+                            CreateFolderRequest::new(&account.username, &metadata),
                         )
                             .map_err(FolderCreateError)?
                             .new_metadata_version;
@@ -555,12 +542,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                RenameDocumentRequest {
-                                    username: account.username.clone(),
-                                    id: metadata.id,
-                                    old_metadata_version: metadata.metadata_version,
-                                    new_name: metadata.name.clone()
-                                },
+                                RenameDocumentRequest::new(&account.username, &metadata),
                             )
                                 .map_err(DocumentRenameError)?
                                 .new_metadata_version
@@ -568,12 +550,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                RenameFolderRequest {
-                                    username: account.username.clone(),
-                                    id: metadata.id,
-                                    old_metadata_version: metadata.metadata_version,
-                                    new_name: metadata.name.clone()
-                                },
+                                RenameFolderRequest::new(&account.username, &metadata),
                             )
                                 .map_err(FolderRenameError)?
                                 .new_metadata_version
@@ -589,13 +566,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                MoveDocumentRequest {
-                                    username: account.username.clone(),
-                                    id: metadata.id,
-                                    old_metadata_version: metadata.metadata_version,
-                                    new_parent: metadata.parent,
-                                    new_folder_access: metadata.folder_access_keys.clone()
-                                },
+                                MoveDocumentRequest::new(&account.username, &metadata),
                             )
                                 .map_err(DocumentMoveError)?
                                 .new_metadata_version
@@ -603,13 +574,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                MoveFolderRequest {
-                                    username: account.username.clone(),
-                                    id: metadata.id,
-                                    old_metadata_version: metadata.metadata_version,
-                                    new_parent: metadata.parent,
-                                    new_folder_access: metadata.folder_access_keys.clone()
-                                },
+                                MoveFolderRequest::new(&account.username, &metadata),
                             )
                                 .map_err(FolderMoveError)?
                                 .new_metadata_version

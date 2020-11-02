@@ -1,4 +1,4 @@
-use crate::model::account::Username;
+use crate::model::account::{Username, Account};
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileMetadata;
 use rsa::RSAPublicKey;
@@ -81,6 +81,19 @@ pub enum CreateDocumentError {
     ClientUpdateRequired,
 }
 
+impl CreateDocumentRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata, content: EncryptedDocument) -> Self {
+        CreateDocumentRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            name: file_metadata.name.clone(),
+            parent: file_metadata.parent,
+            content,
+            parent_access_key: file_metadata.folder_access_keys.clone()
+        }
+    }
+}
+
 impl Request for CreateDocumentRequest {
     type Response = CreateDocumentResponse;
     type Error = CreateDocumentError;
@@ -159,6 +172,18 @@ pub enum MoveDocumentError {
     ClientUpdateRequired,
 }
 
+impl MoveDocumentRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+        MoveDocumentRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_parent: file_metadata.parent,
+            new_folder_access: file_metadata.folder_access_keys.clone()
+        }
+    }
+}
+
 impl Request for MoveDocumentRequest {
     type Response = MoveDocumentResponse;
     type Error = MoveDocumentError;
@@ -196,6 +221,17 @@ pub enum RenameDocumentError {
     EditConflict,
     DocumentPathTaken,
     ClientUpdateRequired,
+}
+
+impl RenameDocumentRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+        RenameDocumentRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_name: file_metadata.name.clone(),
+        }
+    }
 }
 
 impl Request for RenameDocumentRequest {
@@ -264,6 +300,18 @@ pub enum CreateFolderError {
     FolderPathTaken,
     ParentNotFound,
     ClientUpdateRequired,
+}
+
+impl CreateFolderRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+        CreateFolderRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            name: file_metadata.name.clone(),
+            parent: file_metadata.parent,
+            parent_access_key: file_metadata.folder_access_keys.clone()
+        }
+    }
 }
 
 impl Request for CreateFolderRequest {
@@ -344,6 +392,18 @@ pub enum MoveFolderError {
     ClientUpdateRequired,
 }
 
+impl MoveFolderRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+        MoveFolderRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_parent: file_metadata.parent,
+            new_folder_access: file_metadata.folder_access_keys.clone()
+        }
+    }
+}
+
 impl Request for MoveFolderRequest {
     type Response = MoveFolderResponse;
     type Error = MoveFolderError;
@@ -381,6 +441,17 @@ pub enum RenameFolderError {
     EditConflict,
     FolderPathTaken,
     ClientUpdateRequired,
+}
+
+impl RenameFolderRequest {
+    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+        RenameFolderRequest {
+            username: String::from(username),
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_name: file_metadata.name.clone(),
+        }
+    }
 }
 
 impl Request for RenameFolderRequest {
@@ -517,6 +588,23 @@ pub enum NewAccountError {
     InvalidUsername,
     FileIdTaken,
     ClientUpdateRequired,
+}
+
+impl NewAccountRequest {
+    pub fn new(account: &Account, file_metadata: &FileMetadata) -> Self {
+        NewAccountRequest {
+            username: account.username.clone(),
+            public_key: account.private_key.to_public_key(),
+            folder_id: file_metadata.id,
+            parent_access_key: file_metadata.folder_access_keys.clone(),
+            user_access_key: file_metadata
+                .user_access_keys
+                .get(&account.username)
+                .unwrap() // TODO: compiler guarantee for this
+                .access_key
+                .clone(),
+        }
+    }
 }
 
 impl Request for NewAccountRequest {

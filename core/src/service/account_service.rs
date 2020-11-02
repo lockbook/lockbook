@@ -114,18 +114,7 @@ impl<
         let version = ApiClient::request(
             &account.api_url,
             &account.private_key,
-            NewAccountRequest {
-                username: account.username.clone(),
-                public_key: account.private_key.to_public_key(),
-                folder_id: file_metadata.id,
-                parent_access_key: file_metadata.folder_access_keys.clone(),
-                user_access_key: file_metadata
-                    .user_access_keys
-                    .get(&account.username)
-                    .unwrap()
-                    .access_key
-                    .clone(),
-            },
+            NewAccountRequest::new(&account, &file_metadata),
         )
         .map_err(AccountCreationError::ApiError)?
         .folder_metadata_version;
