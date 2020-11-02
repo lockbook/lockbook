@@ -124,6 +124,19 @@ swift_interface_tests_run: server swift_interface_tests_run
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) up --exit-code-from=swift_interface_tests
 
+.PHONY: performance
+performance: is_docker_running
+	docker build -f containers/Dockerfile.performance . --tag performance:$(hash)
+
+.PHONY: performance_bench
+performance_bench: performance server
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) down
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) up --exit-code-from=performance_bench
+
+.PHONY: performance_bench_report
+performance_bench_report: is_docker_running
+	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
+
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:
