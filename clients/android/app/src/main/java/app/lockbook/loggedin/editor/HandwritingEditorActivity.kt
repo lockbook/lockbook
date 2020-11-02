@@ -14,7 +14,6 @@ import app.lockbook.utils.*
 import app.lockbook.utils.Messages.UNEXPECTED_ERROR
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -42,7 +41,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_handwriting_editor)
-        Timber.e("STARTED ACTIVITY")
 
         val id = intent.getStringExtra("id")
         val name = intent.getStringExtra("name")
@@ -143,6 +141,10 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
+
+        handwriting_editor_erase.setOnCheckedChangeListener { _, isChecked ->
+            handwriting_editor.isErasing = isChecked
+        }
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
