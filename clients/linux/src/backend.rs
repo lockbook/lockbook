@@ -168,21 +168,24 @@ impl LbCore {
     }
 
     pub fn full_path_for(&self, f: &FileMetadata) -> String {
-        let root = match self.root() {
+        let root_id = match self.root() {
             Ok(root) => {
                 if f.id == root.id {
                     return "/".to_string();
                 }
-                root
+                root.id
             }
-            Err(_) => return f.name.clone(),
+            Err(_) => Default::default(),
         };
 
         let mut path = "".to_string();
         let mut ff = f.clone();
-        while ff.id != root.id {
+        while ff.id != root_id {
             path.insert_str(0, &format!("/{}", ff.name));
-            ff = self.file_by_id(ff.parent).unwrap();
+            ff = match self.file_by_id(ff.parent) {
+                Ok(f) => f,
+                Err(_) => break,
+            }
         }
 
         path
