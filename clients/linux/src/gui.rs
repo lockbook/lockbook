@@ -165,9 +165,13 @@ impl LockbookApp {
                     let cc = c.clone();
 
                     let sync_chan = make_glib_chan(move |msg| {
-                        if let LbSyncMsg::Done = msg {
-                            gui.screens.show_account(&cc);
-                            gui.screens.account.set_sync_status(&cc);
+                        match msg {
+                            LbSyncMsg::Doing(work) => gui.screens.intro.doing_status(&work),
+                            LbSyncMsg::Done => {
+                                gui.screens.show_account(&cc);
+                                gui.screens.account.set_sync_status(&cc);
+                            }
+                            _ => {}
                         }
                         glib::Continue(true)
                     });
