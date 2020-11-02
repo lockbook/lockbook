@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_gravity="center"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Text.Medium"
+        android:fontFamily="sans-serif"
+        android:paddingTop="8dp"
+        android:textAlignment="center"
+        android:text="@string/dialog_rename_file_title" />
+
+    <EditText
+        android:id="@+id/rename_file"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:layout_marginBottom="4dp"
+        android:hint="@string/dialog_file_name"
+        style="@style/Text.Small"
+        android:inputType="text"
+        android:importantForAutofill="no" />
+
+</LinearLayout>

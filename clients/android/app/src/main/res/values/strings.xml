@@ -142,6 +142,9 @@
     <string name="menu_list_files_rename">Rename file</string>
     <string name="menu_list_files_delete">Delete file</string>
     <string name="menu_list_files_info">File info</string>
+    <string name="menu_list_files_move">Move file</string>
+    <string name="default_value">ERROR</string>
+    <string name="dialog_rename_file_title">Rename File</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

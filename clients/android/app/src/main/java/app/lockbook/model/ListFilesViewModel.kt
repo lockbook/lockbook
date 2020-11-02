@@ -44,9 +44,11 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
+    var selectedFiles = mutableListOf<FileMetadata>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var dialogStatus = DialogStatus()
+    var renameFileDialogStatus = DialogStatus()
+    var newFileDialogStatus = DialogStatus()
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
@@ -137,11 +139,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private fun syncSnackBar() {
         when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
             is Ok -> {
-                if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
-                ) {
-                    incrementalSyncIfNotRunning()
-                }
+                syncBasedOnPreferences()
                 Unit
             }
             is Err -> when (val error = syncWorkResult.error) {
@@ -199,17 +197,24 @@ class ListFilesViewModel(path: String, application: Application) :
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                when {
-                    requestCode == POP_UP_INFO_REQUEST_CODE && data is Intent -> handlePopUpInfoRequest(
-                        resultCode,
-                        data
-                    )
-                    TEXT_EDITOR_REQUEST_CODE == requestCode -> handleTextEditorRequest()
-                    HANDWRITING_EDITOR_REQUEST_CODE == requestCode -> handleHandwritingEditorRequest()
-                    resultCode == RESULT_CANCELED -> {
+                when(requestCode) {
+                    POP_UP_INFO_REQUEST_CODE -> {
+                        if(data != null) {
+                            handlePopUpInfoRequest(
+                                resultCode,
+                                data
+                            )
+                        } else {
+                            Timber.e("Data from activity result is null.")
+                            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                        }
+
+                    }
+                    TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
+                    RESULT_CANCELED -> {
                     }
                     else -> {
-                        Timber.e("Unable to recognize match requestCode and/or resultCode and/or data.")
+                        Timber.e("Unable to recognize match requestCode: $requestCode.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }.exhaustive
@@ -217,17 +222,9 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun handleHandwritingEditorRequest() {
+    private fun syncBasedOnPreferences() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
-        ) {
-            incrementalSyncIfNotRunning()
-        }
-    }
-
-    private fun handleTextEditorRequest() {
-        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+                .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
             incrementalSyncIfNotRunning()
         }
@@ -237,11 +234,16 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
-                if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
-                ) {
-                    incrementalSyncIfNotRunning()
-                }
+                syncBasedOnPreferences()
+            }
+        }
+    }
+
+    fun handleRenameRequest(newName: String) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.renameRefreshFiles(selectedFiles[0].id, newName)
+                syncBasedOnPreferences()
             }
         }
     }
@@ -286,7 +288,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Document
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                dialogStatus.isDialogOpen = true
+                newFileDialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -298,7 +300,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileCreationType = FileType.Folder
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                dialogStatus.isDialogOpen = true
+                newFileDialogStatus.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -486,6 +488,11 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 fileModel.files.value?.let {
                     _moreOptionsMenu.postValue(it[position])
+                    if(selectedFiles.contains(it[position])) {
+                        selectedFiles.remove(it[position])
+                    } else {
+                        selectedFiles.add(it[position])
+                    }
                 }
             }
         }

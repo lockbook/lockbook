@@ -93,7 +93,7 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_rename -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed(item.itemId)
+                    fragment.showRenameFileDialog("")
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()

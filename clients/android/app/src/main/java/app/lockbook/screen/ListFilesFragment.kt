@@ -22,7 +22,6 @@ import app.lockbook.util.FileMetadata
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
-import app.lockbook.util.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
@@ -203,9 +202,13 @@ class ListFilesFragment : Fragment() {
 
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
-        if (listFilesViewModel.dialogStatus.isDialogOpen) {
-            createFileNameDialog(listFilesViewModel.dialogStatus.alertDialogFileName)
+        if (listFilesViewModel.newFileDialogStatus.isDialogOpen) {
+            createFileNameDialog(listFilesViewModel.newFileDialogStatus.alertDialogFileName)
         }
+        if (listFilesViewModel.renameFileDialogStatus.isDialogOpen) {
+            createFileNameDialog(listFilesViewModel.renameFileDialogStatus.alertDialogFileName)
+        }
+
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
         }
@@ -217,8 +220,11 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setUpBeforeConfigChange() {
-        if (listFilesViewModel.dialogStatus.isDialogOpen) {
-            listFilesViewModel.dialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+        if (listFilesViewModel.newFileDialogStatus.isDialogOpen) {
+            listFilesViewModel.newFileDialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
+            alertDialog.dismiss()
+        } else if(listFilesViewModel.renameFileDialogStatus.isDialogOpen) {
+            listFilesViewModel.renameFileDialogStatus.alertDialogFileName = alertDialog.findViewById<EditText>(R.id.rename_file)?.text.toString()
             alertDialog.dismiss()
         }
     }
@@ -316,12 +322,12 @@ class ListFilesFragment : Fragment() {
         )
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
-                listFilesViewModel.dialogStatus.isDialogOpen = false
+                listFilesViewModel.newFileDialogStatus.isDialogOpen = false
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
                 dialog.cancel()
-                listFilesViewModel.dialogStatus.isDialogOpen = false
+                listFilesViewModel.newFileDialogStatus.isDialogOpen = false
             }
             .create()
 
@@ -367,6 +373,31 @@ class ListFilesFragment : Fragment() {
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .show()
+    }
+
+    fun showRenameFileDialog(originalFileName: String) {
+        val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+
+        alertDialog = dialogBuilder.setView(
+            layoutInflater.inflate(
+                R.layout.dialog_rename_file,
+                view as ViewGroup,
+                false
+            )
+        )
+            .setPositiveButton(R.string.new_file_create) { dialog, _ ->
+                listFilesViewModel.handleRenameRequest((dialog as Dialog).findViewById<EditText>(R.id.rename_file).text.toString())
+                listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
+                dialog.cancel()
+                listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
+            }
+            .create()
+
+        alertDialog.show()
+        alertDialog.findViewById<EditText>(R.id.rename_file)?.setText(originalFileName)
     }
 
     fun onBackPressed(): Boolean {
