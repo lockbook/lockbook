@@ -31,6 +31,7 @@ Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture 
 ## Install a client
 
 + [CLI](installing-cli.md)
++ [Linux](installing-linux.md)
 + [Android](installing-android.md)
 + [Windows](installing-windows.md)
 
