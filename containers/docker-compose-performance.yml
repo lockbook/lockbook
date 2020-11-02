@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  performance_bench:
+    image: performance:$HASH
+    container_name: performance-$TYPE-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        LOCKBOOK_DEBUG=1 cargo bench -- --profile-time 5 && \
+        pprof --svg $$(find . -type f -executable -name "performator-*") simple-create_write_read.profile > simple-create_write_read.svg \
+      '
