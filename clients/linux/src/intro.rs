@@ -85,6 +85,10 @@ impl IntroScreen {
         self.doing.start(caption);
     }
 
+    pub fn doing_status(&self, txt: &str) {
+        self.doing.status.set_text(txt);
+    }
+
     pub fn error_create(&self, msg: &str) {
         self.bottom.set_visible_child_name("input");
         self.create.error(msg);
@@ -132,6 +136,7 @@ impl IntroInput {
 struct IntroDoing {
     spinner: GtkSpinner,
     caption: GtkLabel,
+    status: GtkLabel,
     cntr: GtkBox,
 }
 
@@ -143,14 +148,22 @@ impl IntroDoing {
         let caption = GtkLabel::new(None);
         GtkWidgetExt::set_widget_name(&caption, "intro_doing_caption");
 
-        let cntr = GtkBox::new(Horizontal, 16);
-        cntr.set_halign(GtkAlign::Center);
-        cntr.add(&spinner);
-        cntr.add(&caption);
+        let status = GtkLabel::new(None);
+
+        let cntr = GtkBox::new(Vertical, 32);
+        cntr.add(&{
+            let bx = GtkBox::new(Horizontal, 16);
+            bx.set_halign(GtkAlign::Center);
+            bx.add(&spinner);
+            bx.add(&caption);
+            bx
+        });
+        cntr.add(&status);
 
         Self {
             spinner,
             caption,
+            status,
             cntr,
         }
     }
