@@ -23,11 +23,11 @@ pub fn sync() {
         work_calculated = match calculate_work(&config) {
             Ok(work) => work,
             Err(err) => match err {
-                CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
-                CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
-                CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
-                    exit_with_upgrade_required()
-                }
+                CoreError::UiError(err) => match err {
+                    CalculateWorkError::NoAccount => exit_with_no_account(),
+                    CalculateWorkError::CouldNotReachServer => exit_with_offline(),
+                    CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
+                },
                 CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             },
         };
