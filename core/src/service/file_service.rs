@@ -2,7 +2,6 @@ use sha2::{Digest, Sha256};
 use sled::Db;
 use uuid::Uuid;
 
-use crate::client::{ApiError, Client};
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
@@ -212,8 +211,8 @@ impl<
         }
 
         // Check that this file name is available
-        for child in
-            DefaultFileMetadataRepo::get_children(&db, parent).map_err(MetadataRepoError)?
+        for child in DefaultFileMetadataRepo::get_children_non_recursively(&db, parent)
+            .map_err(MetadataRepoError)?
         {
             if child.name == name {
                 return Err(FileNameNotAvailable);
@@ -271,7 +270,7 @@ impl<
 
         // We're going to look ahead, and find or create the right child
         'path: for index in 0..path_components.len() - 1 {
-            let children = FileMetadataDb::get_children(&db, current.id)
+            let children = FileMetadataDb::get_children_non_recursively(&db, current.id)
                 .map_err(NewFileFromPathError::DbError)?;
             debug!(
                 "children: {:?}",
@@ -383,7 +382,7 @@ impl<
                     return Err(CannotRenameRoot);
                 }
 
-                let siblings = FileMetadataDb::get_children(&db, file.parent)
+                let siblings = FileMetadataDb::get_children_non_recursively(&db, file.parent)
                     .map_err(DocumentRenameError::DbError)?;
 
                 // Check that this file name is available
@@ -421,8 +420,9 @@ impl<
                             return Err(FileMoveError::DocumentTreatedAsFolder);
                         }
 
-                        let siblings = FileMetadataDb::get_children(&db, parent_metadata.id)
-                            .map_err(FileMoveError::DbError)?;
+                        let siblings =
+                            FileMetadataDb::get_children_non_recursively(&db, parent_metadata.id)
+                                .map_err(FileMoveError::DbError)?;
 
                         // Check that this file name is available
                         for child in siblings {
@@ -515,7 +515,7 @@ impl<
 
         ChangesDb::track_delete(&db, id).map_err(DeleteFolderError::FailedToRecordChange)?;
 
-        let files_to_delete = FileMetadataDb::get_with_all_children(&db, id)
+        let files_to_delete = FileMetadataDb::get_and_get_children_recursively(&db, id)
             .map_err(DeleteFolderError::FindingChildrenFailed)?;
 
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
