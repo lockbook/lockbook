@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
+use std::time::SystemTimeError;
 
 use serde::Serialize;
 use sled::Db;
@@ -19,9 +19,9 @@ use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::document_repo::{DocumentRepo, Error};
+use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::repo::local_changes_repo::{DbError, LocalChangesRepo};
+use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::file_encryption_service::FileEncryptionService;
@@ -33,9 +33,9 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
-    ErrorCalculatingCurrentTime, ErrorCreatingRecoveryFile, FolderCreateError, FolderMoveError,
-    FolderRenameError, ReadingCurrentVersionError, RecursiveDeleteError,
-    ResolveConflictByCreatingNewFileError, SaveDocumentError, WritingMergedFileError,
+    FolderCreateError, FolderMoveError, FolderRenameError, ReadingCurrentVersionError,
+    RecursiveDeleteError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
+    WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -219,7 +219,7 @@ impl<
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
         // Make sure no naming conflicts occur as a result of this metadata
-        let conflicting_files = FileMetadataDb::get_children(&db, metadata.parent)
+        let conflicting_files = FileMetadataDb::get_children_non_recursively(&db, metadata.parent)
             .map_err(WorkExecutionError::MetadataRepoError)?
             .into_iter()
             .filter(|potential_conflict| potential_conflict.name == metadata.name)
@@ -285,7 +285,7 @@ impl<
                             } else {
                                 // A deleted folder
                                 let delete_errors =
-                                    FileMetadataDb::get_with_all_children(&db, metadata.id)
+                                    FileMetadataDb::get_and_get_children_recursively(&db, metadata.id)
                                         .map_err(WorkExecutionError::FindingChildrenFailed)?
                                         .into_iter()
                                         .map(|file_metadata| -> Option<String> {
@@ -509,7 +509,7 @@ impl<
                             } else {
                                 // A deleted folder
                                 let delete_errors =
-                                    FileMetadataDb::get_with_all_children(&db, metadata.id)
+                                    FileMetadataDb::get_and_get_children_recursively(&db, metadata.id)
                                         .map_err(WorkExecutionError::FindingChildrenFailed)?
                                         .into_iter()
                                         .map(|file_metadata| -> Option<String> {
