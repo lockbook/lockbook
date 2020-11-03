@@ -138,6 +138,13 @@
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_bytes_usage">Bytes used</string>
+    <string name="handwriting_editor_erase">Erase</string>
+    <string name="menu_markdown_link">Insert link</string>
+    <string name="menu_markdown_code">Insert code</string>
+    <string name="menu_markdown_italics">Format italics</string>
+    <string name="menu_markdown_bold">Insert bold text</string>
+    <string name="menu_markdown_title">Insert title</string>
+    <string name="menu_markdown_image">Insert image</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
