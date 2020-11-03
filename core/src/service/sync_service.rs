@@ -19,9 +19,9 @@ use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::document_repo::DocumentRepo;
+use crate::repo::document_repo::{DocumentRepo, Error};
 use crate::repo::file_metadata_repo::FileMetadataRepo;
-use crate::repo::local_changes_repo::LocalChangesRepo;
+use crate::repo::local_changes_repo::{DbError, LocalChangesRepo};
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::auth_service::AuthService;
 use crate::service::file_encryption_service::FileEncryptionService;
@@ -34,8 +34,8 @@ use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
     ErrorCalculatingCurrentTime, ErrorCreatingRecoveryFile, FolderCreateError, FolderMoveError,
-    FolderRenameError, ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError,
-    SaveDocumentError, WritingMergedFileError,
+    FolderRenameError, ReadingCurrentVersionError, RecursiveDeleteError,
+    ResolveConflictByCreatingNewFileError, SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -63,6 +63,7 @@ pub enum WorkExecutionError {
     FolderCreateError(client::ApiError<CreateFolderError>),
     DocumentChangeError(client::ApiError<ChangeDocumentContentError>),
     DocumentDeleteError(client::ApiError<DeleteDocumentError>),
+    RecursiveDeleteError(Vec<String>),
     FolderDeleteError(client::ApiError<DeleteFolderError>),
     LocalFolderDeleteError(file_service::DeleteFolderError),
     FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
@@ -271,17 +272,49 @@ impl<
                     None => {
                         // It has no modifications of any sort, just update it
                         if metadata.deleted {
-                            // Delete this file, server deleted it and we have no local changes
-                            FileMetadataDb::non_recursive_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                             if metadata.file_type == Document {
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
-                            }
+                                // A deleted document
+                                FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
+                                    .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
 
-                        // TODO we need to check for folders and call the file_service version
-                        // of this function. But this may eliminate local edits to files
-                        // so you need to iterate through all children and ensure that documents
-                        // don't have any content edits, if they do those changes need to be recovered
+                                ChangeDb::delete_if_exists(&db, metadata.id)
+                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                                DocsDb::delete_if_exists(&db, metadata.id)
+                                    .map_err(SaveDocumentError)?
+                            } else {
+                                // A deleted folder
+                                let delete_errors =
+                                    FileMetadataDb::get_with_all_children(&db, metadata.id)
+                                        .map_err(WorkExecutionError::FindingChildrenFailed)?
+                                        .into_iter()
+                                        .map(|file_metadata| -> Option<String> {
+                                            match DocsDb::delete_if_exists(&db, file_metadata.id) {
+                                        Ok(_) => {
+                                            match FileMetadataDb::non_recursive_delete_if_exists(
+                                                &db,
+                                                metadata.id,
+                                            ) {
+                                                Ok(_) => match ChangeDb::delete_if_exists(
+                                                    &db,
+                                                    metadata.id,
+                                                ) {
+                                                    Ok(_) => None,
+                                                    Err(err) => Some(format!("{:?}", err)),
+                                                },
+                                                Err(err) => Some(format!("{:?}", err)),
+                                            }
+                                        }
+                                        Err(err) => Some(format!("{:?}", err)),
+                                    }
+                                        })
+                                        .flatten()
+                                        .collect::<Vec<String>>();
+
+                                if !delete_errors.is_empty() {
+                                    return Err(RecursiveDeleteError(delete_errors));
+                                }
+                            }
                         } else {
                             // The normal fast forward case
                             FileMetadataDb::insert(&db, &metadata)
@@ -304,8 +337,39 @@ impl<
                     Some(local_changes) => {
                         // It's dirty, merge changes
 
-                        // Straightforward metadata merge
-                        if !metadata.deleted {
+                        // You deleted this file locally, send this to the server
+                        if local_changes.deleted && !metadata.deleted {
+                            if metadata.file_type == Document {
+                                ApiClient::delete_document(
+                                    &account.api_url,
+                                    &account.username,
+                                    &SignedValue {
+                                        content: "".to_string(),
+                                        signature: "".to_string(),
+                                    },
+                                    metadata.id,
+                                    0,
+                                )
+                                .map_err(WorkExecutionError::DocumentDeleteError)?;
+                            } else {
+                                ApiClient::delete_folder(
+                                    &account.api_url,
+                                    &account.username,
+                                    &SignedValue {
+                                        content: "".to_string(),
+                                        signature: "".to_string(),
+                                    },
+                                    metadata.id,
+                                    0,
+                                )
+                                .map_err(WorkExecutionError::FolderDeleteError)?;
+                            }
+                            // Untrack the delete
+                            ChangeDb::delete_if_exists(&db, metadata.id)
+                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                        // straightforward metadata merge
+                        } else if !local_changes.deleted && !metadata.deleted {
                             // We renamed it locally
                             if let Some(renamed_locally) = local_changes.renamed {
                                 // Check if both renamed, if so, server wins
@@ -429,113 +493,56 @@ impl<
                                 }
                             }
 
-                            // You deleted a file, but you didn't have the most recent content, server wins
-                            if local_changes.deleted
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                // Untrack the delete
-                                ChangeDb::delete_if_exists(&db, metadata.id)
-                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
-
-                                // Get the new file contents
-                                if metadata.file_type == Document
-                                    && local_metadata.metadata_version != metadata.metadata_version
-                                {
-                                    let document = ApiClient::get_document(
-                                        &account.api_url,
-                                        metadata.id,
-                                        metadata.content_version,
-                                    )
-                                    .map_err(DocumentGetError)?;
-
-                                    DocsDb::insert(&db, metadata.id, &document)
-                                        .map_err(SaveDocumentError)?;
-                                }
-                            }
-
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if local_changes.content_edited.is_none() {
+                        } else if !local_changes.deleted && metadata.deleted {
                             if metadata.file_type == Document {
                                 // A deleted document
-                                FileMetadataDb::non_recursive_delete(&db, metadata.id)
+                                FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
                                     .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
 
                                 ChangeDb::delete_if_exists(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                                DocsDb::delete_if_exists(&db, metadata.id)
+                                    .map_err(SaveDocumentError)?
                             } else {
                                 // A deleted folder
+                                let delete_errors =
+                                    FileMetadataDb::get_with_all_children(&db, metadata.id)
+                                        .map_err(WorkExecutionError::FindingChildrenFailed)?
+                                        .into_iter()
+                                        .map(|file_metadata| -> Option<String> {
+                                            match DocsDb::delete_if_exists(&db, file_metadata.id) {
+                                        Ok(_) => {
+                                            match FileMetadataDb::non_recursive_delete_if_exists(
+                                                &db,
+                                                metadata.id,
+                                            ) {
+                                                Ok(_) => match ChangeDb::delete_if_exists(
+                                                    &db,
+                                                    metadata.id,
+                                                ) {
+                                                    Ok(_) => None,
+                                                    Err(err) => Some(format!("{:?}", err)),
+                                                },
+                                                Err(err) => Some(format!("{:?}", err)),
+                                            }
+                                        }
+                                        Err(err) => Some(format!("{:?}", err)),
+                                    }
+                                        })
+                                        .flatten()
+                                        .collect::<Vec<String>>();
 
-                                FileMetadataDb::get_with_all_children(&db, metadata.id)
-                                    .map_err(WorkExecutionError::FindingChildrenFailed)?
-                                    .into_iter()
-                                    .filter(|file| file.file_type == Document)
-                                    .map(|file| {
-                                        ChangeDb::get_local_changes(&db, file.id)
-                                            .map_err(WorkExecutionError::LocalChangesRepoError)?
-                                    })
-                                    .flatten()
-                                    .filter(|change| change.content_edited.is_some())
-                                    .map(|change| change.id)
-                                    .map(|id| {
-                                        FileMetadataDb::get(&db, id)
-                                            .map_err(WorkExecutionError::MetadataRepoError)?
-                                    })
-                                    .map(|file| recover_document_for_delete(&db, &account, &file));
-
-                                Files::delete_folder(&db, metadata.id, false)
-                                    .map_err(WorkExecutionError::LocalFolderDeleteError)?;
-
-                                // TODO we need to check for folders and call the file_service version
-                                // of this function. But this may eliminate local edits to files
-                                // so you need to iterate through all children and ensure that documents
-                                // don't have any content edits, if they do those changes need to be recovered
+                                if !delete_errors.is_empty() {
+                                    return Err(RecursiveDeleteError(delete_errors));
+                                }
                             }
-                        } else {
-                            // server's metadata == true && there is un synced content for this file
-                            recover_document_for_delete(&db, &account, &metadata)
                         }
                     }
                 }
             }
-        }
-
-        fn recover_document_for_delete(
-            db: &Db,
-            account: &Account,
-            doc_to_recover: &FileMetadata,
-        ) -> Result<(), WorkExecutionError> {
-            let current_version = Files::read_document(&db, doc_to_recover.id)
-                .map_err(ReadingCurrentVersionError)?
-                .secret;
-
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(ErrorCalculatingCurrentTime)?
-                .as_millis();
-
-            let new_file = Files::create_at_path(
-                &db,
-                &format!(
-                    "{}/recovered/{}/{}/{}",
-                    account.username, doc_to_recover.id, timestamp, doc_to_recover.name
-                ),
-            )
-            .map_err(ErrorCreatingRecoveryFile)?;
-
-            Files::write_document(&db, new_file.id, &DecryptedValue::from(current_version))
-                .map_err(WritingMergedFileError)?;
-
-            FileMetadataDb::non_recursive_delete(&db, doc_to_recover.id)
-                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-            if doc_to_recover.file_type == Document {
-                DocsDb::delete(&db, doc_to_recover.id).map_err(SaveDocumentError)?
-            }
-            ChangeDb::delete_if_exists(&db, doc_to_recover.id)
-                .map_err(WorkExecutionError::LocalChangesRepoError)?;
-            Ok(())
         }
 
         Ok(())

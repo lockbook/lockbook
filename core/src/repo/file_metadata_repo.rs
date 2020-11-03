@@ -84,7 +84,7 @@ pub trait FileMetadataRepo {
         -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
-    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<u64, Error>;
+    fn non_recursive_delete_if_exists(db: &Db, id: Uuid) -> Result<u64, Error>;
     fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
@@ -227,10 +227,11 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     ) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
         let all = Self::get_all(&db).map_err(FindingChildrenFailed::DbError)?;
         let target_file = all
+            .clone()
             .into_iter()
             .find(|file| file.id == id)
             .ok_or(FindingChildrenFailed::FileDoesNotExist)?;
-        let mut result = vec![target_file];
+        let mut result = vec![target_file.clone()];
 
         if target_file.file_type == Document {
             return Err(FindingChildrenFailed::DocumentTreatedAsFolder);
@@ -242,7 +243,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             .collect::<Vec<FileMetadata>>();
 
         while !to_explore.is_empty() {
-            for file in to_explore {
+            for file in to_explore.clone() {
                 if file.file_type == Folder {
                     to_explore.push(file.clone());
                 }
@@ -321,7 +322,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(paths)
     }
 
-    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<u64, Error> {
+    fn non_recursive_delete_if_exists(db: &Db, id: Uuid) -> Result<u64, Error> {
         let tree = db.open_tree(FILE_METADATA).map_err(Error::SledError)?;
         tree.remove(id.as_bytes()).map_err(Error::SledError)?;
         Ok(1)

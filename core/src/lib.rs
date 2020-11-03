@@ -592,7 +592,7 @@ pub enum DeleteFileError {
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<DeleteFileError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DocumentRepoImpl::delete(&db, id) {
+    match DocumentRepoImpl::delete_if_exists(&db, id) {
         Ok(()) => Ok(()),
         Err(err) => match err {
             document_repo::Error::SledError(_) | document_repo::Error::SerdeError(_) => {
@@ -1125,6 +1125,9 @@ pub fn execute_work(
             | WorkExecutionError::ErrorCreatingRecoveryFile(_)
             | WorkExecutionError::ErrorCalculatingCurrentTime(_)
             | WorkExecutionError::FindingParentsForConflictingFileError(_)
+            | WorkExecutionError::LocalFolderDeleteError(_)
+            | WorkExecutionError::FindingChildrenFailed(_)
+            | WorkExecutionError::RecursiveDeleteError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
