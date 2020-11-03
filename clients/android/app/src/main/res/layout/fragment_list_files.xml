@@ -63,7 +63,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked()}"
-                    android:src="@drawable/round_insert_drive_file_white_18dp"
+                    android:src="@drawable/ic_baseline_insert_drive_file_24"
                     android:visibility="gone"
                     app:rippleColor="@color/light"
                     android:contentDescription="@string/list_files_create_document" />

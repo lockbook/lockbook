@@ -1,0 +1,29 @@
+name: Performance
+
+on:
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - docs/**
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  Reports:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build container
+      run: make performance
+    - name: Run benchmarks and profiling
+      run: make performance_bench
+    - name: Export performance report
+      run: make performance_bench_report
+    - name: Archive performance report
+      uses: actions/upload-artifact@v2
+      with:
+        name: performance-report
+        path: simple-create_write_read.svg

@@ -35,6 +35,10 @@
         <item name="actionMenuTextColor">@color/textColor</item>
     </style>
 
+    <style name="DarkBlue.Toolbar">
+        <item name="backgroundColor">@color/windowBackground</item>
+    </style>
+
     <style name="DarkBlue.Overflow">
         <item name="android:src">@drawable/ic_baseline_more_vert_24</item>
     </style>

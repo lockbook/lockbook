@@ -21,13 +21,17 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             notifyDataSetChanged()
         }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder {
-        val layoutInflater = LayoutInflater.from(parent.context)
-        val view =
-            layoutInflater.inflate(R.layout.recyclerview_content_files, parent, false) as CardView
+    var selectedFiles = MutableList(files.size) { false }
+        set(value) {
+            field = value
+            notifyDataSetChanged()
+        }
 
-        return ListFilesViewHolder(view)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListFilesViewHolder =
+        ListFilesViewHolder(
+            LayoutInflater.from(parent.context)
+                .inflate(R.layout.recyclerview_content_files, parent, false) as CardView
+        )
 
     override fun getItemCount(): Int = files.size
 
@@ -42,7 +46,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
         if (item.fileType == FileType.Document) {
-            holder.cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
+            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
         } else {
             holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
         }
@@ -50,27 +54,36 @@ class FilesAdapter(val clickInterface: ClickInterface) :
 
     inner class ListFilesViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
         lateinit var fileMetadata: FileMetadata
-        private var selected = false
 
         init {
             cardView.setOnClickListener {
-                clickInterface.onItemClick(adapterPosition)
+                if(selectedFiles.contains(true)) {
+                    setImageResourceBasedOnSelection()
+                    clickInterface.onItemClick(adapterPosition, true, selectedFiles[adapterPosition])
+                } else {
+                    clickInterface.onItemClick(adapterPosition, false, false)
+                }
             }
 
             cardView.setOnLongClickListener {
-                selected = !selected
-                if(selected) {
-                    cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
-                } else {
-                    if (fileMetadata.fileType == FileType.Document) {
-                        cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
-                    } else {
-                        cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
-                    }
-                }
-                clickInterface.onLongClick(adapterPosition)
+                setImageResourceBasedOnSelection()
+                clickInterface.onLongClick(adapterPosition, selectedFiles[adapterPosition])
                 true
             }
+        }
+
+        private fun setImageResourceBasedOnSelection() {
+            if(!selectedFiles[adapterPosition]) {
+                cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+            } else {
+                if (fileMetadata.fileType == FileType.Document) {
+                    cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                } else {
+                    cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                }
+            }
+
+            selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
         }
     }
 }

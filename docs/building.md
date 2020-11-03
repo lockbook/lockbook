@@ -22,6 +22,12 @@ Cli is the most straightforward client. You can build it on any machine and don'
 
 Simply go into the [Cli Folder](../clients/cli) and `cargo run`.
 
+## Linux
+
+In order to build the Linux client, you need the stable rust toolchain on a
+Linux distro with GTK installed. Then, go into the [Linux
+folder](../clients/linux) and `cargo run`.
+
 ## Android
 
 Standard Android development toolchain, along with the native development kit.

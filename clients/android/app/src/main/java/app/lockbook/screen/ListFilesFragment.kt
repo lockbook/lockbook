@@ -81,6 +81,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { files ->
                 updateRecyclerView(files, adapter)
+                listFilesViewModel.selectedFiles = MutableList(files.size) { false }
             }
         )
 
@@ -349,6 +350,9 @@ class ListFilesFragment : Fragment() {
         adapter: FilesAdapter
     ) {
         adapter.files = files
+        adapter.selectedFiles = MutableList(files.size) {
+            false
+        }
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {
@@ -414,13 +418,16 @@ class ListFilesFragment : Fragment() {
 
     fun showMoreInfoDialog() {
         listFilesViewModel.selectedFiles[0]
-        FileInfoDialogFragment.newInstance(
-            listFilesViewModel.selectedFiles[0].name,
-            listFilesViewModel.selectedFiles[0].id,
-            listFilesViewModel.selectedFiles[0].metadataVersion.toString(),
-            listFilesViewModel.selectedFiles[0].contentVersion.toString(),
-            listFilesViewModel.selectedFiles[0].fileType.name
-        ).show(childFragmentManager, FileInfoDialogFragment.TAG)
+
+        listFilesViewModel.files.value?.let { files ->
+            FileInfoDialogFragment.newInstance(
+                files[0].name,
+                files[0].id,
+                files[0].metadataVersion.toString(),
+                files[0].contentVersion.toString(),
+                files[0].fileType.name
+            ).show(childFragmentManager, FileInfoDialogFragment.TAG)
+        }
     }
 
     fun initiateRenameFileDialog() {
