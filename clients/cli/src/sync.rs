@@ -32,7 +32,7 @@ pub fn sync() {
         !work_calculated.work_units.is_empty()
     } {
         for work_unit in work_calculated.work_units {
-            let action = match work_unit.clone() {
+            let action = match &work_unit {
                 WorkUnit::LocalChange { metadata } => format!("Pushing: {}", metadata.name),
                 WorkUnit::ServerChange { metadata } => format!("Pulling: {}", metadata.name),
             };
