@@ -15,10 +15,11 @@ use std::io::Write;
 
 pub fn sync() {
     let account = get_account_or_exit();
+    let config = get_config();
 
     let mut work_calculated: WorkCalculated;
     while {
-        work_calculated = match calculate_work(&get_config()) {
+        work_calculated = match calculate_work(&config) {
             Ok(work) => work,
             Err(err) => match err {
                 CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
@@ -38,17 +39,14 @@ pub fn sync() {
             };
 
             let _ = io::stdout().flush();
-            match execute_work(&get_config(), &account, work_unit) {
+            match execute_work(&config, &account, work_unit) {
                 Ok(_) => println!("{:<50}Done.", action),
                 Err(error) => eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error)),
             }
         }
     }
 
-    match set_last_synced(
-        &get_config(),
-        work_calculated.most_recent_update_from_server,
-    ) {
+    match set_last_synced(&config, work_calculated.most_recent_update_from_server) {
         Ok(_) => {}
         Err(err) => match err {
             CoreError::UiError(SetLastSyncedError::Stub) => {
