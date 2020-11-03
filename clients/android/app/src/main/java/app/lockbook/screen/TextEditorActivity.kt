@@ -9,6 +9,7 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.model.TextEditorViewModel
@@ -126,7 +127,7 @@ class TextEditorActivity : AppCompatActivity() {
         text_editor_toolbar.title = name
         setSupportActionBar(text_editor_toolbar)
 
-        if (title.endsWith(".md")) {
+        if (text_editor_toolbar.title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
@@ -141,6 +142,8 @@ class TextEditorActivity : AppCompatActivity() {
                     )
                 }
                 .build()
+
+            markdown_toolbar.visibility = View.VISIBLE
 
             text_editor.addTextChangedListener(
                 MarkwonEditorTextWatcher.withPreRender(
@@ -159,17 +162,86 @@ class TextEditorActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (text_editor_toolbar.title.endsWith(".md")) {
+            setMarkdownButtonListeners()
+        }
+    }
+
+    private fun setMarkdownButtonListeners() {
+        menu_markdown_title.setOnClickListener {
+            text_editor.text.replace(text_editor.selectionStart, text_editor.selectionStart, "# ")
+        }
+
+        menu_markdown_bold.setOnClickListener {
+            val selectionStart = text_editor.selectionStart
+            val selectionEnd = text_editor.selectionEnd
+            if (selectionStart == selectionEnd) {
+                text_editor.text.replace(selectionStart, selectionStart, "****")
+                text_editor.setSelection(selectionStart + 2)
+            } else {
+                text_editor.text.replace(selectionStart, selectionStart, "**")
+                val newSelectionEnd = selectionEnd + 2
+                text_editor.text.replace(newSelectionEnd, newSelectionEnd, "**")
+                text_editor.setSelection(newSelectionEnd)
+            }
+        }
+
+        menu_markdown_italics.setOnClickListener {
+            val selectionStart = text_editor.selectionStart
+            val selectionEnd = text_editor.selectionEnd
+            if (selectionStart == selectionEnd) {
+                text_editor.text.replace(selectionStart, selectionStart, "__")
+                text_editor.setSelection(selectionStart + 1)
+            } else {
+                text_editor.text.replace(selectionStart, selectionStart, "_")
+                val newSelectionEnd = selectionEnd + 1
+                text_editor.text.replace(newSelectionEnd, newSelectionEnd, "_")
+                text_editor.setSelection(newSelectionEnd)
+            }
+        }
+
+        menu_markdown_image.setOnClickListener {
+            val selectionStart = text_editor.selectionStart
+            text_editor.text.replace(selectionStart, text_editor.selectionEnd, "![]()")
+            text_editor.setSelection(selectionStart + 2)
+        }
+
+        menu_markdown_link.setOnClickListener {
+            val selectionStart = text_editor.selectionStart
+            text_editor.text.replace(selectionStart, text_editor.selectionEnd, "[]()")
+            text_editor.setSelection(selectionStart + 1)
+        }
+
+        menu_markdown_code.setOnClickListener {
+            val selectionStart = text_editor.selectionStart
+            val selectionEnd = text_editor.selectionEnd
+            if (selectionStart == selectionEnd) {
+                text_editor.text.replace(selectionStart, selectionStart, "``")
+                text_editor.setSelection(selectionStart + 1)
+            } else {
+                text_editor.text.replace(selectionStart, selectionStart, "`")
+                val newSelectionEnd = selectionEnd + 1
+                text_editor.text.replace(newSelectionEnd, newSelectionEnd, "`")
+                text_editor.setSelection(newSelectionEnd)
+            }
+        }
+    }
+
     private fun viewMarkdown() {
         if (text_editor_scroller.visibility == View.VISIBLE) {
             val markdown = Markwon.create(this)
             markdown.setMarkdown(markdown_viewer, text_editor.text.toString())
             menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
+            markdown_toolbar.isVisible = false
             text_editor_scroller.visibility = View.GONE
             markdown_viewer_scroller.visibility = View.VISIBLE
         } else {
             markdown_viewer_scroller.visibility = View.GONE
             text_editor_scroller.visibility = View.VISIBLE
+            markdown_toolbar.isVisible = true
             menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = true
             menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = true
         }
