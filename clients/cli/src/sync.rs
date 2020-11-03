@@ -48,7 +48,7 @@ pub fn sync() {
     }
 
     match set_last_synced(&config, work_calculated.most_recent_update_from_server) {
-        Ok(_) => {}
+        Ok(_) => println!("Sync complete."),
         Err(err) => match err {
             CoreError::UiError(SetLastSyncedError::Stub) => {
                 exit_with("Impossible", UNEXPECTED_ERROR)
@@ -56,6 +56,4 @@ pub fn sync() {
             CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
     }
-
-    println!("Sync complete.");
 }
