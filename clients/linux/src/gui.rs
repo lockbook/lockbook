@@ -400,6 +400,7 @@ impl LockbookApp {
         d.set_website(Some("https://lockbook.app"));
         d.set_authors(&["The Lockbook Team"]);
         d.set_license(Some(LICENSE));
+        d.set_comments(Some(COMMENTS));
         d.connect_response(move |d, resp| {
             if let GtkResponseType::DeleteEvent = resp {
                 d.close();
@@ -605,6 +606,11 @@ const STYLE: &str = "
 ";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const COMMENTS: &str = "
+Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.
+";
+
 const LICENSE: &str = "
 This is free and unencumbered software released into the public domain.
 
