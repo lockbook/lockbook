@@ -43,7 +43,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
-    var selectedFiles = mutableListOf<FileMetadata>()
+    var selectedFiles = mutableListOf<Boolean>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
     var fileMenuShowing = false
@@ -222,8 +222,10 @@ class ListFilesViewModel(path: String, application: Application) :
     fun handleRenameRequest(newName: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileModel.renameRefreshFiles(selectedFiles[0].id, newName)
-                syncBasedOnPreferences()
+                files.value?.let { files ->
+                    fileModel.renameRefreshFiles(files[0].id, newName)
+                    syncBasedOnPreferences()
+                }
             }
         }
     }
@@ -441,21 +443,31 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onItemClick(position: Int) {
+    override fun onItemClick(position: Int, isSelecting: Boolean, selection: Boolean) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.files.value?.let {
-                    val fileMetadata = it[position]
-
-                    if (fileMetadata.fileType == FileType.Folder) {
-                        fileModel.intoFolder(fileMetadata)
+                    if(isSelecting) {
+                        selectedFiles[position] = selection
+                        if(!selectedFiles.contains(true)) {
+                            _moreOptionsMenu.postValue(Unit)
+                        }
                     } else {
-                        val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)
-                        fileModel.lastDocumentAccessed = fileMetadata
-                        if (fileMetadata.name.endsWith(".draw")) {
-                            _navigateToHandwritingEditor.postValue(editableFileResult)
+                        val fileMetadata = it[position]
+
+                        if (fileMetadata.fileType == FileType.Folder) {
+                            fileModel.intoFolder(fileMetadata)
+                            selectedFiles = MutableList(files.value?.size ?: 0) {
+                                false
+                            }
                         } else {
-                            _navigateToFileEditor.postValue(editableFileResult)
+                            val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)
+                            fileModel.lastDocumentAccessed = fileMetadata
+                            if (fileMetadata.name.endsWith(".draw")) {
+                                _navigateToHandwritingEditor.postValue(editableFileResult)
+                            } else {
+                                _navigateToFileEditor.postValue(editableFileResult)
+                            }
                         }
                     }
                 }
@@ -463,15 +475,14 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onLongClick(position: Int) {
+    override fun onLongClick(position: Int, selection: Boolean) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileModel.files.value?.let {
-                    _moreOptionsMenu.postValue(Unit)
-                    if(selectedFiles.contains(it[position])) {
-                        selectedFiles.remove(it[position])
-                    } else {
-                        selectedFiles.add(it[position])
+                files.value?.let {
+                    selectedFiles[position] = selection
+
+                    if(!selectedFiles.contains(true)) {
+                        _moreOptionsMenu.postValue(Unit)
                     }
                 }
             }
