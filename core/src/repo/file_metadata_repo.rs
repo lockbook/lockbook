@@ -80,12 +80,14 @@ pub trait FileMetadataRepo {
         db: &Db,
         id: Uuid,
     ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
-    fn get_with_all_children(db: &Db, id: Uuid)
-        -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
+    fn get_and_get_children_recursively(
+        db: &Db,
+        id: Uuid,
+    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
     fn non_recursive_delete_if_exists(db: &Db, id: Uuid) -> Result<u64, Error>;
-    fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
+    fn get_children_non_recursively(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
     fn test_repo_integrity(db: &Db) -> Result<Vec<Problem>, DbError>;
@@ -179,7 +181,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 return Ok(Some(current));
             }
 
-            let children = Self::get_children(&db, current.id)?;
+            let children = Self::get_children_non_recursively(&db, current.id)?;
             let mut found_child = false;
             for child in children {
                 if child.name == paths[i + 1] {
@@ -221,7 +223,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
     }
 
-    fn get_with_all_children(
+    fn get_and_get_children_recursively(
         db: &Db,
         id: Uuid,
     ) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
@@ -238,18 +240,27 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         }
 
         let mut to_explore = all
+            .clone()
             .into_iter()
             .filter(|file| file.parent == target_file.id && file.id != target_file.id)
             .collect::<Vec<FileMetadata>>();
 
         while !to_explore.is_empty() {
-            for file in to_explore.clone() {
+            let mut explore_next_round = vec![];
+
+            for file in to_explore {
                 if file.file_type == Folder {
-                    to_explore.push(file.clone());
+                    // Explore this folder's children
+                    all.clone()
+                        .into_iter()
+                        .filter(|maybe_child| maybe_child.parent == file.id)
+                        .for_each(|f| explore_next_round.push(f.clone()));
                 }
 
                 result.push(file.clone());
             }
+
+            to_explore = explore_next_round;
         }
 
         Ok(result)
@@ -328,7 +339,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(1)
     }
 
-    fn get_children(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
+    fn get_children_non_recursively(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError> {
         Ok(Self::get_all(&db)?
             .into_iter()
             .filter(|file| file.parent == id && file.parent != file.id)
@@ -512,6 +523,7 @@ mod unit_tests {
 
     use crate::model::account::Account;
     use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
+    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
@@ -655,7 +667,7 @@ mod unit_tests {
         assert!(parents.contains_key(&test_folder.id));
         assert!(parents.contains_key(&test_file4.id));
 
-        let children = FileMetadataRepoImpl::get_children(&db, root.id).unwrap();
+        let children = FileMetadataRepoImpl::get_children_non_recursively(&db, root.id).unwrap();
         assert_eq!(children.len(), 2);
     }
 
@@ -672,8 +684,8 @@ mod unit_tests {
     fn test_no_root() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
-        assert!(probs.len() == 1);
-        assert!(probs.get(0).unwrap() == &Problem::NoRootFolder);
+        assert_eq!(probs.len(), 1);
+        assert_eq!(probs.get(0).unwrap(), &Problem::NoRootFolder);
     }
 
     #[test]
@@ -705,13 +717,13 @@ mod unit_tests {
         let orphan = insert_test_metadata(&db, FileType::Document, Uuid::new_v4(), "test");
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
-        assert!(probs.len() == 1);
+        assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::FileOrphaned(orphan.id));
 
         let _ = insert_test_metadata(&db, FileType::Document, Uuid::new_v4(), "test");
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
-        assert!(probs.len() == 2);
+        assert_eq!(probs.len(), 2);
     }
 
     #[test]
@@ -779,7 +791,7 @@ mod unit_tests {
         let doc2 = insert_test_metadata(&db, FileType::Document, root.id, "a");
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
-        assert!(probs.len() == 1);
+        assert_eq!(probs.len(), 1);
 
         let p = probs.get(0).unwrap();
         assert!(*p == NameConflictDetected(doc1.id) || *p == NameConflictDetected(doc2.id));
@@ -794,7 +806,95 @@ mod unit_tests {
         let _ = insert_test_metadata(&db, FileType::Document, doc.id, "b");
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
-        assert!(probs.len() == 1);
+        assert_eq!(probs.len(), 1);
         assert!(probs.contains(&Problem::DocumentTreatedAsFolder(doc.id)));
+    }
+
+    #[test]
+    fn test_get_children_handle_empty_root() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let root = insert_test_metadata_root(&db, "root");
+        let children_of_root =
+            DefaultFileMetadataRepo::get_and_get_children_recursively(&db, root.id).unwrap();
+        assert_eq!(children_of_root, vec![root])
+    }
+
+    #[test]
+    fn test_get_children() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let root = insert_test_metadata_root(&db, "root");
+
+        let doc = insert_test_metadata(
+            &db,
+            Document,
+            DefaultFileMetadataRepo::get_root(&db).unwrap().unwrap().id,
+            "child doc",
+        );
+
+        {
+            let mut children_of_root =
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, root.id).unwrap();
+            children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
+            assert_eq!(children_of_root, vec![doc.clone(), root.clone()]);
+            assert!(
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, doc.id).is_err()
+            );
+        }
+
+        let folder = insert_test_metadata(
+            &db,
+            Folder,
+            DefaultFileMetadataRepo::get_root(&db).unwrap().unwrap().id,
+            "child folder",
+        );
+
+        {
+            let mut children_of_root =
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, root.id).unwrap();
+            children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
+            assert_eq!(
+                children_of_root,
+                vec![doc.clone(), folder.clone(), root.clone()]
+            );
+            assert!(
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, doc.id).is_err()
+            );
+
+            assert_eq!(
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, folder.id).unwrap(),
+                vec![folder.clone()]
+            );
+        }
+
+        let doc2 = insert_test_metadata(&db, Document, folder.id, "child doc2");
+
+        let doc3 = insert_test_metadata(&db, Document, folder.id, "child doc3");
+
+        let doc4 = insert_test_metadata(&db, Document, folder.id, "child doc4");
+
+        let doc5 = insert_test_metadata(&db, Document, folder.id, "child doc5");
+
+        let doc6 = insert_test_metadata(&db, Document, folder.id, "child doc6");
+
+        let doc7 = insert_test_metadata(&db, Document, folder.id, "child doc7");
+
+        {
+            let mut children_of_folder =
+                DefaultFileMetadataRepo::get_and_get_children_recursively(&db, folder.id).unwrap();
+            children_of_folder.sort_by(|f1, f2| f1.name.cmp(&f2.name));
+            assert_eq!(
+                children_of_folder,
+                vec![
+                    doc2.clone(),
+                    doc3.clone(),
+                    doc4.clone(),
+                    doc5.clone(),
+                    doc6.clone(),
+                    doc7.clone(),
+                    folder.clone()
+                ]
+            );
+        }
     }
 }
