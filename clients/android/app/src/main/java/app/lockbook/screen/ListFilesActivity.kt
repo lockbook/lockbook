@@ -7,7 +7,6 @@ import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
-import app.lockbook.screen.SettingsActivity
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
@@ -25,7 +24,6 @@ import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
-    private var moreMenuShowing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +37,17 @@ class ListFilesActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_list_files, menu)
         this.menu = menu
         matchToDefaultSortOption()
+
+        val fragment = getFragment().component1()
+        if (fragment is ListFilesFragment) {
+            if(fragment.listFilesViewModel.fileMenuShowing) {
+                openFileMenu()
+            }
+        } else {
+            Timber.e("Unable to retrieve ListFilesFragment.")
+            Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+        }
+
         return true
     }
 
@@ -93,7 +102,7 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_rename -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.showRenameFileDialog("")
+                    fragment.initiateRenameFileDialog()
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
@@ -113,7 +122,7 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_info -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed(item.itemId)
+                    fragment.showMoreInfoDialog()
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
@@ -135,23 +144,35 @@ class ListFilesActivity : AppCompatActivity() {
     }
 
     fun switchMenu() {
-        if(moreMenuShowing) {
-            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_settings)?.isVisible = true
-        } else {
-            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_settings)?.isVisible = false
-        }
+        val fragment = getFragment().component1()
+        if (fragment is ListFilesFragment) {
+            if(fragment.listFilesViewModel.fileMenuShowing) {
+                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
+            } else {
+                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
+                menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+                menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
+                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+            }
 
-        moreMenuShowing = !moreMenuShowing
+            fragment.listFilesViewModel.fileMenuShowing = !fragment.listFilesViewModel.fileMenuShowing
+        } else {
+            Timber.e("Unable to retrieve ListFilesFragment.")
+            Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openFileMenu() {
+        menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {

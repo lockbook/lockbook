@@ -40,15 +40,15 @@ import timber.log.Timber
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
     ClickInterface {
-    private lateinit var fileCreationType: FileType
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
     var selectedFiles = mutableListOf<FileMetadata>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var renameFileDialogStatus = DialogStatus()
-    var newFileDialogStatus = DialogStatus()
+    var fileMenuShowing = false
+    var renameFileDialogStatus = RenameFileDialogInfo()
+    var createFileDialogInfo = CreateFileDialogInfo()
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
@@ -58,7 +58,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
-    private val _moreOptionsMenu = SingleMutableLiveData<FileMetadata>()
+    private val _moreOptionsMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _createFileNameDialog = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
@@ -91,7 +91,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
 
-    val moreOptionsMenu: LiveData<FileMetadata>
+    val moreOptionsMenu: LiveData<Unit>
         get() = _moreOptionsMenu
 
     val collapseExpandFAB: LiveData<Boolean>
@@ -134,26 +134,6 @@ class ListFilesViewModel(path: String, application: Application) :
             syncingStatus.isSyncing = false
             syncingStatus.maxProgress = 0
         }
-    }
-
-    private fun syncSnackBar() {
-        when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
-            is Ok -> {
-                syncBasedOnPreferences()
-                Unit
-            }
-            is Err -> when (val error = syncWorkResult.error) {
-                is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
-                is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
-                is CalculateWorkError.Unexpected -> {
-                    Timber.e("Unable to calculate syncWork: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
-        }.exhaustive
     }
 
     private fun incrementalSyncIfNotRunning() {
@@ -233,7 +213,7 @@ class ListFilesViewModel(path: String, application: Application) :
     fun handleNewFileRequest(name: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileModel.createInsertRefreshFiles(name, Klaxon().toJsonString(fileCreationType))
+                fileModel.createInsertRefreshFiles(name, Klaxon().toJsonString(createFileDialogInfo.fileCreationType))
                 syncBasedOnPreferences()
             }
         }
@@ -285,10 +265,10 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onNewDocumentFABClicked() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileCreationType = FileType.Document
+                createFileDialogInfo.fileCreationType = FileType.Document
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                newFileDialogStatus.isDialogOpen = true
+                createFileDialogInfo.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -297,10 +277,10 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onNewFolderFABClicked() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileCreationType = FileType.Folder
+                createFileDialogInfo.fileCreationType = FileType.Folder
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                newFileDialogStatus.isDialogOpen = true
+                createFileDialogInfo.isDialogOpen = true
                 _createFileNameDialog.postValue(Unit)
             }
         }
@@ -487,7 +467,7 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.files.value?.let {
-                    _moreOptionsMenu.postValue(it[position])
+                    _moreOptionsMenu.postValue(Unit)
                     if(selectedFiles.contains(it[position])) {
                         selectedFiles.remove(it[position])
                     } else {
