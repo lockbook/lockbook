@@ -520,7 +520,7 @@ pub fn get_children(
 ) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DefaultFileMetadataRepo::get_children(&db, id) {
+    match DefaultFileMetadataRepo::get_children_non_recursively(&db, id) {
         Ok(file_metadata_list) => Ok(file_metadata_list),
         Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
     }
