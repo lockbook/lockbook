@@ -4,22 +4,22 @@ import com.beust.klaxon.Json
 import java.util.*
 
 data class FileMetadata(
-    val id: String,
+    val id: String = "",
     @Json(name = "file_type")
-    val fileType: FileType,
-    val parent: String,
-    val name: String,
-    val owner: String,
-    val signature: SignedValue,
+    val fileType: FileType = FileType.Document,
+    val parent: String = "",
+    val name: String = "",
+    val owner: String = "",
+    val signature: SignedValue = SignedValue(),
     @Json(name = "metadata_version")
-    val metadataVersion: Long,
+    val metadataVersion: Long = 0,
     @Json(name = "content_version")
-    val contentVersion: Long,
-    val deleted: Boolean,
+    val contentVersion: Long = 0,
+    val deleted: Boolean = false,
     @Json(name = "user_access_keys")
-    val userAccessKeys: LinkedHashMap<String, UserAccessInfo>,
+    val userAccessKeys: LinkedHashMap<String, UserAccessInfo> = linkedMapOf(),
     @Json(name = "folder_access_keys")
-    val folderAccessKeys: FolderAccessInfo
+    val folderAccessKeys: FolderAccessInfo = FolderAccessInfo()
 )
 
 data class FileUsage(
@@ -31,20 +31,20 @@ data class FileUsage(
 )
 
 data class SignedValue(
-    val content: String,
-    val signature: String
+    val content: String = "",
+    val signature: String = ""
 )
 
 data class FolderAccessInfo(
     @Json(name = "folder_id")
-    val folderId: String,
+    val folderId: String = "",
     @Json(name = "access_key")
-    val accessKey: EncryptedValueWithNonce
+    val accessKey: EncryptedValueWithNonce = EncryptedValueWithNonce()
 )
 
 data class EncryptedValueWithNonce(
-    val garbage: String,
-    val nonce: String
+    val garbage: String = "",
+    val nonce: String = ""
 )
 
 enum class FileType {
@@ -119,7 +119,13 @@ data class SyncingStatus(
     var maxProgress: Int = 0
 )
 
-data class DialogStatus(
+data class CreateFileDialogInfo(
+    var isDialogOpen: Boolean = false,
+    var alertDialogFileName: String = "",
+    var fileCreationType: FileType = FileType.Document
+)
+
+data class RenameFileDialogInfo(
     var isDialogOpen: Boolean = false,
     var alertDialogFileName: String = ""
 )

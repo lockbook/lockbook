@@ -50,6 +50,7 @@ class FilesAdapter(val clickInterface: ClickInterface) :
 
     inner class ListFilesViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
         lateinit var fileMetadata: FileMetadata
+        private var selected = false
 
         init {
             cardView.setOnClickListener {
@@ -57,6 +58,16 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             }
 
             cardView.setOnLongClickListener {
+                selected = !selected
+                if(selected) {
+                    cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                } else {
+                    if (fileMetadata.fileType == FileType.Document) {
+                        cardView.file_icon.setImageResource(R.drawable.round_insert_drive_file_white_18dp)
+                    } else {
+                        cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                    }
+                }
                 clickInterface.onLongClick(adapterPosition)
                 true
             }
