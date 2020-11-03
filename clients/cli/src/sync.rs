@@ -9,25 +9,28 @@ use crate::utils::{
 };
 use crate::UNEXPECTED_ERROR;
 use lockbook_core::model::work_unit::WorkUnit;
+use lockbook_core::service::sync_service::WorkCalculated;
 use std::io;
 use std::io::Write;
 
 pub fn sync() {
     let account = get_account_or_exit();
 
-    let mut work_calculated = match calculate_work(&get_config()) {
-        Ok(work) => work,
-        Err(err) => match err {
-            CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
-            CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
-            CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
-                exit_with_upgrade_required()
-            }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    };
-
-    while !work_calculated.work_units.is_empty() {
+    let mut work_calculated: WorkCalculated;
+    while {
+        work_calculated = match calculate_work(&get_config()) {
+            Ok(work) => work,
+            Err(err) => match err {
+                CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
+                CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
+                CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
+                    exit_with_upgrade_required()
+                }
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            },
+        };
+        !work_calculated.work_units.is_empty()
+    } {
         for work_unit in work_calculated.work_units {
             let action = match work_unit.clone() {
                 WorkUnit::LocalChange { metadata } => format!("Pushing: {}", metadata.name),
@@ -40,18 +43,6 @@ pub fn sync() {
                 Err(error) => eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error)),
             }
         }
-
-        work_calculated = match calculate_work(&get_config()) {
-            Ok(work) => work,
-            Err(err) => match err {
-                CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
-                CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
-                    exit_with_upgrade_required()
-                }
-            },
-        };
     }
 
     match set_last_synced(
