@@ -33,9 +33,9 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
-    FolderCreateError, FolderMoveError, FolderRenameError, ReadingCurrentVersionError,
-    RecursiveDeleteError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
-    WritingMergedFileError,
+    FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
+    ReadingCurrentVersionError, RecursiveDeleteError, ResolveConflictByCreatingNewFileError,
+    SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -686,10 +686,16 @@ impl<
                         ChangeDb::delete_if_exists(&db, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
-                        error!(
-                            "Deferred delete of folders is not allowed! id: {:?} this code should be unreachable",
-                            metadata.id
-                        );
+                        ApiClient::delete_folder(
+                            &account.api_url,
+                            &account.username,
+                            &SignedValue { content: "".to_string(), signature: "".to_string() },
+                            metadata.id,
+                            metadata.metadata_version
+                        ).map_err(FolderDeleteError)?;
+
+                        ChangeDb::delete_if_exists(&db, metadata.id)
+                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
                 }
             }

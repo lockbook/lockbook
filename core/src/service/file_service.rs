@@ -112,6 +112,7 @@ pub enum FileMoveError {
     CouldNotFindParents(FindingParentsFailed),
 }
 
+#[derive(Debug)]
 pub enum DeleteDocumentError {
     CouldNotFindFile,
     FolderTreatedAsDocument,
@@ -545,6 +546,7 @@ mod unit_tests {
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::repo::document_repo::DocumentRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -554,8 +556,9 @@ mod unit_tests {
         DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
+        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
+        DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultLocalChangesRepo, NewFileFromPathError,
     };
 
     type DefaultDbProvider = TempBackedDB;
@@ -1118,4 +1121,76 @@ mod unit_tests {
             .unwrap()
             .is_none());
     }
+
+    #[test]
+    fn test_document_delete_new_documents_no_trace_when_deleted() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
+
+        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
+        DefaultFileService::delete_document(&db, doc1.id).unwrap();
+        assert_total_local_changes!(&db, 0);
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, doc1.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_document_delete_after_sync() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
+
+        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
+        DefaultLocalChangesRepo::delete_if_exists(&db, doc1.id).unwrap();
+
+        DefaultFileService::delete_document(&db, doc1.id).unwrap();
+        assert_total_local_changes!(&db, 1);
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, doc1.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+    }
+
+    // #[test]
+    // fn test_delete_folder() {
+    //     let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+    //
+    //     let account = test_account();
+    //     DefaultAccountRepo::insert_account(&db, &account).unwrap();
+    //     let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+    //     DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+    //
+    //     let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
+    //     let document1 = DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+    // }
 }
