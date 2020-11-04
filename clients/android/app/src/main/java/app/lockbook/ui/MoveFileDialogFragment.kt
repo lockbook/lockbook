@@ -11,6 +11,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
+import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.modelfactory.MoveFileViewModelFactory
 import app.lockbook.util.Messages
@@ -43,7 +44,7 @@ class MoveFileDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val binding: MoveFileDialogFragment = DataBindingUtil.inflate(
+        val binding: DialogMoveFileBinding = DataBindingUtil.inflate(
             inflater,
             R.layout.dialog_move_file,
             container,
@@ -59,12 +60,12 @@ class MoveFileDialogFragment : DialogFragment() {
             MoveFileAdapter(moveFileViewModel)
 
         binding.moveFileViewModel = moveFileViewModel
-        binding.move_file_list.layoutManager = LinearLayoutManager(context)
-        binding.move_file_list.adapter = adapter
-        binding.move_file_cancel.setOnClickListener {
+        binding.moveFileList.layoutManager = LinearLayoutManager(context)
+        binding.moveFileList.adapter = adapter
+        binding.moveFileCancel.setOnClickListener {
             dismiss()
         }
-        binding.move_file_confirm.setOnClickListener {
+        binding.moveFileConfirm.setOnClickListener {
             moveFileViewModel.moveFilesToFolder(ids)
         }
 
