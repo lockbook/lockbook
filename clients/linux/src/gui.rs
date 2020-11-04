@@ -13,18 +13,19 @@ use gtk::{
     ApplicationWindow as GtkAppWindow, Box as GtkBox, CheckButton as GtkCheckBox,
     Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     Expander as GtkExpander, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
-    ResponseType as GtkResponseType, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
-    WindowPosition as GtkWindowPosition,
+    ResponseType as GtkResponseType, Stack as GtkStack, Widget as GtkWidget,
+    WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
+use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::filetree::FileTreeCol;
+use crate::intro::IntroScreen;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg, MsgReceiver};
-use crate::screens::Screens;
 use crate::settings::Settings;
 use crate::tree_iter_value;
 
@@ -137,7 +138,7 @@ impl LockbookApp {
     }
 
     fn create_account(&self, name: String) {
-        self.gui.screens.intro.doing("Creating account...");
+        self.gui.intro.doing("Creating account...");
 
         let gui = self.gui.clone();
         let c = self.core.clone();
@@ -145,7 +146,7 @@ impl LockbookApp {
         let ch = make_glib_chan(move |result: Result<(), String>| {
             match result {
                 Ok(_) => gui.show_account_screen(&c),
-                Err(err) => gui.screens.intro.error_create(&err),
+                Err(err) => gui.intro.error_create(&err),
             }
             glib::Continue(false)
         });
@@ -155,7 +156,7 @@ impl LockbookApp {
     }
 
     fn import_account(&self, privkey: String) {
-        self.gui.screens.intro.doing("Importing account...");
+        self.gui.intro.doing("Importing account...");
 
         let gui = self.gui.clone();
         let c = self.core.clone();
@@ -168,10 +169,10 @@ impl LockbookApp {
 
                     let sync_chan = make_glib_chan(move |msg| {
                         match msg {
-                            LbSyncMsg::Doing(work) => gui.screens.intro.doing_status(&work),
+                            LbSyncMsg::Doing(work) => gui.intro.doing_status(&work),
                             LbSyncMsg::Done => {
                                 gui.show_account_screen(&cc);
-                                gui.screens.account.set_sync_status(&cc);
+                                gui.account.set_sync_status(&cc);
                             }
                             _ => {}
                         }
@@ -181,7 +182,7 @@ impl LockbookApp {
                     let c = c.clone();
                     std::thread::spawn(move || c.sync(&sync_chan));
                 }
-                Err(err) => gui.screens.intro.error_import(&err),
+                Err(err) => gui.intro.error_import(&err),
             }
             glib::Continue(false)
         });
@@ -198,7 +199,7 @@ impl LockbookApp {
     }
 
     fn perform_sync(&self) {
-        let acctscr = self.gui.screens.account.clone();
+        let acctscr = self.gui.account.clone();
         acctscr.set_syncing(true);
 
         let core = self.core.clone();
@@ -226,8 +227,8 @@ impl LockbookApp {
     fn new_file(&self, path: String) {
         match self.core.create_file_at_path(&path) {
             Ok(file) => {
-                self.gui.screens.account.add_file(&self.core, &file);
-                self.gui.screens.account.set_sync_status(&self.core);
+                self.gui.account.add_file(&self.core, &file);
+                self.gui.account.set_sync_status(&self.core);
                 self.open_file(file.id);
             }
             Err(err) => println!("error creating '{}': {}", path, err),
@@ -267,13 +268,13 @@ impl LockbookApp {
 
     fn edit(&self, mode: &EditMode) {
         self.gui.menubar.set(&mode);
-        self.gui.screens.account.show(&mode);
+        self.gui.account.show(&mode);
     }
 
     fn save(&self) {
         if let Some(f) = &self.model.borrow().get_opened_file() {
             if f.file_type == FileType::Document {
-                let acctscr = self.gui.screens.account.clone();
+                let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
                 let id = f.id;
@@ -306,7 +307,7 @@ impl LockbookApp {
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {
-        self.gui.screens.account.sidebar.tree.toggle_col(&c);
+        self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
     }
 
@@ -461,18 +462,27 @@ impl Model {
 
 struct Gui {
     win: GtkAppWindow,
-    screens: Screens,
     menubar: Menubar,
+    screens: GtkStack,
+    intro: IntroScreen,
+    account: Rc<AccountScreen>,
 }
 
 impl Gui {
     fn new(app: &GtkApp, m: &Messenger, s: &Settings) -> Self {
+        // Menubar.
         let accels = GtkAccelGroup::new();
-        let screens = Screens::new(m, &s);
-
         let menubar = Menubar::new(m, &accels);
         menubar.set(&EditMode::None);
 
+        // Screens.
+        let intro = IntroScreen::new(m);
+        let account = AccountScreen::new(m, &s);
+        let screens = GtkStack::new();
+        screens.add_named(&intro.cntr, "intro");
+        screens.add_named(&account.cntr, "account");
+
+        // Window.
         let w = GtkAppWindow::new(app);
         w.set_title("Lockbook");
         w.set_default_size(1300, 700);
@@ -483,14 +493,16 @@ impl Gui {
         w.add(&{
             let base = GtkBox::new(Vertical, 0);
             base.add(&menubar.cntr);
-            base.pack_start(&screens.cntr, true, true, 0);
+            base.pack_start(&screens, true, true, 0);
             base
         });
 
         Self {
             win: w,
-            screens: screens,
-            menubar: menubar,
+            menubar,
+            screens,
+            intro,
+            account: Rc::new(account),
         }
     }
 
@@ -499,10 +511,7 @@ impl Gui {
         match core.account() {
             Ok(acct) => match acct {
                 Some(_) => self.show_account_screen(&core),
-                None => {
-                    self.menubar.for_intro_screen();
-                    self.screens.show_intro();
-                }
+                None => self.show_intro_screen(),
             },
             Err(err) => m.send(Msg::UnexpectedErr(
                 "Unable to load account".to_string(),
@@ -511,9 +520,17 @@ impl Gui {
         }
     }
 
+    fn show_intro_screen(&self) {
+        self.menubar.for_intro_screen();
+        self.intro.cntr.show_all();
+        self.screens.set_visible_child_name("intro");
+    }
+
     fn show_account_screen(&self, core: &LbCore) {
         self.menubar.for_account_screen();
-        self.screens.show_account(&core);
+        self.account.cntr.show_all();
+        self.account.fill(&core);
+        self.screens.set_visible_child_name("account");
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {
