@@ -224,7 +224,6 @@ pub async fn create_file(
 pub async fn delete_file(
     transaction: &Transaction<'_>,
     id: Uuid,
-    old_metadata_version: u64,
     file_type: FileType,
 ) -> Result<FileDeleteResponses, FileError> {
     let rows = transaction
@@ -232,41 +231,35 @@ pub async fn delete_file(
             "WITH RECURSIVE file_descendants AS (
                 SELECT * FROM files AS parent
                 WHERE parent.id = $1
-                AND parent.is_folder = $3
+                AND parent.is_folder = $2
                     UNION
                 SELECT children.* FROM files AS children
                 JOIN file_descendants ON file_descendants.id = children.parent
             ),
-            old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE),
-            max AS (SELECT MAX(metadata_version) AS version FROM old)
+            old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
             UPDATE files new
             SET
-                deleted =
-                    (CASE WHEN NOT old.deleted AND max.version = $2
-                    THEN TRUE
-                    ELSE old.deleted END),
+                deleted = TRUE,
                 metadata_version =
-                    (CASE WHEN NOT old.deleted AND max.version = $2
+                    (CASE WHEN NOT old.deleted
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
-            FROM old CROSS JOIN max WHERE old.id = new.id
+            FROM old WHERE old.id = new.id
             RETURNING
                 old.id AS id,
                 old.deleted AS old_deleted,
-                old.metadata_version AS old_metadata_version,
                 old.content_version AS old_content_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
                 &serde_json::to_string(&id).map_err(FileError::Serialize)?,
-                &(old_metadata_version as i64),
                 &(file_type == FileType::Folder),
             ],
         )
         .await
         .map_err(FileError::Postgres)?;
     let metadata =
-        FileDeleteResponses::from_rows(&rows)?.validate(old_metadata_version, id, file_type)?;
+        FileDeleteResponses::from_rows(&rows)?.validate(id, file_type)?;
     Ok(metadata)
 }
 
@@ -437,7 +430,6 @@ impl FileUpdateResponse {
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_deleted: bool,
-    pub old_metadata_version: u64,
     pub old_content_version: u64,
     pub new_metadata_version: u64,
     pub is_folder: bool,
@@ -458,10 +450,6 @@ impl FileDeleteResponses {
                     )
                     .map_err(FileError::Deserialize)?,
                     old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
-                    old_metadata_version: row
-                        .try_get::<&str, i64>("old_metadata_version")
-                        .map_err(FileError::Postgres)?
-                        as u64,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
                         .map_err(FileError::Postgres)?
@@ -479,7 +467,6 @@ impl FileDeleteResponses {
 
     fn validate(
         self,
-        expected_max_old_metadata_version: u64,
         root_id: Uuid,
         expected_root_file_type: FileType,
     ) -> Result<Self, FileError> {
@@ -495,10 +482,6 @@ impl FileDeleteResponses {
             .all(|r| r.id != root_id || !r.old_deleted)
         {
             Err(FileError::Deleted)
-        } else if self.responses.iter().map(|r| r.old_metadata_version).max()
-            != Some(expected_max_old_metadata_version)
-        {
-            Err(FileError::IncorrectOldVersion)
         } else {
             Ok(self)
         }
