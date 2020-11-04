@@ -18,6 +18,7 @@ import app.lockbook.model.FilesAdapter
 import app.lockbook.model.ListFilesViewModel
 import app.lockbook.modelfactory.ListFilesViewModelFactory
 import app.lockbook.ui.FileInfoDialogFragment
+import app.lockbook.ui.MoveFileDialogFragment
 import app.lockbook.util.EditableFile
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
@@ -428,6 +429,15 @@ class ListFilesFragment : Fragment() {
                 files[0].contentVersion.toString(),
                 files[0].fileType.name
             ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
+        }
+    }
+
+    fun moveSelectedFiles() {
+        listFilesViewModel.files.value?.let { files ->
+            MoveFileDialogFragment.newInstance(files.filterIndexed { index, _ ->
+                listFilesViewModel.selectedFiles[index]
+            }.map { fileMetadata -> fileMetadata.id })
+                .show(childFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
         }
     }
 
