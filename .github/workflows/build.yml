@@ -44,6 +44,21 @@ jobs:
       run: make cli_fmt
     - name: Lint
       run: make cli_lint
+  Linux:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build container
+      run: make linux
+    - name: Check Formatting
+      run: make linux_fmt
+    - name: Lint
+      run: make linux_lint
+    - name: Compile and run tests
+      run: make linux_test
   Android:
     runs-on: self-hosted
     env:
