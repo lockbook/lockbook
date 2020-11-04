@@ -687,8 +687,7 @@ impl<
                             &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
-                            metadata.id,
-                            metadata.metadata_version
+                            metadata.id
                         ).map_err(FolderDeleteError)?;
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
