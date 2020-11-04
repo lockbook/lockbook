@@ -348,7 +348,6 @@ impl<
                                         signature: "".to_string(),
                                     },
                                     metadata.id,
-                                    0,
                                 )
                                 .map_err(WorkExecutionError::DocumentDeleteError)?;
                             } else {
@@ -360,7 +359,6 @@ impl<
                                         signature: "".to_string(),
                                     },
                                     metadata.id,
-                                    0,
                                 )
                                 .map_err(WorkExecutionError::FolderDeleteError)?;
                             }
@@ -680,7 +678,6 @@ impl<
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id,
-                            metadata.metadata_version
                         ).map_err(DocumentDeleteError)?;
 
                         ChangeDb::delete_if_exists(&db, metadata.id)
