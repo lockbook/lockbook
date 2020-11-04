@@ -510,7 +510,7 @@ impl<
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
 
         if file_metadata.file_type == Document {
-            return Err(DeleteFolderError::DocumentTreatedAsFolder)?;
+            return Err(DeleteFolderError::DocumentTreatedAsFolder);
         }
 
         ChangesDb::track_delete(&db, id).map_err(DeleteFolderError::FailedToRecordChange)?;
