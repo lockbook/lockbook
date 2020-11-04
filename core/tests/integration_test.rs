@@ -14,6 +14,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::env;
 use uuid::Uuid;
+use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use std::collections::HashMap;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -61,6 +63,66 @@ pub fn generate_account() -> Account {
         username: random_username(),
         api_url: env::var("API_URL").expect("API_URL must be defined!"),
         private_key: RSAImpl::<ClockImpl>::generate_key().unwrap(),
+    }
+}
+
+pub fn generate_root_metadata(account: &Account) -> FileMetadata {
+    let id = Uuid::new_v4();
+    let public_key = account.private_key.to_public_key();
+    let folder_key = AES::generate_key();
+    let user_access_info = UserAccessInfo {
+        username: account.username.clone(),
+        public_key,
+        access_key: rsa_encrypt(&public_key, &folder_key),
+    };
+
+    let mut user_access_keys = HashMap::new();
+    user_access_keys.insert(account.username.clone(), user_access_info);
+
+    FileMetadata {
+        file_type: FileType::Folder,
+        id,
+        name: account.username.clone(),
+        owner: account.username.clone(),
+        parent: id,
+        content_version: 0,
+        metadata_version: 0,
+        deleted: false,
+        user_access_keys,
+        folder_access_keys: FolderAccessInfo {
+            folder_id: id,
+            access_key: aes_encrypt(&folder_key, &folder_key),
+        },
+    }
+}
+
+pub fn generate_folder_metadata(account: &Account, parent: FileMetadata) -> FileMetadata {
+    let id = Uuid::new_v4();
+    let public_key = account.private_key.to_public_key();
+    let folder_key = AES::generate_key();
+    let user_access_info = UserAccessInfo {
+        username: account.username.clone(),
+        public_key,
+        access_key: rsa_encrypt(&public_key, &folder_key),
+    };
+
+    let mut user_access_keys = HashMap::new();
+    user_access_keys.insert(account.username.clone(), user_access_info);
+
+    FileMetadata {
+        file_type: FileType::Folder,
+        id,
+        name: random_filename(),
+        owner: account.username.clone(),
+        parent: parent.id,
+        content_version: 0,
+        metadata_version: 0,
+        deleted: false,
+        user_access_keys,
+        folder_access_keys: FolderAccessInfo {
+            folder_id: id,
+            access_key: aes_encrypt(&AES::generate_key(), &folder_key), // todo
+        },
     }
 }
 
