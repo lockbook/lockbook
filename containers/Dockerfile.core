@@ -10,6 +10,7 @@ WORKDIR core
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
+COPY core/benches ./benches
 RUN cargo build
 
 # Build our source

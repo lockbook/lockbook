@@ -2,6 +2,7 @@ package app.lockbook.login
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
@@ -41,6 +42,7 @@ class ImportAccountActivity : AppCompatActivity() {
     }
 
     private fun onClickImportAccount() {
+        import_account_progress_bar.visibility = View.VISIBLE
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 handleImportResult(
@@ -63,47 +65,51 @@ class ImportAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
+                    import_account_progress_bar.visibility = View.GONE
                     setUpLoggedInImportState()
                     startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
-                is Err -> when (val error = importAccountResult.error) {
-                    is ImportError.AccountStringCorrupted -> Snackbar.make(
-                        import_account_layout,
-                        "Invalid account string!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.AccountExistsAlready -> Snackbar.make(
-                        import_account_layout,
-                        "Account already exists!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.AccountDoesNotExist -> Snackbar.make(
-                        import_account_layout,
-                        "That account does not exist on this server!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.UsernamePKMismatch -> Snackbar.make(
-                        import_account_layout,
-                        "That username does not correspond with that public_key on this server!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.CouldNotReachServer -> Snackbar.make(
-                        import_account_layout,
-                        "Could not access server to ensure this!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.ClientUpdateRequired -> Snackbar.make(
-                        import_account_layout,
-                        "Update required.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    is ImportError.Unexpected -> {
-                        AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
-                            .setTitle(UNEXPECTED_ERROR)
-                            .setMessage(error.error)
-                            .show()
-                        Timber.e("Unable to import an account.")
+                is Err -> {
+                    import_account_progress_bar.visibility = View.GONE
+                    when (val error = importAccountResult.error) {
+                        is ImportError.AccountStringCorrupted -> Snackbar.make(
+                            import_account_layout,
+                            "Invalid account string!",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.AccountExistsAlready -> Snackbar.make(
+                            import_account_layout,
+                            "Account already exists!",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.AccountDoesNotExist -> Snackbar.make(
+                            import_account_layout,
+                            "That account does not exist on this server!",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.UsernamePKMismatch -> Snackbar.make(
+                            import_account_layout,
+                            "That username does not correspond with that public_key on this server!",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.CouldNotReachServer -> Snackbar.make(
+                            import_account_layout,
+                            "Could not access server to ensure this!",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.ClientUpdateRequired -> Snackbar.make(
+                            import_account_layout,
+                            "Update required.",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        is ImportError.Unexpected -> {
+                            AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
+                                .setTitle(UNEXPECTED_ERROR)
+                                .setMessage(error.error)
+                                .show()
+                            Timber.e("Unable to import an account.")
+                        }
                     }
                 }
             }.exhaustive
