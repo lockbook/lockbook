@@ -199,13 +199,8 @@ pub async fn delete_document(
         }
     };
 
-    let index_result = file_index_repo::delete_file(
-        &transaction,
-        request.id,
-        request.old_metadata_version,
-        FileType::Document,
-    )
-    .await;
+    let index_result =
+        file_index_repo::delete_file(&transaction, request.id, FileType::Document).await;
     let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
@@ -285,6 +280,7 @@ pub async fn move_document(
         file_index_repo::FileError::Deleted => MoveDocumentError::DocumentDeleted,
         file_index_repo::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
+        file_index_repo::FileError::ParentDeleted => MoveDocumentError::ParentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot move document in Postgres: {:?}",
@@ -455,13 +451,8 @@ pub async fn delete_folder(
         }
     };
 
-    let index_result = file_index_repo::delete_file(
-        &transaction,
-        request.id,
-        request.max_metadata_version_of_children,
-        FileType::Folder,
-    )
-    .await;
+    let index_result =
+        file_index_repo::delete_file(&transaction, request.id, FileType::Folder).await;
     let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
@@ -549,6 +540,7 @@ pub async fn move_folder(
         file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
+        file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot move folder in Postgres: {:?}",

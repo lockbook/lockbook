@@ -42,5 +42,13 @@
         style="@style/Button.Colored"
         android:text="@string/import_account_import_button" />
 
+    <ProgressBar
+        android:id="@+id/import_account_progress_bar"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:indeterminate="true"
+        android:minHeight="20dp" />
 
 </LinearLayout>
