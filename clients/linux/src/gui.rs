@@ -9,11 +9,12 @@ use glib::clone;
 use gtk::prelude::*;
 use gtk::Orientation::Vertical;
 use gtk::{
-    AccelGroup as GtkAccelGroup, Application as GtkApp, ApplicationWindow as GtkAppWindow,
-    Box as GtkBox, CheckButton as GtkCheckBox, Dialog as GtkDialog, Entry as GtkEntry,
-    EntryCompletion as GtkEntryCompletion, Expander as GtkExpander, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Application as GtkApp,
+    ApplicationWindow as GtkAppWindow, Box as GtkBox, CheckButton as GtkCheckBox,
+    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Expander as GtkExpander, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    ResponseType as GtkResponseType, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
@@ -123,6 +124,7 @@ impl LockbookApp {
                 Msg::ShowDialogNew => lb.show_dialog_new(),
                 Msg::ShowDialogOpen => lb.show_dialog_open(),
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
+                Msg::ShowDialogAbout => lb.show_dialog_about(),
 
                 Msg::UnexpectedErr(desc, deets) => lb.show_unexpected_err(&desc, &deets),
             }
@@ -387,6 +389,26 @@ impl LockbookApp {
         d.show_all();
     }
 
+    fn show_dialog_about(&self) {
+        let logo = gdk_pixbuf::Pixbuf::from_file("./lockbook-intro.png").unwrap();
+
+        let d = GtkAboutDialog::new();
+        d.set_transient_for(Some(&self.gui.win));
+        d.set_logo(Some(&logo));
+        d.set_program_name("Lockbook");
+        d.set_version(Some(VERSION));
+        d.set_website(Some("https://lockbook.app"));
+        d.set_authors(&["The Lockbook Team"]);
+        d.set_license(Some(LICENSE));
+        d.set_comments(Some(COMMENTS));
+        d.connect_response(move |d, resp| {
+            if let GtkResponseType::DeleteEvent = resp {
+                d.close();
+            }
+        });
+        d.show_all();
+    }
+
     fn show_dialog_export_account(&self, privkey: &str) {
         let bx = GtkBox::new(Vertical, 0);
         bx.add(&GuiUtil::selectable_label(&privkey));
@@ -582,3 +604,35 @@ const STYLE: &str = "
     font-size: 20px;
 }
 ";
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const COMMENTS: &str = "
+Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.
+";
+
+const LICENSE: &str = "
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>";

@@ -51,14 +51,19 @@ pub struct Menubar {
 
 impl Menubar {
     pub fn new(m: &Messenger, accels: &GtkAccelGroup) -> Self {
+        let items = Items::hashmap(&m, &accels);
+
         let file = GtkMenuItem::with_label("File");
         let edit = GtkMenuItem::with_label("Edit");
         let acct = GtkMenuItem::with_label("Account");
+        let help = GtkMenuItem::with_label("Help");
 
         let cntr = GtkMenuBar::new();
-        for menu in &[&file, &edit, &acct] {
+        for menu in &[&file, &edit, &acct, &help] {
             cntr.append(*menu);
         }
+
+        menu_set!(help, items, &Items::HelpAbout);
 
         Self {
             items: Items::hashmap(&m, &accels),
@@ -148,6 +153,8 @@ enum Items {
 
     AccountExport,
 
+    HelpAbout,
+
     Separator,
 }
 
@@ -170,6 +177,7 @@ impl Items {
             Self::FileQuit,
             Self::EditPreferences,
             Self::AccountExport,
+            Self::HelpAbout,
         ]
     }
 
@@ -184,6 +192,8 @@ impl Items {
             Items::EditPreferences => Self::edit_preferences,
 
             Items::AccountExport => Self::acct_export,
+
+            Items::HelpAbout => Self::help_about,
 
             _ => panic!("Trying to make '{:?}' menu item", self),
         }
@@ -256,5 +266,12 @@ impl Items {
             accels,
             clone!(@strong m => move |_| m.send(Msg::ExportAccount))
         );
+    }
+
+    fn help_about(m: &Messenger, _: &GtkAccelGroup) -> GtkMenuItem {
+        let mi = GtkMenuItem::with_label("About");
+        let m = m.clone();
+        mi.connect_activate(move |_| m.send(Msg::ShowDialogAbout));
+        mi
     }
 }
