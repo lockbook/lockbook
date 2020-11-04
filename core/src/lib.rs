@@ -958,6 +958,7 @@ pub fn execute_work(
                     | MoveDocumentError::UserNotFound
                     | MoveDocumentError::DocumentNotFound
                     | MoveDocumentError::ParentNotFound
+                    | MoveDocumentError::ParentDeleted
                     | MoveDocumentError::EditConflict
                     | MoveDocumentError::DocumentDeleted
                     | MoveDocumentError::DocumentPathTaken => {
@@ -986,7 +987,8 @@ pub fn execute_work(
                     | MoveFolderError::EditConflict
                     | MoveFolderError::FolderDeleted
                     | MoveFolderError::FolderPathTaken
-                    | MoveFolderError::ParentNotFound => {
+                    | MoveFolderError::ParentNotFound
+                    | MoveFolderError::ParentDeleted => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
