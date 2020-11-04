@@ -69,7 +69,6 @@ pub trait Client {
         username: &str,
         signature: &SignedValue,
         id: Uuid,
-        old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>>;
     fn move_document(
         api_url: &str,
@@ -102,7 +101,6 @@ pub trait Client {
         username: &str,
         signature: &SignedValue,
         id: Uuid,
-        max_metadata_version_of_children: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>>;
     fn move_folder(
         api_url: &str,
@@ -220,7 +218,6 @@ impl Client for ClientImpl {
         username: &str,
         signature: &SignedValue,
         id: Uuid,
-        old_metadata_version: u64,
     ) -> Result<u64, ApiError<DeleteDocumentError>> {
         api_request(
             api_url,
@@ -231,7 +228,6 @@ impl Client for ClientImpl {
                 signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
-                old_metadata_version: old_metadata_version,
             },
         )
         .map(|r: DeleteDocumentResponse| r.new_metadata_and_content_version)
@@ -314,7 +310,6 @@ impl Client for ClientImpl {
         username: &str,
         signature: &SignedValue,
         id: Uuid,
-        max_metadata_version_of_children: u64,
     ) -> Result<u64, ApiError<DeleteFolderError>> {
         api_request(
             api_url,
@@ -325,7 +320,6 @@ impl Client for ClientImpl {
                 signature: signature.clone(),
                 client_version: CORE_CODE_VERSION.to_string(),
                 id: id,
-                max_metadata_version_of_children: max_metadata_version_of_children,
             },
         )
         .map(|r: DeleteFolderResponse| r.new_metadata_version)

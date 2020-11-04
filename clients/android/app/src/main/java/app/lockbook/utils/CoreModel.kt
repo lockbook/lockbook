@@ -4,7 +4,6 @@ import app.lockbook.core.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 object CoreModel {
 
@@ -47,7 +46,6 @@ object CoreModel {
     }
 
     fun migrateDB(config: Config): Result<Unit, MigrationError> {
-        Timber.e("LOL")
         val migrateDBResult: Result<Unit, MigrationError>? =
             Klaxon().converter(migrateDBConverter)
                 .parse(migrateDB(Klaxon().toJsonString(config)))
@@ -60,7 +58,6 @@ object CoreModel {
     }
 
     fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
-        Timber.e("HERE2")
         val createAccountResult: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
                 .parse(createAccount(Klaxon().toJsonString(config), account, API_URL))
@@ -313,7 +310,6 @@ object CoreModel {
         account: Account,
         workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
-        Timber.e("${Klaxon().toJsonString(workUnit)}, ${config.writeable_path}")
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
                 executeSyncWork(
