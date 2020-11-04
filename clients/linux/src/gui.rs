@@ -144,7 +144,7 @@ impl LockbookApp {
 
         let ch = make_glib_chan(move |result: Result<(), String>| {
             match result {
-                Ok(_) => gui.screens.show_account(&c),
+                Ok(_) => gui.show_account_screen(&c),
                 Err(err) => gui.screens.intro.error_create(&err),
             }
             glib::Continue(false)
@@ -170,7 +170,7 @@ impl LockbookApp {
                         match msg {
                             LbSyncMsg::Doing(work) => gui.screens.intro.doing_status(&work),
                             LbSyncMsg::Done => {
-                                gui.screens.show_account(&cc);
+                                gui.show_account_screen(&cc);
                                 gui.screens.account.set_sync_status(&cc);
                             }
                             _ => {}
@@ -496,7 +496,24 @@ impl Gui {
 
     fn show(&self, core: &LbCore, m: &Messenger) {
         self.win.show_all();
-        self.screens.init(&core, &m);
+        match core.account() {
+            Ok(acct) => match acct {
+                Some(_) => self.show_account_screen(&core),
+                None => {
+                    self.menubar.for_intro_screen();
+                    self.screens.show_intro();
+                }
+            },
+            Err(err) => m.send(Msg::UnexpectedErr(
+                "Unable to load account".to_string(),
+                err,
+            )),
+        }
+    }
+
+    fn show_account_screen(&self, core: &LbCore) {
+        self.menubar.for_account_screen();
+        self.screens.show_account(&core);
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {

@@ -6,7 +6,7 @@ use gtk::Stack as GtkStack;
 use crate::account::AccountScreen;
 use crate::backend::LbCore;
 use crate::intro::IntroScreen;
-use crate::messages::{Messenger, Msg};
+use crate::messages::Messenger;
 use crate::settings::Settings;
 
 pub struct Screens {
@@ -31,20 +31,7 @@ impl Screens {
         }
     }
 
-    pub fn init(&self, core: &LbCore, m: &Messenger) {
-        match core.account() {
-            Ok(acct) => match acct {
-                Some(_) => self.show_account(core),
-                None => self.show_intro(),
-            },
-            Err(err) => m.send(Msg::UnexpectedErr(
-                "Unable to load account".to_string(),
-                err,
-            )),
-        }
-    }
-
-    fn show_intro(&self) {
+    pub fn show_intro(&self) {
         self.intro.cntr.show_all();
         self.set("intro");
     }
