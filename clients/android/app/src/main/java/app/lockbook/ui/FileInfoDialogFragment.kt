@@ -8,15 +8,14 @@ import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
 import kotlinx.android.synthetic.main.dialog_file_info.view.*
-import timber.log.Timber
 import java.sql.Timestamp
 import java.util.*
 
-class FileInfoDialogFragment: DialogFragment() {
+class FileInfoDialogFragment : DialogFragment() {
 
     companion object {
 
-        const val TAG = "FileInfoDialogFragment"
+        const val FILE_INFO_DIALOG_TAG = "FileInfoDialogFragment"
 
         private const val NAME_KEY = "NAME_KEY"
         private const val ID_KEY = "ID_KEY"
@@ -36,7 +35,6 @@ class FileInfoDialogFragment: DialogFragment() {
             fragment.arguments = args
             return fragment
         }
-
     }
 
     override fun onCreateView(
@@ -48,7 +46,7 @@ class FileInfoDialogFragment: DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val bundle = arguments
-        if(bundle != null) {
+        if (bundle != null) {
             setUpInfo(view, bundle)
         }
     }
