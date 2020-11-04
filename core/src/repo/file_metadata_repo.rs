@@ -254,7 +254,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                     all.clone()
                         .into_iter()
                         .filter(|maybe_child| maybe_child.parent == file.id)
-                        .for_each(|f| explore_next_round.push(f.clone()));
+                        .for_each(|f| explore_next_round.push(f));
                 }
 
                 result.push(file.clone());
