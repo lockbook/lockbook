@@ -59,6 +59,7 @@ pub enum FileError {
     IncorrectOldVersion,
     OwnerDoesNotExist,
     ParentDoesNotExist,
+    ParentDeleted,
     PathTaken,
     Postgres(PostgresError),
     Serialize(serde_json::Error),
@@ -258,8 +259,7 @@ pub async fn delete_file(
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata =
-        FileDeleteResponses::from_rows(&rows)?.validate(id, file_type)?;
+    let metadata = FileDeleteResponses::from_rows(&rows)?.validate(id, file_type)?;
     Ok(metadata)
 }
 
@@ -273,26 +273,41 @@ pub async fn move_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
+            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
+            parent AS (
+                SELECT * FROM files WHERE id = $4
+            )
             UPDATE files new
             SET
                 parent =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN
+                        NOT old.deleted
+                        AND old.metadata_version = $2
+                        AND old.is_folder = $3
+                        AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $4
                     ELSE old.parent END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN
+                        NOT old.deleted
+                        AND old.metadata_version = $2
+                        AND old.is_folder = $3
+                        AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END),
                 parent_access_key =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN
+                        NOT old.deleted
+                        AND old.metadata_version = $2
+                        AND old.is_folder = $3
+                        AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $5
                     ELSE old.parent_access_key END)
-            FROM old WHERE old.id = new.id
+            FROM old CROSS JOIN parent WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
+                parent.deleted AS parent_deleted,
                 old.metadata_version AS old_metadata_version,
-                old.content_version AS old_content_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
@@ -304,7 +319,7 @@ pub async fn move_file(
             ],
         )
         .await?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
+    let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?
         .validate(old_metadata_version, file_type)?;
     Ok(metadata.new_metadata_version)
 }
@@ -427,6 +442,48 @@ impl FileUpdateResponse {
     }
 }
 
+struct FileMoveResponse {
+    old_deleted: bool,
+    parent_deleted: bool,
+    old_metadata_version: u64,
+    new_metadata_version: u64,
+    is_folder: bool,
+}
+
+impl FileMoveResponse {
+    fn from_row(row: &tokio_postgres::row::Row) -> Result<Self, FileError> {
+        Ok(Self {
+            old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
+            parent_deleted: row.try_get("parent_deleted").map_err(FileError::Postgres)?,
+            old_metadata_version: row
+                .try_get::<&str, i64>("old_metadata_version")
+                .map_err(FileError::Postgres)? as u64,
+            new_metadata_version: row
+                .try_get::<&str, i64>("new_metadata_version")
+                .map_err(FileError::Postgres)? as u64,
+            is_folder: row.try_get("is_folder").map_err(FileError::Postgres)?,
+        })
+    }
+
+    fn validate(
+        self,
+        expected_old_metadata_version: u64,
+        expected_file_type: FileType,
+    ) -> Result<Self, FileError> {
+        if self.is_folder != (expected_file_type == FileType::Folder) {
+            Err(FileError::WrongFileType)
+        } else if self.old_deleted {
+            Err(FileError::Deleted)
+        } else if self.parent_deleted {
+            Err(FileError::ParentDeleted)
+        } else if self.old_metadata_version != expected_old_metadata_version {
+            Err(FileError::IncorrectOldVersion)
+        } else {
+            Ok(self)
+        }
+    }
+}
+
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_deleted: bool,
@@ -465,11 +522,7 @@ impl FileDeleteResponses {
             .map(|r| FileDeleteResponses { responses: r })
     }
 
-    fn validate(
-        self,
-        root_id: Uuid,
-        expected_root_file_type: FileType,
-    ) -> Result<Self, FileError> {
+    fn validate(self, root_id: Uuid, expected_root_file_type: FileType) -> Result<Self, FileError> {
         if self.responses.is_empty() {
             Err(FileError::DoesNotExist)
         } else if !self.responses.iter().all(|r| {
