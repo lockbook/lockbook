@@ -15,7 +15,7 @@ use lockbook_core::{
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
 use std::path::Path;
-use std::{env, fs};
+use std::env;
 use uuid::Uuid;
 
 struct CpuProfiler;
