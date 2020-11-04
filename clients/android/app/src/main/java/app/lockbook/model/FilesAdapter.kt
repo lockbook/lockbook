@@ -5,14 +5,14 @@ import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.util.ClickInterface
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
+import app.lockbook.util.ListFilesClickInterface
 import kotlinx.android.synthetic.main.recyclerview_content_files.view.*
 import java.sql.Date
 import java.sql.Timestamp
 
-class FilesAdapter(val clickInterface: ClickInterface) :
+class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
     RecyclerView.Adapter<FilesAdapter.ListFilesViewHolder>() {
 
     var files = listOf<FileMetadata>()
@@ -45,10 +45,16 @@ class FilesAdapter(val clickInterface: ClickInterface) :
             R.string.last_synced,
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
         )
-        if (item.fileType == FileType.Document) {
-            holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
-        } else {
-            holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+        when {
+            selectedFiles[position] -> {
+                holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+            }
+            item.fileType == FileType.Document -> {
+                holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+            }
+            else -> {
+                holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+            }
         }
     }
 
@@ -57,23 +63,23 @@ class FilesAdapter(val clickInterface: ClickInterface) :
 
         init {
             cardView.setOnClickListener {
-                if(selectedFiles.contains(true)) {
+                if (selectedFiles.contains(true)) {
                     setImageResourceBasedOnSelection()
-                    clickInterface.onItemClick(adapterPosition, true, selectedFiles[adapterPosition])
+                    listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles[adapterPosition])
                 } else {
-                    clickInterface.onItemClick(adapterPosition, false, false)
+                    listFilesClickInterface.onItemClick(adapterPosition, false, false)
                 }
             }
 
             cardView.setOnLongClickListener {
                 setImageResourceBasedOnSelection()
-                clickInterface.onLongClick(adapterPosition, selectedFiles[adapterPosition])
+                listFilesClickInterface.onLongClick(adapterPosition, selectedFiles[adapterPosition])
                 true
             }
         }
 
         private fun setImageResourceBasedOnSelection() {
-            if(!selectedFiles[adapterPosition]) {
+            if (!selectedFiles[adapterPosition]) {
                 cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
             } else {
                 if (fileMetadata.fileType == FileType.Document) {

@@ -40,7 +40,7 @@ class ListFilesActivity : AppCompatActivity() {
 
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            if(fragment.listFilesViewModel.fileMenuShowing) {
+            if (fragment.listFilesViewModel.fileMenuShowing) {
                 openFileMenu()
             }
         } else {
@@ -146,7 +146,7 @@ class ListFilesActivity : AppCompatActivity() {
     fun switchMenu() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            if(fragment.listFilesViewModel.fileMenuShowing) {
+            if (fragment.listFilesViewModel.fileMenuShowing) {
                 menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_info)?.isVisible = false

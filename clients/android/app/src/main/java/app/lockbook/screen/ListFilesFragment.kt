@@ -68,6 +68,8 @@ class ListFilesFragment : Fragment() {
         val adapter =
             FilesAdapter(listFilesViewModel)
 
+        adapter.selectedFiles = listFilesViewModel.selectedFiles
+
         binding.listFilesViewModel = listFilesViewModel
         binding.filesList.adapter = adapter
         binding.filesList.layoutManager = LinearLayoutManager(context)
@@ -81,7 +83,6 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { files ->
                 updateRecyclerView(files, adapter)
-                listFilesViewModel.selectedFiles = MutableList(files.size) { false }
             }
         )
 
@@ -218,7 +219,6 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-
     override fun onDestroy() {
         super.onDestroy()
         setUpBeforeConfigChange()
@@ -350,6 +350,7 @@ class ListFilesFragment : Fragment() {
         adapter: FilesAdapter
     ) {
         adapter.files = files
+        listFilesViewModel.selectedFiles = MutableList(files.size) { false }
         adapter.selectedFiles = MutableList(files.size) {
             false
         }
@@ -426,7 +427,7 @@ class ListFilesFragment : Fragment() {
                 files[0].metadataVersion.toString(),
                 files[0].contentVersion.toString(),
                 files[0].fileType.name
-            ).show(childFragmentManager, FileInfoDialogFragment.TAG)
+            ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
         }
     }
 

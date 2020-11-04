@@ -152,6 +152,8 @@
     <string name="menu_markdown_bold">Insert bold text</string>
     <string name="menu_markdown_title">Insert title</string>
     <string name="menu_markdown_image">Insert image</string>
+    <string name="move_file_cancel">Cancel</string>
+    <string name="move_file_confirm">Move to this folder</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

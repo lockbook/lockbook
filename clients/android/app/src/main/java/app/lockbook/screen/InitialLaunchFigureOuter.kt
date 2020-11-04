@@ -127,7 +127,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         is MigrationError.Unexpected -> {
                             withContext(Dispatchers.Main) {
                                 migrate_progress_bar.visibility = View.GONE
-                                AlertDialog.Builder(this@InitialLaunchFigureOuter,
+                                AlertDialog.Builder(
+                                    this@InitialLaunchFigureOuter,
                                     R.style.DarkBlue_Dialog
                                 )
                                     .setTitle(UNEXPECTED_ERROR)

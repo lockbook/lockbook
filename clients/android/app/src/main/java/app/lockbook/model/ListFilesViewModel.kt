@@ -39,7 +39,7 @@ import timber.log.Timber
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
-    ClickInterface {
+    ListFilesClickInterface {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
@@ -177,9 +177,9 @@ class ListFilesViewModel(path: String, application: Application) :
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                when(requestCode) {
+                when (requestCode) {
                     POP_UP_INFO_REQUEST_CODE -> {
-                        if(data != null) {
+                        if (data != null) {
                             handlePopUpInfoRequest(
                                 resultCode,
                                 data
@@ -188,7 +188,6 @@ class ListFilesViewModel(path: String, application: Application) :
                             Timber.e("Data from activity result is null.")
                             _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                         }
-
                     }
                     TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
                     RESULT_CANCELED -> {
@@ -204,7 +203,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun syncBasedOnPreferences() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
         ) {
             incrementalSyncIfNotRunning()
         }
@@ -223,6 +222,7 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 files.value?.let { files ->
+                    selectedFiles.forEach { Timber.e(it.toString()) }
                     fileModel.renameRefreshFiles(files[0].id, newName)
                     syncBasedOnPreferences()
                 }
@@ -447,9 +447,9 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.files.value?.let {
-                    if(isSelecting) {
+                    if (isSelecting) {
                         selectedFiles[position] = selection
-                        if(!selectedFiles.contains(true)) {
+                        if (!selectedFiles.contains(true)) {
                             _moreOptionsMenu.postValue(Unit)
                         }
                     } else {
@@ -479,9 +479,13 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 files.value?.let {
+                    if (!selectedFiles.contains(true)) {
+                        _moreOptionsMenu.postValue(Unit)
+                    }
+
                     selectedFiles[position] = selection
 
-                    if(!selectedFiles.contains(true)) {
+                    if (!selectedFiles.contains(true)) {
                         _moreOptionsMenu.postValue(Unit)
                     }
                 }
