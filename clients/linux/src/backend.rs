@@ -220,14 +220,16 @@ impl LbCore {
     pub fn sync(&self, chan: &glib::Sender<LbSyncMsg>) -> Result<(), String> {
         let account = self.account().unwrap().unwrap();
 
-        let mut work_calculated = match self.calculate_work() {
-            Ok(work) => work,
-            Err(err) => return Err(format!("{:?}", err)),
-        };
-
-        while !work_calculated.work_units.is_empty() {
-            for work_unit in work_calculated.work_units {
-                let (prefix, meta) = match &work_unit {
+        let mut work_calculated: WorkCalculated;
+        while {
+            work_calculated = match self.calculate_work() {
+                Ok(work) => work,
+                Err(err) => return Err(format!("{:?}", err)),
+            };
+            !work_calculated.work_units.is_empty()
+        } {
+            for wu in work_calculated.work_units {
+                let (prefix, meta) = match &wu {
                     WorkUnit::LocalChange { metadata } => ("Pushing", metadata),
                     WorkUnit::ServerChange { metadata } => ("Pulling", metadata),
                 };
@@ -236,16 +238,11 @@ impl LbCore {
                 let action = format!("{}: {}", prefix, path);
                 chan.send(LbSyncMsg::Doing(action.clone())).unwrap();
 
-                if let Err(err) = self.do_work(&account, work_unit) {
+                if let Err(err) = self.do_work(&account, wu) {
                     chan.send(LbSyncMsg::Error(format!("{}: {:?}", action, err)))
                         .unwrap();
                 }
             }
-
-            work_calculated = match self.calculate_work() {
-                Ok(work) => work,
-                Err(err) => return Err(format!("{:?}", err)),
-            };
         }
 
         match self.set_last_synced(work_calculated.most_recent_update_from_server) {
