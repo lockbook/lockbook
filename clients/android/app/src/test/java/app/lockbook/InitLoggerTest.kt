@@ -1,7 +1,7 @@
 package app.lockbook
 
-import app.lockbook.util.Config
 import app.lockbook.model.CoreModel
+import app.lockbook.util.Config
 import app.lockbook.util.InitLoggerError
 import org.junit.After
 import org.junit.BeforeClass

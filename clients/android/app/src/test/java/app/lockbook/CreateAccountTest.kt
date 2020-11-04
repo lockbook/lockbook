@@ -2,8 +2,8 @@ package app.lockbook
 
 import app.lockbook.core.createAccount
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
 import app.lockbook.model.CoreModel.API_URL
+import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.After
