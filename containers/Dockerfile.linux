@@ -1,22 +1,30 @@
-FROM rust
+FROM ubuntu:20.10
+
+RUN apt update -y
+RUN apt-get install -y build-essential curl libgtk-3-dev
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+RUN apt update -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
-WORKDIR core
+WORKDIR linux
+
+# CLI depends on core via a relative import
+COPY core ../core
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
-COPY containers/dummy.rs src/lib.rs
-COPY core/Cargo.toml .
-COPY core/Cargo.lock .
-COPY core/benches ./benches
+COPY containers/dummy.rs src/main.rs
+COPY clients/linux/Cargo.toml .
+COPY clients/linux/Cargo.lock .
 RUN cargo build
 
 # Build our source
-COPY core .
-# Compile-time env var
-ENV API_URL=http://lockbook_server:8000
+COPY clients/linux .
+
 # Cargo thinks this file hasn't changed on the filesystem
-RUN touch src/lib.rs
+RUN touch src/main.rs
 RUN cargo build
