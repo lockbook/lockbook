@@ -211,7 +211,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
                 folder_id: parent_id,
                 access_key,
             },
-        }) // TODO: sign
+        })
     }
 
     fn create_metadata_for_root_folder(
@@ -246,7 +246,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
                 access_key: AES::encrypt(&AES::generate_key(), &key)
                     .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
             },
-        }) // TODO: sign
+        })
     }
 
     fn write_to_document(
