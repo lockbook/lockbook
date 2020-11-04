@@ -19,6 +19,7 @@ class HandwritingEditorViewModel(
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     var lockBookDrawable: Drawing? = null
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
+    private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
@@ -28,7 +29,25 @@ class HandwritingEditorViewModel(
     val unexpectedErrorHasOccurred: LiveData<String>
         get() = _unexpectedErrorHasOccurred
 
-    fun handleReadDocument(id: String): String? {
+    val drawableReady: LiveData<Unit>
+        get() = _drawableReady
+
+    fun getDrawing(id: String) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                val contents = readDocument(id)
+                if (contents != null && contents.isEmpty()) {
+                    lockBookDrawable = Drawing()
+                } else if (contents != null) {
+                    lockBookDrawable = Klaxon().parse<Drawing>(contents)
+                }
+
+                _drawableReady.postValue(Unit)
+            }
+        }
+    }
+
+    private fun readDocument(id: String): String? {
         when (val documentResult = CoreModel.getDocumentContent(config, id)) {
             is Ok -> {
                 return documentResult.value.secret
@@ -52,7 +71,7 @@ class HandwritingEditorViewModel(
     fun savePath(drawing: Drawing) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing))
+                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
                 if (writeToDocumentResult is Err) {
                     when (val error = writeToDocumentResult.error) {
