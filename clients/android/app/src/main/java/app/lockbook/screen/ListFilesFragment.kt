@@ -10,6 +10,7 @@ import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
@@ -68,8 +69,6 @@ class ListFilesFragment : Fragment() {
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
         val adapter =
             FilesAdapter(listFilesViewModel)
-
-        adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
 
         binding.listFilesViewModel = listFilesViewModel
         binding.filesList.adapter = adapter
@@ -188,7 +187,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.uncheckAllFiles.observe(
             viewLifecycleOwner,
             {
-                adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
+                unSelectAllFiles(adapter)
             }
         )
 
@@ -225,6 +224,10 @@ class ListFilesFragment : Fragment() {
         )
 
         return binding.root
+    }
+
+    private fun unSelectAllFiles(adapter: FilesAdapter) {
+        adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
     override fun onResume() {
@@ -379,10 +382,11 @@ class ListFilesFragment : Fragment() {
         adapter: FilesAdapter
     ) {
         adapter.files = files
-        listFilesViewModel.selectedFiles = MutableList(files.size) { false }
-        adapter.selectedFiles = MutableList(files.size) {
-            false
+        if(!listFilesViewModel.selectedFiles.contains(true)) {
+            listFilesViewModel.selectedFiles = MutableList(files.size) { false }
         }
+
+        adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {
@@ -448,6 +452,8 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
+        listFilesViewModel.collapseMoreOptionsMenu()
+
         FileInfoDialogFragment.newInstance(
             fileMetadata.name,
             fileMetadata.id,
@@ -458,8 +464,14 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun moveSelectedFiles(ids: Array<String>) {
-            MoveFileDialogFragment.newInstance(ids)
-                .show(childFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
+        val dialogFragment = MoveFileDialogFragment.newInstance(ids)
+        parentFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+                listFilesViewModel.handleMoveRequest()
+            }
+        }, false)
+
+        dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
     }
 
     fun onBackPressed(): Boolean {

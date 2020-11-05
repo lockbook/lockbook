@@ -46,7 +46,6 @@ class ListFilesViewModel(path: String, application: Application) :
     var selectedFiles = listOf<Boolean>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var fileMenuShowing = false
     var renameFileDialogStatus = RenameFileDialogInfo()
     var createFileDialogInfo = CreateFileDialogInfo()
 
@@ -344,13 +343,9 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                     R.id.menu_list_files_info -> {
                         files.value?.let { files ->
-
                             val checkedFiles = files.filterIndexed { index, _ ->
                                 selectedFiles[index]
                             }
-                            Timber.e("START")
-                            selectedFiles.forEach { Timber.e(it.toString()) }
-                            Timber.e("END")
                             if (checkedFiles.size == 1) {
                                 _showFileInfoDialog.postValue(checkedFiles[0])
                             } else {
@@ -380,8 +375,8 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun collapseMoreOptionsMenu() {
-        _switchMenu.postValue(Unit)
         selectedFiles = MutableList(files.value?.size ?: 0) { false }
+        _switchMenu.postValue(Unit)
         _uncheckAllFiles.postValue(Unit)
     }
 
@@ -495,16 +490,18 @@ class ListFilesViewModel(path: String, application: Application) :
     override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                fileModel.files.value?.let {
-                    if(isSelecting) {
-                        setSelectionAndChange(selection)
-                    } else {
-
-                        val fileMetadata = it[position]
+                if (isSelecting) {
+                    selectedFiles = selection
+                    if (!selectedFiles.contains(true)) {
+                        _switchMenu.postValue(Unit)
+                    }
+                } else {
+                    fileModel.files.value?.let { files ->
+                        val fileMetadata = files[position]
 
                         if (fileMetadata.fileType == FileType.Folder) {
                             fileModel.intoFolder(fileMetadata)
-                            selectedFiles = MutableList(files.value?.size ?: 0) {
+                            selectedFiles = MutableList(files.size) {
                                 false
                             }
                         } else {
@@ -523,21 +520,22 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onLongClick(position: Int, selection: List<Boolean>) {
+    fun handleMoveRequest() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                setSelectionAndChange(selection)
+                collapseMoreOptionsMenu()
+                fileModel.refreshFiles()
             }
         }
     }
 
-    private fun setSelectionAndChange(selection: List<Boolean>) {
-        val before = selectedFiles.contains(true)
+    override fun onLongClick(position: Int, selection: List<Boolean>) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                selectedFiles = selection
 
-        selectedFiles = selection
-
-        if (before != selectedFiles.contains(true)) {
-            _switchMenu.postValue(Unit)
+                _switchMenu.postValue(Unit)
+            }
         }
     }
 }
