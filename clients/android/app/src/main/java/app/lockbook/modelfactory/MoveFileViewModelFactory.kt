@@ -1,11 +1,8 @@
 package app.lockbook.modelfactory
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import app.lockbook.model.ListFilesViewModel
 import app.lockbook.model.MoveFileViewModel
-import timber.log.Timber
 
 class MoveFileViewModelFactory(
     private val path: String,

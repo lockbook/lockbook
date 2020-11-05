@@ -72,7 +72,7 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
             }
 
             cardView.setOnLongClickListener {
-                if(!selectedFiles.contains(true)) {
+                if (!selectedFiles.contains(true)) {
                     setImageResourceBasedOnSelection()
                     listFilesClickInterface.onLongClick(adapterPosition, selectedFiles)
                 }
@@ -92,7 +92,6 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
                     cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
                 }
             }
-
         }
     }
 }

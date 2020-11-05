@@ -1,7 +1,5 @@
 package app.lockbook.model
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -37,6 +35,14 @@ class MoveFileViewModel(path: String) :
     val unexpectedErrorHasOccurred: LiveData<String>
         get() = _unexpectedErrorHasOccurred
 
+    init {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                startInRoot()
+            }
+        }
+    }
+
     fun startInRoot() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -57,7 +63,7 @@ class MoveFileViewModel(path: String) :
     fun moveFilesToFolder(ids: Array<String>) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                for(id in ids) {
+                for (id in ids) {
                     moveFileRefresh(id)
                 }
                 _closeDialog.postValue(Unit)
@@ -66,9 +72,9 @@ class MoveFileViewModel(path: String) :
     }
 
     private fun moveFileRefresh(id: String) {
-        when(val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
+        when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
             is Ok -> {}
-            is Err -> when(val error = moveFileResult.error) {
+            is Err -> when (val error = moveFileResult.error) {
                 MoveFileError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 MoveFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 MoveFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! Document treated as folder!")
@@ -96,9 +102,9 @@ class MoveFileViewModel(path: String) :
     }
 
     private fun setParentAsParent() {
-        when(val getFileById = CoreModel.getFileById(config, currentParent.parent)) {
+        when (val getFileById = CoreModel.getFileById(config, currentParent.parent)) {
             is Ok -> currentParent = getFileById.value
-            is Err -> when(val error = getFileById.error) {
+            is Err -> when (val error = getFileById.error) {
                 GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
                 is GetFileByIdError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
             }
@@ -109,7 +115,7 @@ class MoveFileViewModel(path: String) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 _files.value?.let { files ->
-                    if(position == 0) {
+                    if (position == 0) {
                         setParentAsParent()
                         refreshOverFolder()
                     } else {

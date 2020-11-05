@@ -339,7 +339,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         _showRenameFileDialog.postValue(Unit)
                     }
                     R.id.menu_list_files_delete -> {
-
+                        _errorHasOccurred.postValue("Delete hasn't been implemented yet.")
                     }
                     R.id.menu_list_files_info -> {
                         files.value?.let { files ->
@@ -354,9 +354,11 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
                     R.id.menu_list_files_move -> {
-                        _showMoveFileDialog.postValue(files.value?.filterIndexed { index, _ ->
-                            selectedFiles[index]
-                        }?.map { fileMetadata -> fileMetadata.id }?.toTypedArray())
+                        _showMoveFileDialog.postValue(
+                            files.value?.filterIndexed { index, _ ->
+                                selectedFiles[index]
+                            }?.map { fileMetadata -> fileMetadata.id }?.toTypedArray()
+                        )
                     }
                     else -> {
                         Timber.e("Unrecognized sort item id.")
@@ -492,9 +494,7 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 if (isSelecting) {
                     selectedFiles = selection
-                    if (!selectedFiles.contains(true)) {
-                        _switchMenu.postValue(Unit)
-                    }
+                    _switchMenu.postValue(Unit)
                 } else {
                     fileModel.files.value?.let { files ->
                         val fileMetadata = files[position]
@@ -533,7 +533,6 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 selectedFiles = selection
-
                 _switchMenu.postValue(Unit)
             }
         }
