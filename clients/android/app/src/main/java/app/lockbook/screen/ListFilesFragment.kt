@@ -69,7 +69,7 @@ class ListFilesFragment : Fragment() {
         val adapter =
             FilesAdapter(listFilesViewModel)
 
-        adapter.selectedFiles = listFilesViewModel.selectedFiles
+        adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
 
         binding.listFilesViewModel = listFilesViewModel
         binding.filesList.adapter = adapter
@@ -143,7 +143,7 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.moreOptionsMenu.observe(
+        listFilesViewModel.switchMenu.observe(
             viewLifecycleOwner,
             {
                 moreOptionsMenu()
@@ -157,10 +157,38 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.createFileNameDialog.observe(
+        listFilesViewModel.showCreateFileDialog.observe(
             viewLifecycleOwner,
             {
                 createFileNameDialog("")
+            }
+        )
+
+        listFilesViewModel.showRenameFileDialog.observe(
+            viewLifecycleOwner,
+            {
+                createRenameFileDialog("")
+            }
+        )
+
+        listFilesViewModel.showFileInfoDialog.observe(
+            viewLifecycleOwner,
+            { fileMetadata ->
+                showMoreInfoDialog(fileMetadata)
+            }
+        )
+
+        listFilesViewModel.showMoveFileDialog.observe(
+            viewLifecycleOwner,
+            { ids ->
+                moveSelectedFiles(ids)
+            }
+        )
+
+        listFilesViewModel.uncheckAllFiles.observe(
+            viewLifecycleOwner,
+            {
+                adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
             }
         )
 
@@ -403,6 +431,7 @@ class ListFilesFragment : Fragment() {
             .setPositiveButton(R.string.new_file_create) { dialog, _ ->
                 listFilesViewModel.handleRenameRequest((dialog as Dialog).findViewById<EditText>(R.id.rename_file).text.toString())
                 listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
+                listFilesViewModel.collapseMoreOptionsMenu()
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
@@ -418,40 +447,27 @@ class ListFilesFragment : Fragment() {
         alertDialog.findViewById<EditText>(R.id.rename_file)?.setText(originalFileName)
     }
 
-    fun showMoreInfoDialog() {
-        listFilesViewModel.selectedFiles[0]
-
-        listFilesViewModel.files.value?.let { files ->
-            FileInfoDialogFragment.newInstance(
-                files[0].name,
-                files[0].id,
-                files[0].metadataVersion.toString(),
-                files[0].contentVersion.toString(),
-                files[0].fileType.name
-            ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
-        }
+    private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
+        FileInfoDialogFragment.newInstance(
+            fileMetadata.name,
+            fileMetadata.id,
+            fileMetadata.metadataVersion.toString(),
+            fileMetadata.contentVersion.toString(),
+            fileMetadata.fileType.name
+        ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
     }
 
-    fun moveSelectedFiles() {
-        listFilesViewModel.files.value?.let { files ->
-            MoveFileDialogFragment.newInstance(files.filterIndexed { index, _ ->
-                listFilesViewModel.selectedFiles[index]
-            }.map { fileMetadata -> fileMetadata.id })
+    private fun moveSelectedFiles(ids: Array<String>) {
+            MoveFileDialogFragment.newInstance(ids)
                 .show(childFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
-        }
-    }
-
-    fun initiateRenameFileDialog() {
-        listFilesViewModel.renameFileDialogStatus.isDialogOpen = true
-        createRenameFileDialog("")
     }
 
     fun onBackPressed(): Boolean {
         return listFilesViewModel.quitOrNot()
     }
 
-    fun onSortPressed(id: Int) {
-        listFilesViewModel.onSortPressed(id)
+    fun onMenuItemPressed(id: Int) {
+        listFilesViewModel.onMenuItemPressed(id)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

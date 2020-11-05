@@ -92,47 +92,17 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed(item.itemId)
+                    fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
                 }
                 true
             }
-            R.id.menu_list_files_rename -> {
+            R.id.menu_list_files_rename, R.id.menu_list_files_delete, R.id.menu_list_files_info, R.id.menu_list_files_move -> {
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
-                    fragment.initiateRenameFileDialog()
-                } else {
-                    Timber.e("Unable to retrieve ListFilesFragment.")
-                    Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
-                }
-                true
-            }
-            R.id.menu_list_files_delete -> {
-                val fragment = getFragment().component1()
-                if (fragment is ListFilesFragment) {
-                    fragment.onSortPressed(item.itemId)
-                } else {
-                    Timber.e("Unable to retrieve ListFilesFragment.")
-                    Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
-                }
-                true
-            }
-            R.id.menu_list_files_info -> {
-                val fragment = getFragment().component1()
-                if (fragment is ListFilesFragment) {
-                    fragment.showMoreInfoDialog()
-                } else {
-                    Timber.e("Unable to retrieve ListFilesFragment.")
-                    Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
-                }
-                true
-            }
-            R.id.menu_list_files_move -> {
-                val fragment = getFragment().component1()
-                if (fragment is ListFilesFragment) {
-                    fragment.moveSelectedFiles()
+                    fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
                     Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()

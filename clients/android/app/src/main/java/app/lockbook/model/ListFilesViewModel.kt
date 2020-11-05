@@ -43,7 +43,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
-    var selectedFiles = mutableListOf<Boolean>()
+    var selectedFiles = listOf<Boolean>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
     var fileMenuShowing = false
@@ -58,9 +58,13 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
-    private val _moreOptionsMenu = SingleMutableLiveData<Unit>()
+    private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
-    private val _createFileNameDialog = SingleMutableLiveData<Unit>()
+    private val _showCreateFileDialog = SingleMutableLiveData<Unit>()
+    private val _showMoveFileDialog = SingleMutableLiveData<Array<String>>()
+    private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
+    private val _showRenameFileDialog = SingleMutableLiveData<Unit>()
+    private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -91,14 +95,26 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
 
-    val moreOptionsMenu: LiveData<Unit>
-        get() = _moreOptionsMenu
+    val switchMenu: LiveData<Unit>
+        get() = _switchMenu
 
     val collapseExpandFAB: LiveData<Boolean>
         get() = _collapseExpandFAB
 
-    val createFileNameDialog: LiveData<Unit>
-        get() = _createFileNameDialog
+    val showCreateFileDialog: LiveData<Unit>
+        get() = _showCreateFileDialog
+
+    val showMoveFileDialog: LiveData<Array<String>>
+        get() = _showMoveFileDialog
+
+    val showFileInfoDialog: LiveData<FileMetadata>
+        get() = _showFileInfoDialog
+
+    val showRenameFileDialog: LiveData<Unit>
+        get() = _showRenameFileDialog
+
+    val uncheckAllFiles: LiveData<Unit>
+        get() = _uncheckAllFiles
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -222,7 +238,6 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 files.value?.let { files ->
-                    selectedFiles.forEach { Timber.e(it.toString()) }
                     fileModel.renameRefreshFiles(files[0].id, newName)
                     syncBasedOnPreferences()
                 }
@@ -271,7 +286,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
                 createFileDialogInfo.isDialogOpen = true
-                _createFileNameDialog.postValue(Unit)
+                _showCreateFileDialog.postValue(Unit)
             }
         }
     }
@@ -283,7 +298,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
                 createFileDialogInfo.isDialogOpen = true
-                _createFileNameDialog.postValue(Unit)
+                _showCreateFileDialog.postValue(Unit)
             }
         }
     }
@@ -297,7 +312,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun onSortPressed(id: Int) {
+    fun onMenuItemPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
@@ -320,6 +335,34 @@ class ListFilesViewModel(path: String, application: Application) :
                         SORT_FILES_KEY,
                         SORT_FILES_TYPE
                     ).apply()
+                    R.id.menu_list_files_rename -> {
+                        renameFileDialogStatus.isDialogOpen = true
+                        _showRenameFileDialog.postValue(Unit)
+                    }
+                    R.id.menu_list_files_delete -> {
+
+                    }
+                    R.id.menu_list_files_info -> {
+                        files.value?.let { files ->
+
+                            val checkedFiles = files.filterIndexed { index, _ ->
+                                selectedFiles[index]
+                            }
+                            Timber.e("START")
+                            selectedFiles.forEach { Timber.e(it.toString()) }
+                            Timber.e("END")
+                            if (checkedFiles.size == 1) {
+                                _showFileInfoDialog.postValue(checkedFiles[0])
+                            } else {
+                                _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                            }
+                        }
+                    }
+                    R.id.menu_list_files_move -> {
+                        _showMoveFileDialog.postValue(files.value?.filterIndexed { index, _ ->
+                            selectedFiles[index]
+                        }?.map { fileMetadata -> fileMetadata.id }?.toTypedArray())
+                    }
                     else -> {
                         Timber.e("Unrecognized sort item id.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
@@ -334,6 +377,12 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }
         }
+    }
+
+    fun collapseMoreOptionsMenu() {
+        _switchMenu.postValue(Unit)
+        selectedFiles = MutableList(files.value?.size ?: 0) { false }
+        _uncheckAllFiles.postValue(Unit)
     }
 
     private fun incrementalSync() {
@@ -443,16 +492,14 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onItemClick(position: Int, isSelecting: Boolean, selection: Boolean) {
+    override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.files.value?.let {
-                    if (isSelecting) {
-                        selectedFiles[position] = selection
-                        if (!selectedFiles.contains(true)) {
-                            _moreOptionsMenu.postValue(Unit)
-                        }
+                    if(isSelecting) {
+                        setSelectionAndChange(selection)
                     } else {
+
                         val fileMetadata = it[position]
 
                         if (fileMetadata.fileType == FileType.Folder) {
@@ -461,7 +508,8 @@ class ListFilesViewModel(path: String, application: Application) :
                                 false
                             }
                         } else {
-                            val editableFileResult = EditableFile(fileMetadata.name, fileMetadata.id)
+                            val editableFileResult =
+                                EditableFile(fileMetadata.name, fileMetadata.id)
                             fileModel.lastDocumentAccessed = fileMetadata
                             if (fileMetadata.name.endsWith(".draw")) {
                                 _navigateToHandwritingEditor.postValue(editableFileResult)
@@ -475,21 +523,21 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onLongClick(position: Int, selection: Boolean) {
+    override fun onLongClick(position: Int, selection: List<Boolean>) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                files.value?.let {
-                    if (!selectedFiles.contains(true)) {
-                        _moreOptionsMenu.postValue(Unit)
-                    }
-
-                    selectedFiles[position] = selection
-
-                    if (!selectedFiles.contains(true)) {
-                        _moreOptionsMenu.postValue(Unit)
-                    }
-                }
+                setSelectionAndChange(selection)
             }
+        }
+    }
+
+    private fun setSelectionAndChange(selection: List<Boolean>) {
+        val before = selectedFiles.contains(true)
+
+        selectedFiles = selection
+
+        if (before != selectedFiles.contains(true)) {
+            _switchMenu.postValue(Unit)
         }
     }
 }

@@ -65,15 +65,15 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
             cardView.setOnClickListener {
                 if (selectedFiles.contains(true)) {
                     setImageResourceBasedOnSelection()
-                    listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles[adapterPosition])
+                    listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles)
                 } else {
-                    listFilesClickInterface.onItemClick(adapterPosition, false, false)
+                    listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles)
                 }
             }
 
             cardView.setOnLongClickListener {
                 setImageResourceBasedOnSelection()
-                listFilesClickInterface.onLongClick(adapterPosition, selectedFiles[adapterPosition])
+                listFilesClickInterface.onLongClick(adapterPosition, selectedFiles)
                 true
             }
         }
