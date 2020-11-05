@@ -72,7 +72,6 @@ class MoveFileDialogFragment : DialogFragment() {
         move_file_confirm.setOnClickListener {
             move_file_progress_bar.visibility = View.VISIBLE
             moveFileViewModel.moveFilesToFolder(ids)
-
         }
 
         moveFileViewModel.ids = ids

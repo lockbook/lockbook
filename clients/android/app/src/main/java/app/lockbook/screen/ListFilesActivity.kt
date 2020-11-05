@@ -39,8 +39,11 @@ class ListFilesActivity : AppCompatActivity() {
         matchToDefaultSortOption()
 
         val fragment = getFragment().component1()
+        Timber.e("Fragment: ${fragment is ListFilesFragment}")
         if (fragment is ListFilesFragment) {
-            if (fragment.listFilesViewModel.fileMenuShowing) {
+            Timber.e("Okay, alright")
+            fragment.listFilesViewModel.selectedFiles.forEach { Timber.e(it.toString()) }
+            if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
                 openFileMenu()
             }
         } else {
@@ -116,21 +119,19 @@ class ListFilesActivity : AppCompatActivity() {
     fun switchMenu() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            if (fragment.listFilesViewModel.fileMenuShowing) {
-                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
-            } else {
+            if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
                 menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+            } else {
+                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
             }
-
-            fragment.listFilesViewModel.fileMenuShowing = !fragment.listFilesViewModel.fileMenuShowing
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
             Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
@@ -138,6 +139,7 @@ class ListFilesActivity : AppCompatActivity() {
     }
 
     private fun openFileMenu() {
+        Timber.e("alight, alright")
         menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
