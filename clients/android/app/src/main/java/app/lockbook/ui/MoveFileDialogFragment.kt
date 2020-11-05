@@ -16,6 +16,7 @@ import app.lockbook.modelfactory.MoveFileViewModelFactory
 import app.lockbook.util.Messages
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_move_file.*
+import timber.log.Timber
 
 class MoveFileDialogFragment : DialogFragment() {
 
@@ -79,6 +80,7 @@ class MoveFileDialogFragment : DialogFragment() {
         moveFileViewModel.files.observe(
             viewLifecycleOwner
         ) { files ->
+            Timber.e("FIRED")
             adapter.files = files
         }
 
@@ -100,8 +102,6 @@ class MoveFileDialogFragment : DialogFragment() {
         ) { errorText ->
             unexpectedErrorHasOccurred(errorText)
         }
-
-        moveFileViewModel.startInRoot()
     }
 
     override fun onStart() {
