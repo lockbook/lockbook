@@ -20,12 +20,6 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
             notifyDataSetChanged()
         }
 
-    var selectedFiles = MutableList(files.size) { false }
-        set(value) {
-            field = value
-            notifyDataSetChanged()
-        }
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MoveFileViewHolder =
         MoveFileViewHolder(
             LayoutInflater.from(parent.context)
@@ -40,10 +34,15 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
         val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
-        holder.cardView.file_description.text = holder.cardView.resources.getString(
-            R.string.last_synced,
-            if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
-        )
+
+        holder.cardView.file_description.text = if(position != 0) {
+            holder.cardView.resources.getString(
+                R.string.last_synced,
+                if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
+            )
+        } else {
+            item.parent
+        }
 
         holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
     }
