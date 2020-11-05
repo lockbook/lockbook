@@ -2,8 +2,9 @@ use glib::clone;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Grid as GtkGrid, HeaderBar as GtkHeaderBar,
-    Image as GtkImage, Label as GtkLabel, Paned as GtkPaned, Separator as GtkSeparator,
+    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
+    Grid as GtkGrid, HeaderBar as GtkHeaderBar, Image as GtkImage, Label as GtkLabel,
+    Paned as GtkPaned, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
     Spinner as GtkSpinner, Stack as GtkStack, TextView as GtkTextView, WrapMode as GtkWrapMode,
 };
 
@@ -24,10 +25,10 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(m: &Messenger, s: &Settings) -> Self {
         let sidebar = Sidebar::new(m, &s);
-        let editor = Editor::new(m);
+        let editor = Editor::new();
 
         let cntr = GtkPaned::new(Horizontal);
-        cntr.add1(&sidebar.widget);
+        cntr.add1(&sidebar.cntr);
         cntr.add2(&editor.cntr);
 
         Self {
@@ -65,7 +66,7 @@ impl AccountScreen {
     }
 
     pub fn text_content(&self) -> String {
-        let buf = self.editor.textarea.get_buffer().unwrap();
+        let buf = self.editor.workspace.textarea.get_buffer().unwrap();
         buf.get_text(&buf.get_start_iter(), &buf.get_end_iter(), true)
             .unwrap()
             .to_string()
@@ -73,9 +74,9 @@ impl AccountScreen {
 
     pub fn set_saving(&self, is_saving: bool) {
         if is_saving {
-            self.editor.show_spinner();
+            self.editor.headerbar.show_spinner();
         } else {
-            self.editor.hide_spinner();
+            self.editor.headerbar.hide_spinner();
         }
     }
 
@@ -96,8 +97,8 @@ impl AccountScreen {
                         let n_files = work.work_units.len();
                         let txt = match n_files {
                             0 => "✔  Synced.".to_string(),
-                            1 => "<b>1</b> file not synced.".to_string(),
-                            _ => format!("<b>{}</b> files not synced.", n_files),
+                            1 => "<b>1</b>  file not synced.".to_string(),
+                            _ => format!("<b>{}</b>  files not synced.", n_files),
                         };
                         self.sidebar.sync.status.set_markup(&txt);
                     }
@@ -112,7 +113,7 @@ impl AccountScreen {
 pub struct Sidebar {
     pub tree: FileTree,
     pub sync: SyncPanel,
-    widget: GtkBox,
+    cntr: GtkBox,
 }
 
 impl Sidebar {
@@ -120,22 +121,18 @@ impl Sidebar {
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
         let sync = SyncPanel::new(&m);
 
-        let bx = GtkBox::new(Vertical, 0);
-        bx.add(&{
+        let cntr = GtkBox::new(Vertical, 0);
+        cntr.add(&{
             let hb = GtkHeaderBar::new();
             hb.set_title(Some("My Files:"));
             hb
         });
-        bx.add(&GtkSeparator::new(Horizontal));
-        bx.pack_start(&tree.tree, true, true, 0);
-        bx.add(&GtkSeparator::new(Horizontal));
-        bx.add(&sync.cntr);
+        cntr.add(&GtkSeparator::new(Horizontal));
+        cntr.pack_start(&tree.tree, true, true, 0);
+        cntr.add(&GtkSeparator::new(Horizontal));
+        cntr.add(&sync.cntr);
 
-        Self {
-            tree,
-            sync,
-            widget: bx,
-        }
+        Self { tree, sync, cntr }
     }
 
     pub fn fill(&self, core: &LbCore) {
@@ -222,67 +219,38 @@ impl SyncPanel {
 }
 
 struct Editor {
-    header: EditorHeader,
-    center: GtkStack,
-
-    info: GtkBox,
-    textarea: GtkTextView,
-    spinner: GtkSpinner,
-
+    headerbar: EditorHeaderBar,
+    workspace: EditorWorkSpace,
     cntr: GtkBox,
 }
 
 impl Editor {
-    fn new(m: &Messenger) -> Self {
-        let header = EditorHeader::new(&m);
-
-        let empty = GtkBox::new(Vertical, 0);
-        empty.set_valign(GtkAlign::Center);
-        empty.add(&GtkImage::from_file("./lockbook.png"));
-
-        let info = GtkBox::new(Vertical, 0);
-        info.set_vexpand(false);
-        info.set_valign(GtkAlign::Center);
-
-        let textarea = GtkTextView::new();
-        textarea.set_property_monospace(true);
-        textarea.set_wrap_mode(GtkWrapMode::Word);
-        textarea.set_left_margin(4);
-
-        let center = GtkStack::new();
-        center.add_named(&empty, "empty");
-        center.add_named(&info, "folderinfo");
-        center.add_named(&textarea, "textarea");
+    fn new() -> Self {
+        let headerbar = EditorHeaderBar::new();
+        let workspace = EditorWorkSpace::new();
 
         let cntr = GtkBox::new(Vertical, 0);
-        cntr.add(&header.cntr);
+        cntr.add(&headerbar.cntr);
         cntr.add(&GtkSeparator::new(Horizontal));
-        cntr.pack_start(&center, true, true, 0);
+        cntr.pack_start(&workspace.cntr, true, true, 0);
 
         Self {
-            header,
-            center,
-            info,
-            spinner: GtkSpinner::new(),
-            textarea,
+            headerbar,
+            workspace,
             cntr,
         }
     }
 
     fn set_file(&self, f: &FileMetadata, content: &str) {
-        self.header.set_file(&f);
-        self.center.set_visible_child_name("textarea");
+        self.headerbar.set_file(&f);
 
-        self.textarea.get_buffer().unwrap().set_text(content);
-        self.textarea.grab_focus();
+        let ws = &self.workspace;
+        ws.show("textarea");
+        ws.textarea.grab_focus();
+        ws.textarea.get_buffer().unwrap().set_text(content);
     }
 
     fn show_folder_info(&self, full_path: &str, f: &FileMetadata, n_children: usize) {
-        self.header.cntr.set_title(Some(full_path));
-        self.info.foreach(|w| {
-            self.info.remove(w);
-        });
-
         let name = GtkLabel::new(None);
         name.set_markup(&format!("<span><big>{}/</big></span>", f.name));
         name.set_margin_end(64);
@@ -301,26 +269,19 @@ impl Editor {
             grid.attach(&text_left(&val), 1, row as i32, 1, 1);
         }
 
-        self.info.add(&name);
-        self.info.add(&grid);
-        self.info.show_all();
-        self.center.set_visible_child_name("folderinfo");
-    }
+        let info = &self.workspace.info;
+        info.foreach(|w| info.remove(w));
+        info.add(&name);
+        info.add(&grid);
+        info.show_all();
 
-    fn show_spinner(&self) {
-        self.header.cntr.pack_end(&self.spinner);
-        self.header.cntr.show_all();
-        self.spinner.start();
-    }
-
-    fn hide_spinner(&self) {
-        self.spinner.stop();
-        self.header.cntr.remove(&self.spinner);
+        self.headerbar.cntr.set_title(Some(full_path));
+        self.workspace.show("folderinfo");
     }
 
     fn clear(&self) {
-        self.header.cntr.set_title(Some(""));
-        self.center.set_visible_child_name("empty");
+        self.headerbar.cntr.set_title(Some(""));
+        self.workspace.show("empty");
     }
 }
 
@@ -338,18 +299,74 @@ pub fn text_left(txt: &str) -> GtkLabel {
     l
 }
 
-struct EditorHeader {
+struct EditorHeaderBar {
+    spinner: GtkSpinner,
     cntr: GtkHeaderBar,
 }
 
-impl EditorHeader {
-    fn new(_m: &Messenger) -> Self {
-        let cntr = GtkHeaderBar::new();
-
-        Self { cntr }
+impl EditorHeaderBar {
+    fn new() -> Self {
+        Self {
+            spinner: GtkSpinner::new(),
+            cntr: GtkHeaderBar::new(),
+        }
     }
 
     fn set_file(&self, f: &FileMetadata) {
         self.cntr.set_title(Some(&f.name));
+    }
+
+    fn show_spinner(&self) {
+        self.cntr.pack_end(&self.spinner);
+        self.cntr.show_all();
+        self.spinner.start();
+    }
+
+    fn hide_spinner(&self) {
+        self.spinner.stop();
+        self.cntr.remove(&self.spinner);
+    }
+}
+
+struct EditorWorkSpace {
+    info: GtkBox,
+    textarea: GtkTextView,
+    stack: GtkStack,
+    cntr: GtkScrolledWindow,
+}
+
+impl EditorWorkSpace {
+    fn new() -> Self {
+        let empty = GtkBox::new(Vertical, 0);
+        empty.set_valign(GtkAlign::Center);
+        empty.add(&GtkImage::from_file("./lockbook.png"));
+
+        let info = GtkBox::new(Vertical, 0);
+        info.set_vexpand(false);
+        info.set_valign(GtkAlign::Center);
+
+        let textarea = GtkTextView::new();
+        textarea.set_property_monospace(true);
+        textarea.set_wrap_mode(GtkWrapMode::Word);
+        textarea.set_left_margin(4);
+
+        let stack = GtkStack::new();
+        stack.add_named(&empty, "empty");
+        stack.add_named(&info, "folderinfo");
+        stack.add_named(&textarea, "textarea");
+
+        let cntr = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
+        cntr.add(&stack);
+
+        Self {
+            info,
+            textarea,
+            stack,
+            cntr,
+        }
+    }
+
+    fn show(&self, name: &str) {
+        self.stack.set_visible_child_name(name);
     }
 }
