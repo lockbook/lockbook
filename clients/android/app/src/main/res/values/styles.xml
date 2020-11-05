@@ -62,7 +62,7 @@
 
     <style name="Text.Medium" parent="TextAppearance.AppCompat.Medium">
         <item name="android:textColor">@color/textColor</item>
-        <item name="android:fontFamily">monospace</item>
+        <item name="android:fontFamily">sans-serif</item>
     </style>
 
     <style name="Toolbar.Title" parent="TextAppearance.AppCompat.Large">

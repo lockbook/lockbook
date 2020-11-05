@@ -39,12 +39,10 @@ class ListFilesActivity : AppCompatActivity() {
         matchToDefaultSortOption()
 
         val fragment = getFragment().component1()
-        Timber.e("Fragment: ${fragment is ListFilesFragment}")
         if (fragment is ListFilesFragment) {
-            Timber.e("Okay, alright")
             fragment.listFilesViewModel.selectedFiles.forEach { Timber.e(it.toString()) }
             if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                openFileMenu()
+                openFileMenu(fragment.listFilesViewModel.selectedFiles)
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
@@ -120,11 +118,16 @@ class ListFilesActivity : AppCompatActivity() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
             if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+                if (fragment.listFilesViewModel.selectedFiles.filter { selectedFile -> selectedFile }.size == 1) {
+                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+                } else {
+                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+                }
             } else {
                 menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
@@ -138,13 +141,17 @@ class ListFilesActivity : AppCompatActivity() {
         }
     }
 
-    private fun openFileMenu() {
-        Timber.e("alight, alright")
-        menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+    private fun openFileMenu(selected: List<Boolean>) {
         menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-        menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+        if (selected.filter { selectedFile -> selectedFile }.size == 1) {
+            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+            menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+        } else {
+            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+            menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+        }
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {

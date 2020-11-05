@@ -382,7 +382,7 @@ class ListFilesFragment : Fragment() {
         adapter: FilesAdapter
     ) {
         adapter.files = files
-        if(!listFilesViewModel.selectedFiles.contains(true)) {
+        if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }
         }
 
@@ -465,11 +465,14 @@ class ListFilesFragment : Fragment() {
 
     private fun moveSelectedFiles(ids: Array<String>) {
         val dialogFragment = MoveFileDialogFragment.newInstance(ids)
-        parentFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
-            override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                listFilesViewModel.handleMoveRequest()
-            }
-        }, false)
+        parentFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+                    listFilesViewModel.handleMoveRequest()
+                }
+            },
+            false
+        )
 
         dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
     }
