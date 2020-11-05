@@ -6,13 +6,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.appcompat.app.AlertDialog
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
-import app.lockbook.databinding.DialogMoveFileBinding
-import app.lockbook.model.*
+import app.lockbook.model.MoveFileAdapter
+import app.lockbook.model.MoveFileViewModel
 import app.lockbook.modelfactory.MoveFileViewModelFactory
 import app.lockbook.util.Messages
 import com.google.android.material.snackbar.Snackbar
@@ -29,9 +28,9 @@ class MoveFileDialogFragment : DialogFragment() {
 
         private const val IDS_KEY = "IDS_KEY"
 
-        fun newInstance(ids: List<String>): MoveFileDialogFragment {
+        fun newInstance(ids: Array<String>): MoveFileDialogFragment {
             val args = Bundle()
-            args.putStringArray(IDS_KEY, ids.toTypedArray())
+            args.putStringArray(IDS_KEY, ids)
 
             val fragment = MoveFileDialogFragment()
             fragment.arguments = args
@@ -43,52 +42,11 @@ class MoveFileDialogFragment : DialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val binding: DialogMoveFileBinding = DataBindingUtil.inflate(
-            inflater,
-            R.layout.dialog_move_file,
-            container,
-            false
-        )
-
-        val application = requireNotNull(this.activity).application
-        val moveFileViewModelFactory =
-            MoveFileViewModelFactory(application.filesDir.absolutePath, application)
-        moveFileViewModel =
-            ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
-        val adapter =
-            MoveFileAdapter(moveFileViewModel)
-
-        binding.moveFileViewModel = moveFileViewModel
-        binding.moveFileList.layoutManager = LinearLayoutManager(context)
-        binding.moveFileList.adapter = adapter
-        binding.moveFileCancel.setOnClickListener {
-            dismiss()
-        }
-        binding.moveFileConfirm.setOnClickListener {
-            moveFileViewModel.moveFilesToFolder(ids)
-        }
-
-        moveFileViewModel.files.observe(
-            viewLifecycleOwner
-        ) { files ->
-            adapter.files = files
-        }
-
-        moveFileViewModel.errorHasOccurred.observe(
-            viewLifecycleOwner
-        ) { errorText ->
-            errorHasOccurred(container, errorText)
-        }
-
-        moveFileViewModel.unexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner
-        ) { errorText ->
-            unexpectedErrorHasOccurred(errorText)
-        }
-
-        return view
-    }
+    ): View? = inflater.inflate(
+        R.layout.dialog_move_file,
+        container,
+        false
+    )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -97,6 +55,54 @@ class MoveFileDialogFragment : DialogFragment() {
         if (tempIds != null) {
             ids = tempIds
         }
+
+        val application = requireNotNull(this.activity).application
+        val moveFileViewModelFactory =
+            MoveFileViewModelFactory(application.filesDir.absolutePath)
+        moveFileViewModel =
+            ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
+        val adapter =
+            MoveFileAdapter(moveFileViewModel)
+
+        move_file_list.layoutManager = LinearLayoutManager(context)
+        move_file_list.adapter = adapter
+        move_file_cancel.setOnClickListener {
+            dismiss()
+        }
+        move_file_confirm.setOnClickListener {
+            move_file_progress_bar.visibility = View.VISIBLE
+            moveFileViewModel.moveFilesToFolder(ids)
+
+        }
+
+        moveFileViewModel.ids = ids
+
+        moveFileViewModel.files.observe(
+            viewLifecycleOwner
+        ) { files ->
+            adapter.files = files
+        }
+
+        moveFileViewModel.closeDialog.observe(
+            viewLifecycleOwner
+        ) {
+            move_file_progress_bar.visibility = View.GONE
+            dismiss()
+        }
+
+        moveFileViewModel.errorHasOccurred.observe(
+            viewLifecycleOwner
+        ) { errorText ->
+            errorHasOccurred(errorText)
+        }
+
+        moveFileViewModel.unexpectedErrorHasOccurred.observe(
+            viewLifecycleOwner
+        ) { errorText ->
+            unexpectedErrorHasOccurred(errorText)
+        }
+
+        moveFileViewModel.startInRoot()
     }
 
     override fun onStart() {
@@ -107,12 +113,8 @@ class MoveFileDialogFragment : DialogFragment() {
         )
     }
 
-    private fun errorHasOccurred(view: ViewGroup?, error: String) {
-        if (view != null) {
-            Snackbar.make(view, error, Snackbar.LENGTH_SHORT).show()
-        } else {
-            Snackbar.make(move_file_dialog, error, Snackbar.LENGTH_SHORT).show()
-        }
+    private fun errorHasOccurred(error: String) {
+        Snackbar.make(move_file_dialog, error, Snackbar.LENGTH_SHORT).show()
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
