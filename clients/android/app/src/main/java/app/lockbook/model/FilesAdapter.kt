@@ -67,19 +67,23 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
                     setImageResourceBasedOnSelection()
                     listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles)
                 } else {
-                    listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles)
+                    listFilesClickInterface.onItemClick(adapterPosition, false, selectedFiles)
                 }
             }
 
             cardView.setOnLongClickListener {
-                setImageResourceBasedOnSelection()
-                listFilesClickInterface.onLongClick(adapterPosition, selectedFiles)
+                if(!selectedFiles.contains(true)) {
+                    setImageResourceBasedOnSelection()
+                    listFilesClickInterface.onLongClick(adapterPosition, selectedFiles)
+                }
                 true
             }
         }
 
         private fun setImageResourceBasedOnSelection() {
-            if (!selectedFiles[adapterPosition]) {
+            selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
+
+            if (selectedFiles[adapterPosition]) {
                 cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
             } else {
                 if (fileMetadata.fileType == FileType.Document) {
@@ -89,7 +93,6 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
                 }
             }
 
-            selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
         }
     }
 }
