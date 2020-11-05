@@ -35,7 +35,7 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
         holder.fileMetadata = item
         holder.cardView.file_name.text = item.name
 
-        holder.cardView.file_description.text = if(position != 0) {
+        holder.cardView.file_description.text = if (position != 0) {
             holder.cardView.resources.getString(
                 R.string.last_synced,
                 if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
