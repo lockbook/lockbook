@@ -14,13 +14,14 @@ import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.modelfactory.MoveFileViewModelFactory
 import app.lockbook.util.Messages
+import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_move_file.*
-import timber.log.Timber
 
 class MoveFileDialogFragment : DialogFragment() {
 
     lateinit var ids: Array<String>
+    lateinit var names: Array<String>
     lateinit var moveFileViewModel: MoveFileViewModel
 
     companion object {
@@ -28,10 +29,12 @@ class MoveFileDialogFragment : DialogFragment() {
         const val MOVE_FILE_DIALOG_TAG = "MoveFileDialogFragment"
 
         private const val IDS_KEY = "IDS_KEY"
+        private const val NAMES_KEY = "NAMES_KEY"
 
-        fun newInstance(ids: Array<String>): MoveFileDialogFragment {
+        fun newInstance(ids: Array<String>, names: Array<String>): MoveFileDialogFragment {
             val args = Bundle()
             args.putStringArray(IDS_KEY, ids)
+            args.putStringArray(NAMES_KEY, names)
 
             val fragment = MoveFileDialogFragment()
             fragment.arguments = args
@@ -52,9 +55,19 @@ class MoveFileDialogFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val bundle = arguments
-        val tempIds = bundle?.getStringArray(IDS_KEY)
-        if (tempIds != null) {
-            ids = tempIds
+        val nullableIds = bundle?.getStringArray(IDS_KEY)
+        val nullableNames = bundle?.getStringArray(NAMES_KEY)
+        if (nullableIds != null && nullableNames != null) {
+            ids = nullableIds
+            names = nullableNames
+        } else {
+            Snackbar.make(move_file_dialog, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+                .addCallback(object : Snackbar.Callback() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        super.onDismissed(transientBottomBar, event)
+                        dismiss()
+                    }
+                }).show()
         }
 
         val application = requireNotNull(this.activity).application
@@ -72,15 +85,15 @@ class MoveFileDialogFragment : DialogFragment() {
         }
         move_file_confirm.setOnClickListener {
             move_file_progress_bar.visibility = View.VISIBLE
-            moveFileViewModel.moveFilesToFolder(ids)
+            moveFileViewModel.moveFilesToFolder()
         }
 
         moveFileViewModel.ids = ids
+        moveFileViewModel.names = names
 
         moveFileViewModel.files.observe(
             viewLifecycleOwner
         ) { files ->
-            Timber.e("FIRED")
             adapter.files = files
         }
 
