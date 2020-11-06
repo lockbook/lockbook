@@ -130,6 +130,21 @@ data class RenameFileDialogInfo(
     var alertDialogFileName: String = ""
 )
 
+data class MoveFileInfo(
+    val ids: Array<String>,
+    val names: Array<String>
+)
+
+data class RenameFileInfo(
+    val id: String,
+    val name: String
+)
+
+data class CreateFileInfo(
+    val parentId: String,
+    val fileType: String
+)
+
 data class Drawing(
     val currentView: Page = Page(),
     val events: MutableList<Event> = mutableListOf()

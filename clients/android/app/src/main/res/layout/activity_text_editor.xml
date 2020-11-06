@@ -28,7 +28,7 @@
         app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
         <EditText
-            android:id="@+id/text_editor"
+            android:id="@+id/text_editor_text_field"
             style="@style/Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -36,7 +36,7 @@
             android:gravity="top|start"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences"
-            android:labelFor="@id/text_editor"
+            android:hint="@string/text_editor_hint"
             android:textColor="@color/textColor" />
 
     </ScrollView>

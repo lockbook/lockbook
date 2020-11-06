@@ -46,8 +46,6 @@ class ListFilesViewModel(path: String, application: Application) :
     var selectedFiles = listOf<Boolean>()
     val syncingStatus = SyncingStatus()
     var isFABOpen = false
-    var renameFileDialogStatus = RenameFileDialogInfo()
-    var createFileDialogInfo = CreateFileDialogInfo()
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
@@ -59,10 +57,10 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
     private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
-    private val _showCreateFileDialog = SingleMutableLiveData<Unit>()
-    private val _showMoveFileDialog = SingleMutableLiveData<Array<String>>()
+    private val _showCreateFileDialog = SingleMutableLiveData<CreateFileInfo>()
+    private val _showMoveFileDialog = SingleMutableLiveData<MoveFileInfo>()
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
-    private val _showRenameFileDialog = SingleMutableLiveData<Unit>()
+    private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
@@ -100,16 +98,16 @@ class ListFilesViewModel(path: String, application: Application) :
     val collapseExpandFAB: LiveData<Boolean>
         get() = _collapseExpandFAB
 
-    val showCreateFileDialog: LiveData<Unit>
+    val showCreateFileDialog: LiveData<CreateFileInfo>
         get() = _showCreateFileDialog
 
-    val showMoveFileDialog: LiveData<Array<String>>
+    val showMoveFileDialog: LiveData<MoveFileInfo>
         get() = _showMoveFileDialog
 
     val showFileInfoDialog: LiveData<FileMetadata>
         get() = _showFileInfoDialog
 
-    val showRenameFileDialog: LiveData<Unit>
+    val showRenameFileDialog: LiveData<RenameFileInfo>
         get() = _showRenameFileDialog
 
     val uncheckAllFiles: LiveData<Unit>
@@ -181,7 +179,10 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun quitOrNot(): Boolean {
-        if (fileModel.isAtRoot()) {
+        if (selectedFiles.contains(true)) {
+            collapseMoreOptionsMenu()
+            return true
+        } else if (fileModel.isAtRoot()) {
             return false
         }
         fileModel.upADirectory()
@@ -193,17 +194,6 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (requestCode) {
-                    POP_UP_INFO_REQUEST_CODE -> {
-                        if (data != null) {
-                            handlePopUpInfoRequest(
-                                resultCode,
-                                data
-                            )
-                        } else {
-                            Timber.e("Data from activity result is null.")
-                            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                        }
-                    }
                     TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
                     RESULT_CANCELED -> {
                     }
@@ -224,51 +214,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun handleNewFileRequest(name: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.createInsertRefreshFiles(name, Klaxon().toJsonString(createFileDialogInfo.fileCreationType))
-                syncBasedOnPreferences()
-            }
-        }
-    }
-
-    fun handleRenameRequest(newName: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                files.value?.let { files ->
-                    fileModel.renameRefreshFiles(files[0].id, newName)
-                    syncBasedOnPreferences()
-                }
-            }
-        }
-    }
-
-    private fun handlePopUpInfoRequest(resultCode: Int, data: Intent) {
-        val id = data.getStringExtra("id")
-        if (id is String) {
-            when (resultCode) {
-                RENAME_RESULT_CODE -> {
-                    val newName = data.getStringExtra("new_name")
-                    if (newName != null) {
-                        fileModel.renameRefreshFiles(id, newName)
-                    } else {
-                        Timber.e("new_name is null.")
-                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                    }
-                }
-                DELETE_RESULT_CODE -> fileModel.deleteRefreshFiles(id)
-                else -> {
-                    Timber.e("Result code not matched: $resultCode")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
-            }.exhaustive
-        } else {
-            Timber.e("id is null.")
-            _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-        }
-    }
-
     fun onSwipeToRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -281,11 +226,9 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onNewDocumentFABClicked() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                createFileDialogInfo.fileCreationType = FileType.Document
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                createFileDialogInfo.isDialogOpen = true
-                _showCreateFileDialog.postValue(Unit)
+                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document)))
             }
         }
     }
@@ -293,11 +236,9 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onNewFolderFABClicked() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                createFileDialogInfo.fileCreationType = FileType.Folder
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                createFileDialogInfo.isDialogOpen = true
-                _showCreateFileDialog.postValue(Unit)
+                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document)))
             }
         }
     }
@@ -335,8 +276,16 @@ class ListFilesViewModel(path: String, application: Application) :
                         SORT_FILES_TYPE
                     ).apply()
                     R.id.menu_list_files_rename -> {
-                        renameFileDialogStatus.isDialogOpen = true
-                        _showRenameFileDialog.postValue(Unit)
+                        files.value?.let { files ->
+                            val checkedFiles = files.filterIndexed { index, _ ->
+                                selectedFiles[index]
+                            }
+                            if (checkedFiles.size == 1) {
+                                _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
+                            } else {
+                                _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                            }
+                        }
                     }
                     R.id.menu_list_files_delete -> {
                         _errorHasOccurred.postValue("Delete hasn't been implemented yet.")
@@ -354,11 +303,17 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
                     R.id.menu_list_files_move -> {
-                        _showMoveFileDialog.postValue(
-                            files.value?.filterIndexed { index, _ ->
-                                selectedFiles[index]
-                            }?.map { fileMetadata -> fileMetadata.id }?.toTypedArray()
-                        )
+                        files.value?.let { files ->
+                            _showMoveFileDialog.postValue(
+                                MoveFileInfo(
+                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                        .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                        .map { fileMetadata -> fileMetadata.name }.toTypedArray()
+                                )
+                            )
+                        }
+
                     }
                     else -> {
                         Timber.e("Unrecognized sort item id.")
@@ -520,7 +475,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun handleMoveRequest() {
+    fun refreshAndAssessChanges() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 collapseMoreOptionsMenu()

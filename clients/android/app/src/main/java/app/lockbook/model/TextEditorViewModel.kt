@@ -55,7 +55,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
                 is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                 is ReadDocumentError.Unexpected -> {
                     Timber.e("Unable to get content of file: ${error.error}")
-                    _errorHasOccurred.postValue(
+                    _unexpectedErrorHasOccurred.postValue(
                         error.error
                     )
                 }
@@ -125,7 +125,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
                         }
                         is WriteToDocumentError.Unexpected -> {
                             Timber.e("Unable to write document changes: ${error.error}")
-                            _errorHasOccurred.postValue(
+                            _unexpectedErrorHasOccurred.postValue(
                                 error.error
                             )
                         }

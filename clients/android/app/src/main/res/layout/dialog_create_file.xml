@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_gravity="center"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:id="@+id/rename_file_layout"
+    android:id="@+id/create_file_layout"
     style="@style/DarkBlue.Dialog"
     android:orientation="vertical">
 
     <ProgressBar
-        android:id="@+id/rename_file_progress_bar"
+        android:id="@+id/create_file_progress_bar"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -25,10 +24,10 @@
         android:fontFamily="sans-serif"
         android:paddingTop="8dp"
         android:textAlignment="center"
-        android:text="@string/dialog_rename_file_title" />
+        android:text="@string/new_file_title" />
 
     <EditText
-        android:id="@+id/rename_file"
+        android:id="@+id/create_file_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
@@ -47,19 +46,18 @@
         android:gravity="end">
 
         <Button
-            android:id="@+id/rename_file_cancel"
+            android:id="@+id/create_file_cancel"
             style="@style/Button.Borderless.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/cancel" />
 
         <Button
-            android:id="@+id/rename_file_rename"
+            android:id="@+id/create_file_create"
             style="@style/Button.Borderless.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/rename_file_rename" />
+            android:text="@string/create_file_create" />
     </LinearLayout>
-
 
 </LinearLayout>

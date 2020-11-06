@@ -18,10 +18,11 @@ import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.FilesAdapter
 import app.lockbook.model.ListFilesViewModel
 import app.lockbook.modelfactory.ListFilesViewModelFactory
+import app.lockbook.ui.CreateFileDialogFragment
 import app.lockbook.ui.FileInfoDialogFragment
 import app.lockbook.ui.MoveFileDialogFragment
-import app.lockbook.util.EditableFile
-import app.lockbook.util.FileMetadata
+import app.lockbook.ui.RenameFileDialogFragment
+import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
@@ -30,6 +31,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
@@ -158,15 +160,15 @@ class ListFilesFragment : Fragment() {
 
         listFilesViewModel.showCreateFileDialog.observe(
             viewLifecycleOwner,
-            {
-                createFileNameDialog("")
+            { createFileInfo ->
+                showCreateFileDialog(createFileInfo)
             }
         )
 
         listFilesViewModel.showRenameFileDialog.observe(
             viewLifecycleOwner,
-            {
-                createRenameFileDialog("")
+            { renameFileInfo ->
+                showRenameFileDialog(renameFileInfo)
             }
         )
 
@@ -179,8 +181,8 @@ class ListFilesFragment : Fragment() {
 
         listFilesViewModel.showMoveFileDialog.observe(
             viewLifecycleOwner,
-            { ids ->
-                moveSelectedFiles(ids)
+            { moveFileInfo ->
+                showMoveFileDialog(moveFileInfo)
             }
         )
 
@@ -238,33 +240,8 @@ class ListFilesFragment : Fragment() {
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.createFileDialogInfo.isDialogOpen) {
-            createFileNameDialog(listFilesViewModel.createFileDialogInfo.alertDialogFileName)
-        }
-
-        if (listFilesViewModel.renameFileDialogStatus.isDialogOpen) {
-            createRenameFileDialog(listFilesViewModel.renameFileDialogStatus.alertDialogFileName)
-        }
-
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        setUpBeforeConfigChange()
-    }
-
-    private fun setUpBeforeConfigChange() {
-        if (listFilesViewModel.createFileDialogInfo.isDialogOpen) {
-            listFilesViewModel.createFileDialogInfo.alertDialogFileName =
-                alertDialog.findViewById<EditText>(R.id.new_file_username)?.text.toString()
-            alertDialog.dismiss()
-        } else if (listFilesViewModel.renameFileDialogStatus.isDialogOpen) {
-            listFilesViewModel.renameFileDialogStatus.alertDialogFileName =
-                alertDialog.findViewById<EditText>(R.id.rename_file)?.text.toString()
-            alertDialog.dismiss()
         }
     }
 
@@ -349,34 +326,6 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun createFileNameDialog(originalFileName: String) {
-        val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
-
-        alertDialog = dialogBuilder.setView(
-            layoutInflater.inflate(
-                R.layout.dialog_create_file_name,
-                view as ViewGroup,
-                false
-            )
-        )
-            .setPositiveButton(R.string.new_file_create) { dialog, _ ->
-                listFilesViewModel.handleNewFileRequest((dialog as Dialog).findViewById<EditText>(R.id.new_file_username).text.toString())
-                listFilesViewModel.createFileDialogInfo.isDialogOpen = false
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
-                dialog.cancel()
-                listFilesViewModel.createFileDialogInfo.isDialogOpen = false
-            }
-            .setOnCancelListener {
-                listFilesViewModel.createFileDialogInfo.isDialogOpen = false
-            }
-            .create()
-
-        alertDialog.show()
-        alertDialog.findViewById<EditText>(R.id.new_file_username)?.setText(originalFileName)
-    }
-
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
@@ -422,35 +371,6 @@ class ListFilesFragment : Fragment() {
             .show()
     }
 
-    private fun createRenameFileDialog(originalFileName: String) {
-        val dialogBuilder = AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
-
-        alertDialog = dialogBuilder.setView(
-            layoutInflater.inflate(
-                R.layout.dialog_rename_file,
-                view as ViewGroup,
-                false
-            )
-        )
-            .setPositiveButton(R.string.new_file_create) { dialog, _ ->
-                listFilesViewModel.handleRenameRequest((dialog as Dialog).findViewById<EditText>(R.id.rename_file).text.toString())
-                listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
-                listFilesViewModel.collapseMoreOptionsMenu()
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.new_file_cancel) { dialog, _ ->
-                dialog.cancel()
-                listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
-            }
-            .setOnCancelListener {
-                listFilesViewModel.renameFileDialogStatus.isDialogOpen = false
-            }
-            .create()
-
-        alertDialog.show()
-        alertDialog.findViewById<EditText>(R.id.rename_file)?.setText(originalFileName)
-    }
-
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
         listFilesViewModel.collapseMoreOptionsMenu()
 
@@ -463,18 +383,47 @@ class ListFilesFragment : Fragment() {
         ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
     }
 
-    private fun moveSelectedFiles(ids: Array<String>) {
-        val dialogFragment = MoveFileDialogFragment.newInstance(ids)
+    private fun showMoveFileDialog(moveFileInfo: MoveFileInfo) {
+        val dialogFragment = MoveFileDialogFragment.newInstance(moveFileInfo.ids, moveFileInfo.names)
         parentFragmentManager.registerFragmentLifecycleCallbacks(
             object : FragmentManager.FragmentLifecycleCallbacks() {
                 override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                    listFilesViewModel.handleMoveRequest()
+                    listFilesViewModel.refreshAndAssessChanges()
+                }
+            },
+            false
+        )
+
+        dialogFragment.show(parentFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
+    }
+
+    private fun showRenameFileDialog(renameFileInfo: RenameFileInfo) {
+        val dialogFragment = RenameFileDialogFragment.newInstance(renameFileInfo.id, renameFileInfo.name)
+        parentFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+                    listFilesViewModel.refreshAndAssessChanges()
                 }
             },
             false
         )
 
         dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
+    }
+
+    private fun showCreateFileDialog(createFileInfo: CreateFileInfo) {
+
+        val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
+        parentFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+                    listFilesViewModel.refreshAndAssessChanges()
+                }
+            },
+            false
+        )
+
+        dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
     }
 
     fun onBackPressed(): Boolean {

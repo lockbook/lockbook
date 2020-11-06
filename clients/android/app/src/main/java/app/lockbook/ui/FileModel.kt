@@ -18,7 +18,7 @@ class FileModel(path: String) {
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
-    private lateinit var parentFileMetadata: FileMetadata
+    lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
     val config = Config(path)
 
@@ -62,40 +62,6 @@ class FileModel(path: String) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get siblings of the parent: ${error.error}")
                     _unexpectedErrorHasOccurred.postValue(error.error)
-                }
-            }
-        }.exhaustive
-    }
-
-    fun renameRefreshFiles(id: String, newName: String) {
-        when (val renameFileResult = CoreModel.renameFile(config, id, newName)) {
-            is Ok -> refreshFiles()
-            is Err -> when (val error = renameFileResult.error) {
-                is RenameFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is RenameFileError.NewNameContainsSlash -> _errorHasOccurred.postValue("Error! New name contains slash!")
-                is RenameFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
-                is RenameFileError.NewNameEmpty -> _errorHasOccurred.postValue("Error! New file name cannot be empty!")
-                is RenameFileError.CannotRenameRoot -> _errorHasOccurred.postValue("Error! Cannot rename root!")
-                is RenameFileError.Unexpected -> {
-                    Timber.e("Unable to rename file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
-        }.exhaustive
-    }
-
-    fun deleteRefreshFiles(id: String) {
-        when (val deleteFileResult = CoreModel.deleteFile(config, id)) {
-            is Ok -> refreshFiles()
-            is Err -> when (val error = deleteFileResult.error) {
-                is DeleteFileError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                is DeleteFileError.Unexpected -> {
-                    Timber.e("Unable to delete file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
                 }
             }
         }.exhaustive
