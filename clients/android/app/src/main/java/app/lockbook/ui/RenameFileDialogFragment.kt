@@ -84,7 +84,6 @@ class RenameFileDialogFragment : DialogFragment() {
         }
 
         rename_file.setText(name)
-
     }
 
     private fun handleRenameRequest(newName: String) {

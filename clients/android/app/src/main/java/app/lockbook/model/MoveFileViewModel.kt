@@ -67,13 +67,13 @@ class MoveFileViewModel(path: String) :
                 var hasErrorOccurred = false
                 for (id in ids) {
                     val moveFileResult = moveFileIfSuccessful(id)
-                    if(!moveFileResult) {
+                    if (!moveFileResult) {
                         hasErrorOccurred = !moveFileResult
                         break
                     }
                 }
 
-                if(!hasErrorOccurred) {
+                if (!hasErrorOccurred) {
                     _closeDialog.postValue(Unit)
                 }
             }
