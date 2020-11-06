@@ -1,12 +1,10 @@
 package app.lockbook.screen
 
-import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -31,7 +29,6 @@ import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
