@@ -339,34 +339,10 @@ impl<
 
                         // You deleted this file locally, send this to the server
                         if local_changes.deleted && !metadata.deleted {
-                            if metadata.file_type == Document {
-                                ApiClient::delete_document(
-                                    &account.api_url,
-                                    &account.username,
-                                    &SignedValue {
-                                        content: "".to_string(),
-                                        signature: "".to_string(),
-                                    },
-                                    metadata.id,
-                                )
-                                .map_err(WorkExecutionError::DocumentDeleteError)?;
-                            } else {
-                                ApiClient::delete_folder(
-                                    &account.api_url,
-                                    &account.username,
-                                    &SignedValue {
-                                        content: "".to_string(),
-                                        signature: "".to_string(),
-                                    },
-                                    metadata.id,
-                                )
-                                .map_err(WorkExecutionError::FolderDeleteError)?;
-                            }
-                            // Untrack the delete
-                            ChangeDb::delete_if_exists(&db, metadata.id)
-                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                            // If we wanted to recover files that were deleted locally but things
+                            // on the server changed, we could do so here.
 
-                        // straightforward metadata merge
+                            // straightforward metadata merge
                         } else if !local_changes.deleted && !metadata.deleted {
                             // We renamed it locally
                             if let Some(renamed_locally) = local_changes.renamed {

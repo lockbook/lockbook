@@ -1,9 +1,11 @@
-use crate::model::crypto::{Document, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::model::crypto::{Document, UserAccessInfo};
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalChange {
+    pub timestamp: u128,
     pub id: Uuid,
     pub renamed: Option<Renamed>,
     pub moved: Option<Moved>,
