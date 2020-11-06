@@ -500,7 +500,8 @@ impl<
         FileMetadataDb::non_recursive_delete_if_exists(&db, id)
             .map_err(DeleteDocumentError::FailedToDeleteMetadata)?;
         FileDb::delete_if_exists(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
-        ChangesDb::track_delete(&db, id).map_err(DeleteDocumentError::FailedToTrackDelete)?;
+        ChangesDb::track_delete(&db, id, file_metadata.file_type)
+            .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
         Ok(())
     }
@@ -514,7 +515,8 @@ impl<
             return Err(DeleteFolderError::DocumentTreatedAsFolder);
         }
 
-        ChangesDb::track_delete(&db, id).map_err(DeleteFolderError::FailedToRecordChange)?;
+        ChangesDb::track_delete(&db, id, file_metadata.file_type)
+            .map_err(DeleteFolderError::FailedToRecordChange)?;
 
         let files_to_delete = FileMetadataDb::get_and_get_children_recursively(&db, id)
             .map_err(DeleteFolderError::FindingChildrenFailed)?;
@@ -1181,16 +1183,53 @@ mod unit_tests {
             .is_none());
     }
 
-    // #[test]
-    // fn test_delete_folder() {
-    //     let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-    //
-    //     let account = test_account();
-    //     DefaultAccountRepo::insert_account(&db, &account).unwrap();
-    //     let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-    //     DefaultFileMetadataRepo::insert(&db, &root).unwrap();
-    //
-    //     let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
-    //     let document1 = DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
-    // }
+    #[test]
+    fn test_folders_are_created_in_order() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        DefaultFileService::create_at_path(&db, &format!("{}/a/b/c/d/", account.username)).unwrap();
+        let folder1 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/c/d/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder2 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/c/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder3 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder4 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/", account.username))
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .into_iter()
+                .map(|change| change.id)
+                .collect::<Vec<Uuid>>(),
+            vec![folder4.id, folder3.id, folder2.id, folder1.id]
+        );
+    }
+
+    #[test]
+    fn test_delete_folder() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
+        let document1 = DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+    }
 }
