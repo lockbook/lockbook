@@ -18,7 +18,7 @@ import kotlinx.android.synthetic.main.dialog_move_file.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
-class CreateFileDialogFragment: DialogFragment() {
+class CreateFileDialogFragment : DialogFragment() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -95,9 +95,9 @@ class CreateFileDialogFragment: DialogFragment() {
         when (
             val createFileResult =
                 CoreModel.createFile(config, parentId, name, fileType)
-            ) {
+        ) {
             is Ok -> {
-                when(val insertFileResult = CoreModel.insertFile(config, createFileResult.value)) {
+                when (val insertFileResult = CoreModel.insertFile(config, createFileResult.value)) {
                     is Ok -> {
                         withContext(Dispatchers.Main) {
                             dismiss()
@@ -157,7 +157,5 @@ class CreateFileDialogFragment: DialogFragment() {
                 }
                 .show()
         }
-
     }
-
 }

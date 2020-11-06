@@ -12,10 +12,7 @@ import app.lockbook.R
 import app.lockbook.ui.FileModel
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.RequestResultCodes.DELETE_RESULT_CODE
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
-import app.lockbook.util.RequestResultCodes.POP_UP_INFO_REQUEST_CODE
-import app.lockbook.util.RequestResultCodes.RENAME_RESULT_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -313,7 +310,6 @@ class ListFilesViewModel(path: String, application: Application) :
                                 )
                             )
                         }
-
                     }
                     else -> {
                         Timber.e("Unrecognized sort item id.")
