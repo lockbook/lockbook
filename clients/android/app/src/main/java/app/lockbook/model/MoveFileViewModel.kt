@@ -17,6 +17,7 @@ class MoveFileViewModel(path: String) :
     private val config = Config(path)
     lateinit var currentParent: FileMetadata
     lateinit var ids: Array<String>
+    lateinit var names: Array<String>
 
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _closeDialog = MutableLiveData<Unit>()
@@ -60,28 +61,40 @@ class MoveFileViewModel(path: String) :
         }
     }
 
-    fun moveFilesToFolder(ids: Array<String>) {
+    fun moveFilesToFolder() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
+                var hasErrorOccurred = false
                 for (id in ids) {
-                    moveFileRefresh(id)
+                    val moveFileResult = moveFileIfSuccessful(id)
+                    if(!moveFileResult) {
+                        hasErrorOccurred = !moveFileResult
+                        break
+                    }
                 }
-                _closeDialog.postValue(Unit)
+
+                if(!hasErrorOccurred) {
+                    _closeDialog.postValue(Unit)
+                }
             }
         }
     }
 
-    private fun moveFileRefresh(id: String) {
-        when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
-            is Ok -> {}
-            is Err -> when (val error = moveFileResult.error) {
-                MoveFileError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                MoveFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                MoveFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! Document treated as folder!")
-                MoveFileError.TargetParentDoesNotExist -> _errorHasOccurred.postValue("Error! The parent file does not exist!")
-                MoveFileError.TargetParentHasChildNamedThat -> _errorHasOccurred.postValue("Error! The parent file has a child called that already!")
-                MoveFileError.CannotMoveRoot -> _errorHasOccurred.postValue("Error! You cannot move to root!")
-                is MoveFileError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
+    private fun moveFileIfSuccessful(id: String): Boolean {
+        return when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
+            is Ok -> true
+            is Err -> {
+                val fileName = names[ids.indexOf(id)]
+                when (val error = moveFileResult.error) {
+                    MoveFileError.NoAccount -> _errorHasOccurred.postValue("Error! $fileName has no account!")
+                    MoveFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! $fileName does not exist!")
+                    MoveFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! $fileName treated as folder!")
+                    MoveFileError.TargetParentDoesNotExist -> _errorHasOccurred.postValue("Error! The parent file does not exist!")
+                    MoveFileError.TargetParentHasChildNamedThat -> _errorHasOccurred.postValue("Error! The parent file has a child named $fileName already!")
+                    MoveFileError.CannotMoveRoot -> _errorHasOccurred.postValue("Error! You cannot move root!")
+                    is MoveFileError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
+                }
+                false
             }
         }.exhaustive
     }
