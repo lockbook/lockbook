@@ -171,7 +171,8 @@ pub async fn change_document_content_version(
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.content_version END)
-            FROM old WHERE old.id = new.id
+            FROM old
+            WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
@@ -245,7 +246,8 @@ pub async fn delete_file(
                     (CASE WHEN NOT old.deleted
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
-            FROM old WHERE old.id = new.id
+            FROM old
+            WHERE old.id = new.id
             RETURNING
                 old.id AS id,
                 old.deleted AS old_deleted,
@@ -303,7 +305,9 @@ pub async fn move_file(
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $5
                     ELSE old.parent_access_key END)
-            FROM old CROSS JOIN parent WHERE old.id = new.id
+            FROM old
+            LEFT JOIN parent ON TRUE
+            WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
                 parent.deleted AS parent_deleted,
@@ -344,7 +348,8 @@ pub async fn rename_file(
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
-            FROM old WHERE old.id = new.id
+            FROM old
+            WHERE old.id = new.id
             RETURNING
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
@@ -448,13 +453,20 @@ struct FileMoveResponse {
     old_metadata_version: u64,
     new_metadata_version: u64,
     is_folder: bool,
+    parent_exists: bool,
 }
 
 impl FileMoveResponse {
     fn from_row(row: &tokio_postgres::row::Row) -> Result<Self, FileError> {
+        let deleted = row
+            .try_get::<&str, Option<bool>>("parent_deleted")
+            .map_err(FileError::Postgres)?;
         Ok(Self {
             old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
-            parent_deleted: row.try_get("parent_deleted").map_err(FileError::Postgres)?,
+            parent_deleted: match deleted {
+                Some(true) => true,
+                _ => false,
+            },
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -462,6 +474,10 @@ impl FileMoveResponse {
                 .try_get::<&str, i64>("new_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
             is_folder: row.try_get("is_folder").map_err(FileError::Postgres)?,
+            parent_exists: match deleted {
+                None => false,
+                _ => true,
+            },
         })
     }
 
@@ -478,6 +494,8 @@ impl FileMoveResponse {
             Err(FileError::ParentDeleted)
         } else if self.old_metadata_version != expected_old_metadata_version {
             Err(FileError::IncorrectOldVersion)
+        } else if !self.parent_exists {
+            Err(FileError::ParentDoesNotExist)
         } else {
             Ok(self)
         }
@@ -614,10 +632,10 @@ pub async fn get_updates(
     transaction
         .query(
             "SELECT * FROM files fi
-                        LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
-                        LEFT JOIN accounts a ON fi.owner = a.name
-                        WHERE owner = $1
-                        AND metadata_version > $2;",
+            LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
+            LEFT JOIN accounts a ON fi.owner = a.name
+            WHERE owner = $1
+            AND metadata_version > $2;",
             &[&username, &(metadata_version as i64)],
         )
         .await
