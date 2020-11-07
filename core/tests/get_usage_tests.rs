@@ -5,10 +5,12 @@ mod get_usage_tests {
     use lockbook_core::model::crypto::*;
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::{
-        create_account, create_file, get_root, get_usage, sync_all, write_document,
+        connect_to_db, create_account, create_file, get_root, get_usage, read_document, sync_all,
+        write_document, DefaultDocumentRepo,
     };
 
     use crate::integration_test::{generate_account, random_filename, test_config};
+    use lockbook_core::repo::document_repo::DocumentRepo;
 
     #[test]
     fn report_usage() {
@@ -39,8 +41,13 @@ mod get_usage_tests {
 
         sync_all(config).unwrap();
 
-        assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
+        let db = connect_to_db(config).unwrap();
 
+        assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
+        assert!(
+            get_usage(config).unwrap()[0].byte_secs
+                > DefaultDocumentRepo::get(&db, file.id).unwrap()
+        )
     }
 }

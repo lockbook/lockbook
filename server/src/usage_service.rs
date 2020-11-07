@@ -23,7 +23,9 @@ pub async fn update_usage(
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 username,
-                &(file_content.garbage.as_bytes().len() as i64),
+                &(serde_json::to_vec(file_content)
+                    .map_err(UsageTrackError::Serialize)?
+                    .len() as i64),
             ],
         )
         .await
@@ -155,9 +157,12 @@ mod usage_service_tests {
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
+    use uuid::Uuid;
 
     #[test]
     fn compute_usage() {
+        let file_id = Uuid::new_v4();
+
         async fn do_stuff(config: &IndexDbConfig) -> Result<Vec<FileUsage>, UsageCalculateError> {
             let mut pg_client = file_index_repo::connect(config).await.unwrap();
 
@@ -173,11 +178,12 @@ mod usage_service_tests {
                 )
                 .await
                 .unwrap();
+
             let _ = transaction.execute("INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version) VALUES ('\"nice\"', '\"nice\"', '', false, 'good_file.md', 'juicy', '', false, 0, 0);", &[]).await.unwrap();
-            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-09-15', 'juicy', 1000);", &[]).await.unwrap();
-            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-01', 'juicy', 10000);", &[]).await.unwrap();
-            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-15', 'juicy', 20000);", &[]).await.unwrap();
-            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ('\"nice\"', '2000-10-31', 'juicy', 30000);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-09-15', 'juicy', 1000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-01', 'juicy', 10000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-15', 'juicy', 20000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-31', 'juicy', 30000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
 
             let res = calculate(&transaction, &"juicy".to_string(), date_start, date_end).await;
 
@@ -191,7 +197,7 @@ mod usage_service_tests {
         let res = tokio_test::block_on(do_stuff(&fake_config.index_db)).unwrap();
 
         let top_usage = res.get(0).unwrap();
-        assert_eq!(top_usage.file_id, "nice");
+        assert_eq!(top_usage.file_id, file_id);
         assert_eq!(
             top_usage.byte_secs,
             ((10000 * 24 * 3600 * 16) + (20000 * 24 * 3600 * 15))
