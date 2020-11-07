@@ -163,7 +163,10 @@ mod usage_service_tests {
     fn compute_usage() {
         let file_id = Uuid::new_v4();
 
-        async fn do_stuff(config: &IndexDbConfig) -> Result<Vec<FileUsage>, UsageCalculateError> {
+        async fn do_stuff(
+            config: &IndexDbConfig,
+            file_id: Uuid,
+        ) -> Result<Vec<FileUsage>, UsageCalculateError> {
             let mut pg_client = file_index_repo::connect(config).await.unwrap();
 
             let transaction = pg_client.transaction().await.unwrap();
@@ -194,7 +197,7 @@ mod usage_service_tests {
 
         let fake_config = config();
 
-        let res = tokio_test::block_on(do_stuff(&fake_config.index_db)).unwrap();
+        let res = tokio_test::block_on(do_stuff(&fake_config.index_db, file_id)).unwrap();
 
         let top_usage = res.get(0).unwrap();
         assert_eq!(top_usage.file_id, file_id);
