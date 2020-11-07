@@ -89,7 +89,7 @@ pub type DefaultAccountService = AccountServiceImpl<
     DefaultFileMetadataRepo,
 >;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultSyncService = FileSyncService<
