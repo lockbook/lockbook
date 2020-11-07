@@ -527,31 +527,34 @@ val createFileConverter = object : Converter {
                 Err(CreateFileError.Unexpected("createFileConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
         }
-        uiErrorTag -> {
-            val error = jv.obj?.string("content")
-            if (error != null) {
-                Err(
-                    when (error) {
-                        CreateFileError.NoAccount::class.simpleName -> CreateFileError.NoAccount
-                        CreateFileError.DocumentTreatedAsFolder::class.simpleName -> CreateFileError.DocumentTreatedAsFolder
-                        CreateFileError.FileNameNotAvailable::class.simpleName -> CreateFileError.FileNameNotAvailable
-                        CreateFileError.CouldNotFindAParent::class.simpleName -> CreateFileError.CouldNotFindAParent
-                        CreateFileError.FileNameContainsSlash::class.simpleName -> CreateFileError.FileNameContainsSlash
-                        CreateFileError.FileNameEmpty::class.simpleName -> CreateFileError.FileNameEmpty
-                        else -> CreateFileError.Unexpected("createFileConverter $unmatchedUiError $error")
-                    }
-                )
-            } else {
-                Err(CreateFileError.Unexpected("createFileConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            CreateFileError.NoAccount::class.simpleName -> CreateFileError.NoAccount
+                            CreateFileError.DocumentTreatedAsFolder::class.simpleName -> CreateFileError.DocumentTreatedAsFolder
+                            CreateFileError.FileNameNotAvailable::class.simpleName -> CreateFileError.FileNameNotAvailable
+                            CreateFileError.CouldNotFindAParent::class.simpleName -> CreateFileError.CouldNotFindAParent
+                            CreateFileError.FileNameContainsSlash::class.simpleName -> CreateFileError.FileNameContainsSlash
+                            CreateFileError.FileNameEmpty::class.simpleName -> CreateFileError.FileNameEmpty
+                            else -> CreateFileError.Unexpected("createFileConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(CreateFileError.Unexpected("createFileConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
             }
-        }
-        unexpectedTag -> {
-            val error = jv.obj?.string("content")
-            if (error != null) {
-                Err(CreateFileError.Unexpected(error))
-            } else {
-                Err(CreateFileError.Unexpected("createFileConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(CreateFileError.Unexpected(error))
+                } else {
+                    Err(CreateFileError.Unexpected("createFileConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
             }
+            else -> Err(RenameFileError.Unexpected("renameFileConverter $unmatchedErrorTag $errorTag"))
         }
         else -> Err(CreateFileError.Unexpected("createFileConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
