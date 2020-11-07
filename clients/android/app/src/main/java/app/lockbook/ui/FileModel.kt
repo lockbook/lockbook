@@ -90,41 +90,6 @@ class FileModel(path: String) {
         }.exhaustive
     }
 
-    fun createInsertRefreshFiles(name: String, fileType: String) {
-        when (
-            val createFileResult =
-                CoreModel.createFile(config, parentFileMetadata.id, name, fileType)
-        ) {
-            is Ok -> {
-                val insertFileResult = CoreModel.insertFile(config, createFileResult.value)
-                if (insertFileResult is Err) {
-                    when (val error = insertFileResult.error) {
-                        is InsertFileError.Unexpected -> {
-                            Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                            _unexpectedErrorHasOccurred.postValue(error.error)
-                        }
-                    }
-                }
-
-                refreshFiles()
-            }
-            is Err -> when (val error = createFileResult.error) {
-                is CreateFileError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CreateFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! Document is treated as folder!")
-                is CreateFileError.CouldNotFindAParent -> _errorHasOccurred.postValue("Error! Could not find file parent!")
-                is CreateFileError.FileNameNotAvailable -> _errorHasOccurred.postValue("Error! File name not available!")
-                is CreateFileError.FileNameContainsSlash -> _errorHasOccurred.postValue("Error! File contains a slash!")
-                is CreateFileError.FileNameEmpty -> _errorHasOccurred.postValue("Error! File cannot be empty!")
-                is CreateFileError.Unexpected -> {
-                    Timber.e("Unable to create a file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
-        }.exhaustive
-    }
-
     fun refreshFiles() {
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
