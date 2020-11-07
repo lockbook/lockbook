@@ -45,18 +45,6 @@ pub async fn change_document_content(
         }
     })?;
 
-    usage_service::update_usage(
-        &transaction,
-        &request.id,
-        &request.username,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        error!("Usage tracking error: {:?}", err);
-        ChangeDocumentContentError::InternalError
-    })?;
-
     let create_result = file_content_client::create(
         &server_state.files_db_client,
         request.id,
@@ -85,6 +73,18 @@ pub async fn change_document_content(
         );
         return Err(ChangeDocumentContentError::InternalError);
     };
+
+    usage_service::update_usage(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.new_c ontent,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        ChangeDocumentContentError::InternalError
+    })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(ChangeDocumentContentResponse {
