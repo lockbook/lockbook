@@ -78,7 +78,7 @@ pub async fn change_document_content(
         &transaction,
         &request.id,
         &request.username,
-        &request.new_c ontent,
+        &request.new_content,
     )
     .await
     .map_err(|err| {
