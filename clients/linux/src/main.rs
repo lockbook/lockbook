@@ -1,4 +1,5 @@
 extern crate gdk;
+extern crate gdk_pixbuf;
 extern crate gio;
 extern crate glib;
 extern crate gtk;
@@ -12,7 +13,6 @@ mod gui;
 mod intro;
 mod menubar;
 mod messages;
-mod screens;
 mod settings;
 
 use std::env;

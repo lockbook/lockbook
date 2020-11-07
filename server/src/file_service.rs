@@ -45,7 +45,7 @@ pub async fn change_document_content(
         }
     })?;
 
-    usage_service::track(
+    usage_service::update_usage(
         &transaction,
         &request.id,
         &request.username,
@@ -141,7 +141,7 @@ pub async fn create_document(
         }
     })?;
 
-    usage_service::track(
+    usage_service::update_usage(
         &transaction,
         &request.id,
         &request.username,
@@ -234,6 +234,13 @@ pub async fn delete_document(
         );
         return Err(DeleteDocumentError::InternalError);
     };
+
+    usage_service::file_deleted(&transaction, &request.id, &request.username)
+        .await
+        .map_err(|err| {
+            error!("Usage tracking error: {:?}", err);
+            DeleteDocumentError::InternalError
+        })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(DeleteDocumentResponse {
@@ -492,6 +499,13 @@ pub async fn delete_folder(
                 );
                 return Err(DeleteFolderError::InternalError);
             };
+
+            usage_service::file_deleted(&transaction, &request.id, &request.username)
+                .await
+                .map_err(|err| {
+                    error!("Usage tracking error: {:?}", err);
+                    DeleteFolderError::InternalError
+                })?;
         }
     }
 
