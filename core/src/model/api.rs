@@ -327,7 +327,7 @@ pub struct GetUsageResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileUsage {
-    pub file_id: String,
+    pub file_id: Uuid,
     pub byte_secs: u64,
     pub secs: u64,
 }
