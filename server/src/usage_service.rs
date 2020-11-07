@@ -182,7 +182,7 @@ mod usage_service_tests {
                 .await
                 .unwrap();
 
-            let _ = transaction.execute("INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version) VALUES ('\"nice\"', '\"nice\"', '', false, 'good_file.md', 'juicy', '', false, 0, 0);", &[]).await.unwrap();
+            let _ = transaction.execute("INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version) VALUES ($1, '\"nice\"', '', false, 'good_file.md', 'juicy', '', false, 0, 0);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
             let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-09-15', 'juicy', 1000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
             let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-01', 'juicy', 10000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
             let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-15', 'juicy', 20000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
