@@ -273,38 +273,36 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
             Some(mut change) => {
                 if change.deleted {
                     Ok(())
-                } else {
-                    if file_type == FileType::Document {
-                        if change.new {
-                            // If a document was created and deleted, just forget about it
-                            Self::delete_if_exists(&db, id)
-                        } else {
-                            // If a document was deleted, don't bother pushing it's rename / move
-                            let delete_tracked = LocalChange {
-                                timestamp: Time::get_time().map_err(TimeError)?,
-                                id,
-                                renamed: None,
-                                moved: None,
-                                new: false,
-                                content_edited: None,
-                                deleted: true,
-                            };
-                            tree.insert(
-                                id.as_bytes(),
-                                serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
-                            )
-                            .map_err(DbError::SledError)?;
-                            Ok(())
-                        }
+                } else if file_type == FileType::Document {
+                    if change.new {
+                        // If a document was created and deleted, just forget about it
+                        Self::delete_if_exists(&db, id)
                     } else {
-                        change.deleted = true;
+                        // If a document was deleted, don't bother pushing it's rename / move
+                        let delete_tracked = LocalChange {
+                            timestamp: Time::get_time().map_err(TimeError)?,
+                            id,
+                            renamed: None,
+                            moved: None,
+                            new: false,
+                            content_edited: None,
+                            deleted: true,
+                        };
                         tree.insert(
                             id.as_bytes(),
-                            serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                            serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::SledError)?;
                         Ok(())
                     }
+                } else {
+                    change.deleted = true;
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::SledError)?;
+                    Ok(())
                 }
             }
         }
