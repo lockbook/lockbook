@@ -531,16 +531,7 @@ impl<
             None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
             Some(local_change) => {
                 if local_change.new {
-                    if local_change.deleted {
-                        if metadata.file_type == Document {
-                            error!("A new file should be removed out of local_changes repo when it is deleted! id: {:?}", metadata.id);
-                        } else {
-                            error!("Deferred delete of folders is not allowed! id: {:?}", metadata.id);
-                        }
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    } else if metadata.file_type == Document {
+                    if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::create_document(
                             &account.api_url,
@@ -556,10 +547,6 @@ impl<
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::create_folder(
                             &account.api_url,
@@ -574,80 +561,89 @@ impl<
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-                } else if !local_change.deleted { // not new and not deleted
-                    if local_change.renamed.is_some() {
-                        let version = if metadata.file_type == Document {
-                            ApiClient::rename_document(
-                                &account.api_url,
-                                &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
-                                metadata.id, metadata.metadata_version,
-                                &metadata.name)
-                                .map_err(DocumentRenameError)?
-                        } else {
-                            ApiClient::rename_folder(
-                                &account.api_url,
-                                &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
-                                metadata.id, metadata.metadata_version,
-                                &metadata.name)
-                                .map_err(FolderRenameError)?
-                        };
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::untrack_rename(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
 
-                    if local_change.moved.is_some() {
-                        let version = if metadata.file_type == Document {
-                            ApiClient::move_document(
-                                &account.api_url,
-                                &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
-                                metadata.id, metadata.metadata_version,
-                                metadata.parent,
-                                metadata.folder_access_keys.clone(),
-                            ).map_err(DocumentMoveError)?
-                        } else {
-                            ApiClient::move_folder(
-                                &account.api_url,
-                                &account.username,
-                                &SignedValue { content: "".to_string(), signature: "".to_string() },
-                                metadata.id, metadata.metadata_version,
-                                metadata.parent,
-                                metadata.folder_access_keys.clone(),
-                            ).map_err(FolderMoveError)?
-                        };
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    ChangeDb::untrack_new_file(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_move(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_rename(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_edit(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                }
 
-                        ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-
-                    if local_change.content_edited.is_some() && metadata.file_type == Document {
-                        let version = ApiClient::change_document_content(
+                if local_change.renamed.is_some() {
+                    let version = if metadata.file_type == Document {
+                        ApiClient::rename_document(
                             &account.api_url,
                             &account.username,
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
-                            metadata.id,
-                            metadata.metadata_version,
-                            DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
-                        ).map_err(DocumentChangeError)?;
+                            metadata.id, metadata.metadata_version,
+                            &metadata.name)
+                            .map_err(DocumentRenameError)?
+                    } else {
+                        ApiClient::rename_folder(
+                            &account.api_url,
+                            &account.username,
+                            &SignedValue { content: "".to_string(), signature: "".to_string() },
+                            metadata.id, metadata.metadata_version,
+                            &metadata.name)
+                            .map_err(FolderRenameError)?
+                    };
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        metadata.content_version = version;
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    ChangeDb::untrack_rename(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                }
 
-                        ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-                } else { // not new and deleted
+                if local_change.moved.is_some() {
+                    let version = if metadata.file_type == Document {
+                        ApiClient::move_document(
+                            &account.api_url,
+                            &account.username,
+                            &SignedValue { content: "".to_string(), signature: "".to_string() },
+                            metadata.id, metadata.metadata_version,
+                            metadata.parent,
+                            metadata.folder_access_keys.clone(),
+                        ).map_err(DocumentMoveError)?
+                    } else {
+                        ApiClient::move_folder(
+                            &account.api_url,
+                            &account.username,
+                            &SignedValue { content: "".to_string(), signature: "".to_string() },
+                            metadata.id, metadata.metadata_version,
+                            metadata.parent,
+                            metadata.folder_access_keys.clone(),
+                        ).map_err(FolderMoveError)?
+                    };
+
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                    ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                }
+
+                if local_change.content_edited.is_some() && metadata.file_type == Document {
+                    let version = ApiClient::change_document_content(
+                        &account.api_url,
+                        &account.username,
+                        &SignedValue { content: "".to_string(), signature: "".to_string() },
+                        metadata.id,
+                        metadata.metadata_version,
+                        DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?.content,
+                    ).map_err(DocumentChangeError)?;
+
+                    metadata.content_version = version;
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                    ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                }
+
+                if local_change.deleted { // not new and deleted
                     if metadata.file_type == Document {
                         ApiClient::delete_document(
                             &account.api_url,
