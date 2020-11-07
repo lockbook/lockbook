@@ -10,7 +10,7 @@ pub enum UsageTrackError {
     Postgres(PostgresError),
 }
 
-pub async fn track(
+pub async fn update_usage(
     transaction: &Transaction<'_>,
     file_id: &Uuid,
     username: &String,
@@ -24,6 +24,27 @@ pub async fn track(
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 username,
                 &(file_content.garbage.as_bytes().len() as i64),
+            ],
+        )
+        .await
+        .map_err(UsageTrackError::Postgres)?;
+
+    Ok(())
+}
+
+pub async fn file_deleted(
+    transaction: &Transaction<'_>,
+    file_id: &Uuid,
+    username: &String,
+) -> Result<(), UsageTrackError> {
+    let _ = transaction
+        .execute(
+            "INSERT INTO usage_ledger (file_id, owner, bytes, timestamp)
+            VALUES ($1, $2, $3, now());",
+            &[
+                &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
+                username,
+                &0,
             ],
         )
         .await
@@ -127,11 +148,13 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
 
 #[cfg(test)]
 mod usage_service_tests {
+    use std::str::FromStr;
+
+    use lockbook_core::model::api::FileUsage;
+
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
-    use lockbook_core::model::api::FileUsage;
-    use std::str::FromStr;
 
     #[test]
     fn compute_usage() {

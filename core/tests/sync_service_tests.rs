@@ -1069,4 +1069,7 @@ mod sync_tests {
 
         assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err())
     }
+
+    #[test]
+    fn delete_document_test() {}
 }
