@@ -530,8 +530,11 @@ impl<
 
             FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
                 .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
-            ChangesDb::delete_if_exists(&db, file.id)
-                .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
+
+            if file.id != id {
+                ChangesDb::delete_if_exists(&db, file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
+            }
         }
 
         Ok(())
@@ -1231,5 +1234,77 @@ mod unit_tests {
 
         let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
         let document1 = DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+        let document2 = DefaultFileService::create(&db, "doc2", folder1.id, Document).unwrap();
+        let document3 = DefaultFileService::create(&db, "doc3", folder1.id, Document).unwrap();
+
+        assert_total_local_changes!(&db, 4);
+
+        DefaultFileService::delete_folder(&db, folder1.id).unwrap();
+        assert_total_local_changes!(&db, 1);
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document1.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document2.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document3.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, document1.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document2.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document3.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_other_things_are_not_touched_during_delete() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
+        DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+        DefaultFileService::create(&db, "doc2", folder1.id, Document).unwrap();
+        DefaultFileService::create(&db, "doc3", folder1.id, Document).unwrap();
+
+        let folder2 = DefaultFileService::create(&db, "folder2", root.id, Folder).unwrap();
+        let document4 = DefaultFileService::create(&db, "doc1", folder2.id, Document).unwrap();
+        let document5 = DefaultFileService::create(&db, "doc2", folder2.id, Document).unwrap();
+        let document6 = DefaultFileService::create(&db, "doc3", folder2.id, Document).unwrap();
+
+        assert_total_local_changes!(&db, 8);
+
+        DefaultFileService::delete_folder(&db, folder1.id).unwrap();
+        assert_total_local_changes!(&db, 5);
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document4.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document5.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document6.id)
+            .unwrap()
+            .is_some());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, document4.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document5.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document6.id)
+            .unwrap()
+            .is_some());
     }
 }
