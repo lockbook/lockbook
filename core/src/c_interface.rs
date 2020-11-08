@@ -195,7 +195,7 @@ pub unsafe extern "C" fn delete_file(
     writeable_path: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::delete_file(
+    c_string(translate(crate::delete_document(
         &config_from_ptr(writeable_path),
         uuid_from_ptr(id),
     )))
