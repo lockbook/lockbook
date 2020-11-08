@@ -40,7 +40,6 @@ class ListFilesActivity : AppCompatActivity() {
 
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            fragment.listFilesViewModel.selectedFiles.forEach { Timber.e(it.toString()) }
             if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
                 openFileMenu(fragment.listFilesViewModel.selectedFiles)
             }
