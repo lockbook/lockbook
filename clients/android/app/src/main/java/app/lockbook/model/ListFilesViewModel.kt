@@ -474,6 +474,7 @@ class ListFilesViewModel(path: String, application: Application) :
     fun refreshAndAssessChanges() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
+                Timber.e("CALLED")
                 collapseMoreOptionsMenu()
                 fileModel.refreshFiles()
             }
