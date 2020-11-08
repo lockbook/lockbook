@@ -643,7 +643,7 @@ impl<
                     ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                 }
 
-                if local_change.deleted { // not new and deleted
+                if local_change.deleted {
                     if metadata.file_type == Document {
                         ApiClient::delete_document(
                             &account.api_url,
@@ -652,8 +652,6 @@ impl<
                             metadata.id,
                         ).map_err(DocumentDeleteError)?;
 
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         ApiClient::delete_folder(
                             &account.api_url,
@@ -661,10 +659,13 @@ impl<
                             &SignedValue { content: "".to_string(), signature: "".to_string() },
                             metadata.id
                         ).map_err(FolderDeleteError)?;
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
+
+                    ChangeDb::delete_if_exists(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                    FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
+                        .map_err(WorkExecutionError::MetadataRepoError)?; // Now it's safe to delete this locally
                 }
             }
         }
