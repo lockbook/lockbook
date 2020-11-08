@@ -87,7 +87,6 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     private fun handleRenameRequest(newName: String) {
-        rename_file_progress_bar.visibility = View.VISIBLE
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 renameFile(newName)
@@ -117,10 +116,6 @@ class RenameFileDialogFragment : DialogFragment() {
                 }
             }
         }.exhaustive
-
-        withContext(Dispatchers.Main) {
-            rename_file_progress_bar.visibility = View.GONE
-        }
     }
 
     override fun onStart() {

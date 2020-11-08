@@ -8,15 +8,6 @@
     style="@style/DarkBlue.Dialog"
     android:orientation="vertical">
 
-    <ProgressBar
-        android:id="@+id/create_file_progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:minHeight="20dp"
-        android:visibility="gone" />
-
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

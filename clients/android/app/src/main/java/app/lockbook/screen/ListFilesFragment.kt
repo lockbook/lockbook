@@ -74,6 +74,15 @@ class ListFilesFragment : Fragment() {
         binding.filesList.layoutManager = LinearLayoutManager(context)
         binding.lifecycleOwner = this
 
+        parentFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+                    listFilesViewModel.refreshAndAssessChanges()
+                }
+            },
+            false
+        )
+
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
         }
@@ -382,43 +391,18 @@ class ListFilesFragment : Fragment() {
 
     private fun showMoveFileDialog(moveFileInfo: MoveFileInfo) {
         val dialogFragment = MoveFileDialogFragment.newInstance(moveFileInfo.ids, moveFileInfo.names)
-        parentFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                    listFilesViewModel.refreshAndAssessChanges()
-                }
-            },
-            false
-        )
 
         dialogFragment.show(parentFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
     }
 
     private fun showRenameFileDialog(renameFileInfo: RenameFileInfo) {
         val dialogFragment = RenameFileDialogFragment.newInstance(renameFileInfo.id, renameFileInfo.name)
-        parentFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                    listFilesViewModel.refreshAndAssessChanges()
-                }
-            },
-            false
-        )
 
         dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
     }
 
     private fun showCreateFileDialog(createFileInfo: CreateFileInfo) {
-
         val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
-        parentFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                    listFilesViewModel.refreshAndAssessChanges()
-                }
-            },
-            false
-        )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
     }

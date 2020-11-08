@@ -1,11 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="DarkBlue" parent="Theme.AppCompat.DayNight">
+        <item name="android:windowBackground">@color/colorPrimaryDark</item>
         <item name="android:navigationBarColor">@color/navigationBarColor</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">@bool/windowLightStatusBar</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="android:windowBackground">@color/colorPrimaryDark</item>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:actionBarStyle">@style/DarkBlue.Actionbar</item>

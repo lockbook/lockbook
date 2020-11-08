@@ -83,7 +83,6 @@ class CreateFileDialogFragment : DialogFragment() {
     }
 
     private fun handleCreateFileRequest(name: String) {
-        create_file_progress_bar.visibility = View.VISIBLE
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 createFile(name)
@@ -127,10 +126,6 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
             }
         }.exhaustive
-
-        withContext(Dispatchers.Main) {
-            create_file_progress_bar.visibility = View.GONE
-        }
     }
 
     override fun onStart() {
