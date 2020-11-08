@@ -1,9 +1,5 @@
 package app.lockbook.model
 
-import android.content.res.Resources
-import android.graphics.BlendMode
-import android.graphics.Color
-import android.graphics.PorterDuff
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
@@ -11,7 +7,6 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.screen.CustomPunctuationSpan
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
@@ -54,27 +49,33 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
         )
         when {
             selectedFiles[position] -> {
-                holder.cardView.background.setTint(ResourcesCompat.getColor(
-                    App.instance.resources,
-                    R.color.selectedFileBackground,
-                    App.instance.theme
-                ))
+                holder.cardView.background.setTint(
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.selectedFileBackground,
+                        App.instance.theme
+                    )
+                )
                 holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
             }
             item.fileType == FileType.Document -> {
-                holder.cardView.background.setTint(ResourcesCompat.getColor(
-                    App.instance.resources,
-                    R.color.colorPrimaryDark,
-                    App.instance.theme
-                ))
+                holder.cardView.background.setTint(
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.colorPrimaryDark,
+                        App.instance.theme
+                    )
+                )
                 holder.cardView.file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
             }
             else -> {
-                holder.cardView.background.setTint(ResourcesCompat.getColor(
-                    App.instance.resources,
-                    R.color.colorPrimaryDark,
-                    App.instance.theme
-                ))
+                holder.cardView.background.setTint(
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.colorPrimaryDark,
+                        App.instance.theme
+                    )
+                )
                 holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
             }
         }
@@ -106,11 +107,13 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
             selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
 
             if (selectedFiles[adapterPosition]) {
-                cardView.background.setTint(ResourcesCompat.getColor(
-                    App.instance.resources,
-                    R.color.selectedFileBackground,
-                    App.instance.theme
-                ))
+                cardView.background.setTint(
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.selectedFileBackground,
+                        App.instance.theme
+                    )
+                )
                 cardView.file_icon.setImageResource(R.drawable.ic_baseline_check_24)
             } else {
                 if (fileMetadata.fileType == FileType.Document) {
@@ -119,11 +122,13 @@ class FilesAdapter(val listFilesClickInterface: ListFilesClickInterface) :
                     cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
                 }
                 cardView.background.setTintList(null)
-                cardView.background.setTint(ResourcesCompat.getColor(
-                    App.instance.resources,
-                    R.color.colorPrimaryDark,
-                    App.instance.theme
-                ))
+                cardView.background.setTint(
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.colorPrimaryDark,
+                        App.instance.theme
+                    )
+                )
             }
         }
     }
