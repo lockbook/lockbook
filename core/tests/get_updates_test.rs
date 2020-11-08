@@ -6,6 +6,7 @@ mod get_updates_test {
     use lockbook_core::client::ClientImpl;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::code_version_service::CodeVersionImpl;
     use lockbook_core::service::crypto_service::{AESImpl, RSAImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
@@ -16,7 +17,7 @@ mod get_updates_test {
         let folder_id = Uuid::new_v4();
         let folder_key = AESImpl::generate_key();
 
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::new_account(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::new_account(
             &account.api_url,
             &account.username,
             account.private_key.to_public_key(),

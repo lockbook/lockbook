@@ -15,6 +15,7 @@ mod change_document_content_tests {
     fn change_document_content() {
         // new account
         let account = generate_account();
+        let root = generate_root_metadata();
         let folder_id = Uuid::new_v4();
         let folder_key = AESImpl::generate_key();
 
@@ -36,7 +37,7 @@ mod change_document_content_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,

@@ -1,11 +1,11 @@
-use crate::model::account::{Username, Account};
+use crate::model::account::{Account, Username};
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileMetadata;
+use reqwest::Method;
 use rsa::RSAPublicKey;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use serde::de::DeserializeOwned;
-use reqwest::Method;
 
 pub trait Request: Serialize {
     type Response: DeserializeOwned;
@@ -89,7 +89,7 @@ impl CreateDocumentRequest {
             name: file_metadata.name.clone(),
             parent: file_metadata.parent,
             content,
-            parent_access_key: file_metadata.folder_access_keys.clone()
+            parent_access_key: file_metadata.folder_access_keys.clone(),
         }
     }
 }
@@ -179,7 +179,7 @@ impl MoveDocumentRequest {
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_parent: file_metadata.parent,
-            new_folder_access: file_metadata.folder_access_keys.clone()
+            new_folder_access: file_metadata.folder_access_keys.clone(),
         }
     }
 }
@@ -309,7 +309,7 @@ impl CreateFolderRequest {
             id: file_metadata.id,
             name: file_metadata.name.clone(),
             parent: file_metadata.parent,
-            parent_access_key: file_metadata.folder_access_keys.clone()
+            parent_access_key: file_metadata.folder_access_keys.clone(),
         }
     }
 }
@@ -399,7 +399,7 @@ impl MoveFolderRequest {
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_parent: file_metadata.parent,
-            new_folder_access: file_metadata.folder_access_keys.clone()
+            new_folder_access: file_metadata.folder_access_keys.clone(),
         }
     }
 }

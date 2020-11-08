@@ -3,11 +3,11 @@ use sled::Db;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
+use crate::service::code_version_service::CodeVersion;
 use crate::service::db_state_service::GetStateError::{AccountDbError, RepoError};
 use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
-use crate::CORE_CODE_VERSION;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -35,27 +35,32 @@ pub trait DbStateService {
     fn perform_migration(db: &Db) -> Result<(), MigrationError>;
 }
 
-pub struct DbStateServiceImpl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> {
+pub struct DbStateServiceImpl<
+    AccountDb: AccountRepo,
+    VersionDb: DbVersionRepo,
+    Version: CodeVersion,
+> {
     _account: AccountDb,
     _repo: VersionDb,
+    _version: Version,
 }
 
-impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
-    for DbStateServiceImpl<AccountDb, VersionDb>
+impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbStateService
+    for DbStateServiceImpl<AccountDb, VersionDb, Version>
 {
     fn get_state(db: &Db) -> Result<State, GetStateError> {
         if AccountDb::maybe_get_account(&db)
             .map_err(AccountDbError)?
             .is_none()
         {
-            VersionDb::set(&db, CORE_CODE_VERSION).map_err(RepoError)?;
+            VersionDb::set(&db, Version::get_code_version()).map_err(RepoError)?;
             return Ok(Empty);
         }
 
         match VersionDb::get(&db).map_err(RepoError)? {
             None => Ok(StateRequiresClearing),
             Some(state_version) => {
-                if state_version == CORE_CODE_VERSION {
+                if state_version == Version::get_code_version() {
                     Ok(ReadyToUse)
                 } else {
                     match state_version.as_str() {
@@ -76,7 +81,7 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
                 Some(version) => version,
             };
 
-            if db_version == CORE_CODE_VERSION {
+            if db_version == Version::get_code_version() {
                 return Ok(());
             }
 
@@ -95,9 +100,10 @@ mod unit_tests {
     use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
+    use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::{DefaultDbStateService, CORE_CODE_VERSION};
+    use crate::DefaultDbStateService;
 
     #[test]
     fn test_initial_state() {
@@ -109,7 +115,7 @@ mod unit_tests {
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), Empty);
         assert_eq!(
             DbVersionRepoImpl::get(&db).unwrap().unwrap(),
-            CORE_CODE_VERSION
+            CodeVersionImpl::get_code_version()
         );
     }
 
