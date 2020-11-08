@@ -484,6 +484,9 @@ pub async fn delete_folder(
         error!("Internal server error! Unexpected zero or multiple postgres rows for delete folder root");
         return Err(DeleteFolderError::InternalError);
     };
+
+    error!("{:#?}", index_responses.responses);
+
     for r in index_responses.responses.iter() {
         if !r.is_folder {
             let files_result = file_content_client::delete(
@@ -500,7 +503,7 @@ pub async fn delete_folder(
                 return Err(DeleteFolderError::InternalError);
             };
 
-            usage_service::track_deletion(&transaction, &request.id, &request.username)
+            usage_service::track_deletion(&transaction, &r.id, &request.username)
                 .await
                 .map_err(|err| {
                     error!("Usage tracking error: {:?}", err);
