@@ -74,7 +74,7 @@ pub async fn change_document_content(
         return Err(ChangeDocumentContentError::InternalError);
     };
 
-    usage_service::update_usage(
+    usage_service::track_content_change(
         &transaction,
         &request.id,
         &request.username,
@@ -141,7 +141,7 @@ pub async fn create_document(
         }
     })?;
 
-    usage_service::update_usage(
+    usage_service::track_content_change(
         &transaction,
         &request.id,
         &request.username,
@@ -235,7 +235,7 @@ pub async fn delete_document(
         return Err(DeleteDocumentError::InternalError);
     };
 
-    usage_service::file_deleted(&transaction, &request.id, &request.username)
+    usage_service::track_deletion(&transaction, &request.id, &request.username)
         .await
         .map_err(|err| {
             error!("Usage tracking error: {:?}", err);
@@ -500,7 +500,7 @@ pub async fn delete_folder(
                 return Err(DeleteFolderError::InternalError);
             };
 
-            usage_service::file_deleted(&transaction, &request.id, &request.username)
+            usage_service::track_deletion(&transaction, &request.id, &request.username)
                 .await
                 .map_err(|err| {
                     error!("Usage tracking error: {:?}", err);
