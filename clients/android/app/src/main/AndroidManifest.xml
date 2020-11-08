@@ -45,7 +45,6 @@
             android:theme="@style/DarkBlue.NoActionBar" />
         <activity android:name=".screen.ListFilesActivity" />
         <activity android:name=".screen.SettingsActivity" />
-        <activity android:name=".screen.PopUpInfoActivity" />
         <activity android:name=".screen.TextEditorActivity" />
         <activity android:name=".screen.LogActivity" />
     </application>
