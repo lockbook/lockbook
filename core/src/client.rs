@@ -1,7 +1,7 @@
 use crate::model::api::*;
 use crate::model::crypto::RSASigned;
+use crate::service::code_version_service::CodeVersion;
 use crate::service::crypto_service::{PubKeyCryptoService, RSASignError};
-use crate::CORE_CODE_VERSION;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use rsa::RSAPrivateKey;
@@ -31,11 +31,12 @@ pub trait Client {
     ) -> Result<T::Response, ApiError<T::Error>>;
 }
 
-pub struct ClientImpl<Crypto: PubKeyCryptoService> {
+pub struct ClientImpl<Crypto: PubKeyCryptoService, Version: CodeVersion> {
     _crypto: Crypto,
+    _version: Version,
 }
 
-impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
+impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Crypto, Version> {
     fn request<T: Request>(
         api_url: &str,
         key: &RSAPrivateKey,
@@ -45,7 +46,7 @@ impl<Crypto: PubKeyCryptoService> Client for ClientImpl<Crypto> {
         let signed_request = Crypto::sign(key, request).map_err(ApiError::Sign)?;
         let serialized_request = serde_json::to_string(&RequestWrapper {
             signed_request,
-            client_version: String::from(CORE_CODE_VERSION),
+            client_version: String::from(Version::get_code_version()),
         })
         .map_err(ApiError::Serialize)?;
         let serialized_response = client

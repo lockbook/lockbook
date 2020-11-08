@@ -8,6 +8,7 @@ mod move_document_tests {
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::code_version_service::CodeVersionImpl;
     use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use uuid::Uuid;
@@ -37,7 +38,7 @@ mod move_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -153,7 +154,7 @@ mod move_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -215,7 +216,7 @@ mod move_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -303,7 +304,7 @@ mod move_document_tests {
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -381,7 +382,7 @@ mod move_document_tests {
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
         let doc_name = random_filename();
-        let version = ClientImpl::<RSAImpl<ClockImpl>>::create_document(
+        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
             &account.api_url,
             &account.username,
             doc_id,
