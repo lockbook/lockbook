@@ -551,7 +551,7 @@ pub fn delete_document(config: &Config, id: Uuid) -> Result<(), Error<DocumentDe
                 Err(Error::UiError(DocumentDeleteError::FolderTreatedAsDocument))
             }
             file_service::DeleteDocumentError::FailedToRecordChange(_)
-            | file_service::DeleteDocumentError::FailedToDeleteMetadata(_)
+            | file_service::DeleteDocumentError::FailedToUpdateMetadata(_)
             | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
             | file_service::DeleteDocumentError::FailedToTrackDelete(_)
             | file_service::DeleteDocumentError::DbError(_) => {
