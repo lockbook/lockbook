@@ -117,7 +117,7 @@ pub enum DeleteDocumentError {
     CouldNotFindFile,
     FolderTreatedAsDocument,
     FailedToRecordChange(local_changes_repo::DbError),
-    FailedToDeleteMetadata(file_metadata_repo::Error),
+    FailedToUpdateMetadata(file_metadata_repo::DbError),
     FailedToDeleteDocument(document_repo::Error),
     FailedToTrackDelete(local_changes_repo::DbError),
     DbError(file_metadata_repo::DbError),
@@ -127,7 +127,7 @@ pub enum DeleteDocumentError {
 pub enum DeleteFolderError {
     MetadataError(file_metadata_repo::DbError),
     CouldNotFindFile,
-    FailedToDeleteMetadata(file_metadata_repo::Error),
+    FailedToDeleteMetadata(file_metadata_repo::DbError),
     FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
     FailedToRecordChange(local_changes_repo::DbError),
     CouldNotFindParents(FindingParentsFailed),
@@ -489,7 +489,7 @@ impl<
     }
 
     fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError> {
-        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DeleteDocumentError::DbError)?
             .ok_or(DeleteDocumentError::CouldNotFindFile)?;
 
@@ -497,8 +497,23 @@ impl<
             return Err(DeleteDocumentError::FolderTreatedAsDocument);
         }
 
-        FileMetadataDb::non_recursive_delete_if_exists(&db, id)
-            .map_err(DeleteDocumentError::FailedToDeleteMetadata)?;
+        let new = if let Some(change) = ChangesDb::get_local_changes(&db, id)
+            .map_err(DeleteDocumentError::FailedToTrackDelete)?
+        {
+            change.new
+        } else {
+            false
+        };
+
+        if !new {
+            file_metadata.deleted = true;
+            FileMetadataDb::insert(&db, &file_metadata)
+                .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
+        } else {
+            FileMetadataDb::non_recursive_delete_if_exists(&db, id)
+                .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
+        }
+
         FileDb::delete_if_exists(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(&db, id, file_metadata.file_type)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
@@ -1177,13 +1192,12 @@ mod unit_tests {
                 .deleted
         );
 
-        assert!(DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
-            .unwrap()
-            .is_none());
-
-        assert!(DefaultDocumentRepo::maybe_get(&db, doc1.id)
-            .unwrap()
-            .is_none());
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
     }
 
     #[test]
