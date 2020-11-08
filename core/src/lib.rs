@@ -547,7 +547,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     file_service::DeleteDocumentError::CouldNotFindFile
                     | file_service::DeleteDocumentError::FolderTreatedAsDocument
                     | file_service::DeleteDocumentError::FailedToRecordChange(_)
-                    | file_service::DeleteDocumentError::FailedToDeleteMetadata(_)
+                    | file_service::DeleteDocumentError::FailedToUpdateMetadata(_)
                     | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
                     | file_service::DeleteDocumentError::FailedToTrackDelete(_)
                     | file_service::DeleteDocumentError::DbError(_) => {
