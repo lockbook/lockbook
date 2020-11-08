@@ -10,7 +10,7 @@ pub enum UsageTrackError {
     Postgres(PostgresError),
 }
 
-pub async fn update_usage(
+pub async fn track_content_change(
     transaction: &Transaction<'_>,
     file_id: &Uuid,
     username: &String,
@@ -34,7 +34,7 @@ pub async fn update_usage(
     Ok(())
 }
 
-pub async fn file_deleted(
+pub async fn track_deletion(
     transaction: &Transaction<'_>,
     file_id: &Uuid,
     username: &String,
