@@ -30,12 +30,12 @@ use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
-use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+use crate::repo::document_repo::DocumentRepoImpl;
+use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::repo::{document_repo, file_metadata_repo};
 use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
@@ -43,7 +43,6 @@ use crate::service::account_service::{
 use crate::service::auth_service::AuthServiceImpl;
 use crate::service::clock_service::ClockImpl;
 use crate::service::crypto_service::{AesImpl, RsaImpl};
-use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
@@ -56,6 +55,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use crate::service::{db_state_service, file_service};
 
 pub mod c_interface;
 pub mod client;
@@ -585,21 +585,60 @@ pub fn insert_file(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum DeleteFileError {
-    NoFileWithThatId,
+pub enum DocumentDeleteError {
+    FolderTreatedAsDocument,
+    DocumentDoesNotExist,
 }
 
-pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<DeleteFileError>> {
+pub fn delete_document(config: &Config, id: Uuid) -> Result<(), Error<DocumentDeleteError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DocumentRepoImpl::delete_if_exists(&db, id) {
-        Ok(()) => Ok(()),
+    match DefaultFileService::delete_document(&db, id) {
+        Ok(_) => Ok(()),
         Err(err) => match err {
-            document_repo::Error::SledError(_) | document_repo::Error::SerdeError(_) => {
+            file_service::DeleteDocumentError::CouldNotFindFile => {
+                Err(Error::UiError(DocumentDeleteError::DocumentDoesNotExist))
+            }
+            file_service::DeleteDocumentError::FolderTreatedAsDocument => {
+                Err(Error::UiError(DocumentDeleteError::FolderTreatedAsDocument))
+            }
+            file_service::DeleteDocumentError::FailedToRecordChange(_)
+            | file_service::DeleteDocumentError::FailedToDeleteMetadata(_)
+            | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
+            | file_service::DeleteDocumentError::FailedToTrackDelete(_)
+            | file_service::DeleteDocumentError::DbError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
-            document_repo::Error::FileRowMissing(_) => {
-                Err(Error::UiError(DeleteFileError::NoFileWithThatId))
+        },
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum FolderDeleteError {
+    FolderDoesNotExist,
+    DocumentTreatedAsFolder,
+}
+
+pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), Error<FolderDeleteError>> {
+    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+
+    match DefaultFileService::delete_folder(&db, id) {
+        Ok(_) => Ok(()),
+        Err(err) => match err {
+            file_service::DeleteFolderError::DocumentTreatedAsFolder => {
+                Err(Error::UiError(FolderDeleteError::DocumentTreatedAsFolder))
+            }
+            file_service::DeleteFolderError::CouldNotFindFile => {
+                Err(Error::UiError(FolderDeleteError::FolderDoesNotExist))
+            }
+            file_service::DeleteFolderError::MetadataError(_)
+            | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
+            | file_service::DeleteFolderError::FindingChildrenFailed(_)
+            | file_service::DeleteFolderError::FailedToRecordChange(_)
+            | file_service::DeleteFolderError::CouldNotFindParents(_)
+            | file_service::DeleteFolderError::FailedToDeleteDocument(_)
+            | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
+                Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
     }
@@ -624,6 +663,7 @@ pub fn read_document(
             FSReadDocumentError::TreatedFolderAsDocument => {
                 Err(Error::UiError(ReadDocumentError::TreatedFolderAsDocument))
             }
+
             FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
                 AccountRepoError::NoAccount => Err(Error::UiError(ReadDocumentError::NoAccount)),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
@@ -1225,7 +1265,8 @@ impl_get_variants!(
     GetFileByIdError,
     GetFileByPathError,
     InsertFileError,
-    DeleteFileError,
+    DocumentDeleteError,
+    FolderDeleteError,
     ReadDocumentError,
     ListPathsError,
     ListMetadatasError,
