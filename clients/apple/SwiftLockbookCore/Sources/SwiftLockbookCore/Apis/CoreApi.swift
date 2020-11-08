@@ -72,8 +72,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
     }
     
-    public func markFileForDeletion(id: UUID) -> FfiResult<Bool, DeleteFileError> {
-        FfiResult.failure(.init(unexpected: "Bunk"))
+    public func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError> {
+        fromPrimitiveResult(result: delete_file(documentsDirectory, id.uuidString))
     }
     
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
