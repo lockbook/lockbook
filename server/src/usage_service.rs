@@ -46,7 +46,7 @@ pub async fn file_deleted(
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 username,
-                &0,
+                &(0 as i32),
             ],
         )
         .await
