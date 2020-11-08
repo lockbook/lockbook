@@ -4,15 +4,18 @@ mod integration_test;
 mod sync_tests {
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
+    use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
-        DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
+        DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultLocalChangesRepo, DefaultSyncService,
     };
 
     use crate::integration_test::{generate_account, test_db};
+    use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
     #[test]
     fn test_create_files_and_folders_sync() {
@@ -1095,6 +1098,77 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
         DefaultFileService::delete_document(&db1, file.id).unwrap();
+        assert!(DefaultFileMetadataRepo::get(&db1, file.id).unwrap().deleted);
+        DefaultSyncService::sync(&db1).unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+        DefaultSyncService::sync(&db2).unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultFileService::read_document(&db2, file.id).is_err());
+    }
+
+    #[test]
+    fn delete_new_document_never_synced() {
+        let db1 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileService::read_document(&db1, file.id).is_err());
+    }
+
+    #[test]
+    // Test that documents are deleted after a sync
+    fn delete_document_test_after_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
+                .unwrap();
+
         DefaultSyncService::sync(&db1).unwrap();
 
         DefaultAccountService::import_account(
@@ -1104,15 +1178,33 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        assert!(DefaultFileService::read_document(&db2, file.id).is_err());
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db2, file.id)
+            .unwrap()
+            .is_none());
     }
 
-    #[test]
-    // Test that documents are deleted between syncs
-    fn delete_document_test_after_sync() {}
-
     // Test that usage reflects a reduction in usage
-    // Test that new documents that are deleted are never synced
 
     // Test that folders delete their children when a fresh sync happens
     // Test creating a folder and moving documents into it and then deleting the folder works
