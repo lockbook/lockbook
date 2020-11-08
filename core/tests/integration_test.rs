@@ -2,6 +2,7 @@
 
 use lockbook_core::model::account::Account;
 use lockbook_core::model::crypto::*;
+use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::service::clock_service::ClockImpl;
@@ -12,10 +13,9 @@ use lockbook_core::Db;
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::env;
 use uuid::Uuid;
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
-use std::collections::HashMap;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -68,14 +68,14 @@ pub fn generate_account() -> Account {
 
 pub fn generate_root_metadata(account: &Account) -> FileMetadata {
     let id = Uuid::new_v4();
+    let folder_key = AESImpl::generate_key();
+
     let public_key = account.private_key.to_public_key();
-    let folder_key = AES::generate_key();
     let user_access_info = UserAccessInfo {
         username: account.username.clone(),
-        public_key,
+        public_key: public_key.clone(),
         access_key: rsa_encrypt(&public_key, &folder_key),
     };
-
     let mut user_access_keys = HashMap::new();
     user_access_keys.insert(account.username.clone(), user_access_info);
 
@@ -96,21 +96,15 @@ pub fn generate_root_metadata(account: &Account) -> FileMetadata {
     }
 }
 
-pub fn generate_folder_metadata(account: &Account, parent: FileMetadata) -> FileMetadata {
+pub fn generate_file_metadata(
+    account: &Account,
+    parent: FileMetadata,
+    parent_key: &AESKey,
+    file_type: FileType,
+) -> FileMetadata {
     let id = Uuid::new_v4();
-    let public_key = account.private_key.to_public_key();
-    let folder_key = AES::generate_key();
-    let user_access_info = UserAccessInfo {
-        username: account.username.clone(),
-        public_key,
-        access_key: rsa_encrypt(&public_key, &folder_key),
-    };
-
-    let mut user_access_keys = HashMap::new();
-    user_access_keys.insert(account.username.clone(), user_access_info);
-
     FileMetadata {
-        file_type: FileType::Folder,
+        file_type,
         id,
         name: random_filename(),
         owner: account.username.clone(),
@@ -118,10 +112,10 @@ pub fn generate_folder_metadata(account: &Account, parent: FileMetadata) -> File
         content_version: 0,
         metadata_version: 0,
         deleted: false,
-        user_access_keys,
+        user_access_keys: Default::default(),
         folder_access_keys: FolderAccessInfo {
             folder_id: id,
-            access_key: aes_encrypt(&AES::generate_key(), &folder_key), // todo
+            access_key: aes_encrypt(parent_key, &AESImpl::generate_key()),
         },
     }
 }
