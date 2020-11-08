@@ -1071,5 +1071,14 @@ mod sync_tests {
     }
 
     #[test]
+    // Test that documents are deleted when a fresh sync happens
     fn delete_document_test() {}
+
+    // Test that documents are deleted between syncs
+    // Test that usage reflects a reduction in usage
+    // Test that new documents that are deleted are never synced
+
+    // Test that folders delete their children when a fresh sync happens
+    // Test creating a folder and moving documents into it and then deleting the folder works
+    // Test moving a document out before deleting a folder doesn't delete that document
 }
