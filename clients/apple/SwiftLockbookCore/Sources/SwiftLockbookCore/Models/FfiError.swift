@@ -134,10 +134,6 @@ public enum InsertFileError: String, UiError {
     case Stub
 }
 
-public enum DeleteFileError: String, UiError {
-    case NoFileWithThatId
-}
-
 public enum ReadDocumentError: String, UiError {
     case FileDoesNotExist
     case NoAccount
@@ -195,4 +191,8 @@ public enum GetUsageError: String, UiError {
     case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
+}
+
+public enum FileDeleteError: String, UiError {
+    case FileDoesNotExist
 }
