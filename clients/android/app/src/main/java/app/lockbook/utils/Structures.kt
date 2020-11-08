@@ -135,7 +135,7 @@ data class Event(
 
 data class Stroke(
     val color: Int,
-    val points: MutableList<PressurePoint> = mutableListOf()
+    val points: MutableList<Float> = mutableListOf()
 )
 
 data class Page(
