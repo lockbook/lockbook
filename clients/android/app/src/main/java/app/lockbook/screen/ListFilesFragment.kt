@@ -32,7 +32,11 @@ import kotlinx.android.synthetic.main.fragment_list_files.*
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
-    private lateinit var alertDialog: AlertDialog
+    private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+            listFilesViewModel.refreshAndAssessChanges()
+        }
+    }
     private val snackProgressBarManager by lazy {
         SnackProgressBarManager(
             requireView(),
@@ -73,15 +77,6 @@ class ListFilesFragment : Fragment() {
         binding.filesList.adapter = adapter
         binding.filesList.layoutManager = LinearLayoutManager(context)
         binding.lifecycleOwner = this
-
-        parentFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-                    listFilesViewModel.refreshAndAssessChanges()
-                }
-            },
-            false
-        )
 
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
@@ -249,6 +244,16 @@ class ListFilesFragment : Fragment() {
         if (listFilesViewModel.syncingStatus.isSyncing) {
             showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
         }
+
+        parentFragmentManager.registerFragmentLifecycleCallbacks(
+            fragmentFinishedCallback,
+            false
+        )
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
     private fun earlyStopSyncSnackBar() {
@@ -405,6 +410,12 @@ class ListFilesFragment : Fragment() {
         val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
+
+//        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+//        parentFragmentManager.registerFragmentLifecycleCallbacks(
+//                fragmentFinishedCallback,
+//            false
+//        )
     }
 
     fun onBackPressed(): Boolean {
