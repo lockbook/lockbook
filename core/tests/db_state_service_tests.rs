@@ -4,11 +4,11 @@ mod integration_test;
 mod db_state_service_tests {
     use crate::integration_test::{generate_account, test_config};
     use lockbook_core::repo::db_version_repo::DbVersionRepo;
+    use lockbook_core::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use lockbook_core::service::db_state_service::DbStateService;
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
-    use lockbook_core::CORE_CODE_VERSION;
     use lockbook_core::{
         connect_to_db, create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
     };
@@ -31,7 +31,7 @@ mod db_state_service_tests {
         DefaultDbVersionRepo::set(&db, "0.1.0").unwrap();
         assert_ne!(
             DefaultDbVersionRepo::get(&db).unwrap().unwrap(),
-            CORE_CODE_VERSION
+            CodeVersionImpl::get_code_version()
         );
 
         assert_eq!(

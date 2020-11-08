@@ -8,6 +8,7 @@ mod get_public_key_tests {
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::code_version_service::CodeVersionImpl;
     use lockbook_core::service::crypto_service::{AESImpl, RSAImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
@@ -33,9 +34,11 @@ mod get_public_key_tests {
             Ok(_)
         );
 
-        let key2 =
-            ClientImpl::<RSAImpl<ClockImpl>>::get_public_key(&account.api_url, &account.username)
-                .unwrap();
+        let key2 = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::get_public_key(
+            &account.api_url,
+            &account.username,
+        )
+        .unwrap();
 
         assert_eq!(key, key2);
     }

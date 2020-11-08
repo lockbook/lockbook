@@ -30,6 +30,7 @@ use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
 use crate::service::clock_service::ClockImpl;
+use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
@@ -65,7 +66,6 @@ pub mod repo;
 pub mod service;
 
 pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
-pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
 
@@ -73,10 +73,12 @@ pub type DefaultClock = ClockImpl;
 pub type DefaultCrypto = RSAImpl<DefaultClock>;
 pub type DefaultSymmetric = AESImpl;
 pub type DefaultDbProvider = DiskBackedDB;
-pub type DefaultClient = ClientImpl<DefaultCrypto>;
+pub type DefaultCodeVersion = CodeVersionImpl;
+pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
+pub type DefaultDbStateService =
+    DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
 pub type DefaultAccountService = AccountServiceImpl<
     DefaultCrypto,
     DefaultAccountRepo,
