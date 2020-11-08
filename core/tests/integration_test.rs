@@ -10,7 +10,7 @@ use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
 use lockbook_core::Db;
-use rsa::RSAPublicKey;
+use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -66,7 +66,7 @@ pub fn generate_account() -> Account {
     }
 }
 
-pub fn generate_root_metadata(account: &Account) -> FileMetadata {
+pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let folder_key = AESImpl::generate_key();
 
@@ -79,45 +79,52 @@ pub fn generate_root_metadata(account: &Account) -> FileMetadata {
     let mut user_access_keys = HashMap::new();
     user_access_keys.insert(account.username.clone(), user_access_info);
 
-    FileMetadata {
-        file_type: FileType::Folder,
-        id,
-        name: account.username.clone(),
-        owner: account.username.clone(),
-        parent: id,
-        content_version: 0,
-        metadata_version: 0,
-        deleted: false,
-        user_access_keys,
-        folder_access_keys: FolderAccessInfo {
-            folder_id: id,
-            access_key: aes_encrypt(&folder_key, &folder_key),
+    (
+        FileMetadata {
+            file_type: FileType::Folder,
+            id,
+            name: account.username.clone(),
+            owner: account.username.clone(),
+            parent: id,
+            content_version: 0,
+            metadata_version: 0,
+            deleted: false,
+            user_access_keys,
+            folder_access_keys: FolderAccessInfo {
+                folder_id: id,
+                access_key: aes_encrypt(&folder_key, &folder_key),
+            },
         },
-    }
+        folder_key,
+    )
 }
 
 pub fn generate_file_metadata(
     account: &Account,
-    parent: FileMetadata,
+    parent: &FileMetadata,
     parent_key: &AESKey,
     file_type: FileType,
-) -> FileMetadata {
+) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
-    FileMetadata {
-        file_type,
-        id,
-        name: random_filename(),
-        owner: account.username.clone(),
-        parent: parent.id,
-        content_version: 0,
-        metadata_version: 0,
-        deleted: false,
-        user_access_keys: Default::default(),
-        folder_access_keys: FolderAccessInfo {
-            folder_id: id,
-            access_key: aes_encrypt(parent_key, &AESImpl::generate_key()),
+    let file_key = AESImpl::generate_key();
+    (
+        FileMetadata {
+            file_type,
+            id,
+            name: random_filename(),
+            owner: account.username.clone(),
+            parent: parent.id,
+            content_version: 0,
+            metadata_version: 0,
+            deleted: false,
+            user_access_keys: Default::default(),
+            folder_access_keys: FolderAccessInfo {
+                folder_id: id,
+                access_key: aes_encrypt(parent_key, &file_key),
+            },
         },
-    }
+        file_key,
+    )
 }
 
 pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
@@ -139,4 +146,11 @@ pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(
     to_encrypt: &T,
 ) -> RSAEncrypted<T> {
     RSAImpl::<ClockImpl>::encrypt(key, to_encrypt).unwrap()
+}
+
+pub fn rsa_decrypt<T: Serialize + DeserializeOwned>(
+    key: &RSAPrivateKey,
+    to_decrypt: &RSAEncrypted<T>,
+) -> T {
+    RSAImpl::<ClockImpl>::decrypt(key, to_decrypt).unwrap()
 }

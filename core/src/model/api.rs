@@ -591,16 +591,16 @@ pub enum NewAccountError {
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, file_metadata: &FileMetadata) -> Self {
+    pub fn new(account: &Account, root_metadata: &FileMetadata) -> Self {
         NewAccountRequest {
             username: account.username.clone(),
             public_key: account.private_key.to_public_key(),
-            folder_id: file_metadata.id,
-            parent_access_key: file_metadata.folder_access_keys.clone(),
-            user_access_key: file_metadata
+            folder_id: root_metadata.id,
+            parent_access_key: root_metadata.folder_access_keys.clone(),
+            user_access_key: root_metadata
                 .user_access_keys
                 .get(&account.username)
-                .unwrap() // TODO: compiler guarantee for this
+                .expect("file metadata for new account request must have user access key") // TODO: handle better
                 .access_key
                 .clone(),
         }

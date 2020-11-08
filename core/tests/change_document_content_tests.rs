@@ -3,98 +3,84 @@ mod integration_test;
 #[cfg(test)]
 mod change_document_content_tests {
     use crate::assert_matches;
-    use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
-    use lockbook_core::client::{ApiError, ClientImpl};
+    use crate::integration_test::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
+    use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::clock_service::ClockImpl;
-    use lockbook_core::service::crypto_service::{AESImpl, RSAImpl, SymmetricCryptoService};
+    use lockbook_core::model::file_metadata::FileType;
+    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use uuid::Uuid;
+    use lockbook_core::DefaultClient;
 
     #[test]
     fn change_document_content() {
         // new account
         let account = generate_account();
-        let root = generate_root_metadata();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
             &account.api_url,
-            &account.username,
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_encrypt(&folder_key, &doc_key),
-            },
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         )
         .unwrap();
 
-        // change document content
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::change_document_content(
-                &account.api_url,
+        // create document
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let version = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                version,
-                aes_encrypt(&doc_key, &String::from("new doc content").into_bytes()),
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
+
+        // change document content
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            &ChangeDocumentContentRequest {
+                username: account.username.clone(),
+                id: doc.id,
+                old_metadata_version: doc.metadata_version,
+                new_content: aes_encrypt(&doc_key, &String::from("new doc content").into_bytes()),
+            },
+        )
+        .unwrap();
     }
 
     #[test]
     fn change_document_content_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        )
+        .unwrap();
 
         // change content of document we never created
+        let result = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            &ChangeDocumentContentRequest {
+                username: account.username.clone(),
+                id: Uuid::new_v4(),
+                old_metadata_version: 0,
+                new_content: aes_encrypt(
+                    &AESImpl::generate_key(),
+                    &String::from("new doc content").into_bytes(),
+                ),
+            },
+        );
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::change_document_content(
-                &account.api_url,
-                &account.username,
-                Uuid::new_v4(),
-                0,
-                aes_encrypt(&folder_key, &String::from("new doc content").into_bytes()),
-            ),
+            result,
             Err(ApiError::<ChangeDocumentContentError>::Api(
                 ChangeDocumentContentError::DocumentNotFound
             ))
