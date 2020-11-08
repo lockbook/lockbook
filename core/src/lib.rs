@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+
 #[macro_use]
 extern crate log;
 extern crate reqwest;
@@ -56,59 +57,6 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::service::{db_state_service, file_service};
-
-pub mod c_interface;
-pub mod client;
-pub mod java_interface;
-mod json_interface;
-pub mod loggers;
-pub mod model;
-pub mod repo;
-pub mod service;
-
-pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
-pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
-static DB_NAME: &str = "lockbook.sled";
-static LOG_FILE: &str = "lockbook.log";
-
-pub type DefaultCrypto = RsaImpl;
-pub type DefaultSymmetric = AesImpl;
-pub type DefaultDbProvider = DiskBackedDB;
-pub type DefaultClient = ClientImpl;
-pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
-pub type DefaultClock = ClockImpl;
-pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
-pub type DefaultAccountService = AccountServiceImpl<
-    DefaultCrypto,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultAuthService,
-    DefaultFileEncryptionService,
-    DefaultFileMetadataRepo,
->;
-pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
-pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultSyncService = FileSyncService<
-    DefaultFileMetadataRepo,
-    DefaultLocalChangesRepo,
-    DefaultDocumentRepo,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileService,
-    DefaultFileEncryptionService,
-    DefaultAuthService,
->;
-pub type DefaultFileService = FileServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultDocumentRepo,
-    DefaultLocalChangesRepo,
-    DefaultAccountRepo,
-    DefaultFileEncryptionService,
->;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -1279,3 +1227,56 @@ impl_get_variants!(
     GetLastSyncedError,
     GetUsageError,
 );
+
+pub mod c_interface;
+pub mod client;
+pub mod java_interface;
+mod json_interface;
+pub mod loggers;
+pub mod model;
+pub mod repo;
+pub mod service;
+
+pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
+pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
+static DB_NAME: &str = "lockbook.sled";
+static LOG_FILE: &str = "lockbook.log";
+
+pub type DefaultCrypto = RsaImpl;
+pub type DefaultSymmetric = AesImpl;
+pub type DefaultDbProvider = DiskBackedDB;
+pub type DefaultClient = ClientImpl;
+pub type DefaultAccountRepo = AccountRepoImpl;
+pub type DefaultDbVersionRepo = DbVersionRepoImpl;
+pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
+pub type DefaultClock = ClockImpl;
+pub type DefaultAuthService = AuthServiceImpl<DefaultClock, DefaultCrypto>;
+pub type DefaultAccountService = AccountServiceImpl<
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultAuthService,
+    DefaultFileEncryptionService,
+    DefaultFileMetadataRepo,
+>;
+pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
+pub type DefaultDocumentRepo = DocumentRepoImpl;
+pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
+pub type DefaultSyncService = FileSyncService<
+    DefaultFileMetadataRepo,
+    DefaultLocalChangesRepo,
+    DefaultDocumentRepo,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultFileService,
+    DefaultFileEncryptionService,
+    DefaultAuthService,
+>;
+pub type DefaultFileService = FileServiceImpl<
+    DefaultFileMetadataRepo,
+    DefaultDocumentRepo,
+    DefaultLocalChangesRepo,
+    DefaultAccountRepo,
+    DefaultFileEncryptionService,
+>;
