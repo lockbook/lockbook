@@ -275,7 +275,7 @@ impl<
                             if metadata.file_type == Document {
                                 // A deleted document
                                 FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
-                                    .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
+                                    .map_err(WorkExecutionError::MetadataRepoError)?;
 
                                 ChangeDb::delete_if_exists(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
@@ -473,7 +473,7 @@ impl<
                             if metadata.file_type == Document {
                                 // A deleted document
                                 FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
-                                    .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
+                                    .map_err(WorkExecutionError::MetadataRepoError)?;
 
                                 ChangeDb::delete_if_exists(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
