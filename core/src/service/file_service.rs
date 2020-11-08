@@ -522,7 +522,7 @@ impl<
     }
 
     fn delete_folder(db: &Db, id: Uuid) -> Result<(), DeleteFolderError> {
-        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DeleteFolderError::MetadataError)?
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
 
@@ -543,12 +543,16 @@ impl<
                     .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
-            FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
-                .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
-
             if file.id != id {
+                FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
+
                 ChangesDb::delete_if_exists(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
+            } else {
+                file_metadata.deleted = true;
+                FileMetadataDb::insert(&db, &file_metadata)
+                    .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
             }
         }
 
