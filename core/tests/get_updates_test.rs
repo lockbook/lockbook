@@ -3,11 +3,9 @@ mod integration_test;
 #[cfg(test)]
 mod get_updates_test {
     use crate::integration_test::{aes_encrypt, generate_account, rsa_encrypt};
-    use lockbook_core::client::ClientImpl;
+    use lockbook_core::DefaultClient;
     use lockbook_core::model::crypto::*;
-    use lockbook_core::service::clock_service::ClockImpl;
-    use lockbook_core::service::code_version_service::CodeVersionImpl;
-    use lockbook_core::service::crypto_service::{AESImpl, RSAImpl, SymmetricCryptoService};
+    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use uuid::Uuid;
 
     #[test]
@@ -17,7 +15,7 @@ mod get_updates_test {
         let folder_id = Uuid::new_v4();
         let folder_key = AESImpl::generate_key();
 
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::new_account(
+        let version = DefaultClient::new_account(
             &account.api_url,
             &account.username,
             account.private_key.to_public_key(),
@@ -32,15 +30,19 @@ mod get_updates_test {
 
         // get updates at version 0
         assert_eq!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::get_updates(&account.api_url, &account.username, 0,)
-                .unwrap()
-                .len(),
+            DefaultClient::get_updates(
+                &account.api_url,
+                &account.username,
+                0,
+            )
+            .unwrap()
+            .len(),
             1
         );
 
         // get updates at version of root folder
         assert_eq!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::get_updates(
+            DefaultClient::get_updates(
                 &account.api_url,
                 &account.username,
                 version,

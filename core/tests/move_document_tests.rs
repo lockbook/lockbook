@@ -4,9 +4,10 @@ mod integration_test;
 mod move_document_tests {
     use crate::assert_matches;
     use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
-    use lockbook_core::client::{ApiError, ClientImpl};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
+    use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::service::clock_service::ClockImpl;
     use lockbook_core::service::code_version_service::CodeVersionImpl;
     use lockbook_core::service::crypto_service::RSAImpl;
@@ -17,47 +18,34 @@ mod move_document_tests {
     fn move_document() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
             &account.api_url,
-            &account.username,
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_encrypt(&folder_key, &doc_key),
-            },
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         )
         .unwrap();
+
+        // create document
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let version = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
+                &account.username,
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
         let subfolder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::create_folder(
+            DefaultClient::create_folder(
                 &account.api_url,
                 &account.username,
                 subfolder_id,
@@ -73,7 +61,7 @@ mod move_document_tests {
 
         // move document
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -92,27 +80,17 @@ mod move_document_tests {
     fn move_document_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        )
+        .unwrap();
 
         // move document that wasn't created
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 Uuid::new_v4(),
@@ -133,40 +111,27 @@ mod move_document_tests {
     fn move_document_parent_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
             &account.api_url,
-            &account.username,
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_encrypt(&folder_key, &doc_key),
-            },
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         )
         .unwrap();
+
+        // create document
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let version = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
+                &account.username,
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
@@ -174,7 +139,7 @@ mod move_document_tests {
 
         // move document to folder that was never created
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -195,47 +160,34 @@ mod move_document_tests {
     fn move_document_deleted() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
             &account.api_url,
-            &account.username,
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_encrypt(&folder_key, &doc_key),
-            },
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         )
         .unwrap();
+
+        // create document
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let version = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
+                &account.username,
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
         let subfolder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::create_folder(
+            DefaultClient::create_folder(
                 &account.api_url,
                 &account.username,
                 subfolder_id,
@@ -251,7 +203,7 @@ mod move_document_tests {
 
         // delete document
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::delete_document(
+            DefaultClient::delete_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -262,7 +214,7 @@ mod move_document_tests {
 
         // move deleted document
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -283,47 +235,34 @@ mod move_document_tests {
     fn move_document_conflict() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
             &account.api_url,
-            &account.username,
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_encrypt(&folder_key, &doc_key),
-            },
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         )
         .unwrap();
+
+        // create document
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let version = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
+                &account.username,
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
         let subfolder_id = Uuid::new_v4();
         let subfolder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::create_folder(
+            DefaultClient::create_folder(
                 &account.api_url,
                 &account.username,
                 subfolder_id,
@@ -339,7 +278,7 @@ mod move_document_tests {
 
         // move document
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 doc_id,
@@ -360,29 +299,19 @@ mod move_document_tests {
     fn move_document_path_taken() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        )
+        .unwrap();
 
         // create document
         let doc_id = Uuid::new_v4();
         let doc_key = AESImpl::generate_key();
         let doc_name = random_filename();
-        let version = ClientImpl::<RSAImpl<ClockImpl>, CodeVersionImpl>::create_document(
+        let version = DefaultClient::create_document(
             &account.api_url,
             &account.username,
             doc_id,
@@ -401,7 +330,7 @@ mod move_document_tests {
         let subfolder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::create_folder(
+            DefaultClient::create_folder(
                 &account.api_url,
                 &account.username,
                 subfolder_id,
@@ -419,7 +348,7 @@ mod move_document_tests {
         let doc_id2 = Uuid::new_v4();
         let doc_key2 = AESImpl::generate_key();
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::create_document(
+            DefaultClient::create_document(
                 &account.api_url,
                 &account.username,
                 doc_id2,
@@ -436,7 +365,7 @@ mod move_document_tests {
 
         // move document
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::move_document(
+            DefaultClient::move_document(
                 &account.api_url,
                 &account.username,
                 doc_id,

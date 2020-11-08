@@ -3,11 +3,14 @@ mod integration_test;
 #[cfg(test)]
 mod new_account_tests {
     use crate::assert_matches;
-    use crate::integration_test::{aes_encrypt, generate_account, rsa_encrypt};
-    use lockbook_core::client::{ApiError, ClientImpl};
+    use crate::integration_test::{
+        aes_encrypt, generate_account, generate_root_metadata, rsa_encrypt,
+    };
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
     use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::code_version_service::CodeVersionImpl;
     use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use uuid::Uuid;
@@ -15,58 +18,33 @@ mod new_account_tests {
     #[test]
     fn new_account() {
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        )
+        .unwrap();
     }
 
     #[test]
     fn new_account_duplicate() {
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        )
+        .unwrap();
 
-        assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
-            Ok(_)
+        let result = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
         );
-
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
-                &account.api_url,
-                &account.username,
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
+            result,
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::UsernameTaken
             ))
@@ -80,7 +58,7 @@ mod new_account_tests {
         let folder_key = AESImpl::generate_key();
 
         assert_matches!(
-            ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
+            DefaultClient::new_account(
                 &account.api_url,
                 &(account.username.clone() + " "),
                 account.private_key.to_public_key(),
@@ -104,7 +82,7 @@ mod new_account_tests {
     //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
+    //         DefaultClient::new_account(
     //                 //             &account.username,
     //             &sign(&account),
     //             RSAPrivateKey::from_components(
@@ -137,7 +115,7 @@ mod new_account_tests {
     //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::<RSAImpl::<ClockImpl>>::new_account(
+    //         DefaultClient::new_account(
     //                 //             &account.username,
     //             &SignedValue {
     //                 content: String::default(),
