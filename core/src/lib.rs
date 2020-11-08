@@ -533,62 +533,45 @@ pub fn insert_file(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum DocumentDeleteError {
-    FolderTreatedAsDocument,
-    DocumentDoesNotExist,
+pub enum FileDeleteError {
+    FileDoesNotExist,
 }
 
-pub fn delete_document(config: &Config, id: Uuid) -> Result<(), Error<DocumentDeleteError>> {
+pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DefaultFileService::delete_document(&db, id) {
-        Ok(_) => Ok(()),
-        Err(err) => match err {
-            file_service::DeleteDocumentError::CouldNotFindFile => {
-                Err(Error::UiError(DocumentDeleteError::DocumentDoesNotExist))
+    match DefaultFileMetadataRepo::get(&db, id) {
+        Ok(meta) => match meta.file_type {
+            FileType::Document => {
+                DefaultFileService::delete_document(&db, id).map_err(|err| match err {
+                    file_service::DeleteDocumentError::CouldNotFindFile
+                    | file_service::DeleteDocumentError::FolderTreatedAsDocument
+                    | file_service::DeleteDocumentError::FailedToRecordChange(_)
+                    | file_service::DeleteDocumentError::FailedToDeleteMetadata(_)
+                    | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
+                    | file_service::DeleteDocumentError::FailedToTrackDelete(_)
+                    | file_service::DeleteDocumentError::DbError(_) => {
+                        Error::Unexpected(format!("{:#?}", err))
+                    }
+                })
             }
-            file_service::DeleteDocumentError::FolderTreatedAsDocument => {
-                Err(Error::UiError(DocumentDeleteError::FolderTreatedAsDocument))
-            }
-            file_service::DeleteDocumentError::FailedToRecordChange(_)
-            | file_service::DeleteDocumentError::FailedToDeleteMetadata(_)
-            | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
-            | file_service::DeleteDocumentError::FailedToTrackDelete(_)
-            | file_service::DeleteDocumentError::DbError(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
-            }
-        },
-    }
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum FolderDeleteError {
-    FolderDoesNotExist,
-    DocumentTreatedAsFolder,
-}
-
-pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), Error<FolderDeleteError>> {
-    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
-
-    match DefaultFileService::delete_folder(&db, id) {
-        Ok(_) => Ok(()),
-        Err(err) => match err {
-            file_service::DeleteFolderError::DocumentTreatedAsFolder => {
-                Err(Error::UiError(FolderDeleteError::DocumentTreatedAsFolder))
-            }
-            file_service::DeleteFolderError::CouldNotFindFile => {
-                Err(Error::UiError(FolderDeleteError::FolderDoesNotExist))
-            }
-            file_service::DeleteFolderError::MetadataError(_)
-            | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
-            | file_service::DeleteFolderError::FindingChildrenFailed(_)
-            | file_service::DeleteFolderError::FailedToRecordChange(_)
-            | file_service::DeleteFolderError::CouldNotFindParents(_)
-            | file_service::DeleteFolderError::FailedToDeleteDocument(_)
-            | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
+            FileType::Folder => {
+                DefaultFileService::delete_folder(&db, id).map_err(|err| match err {
+                    file_service::DeleteFolderError::MetadataError(_)
+                    | file_service::DeleteFolderError::CouldNotFindFile
+                    | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
+                    | file_service::DeleteFolderError::FindingChildrenFailed(_)
+                    | file_service::DeleteFolderError::FailedToRecordChange(_)
+                    | file_service::DeleteFolderError::CouldNotFindParents(_)
+                    | file_service::DeleteFolderError::DocumentTreatedAsFolder
+                    | file_service::DeleteFolderError::FailedToDeleteDocument(_)
+                    | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
+                        Error::Unexpected(format!("{:#?}", err))
+                    }
+                })
             }
         },
+        Err(_) => Err(Error::UiError(FileDeleteError::FileDoesNotExist)),
     }
 }
 
@@ -1213,8 +1196,7 @@ impl_get_variants!(
     GetFileByIdError,
     GetFileByPathError,
     InsertFileError,
-    DocumentDeleteError,
-    FolderDeleteError,
+    FileDeleteError,
     ReadDocumentError,
     ListPathsError,
     ListMetadatasError,
