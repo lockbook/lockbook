@@ -11,13 +11,13 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import app.lockbook.loggedin.listfiles.FileModel
-import app.lockbook.utils.CoreModel
-import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
-import app.lockbook.utils.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
-import app.lockbook.utils.SharedPreferences.IS_THIS_AN_IMPORT_KEY
-import app.lockbook.utils.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.utils.WorkManagerTags.PERIODIC_SYNC_TAG
+import app.lockbook.model.CoreModel
+import app.lockbook.ui.FileModel
+import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
+import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
+import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
+import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.util.WorkManagerTags.PERIODIC_SYNC_TAG
 import java.util.concurrent.TimeUnit
 
 class App : Application() {

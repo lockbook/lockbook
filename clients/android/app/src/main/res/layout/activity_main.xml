@@ -6,7 +6,7 @@
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
-    tools:context=".login.WelcomeActivity">
+    tools:context=".screen.WelcomeActivity">
 
 
     <TextView

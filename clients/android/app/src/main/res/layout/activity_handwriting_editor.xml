@@ -55,7 +55,7 @@
         android:layout_marginTop="-4dp"
         android:minHeight="20dp" />
 
-    <app.lockbook.loggedin.editor.HandwritingEditorView
+    <app.lockbook.ui.HandwritingEditorView
         android:id="@+id/handwriting_editor"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
