@@ -10,7 +10,6 @@ mod delete_document_tests {
     use lockbook_core::model::api::*;
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::DefaultClient;
-    use uuid::Uuid;
 
     #[test]
     fn delete_document() {
@@ -35,8 +34,7 @@ mod delete_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // delete document
         DefaultClient::request(
@@ -64,12 +62,17 @@ mod delete_document_tests {
         .unwrap();
 
         // delete document that wasn't created
-        assert_matches!(
-            DefaultClient::delete_document(&account.api_url, &account.username, Uuid::new_v4(), 0,),
-            Err(ApiError::<DeleteDocumentError>::Api(
-                DeleteDocumentError::DocumentNotFound
-            ))
-        );
+        let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            DeleteDocumentRequest {
+                username: account.username.clone(),
+                id: doc.id,
+                old_metadata_version: doc.metadata_version,
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -95,8 +98,7 @@ mod delete_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // delete document
         DefaultClient::request(
@@ -151,8 +153,7 @@ mod delete_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // delete document with wrong version
         let result = DefaultClient::request(

@@ -11,7 +11,7 @@ mod get_updates_test {
     fn get_updates() {
         // new account
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
@@ -29,6 +29,7 @@ mod get_updates_test {
             },
         )
         .unwrap()
+        .file_metadata
         .len();
         assert_eq!(result, 1);
 
@@ -42,6 +43,7 @@ mod get_updates_test {
             },
         )
         .unwrap()
+        .file_metadata
         .len();
         assert_eq!(result, 0);
     }

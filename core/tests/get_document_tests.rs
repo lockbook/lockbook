@@ -35,8 +35,7 @@ mod get_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // get document
         let result = aes_decrypt(
@@ -49,7 +48,7 @@ mod get_document_tests {
                     content_version: doc.content_version,
                 },
             )
-            .unwrap(),
+            .unwrap().content,
         );
         assert_eq!(result, String::from("doc content").into_bytes());
     }
@@ -58,7 +57,7 @@ mod get_document_tests {
     fn get_document_not_found() {
         // new account
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,

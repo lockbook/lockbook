@@ -11,7 +11,7 @@ mod get_public_key_tests {
     #[test]
     fn get_public_key() {
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
@@ -26,8 +26,8 @@ mod get_public_key_tests {
                 username: account.username.clone(),
             },
         )
-        .unwrap();
-
+        .unwrap()
+        .key;
         assert_eq!(result, account.private_key.to_public_key());
     }
 

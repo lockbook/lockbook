@@ -3,20 +3,15 @@ mod integration_test;
 #[cfg(test)]
 mod new_account_tests {
     use crate::assert_matches;
-    use crate::integration_test::{
-        aes_encrypt, generate_account, generate_root_metadata, rsa_encrypt,
-    };
+    use crate::integration_test::{generate_account, generate_root_metadata};
     use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use lockbook_core::DefaultClient;
-    use uuid::Uuid;
 
     #[test]
     fn new_account() {
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
@@ -28,7 +23,7 @@ mod new_account_tests {
     #[test]
     fn new_account_duplicate() {
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
@@ -51,22 +46,17 @@ mod new_account_tests {
 
     #[test]
     fn new_account_invalid_username() {
-        let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
+        let mut account = generate_account();
+        let (root, _) = generate_root_metadata(&account);
+        account.username += " ";
 
+        let result = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            NewAccountRequest::new(&account, &root),
+        );
         assert_matches!(
-            DefaultClient::new_account(
-                &account.api_url,
-                &(account.username.clone() + " "),
-                account.private_key.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-                rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-            ),
+            result,
             Err(ApiError::<NewAccountError>::Api(
                 NewAccountError::InvalidUsername
             ))
