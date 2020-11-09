@@ -1189,7 +1189,6 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
         &acc.api_url,
         &acc.private_key,
         GetUsageRequest {
-            username: acc.username,
         },
     )
     .map(|resp| resp.usages)

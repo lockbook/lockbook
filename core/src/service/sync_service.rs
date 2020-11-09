@@ -144,7 +144,6 @@ impl<
             &account.api_url,
             &account.private_key,
             GetUpdatesRequest {
-                username: account.username,
                 since_metadata_version: last_sync,
             },
         )
@@ -509,7 +508,7 @@ impl<
                         let version = ApiClient::request(
                             &account.api_url,
                             &account.private_key,
-                            CreateDocumentRequest::new(&account.username, &metadata, content),
+                            CreateDocumentRequest::new(&metadata, content),
                         )
                             .map_err(DocumentCreateError)?
                             .new_metadata_and_content_version;
@@ -524,7 +523,7 @@ impl<
                         let version = ApiClient::request(
                             &account.api_url,
                             &account.private_key,
-                            CreateFolderRequest::new(&account.username, &metadata),
+                            CreateFolderRequest::new(&metadata),
                         )
                             .map_err(FolderCreateError)?
                             .new_metadata_version;
@@ -542,7 +541,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                RenameDocumentRequest::new(&account.username, &metadata),
+                                RenameDocumentRequest::new(&metadata),
                             )
                                 .map_err(DocumentRenameError)?
                                 .new_metadata_version
@@ -550,7 +549,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                RenameFolderRequest::new(&account.username, &metadata),
+                                RenameFolderRequest::new(&metadata),
                             )
                                 .map_err(FolderRenameError)?
                                 .new_metadata_version
@@ -566,7 +565,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                MoveDocumentRequest::new(&account.username, &metadata),
+                                MoveDocumentRequest::new(&metadata),
                             )
                                 .map_err(DocumentMoveError)?
                                 .new_metadata_version
@@ -574,7 +573,7 @@ impl<
                             ApiClient::request(
                                 &account.api_url,
                                 &account.private_key,
-                                MoveFolderRequest::new(&account.username, &metadata),
+                                MoveFolderRequest::new(&metadata),
                             )
                                 .map_err(FolderMoveError)?
                                 .new_metadata_version
@@ -591,7 +590,6 @@ impl<
                             &account.api_url,
                             &account.private_key,
                             ChangeDocumentContentRequest {
-                                username: account.username.clone(),
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
                                 new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?
@@ -610,7 +608,6 @@ impl<
                             &account.api_url,
                             &account.private_key,
                             DeleteDocumentRequest {
-                                username: account.username.clone(),
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
                             },
@@ -626,7 +623,6 @@ impl<
                             &account.api_url,
                             &account.private_key,
                             DeleteFolderRequest {
-                                username: account.username.clone(),
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
                             },

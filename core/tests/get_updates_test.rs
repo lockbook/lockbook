@@ -24,7 +24,6 @@ mod get_updates_test {
             &account.api_url,
             &account.private_key,
             GetUpdatesRequest {
-                username: account.username.clone(),
                 since_metadata_version: 0,
             },
         )
@@ -38,7 +37,6 @@ mod get_updates_test {
             &account.api_url,
             &account.private_key,
             GetUpdatesRequest {
-                username: account.username.clone(),
                 since_metadata_version: root.metadata_version,
             },
         )

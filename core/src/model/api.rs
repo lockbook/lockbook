@@ -16,7 +16,6 @@ pub trait Request: Serialize {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_content: EncryptedDocument,
@@ -54,7 +53,6 @@ impl Request for ChangeDocumentContentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
-    pub username: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -82,9 +80,8 @@ pub enum CreateDocumentError {
 }
 
 impl CreateDocumentRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata, content: EncryptedDocument) -> Self {
+    pub fn new(file_metadata: &FileMetadata, content: EncryptedDocument) -> Self {
         CreateDocumentRequest {
-            username: String::from(username),
             id: file_metadata.id,
             name: file_metadata.name.clone(),
             parent: file_metadata.parent,
@@ -107,7 +104,6 @@ impl Request for CreateDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -144,7 +140,6 @@ impl Request for DeleteDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveDocumentRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -173,9 +168,8 @@ pub enum MoveDocumentError {
 }
 
 impl MoveDocumentRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
         MoveDocumentRequest {
-            username: String::from(username),
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_parent: file_metadata.parent,
@@ -197,7 +191,6 @@ impl Request for MoveDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -224,9 +217,8 @@ pub enum RenameDocumentError {
 }
 
 impl RenameDocumentRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
         RenameDocumentRequest {
-            username: String::from(username),
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_name: file_metadata.name.clone(),
@@ -276,7 +268,6 @@ impl Request for GetDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
-    pub username: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -303,9 +294,8 @@ pub enum CreateFolderError {
 }
 
 impl CreateFolderRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
         CreateFolderRequest {
-            username: String::from(username),
             id: file_metadata.id,
             name: file_metadata.name.clone(),
             parent: file_metadata.parent,
@@ -327,7 +317,6 @@ impl Request for CreateFolderRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
 }
@@ -364,7 +353,6 @@ impl Request for DeleteFolderRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveFolderRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -393,9 +381,8 @@ pub enum MoveFolderError {
 }
 
 impl MoveFolderRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
         MoveFolderRequest {
-            username: String::from(username),
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_parent: file_metadata.parent,
@@ -417,7 +404,6 @@ impl Request for MoveFolderRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
-    pub username: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -444,9 +430,8 @@ pub enum RenameFolderError {
 }
 
 impl RenameFolderRequest {
-    pub fn new(username: &str, file_metadata: &FileMetadata) -> Self {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
         RenameFolderRequest {
-            username: String::from(username),
             id: file_metadata.id,
             old_metadata_version: file_metadata.metadata_version,
             new_name: file_metadata.name.clone(),
@@ -467,7 +452,6 @@ impl Request for RenameFolderRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyRequest {
-    pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -496,7 +480,6 @@ impl Request for GetPublicKeyRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUsageRequest {
-    pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -532,7 +515,6 @@ impl Request for GetUsageRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
-    pub username: String,
     pub since_metadata_version: u64,
 }
 

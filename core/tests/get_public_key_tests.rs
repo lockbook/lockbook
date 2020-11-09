@@ -23,7 +23,6 @@ mod get_public_key_tests {
             &account.api_url,
             &account.private_key,
             GetPublicKeyRequest {
-                username: account.username.clone(),
             },
         )
         .unwrap()
@@ -39,7 +38,6 @@ mod get_public_key_tests {
             &account.api_url,
             &account.private_key,
             GetPublicKeyRequest {
-                username: account.username.clone(),
             },
         );
         assert_matches!(

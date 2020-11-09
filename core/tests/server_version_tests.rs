@@ -24,7 +24,6 @@ mod server_version_tests {
             &generated_account.api_url,
             &account.private_key,
             GetPublicKeyRequest {
-                username: String::from(&account.username),
             },
         )
         .map(|r: GetPublicKeyResponse| r.key);

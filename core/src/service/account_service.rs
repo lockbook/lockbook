@@ -170,7 +170,6 @@ impl<
             &account.api_url,
             &account.private_key,
             GetPublicKeyRequest {
-                username: account.username.clone(),
             },
         )
         .map_err(FailedToVerifyAccountServerSide)?
