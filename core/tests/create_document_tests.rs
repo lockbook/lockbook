@@ -3,14 +3,13 @@ mod integration_test;
 #[cfg(test)]
 mod create_document_tests {
     use crate::assert_matches;
-    use crate::integration_test::{aes_encrypt, generate_account, random_filename, rsa_encrypt};
-    use lockbook_core::client::{ApiError, ClientImpl};
+    use crate::integration_test::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
+    use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::clock_service::ClockImpl;
-    use lockbook_core::service::code_version_service::CodeVersionImpl;
-    use lockbook_core::service::crypto_service::RSAImpl;
-    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
+    use lockbook_core::model::file_metadata::FileType;
+    use lockbook_core::DefaultClient;
     use uuid::Uuid;
 
     #[test]
@@ -26,24 +25,17 @@ mod create_document_tests {
         .unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-
-        assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                &random_filename(),
-                folder_id,
+                &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
     }
 
     #[test]
@@ -59,39 +51,30 @@ mod create_document_tests {
         .unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-
-        assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                &random_filename(),
-                folder_id,
+                &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
 
         // create document with same id and key
-        assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
+        let result = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                &random_filename(),
-                folder_id,
+                &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
             ),
+        );
+        assert_matches!(
+            result,
             Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::FileIdTaken
             ))
@@ -111,43 +94,33 @@ mod create_document_tests {
         .unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let doc_name = random_filename();
-
-        assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
+        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                &doc_name,
-                folder_id,
+                &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
 
         // create document with same path
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
+        let (mut doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc2.name = doc.name;
+        let result = DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
+                &account.username,
+                &doc2,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        );
 
         assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
-                &account.username,
-                doc_id,
-                &doc_name,
-                folder_id,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
-            ),
+            result,
             Err(ApiError::<CreateDocumentError>::Api(
                 CreateDocumentError::DocumentPathTaken
             ))
@@ -166,29 +139,19 @@ mod create_document_tests {
         )
         .unwrap();
 
-        let parent_folder_id = Uuid::new_v4();
-
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AESImpl::generate_key();
-        let doc_name = random_filename();
-
-        assert_matches!(
-            DefaultClient::create_document(
-                &account.api_url,
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.parent = Uuid::new_v4();
+        DefaultClient::request(
+            &account.api_url,
+            &account.private_key,
+            CreateDocumentRequest::new(
                 &account.username,
-                doc_id,
-                &doc_name,
-                parent_folder_id,
+                &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-                FolderAccessInfo {
-                    folder_id: parent_folder_id,
-                    access_key: aes_encrypt(&folder_key, &doc_key),
-                },
             ),
-            Err(ApiError::<CreateDocumentError>::Api(
-                CreateDocumentError::ParentNotFound
-            ))
-        );
+        )
+        .unwrap();
     }
 }
