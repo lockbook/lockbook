@@ -35,8 +35,7 @@ mod rename_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // rename document
         doc.name = String::from("new name");
@@ -100,8 +99,7 @@ mod rename_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // delete document
         DefaultClient::request(
@@ -154,8 +152,7 @@ mod rename_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // rename document
         doc.name = String::from("new name");
@@ -197,8 +194,7 @@ mod rename_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // create document in same folder
         let (doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
@@ -211,8 +207,7 @@ mod rename_document_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // rename first document to same name as second
         doc.name = doc2.name;
