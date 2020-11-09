@@ -21,6 +21,7 @@ pub enum Msg {
     ShowDialogNew,
     ShowDialogOpen,
     ShowDialogPreferences,
+    ShowDialogUsage,
     ShowDialogAbout,
 
     UnexpectedErr(String, String),

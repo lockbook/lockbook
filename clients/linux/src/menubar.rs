@@ -122,6 +122,7 @@ impl Menubar {
                     self.acct,
                     self.items,
                     &Item::AccountSync,
+                    &Item::AccountUsage,
                     &Item::AccountExport
                 );
             }
@@ -160,6 +161,7 @@ enum Item {
     EditPreferences,
 
     AccountSync,
+    AccountUsage,
     AccountExport,
 
     HelpAbout,
@@ -196,6 +198,7 @@ impl Item {
             (Self::FileQuit, ("Quit", "", || Msg::Quit)),
             (Self::EditPreferences, ("Preferences", "", || Msg::ShowDialogPreferences)),
             (Self::AccountSync, ("Sync", "", || Msg::PerformSync)),
+            (Self::AccountUsage, ("Usage", "", || Msg::ShowDialogUsage)),
             (Self::AccountExport, ("Export", "", || Msg::ExportAccount)),
             (Self::HelpAbout, ("About", "", || Msg::ShowDialogAbout)),
         ]

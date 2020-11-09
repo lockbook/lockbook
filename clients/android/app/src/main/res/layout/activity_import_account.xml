@@ -8,7 +8,7 @@
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
     android:id="@+id/import_account_layout"
-    tools:context=".login.WelcomeActivity">
+    tools:context=".screen.WelcomeActivity">
 
     <TextView
         android:layout_width="match_parent"
