@@ -692,10 +692,7 @@ impl<
 
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
-                    Ok(_) => {
-                        sync_errors.remove(&work_unit.get_metadata().id);
-                        debug!("{:#?} executed successfully", work_unit)
-                    }
+                    Ok(_) => debug!("{:#?} executed successfully", work_unit),
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
                         sync_errors.insert(work_unit.get_metadata().id, err);
@@ -703,13 +700,22 @@ impl<
                 }
             }
 
+            if sync_errors.is_empty() {
+                FileMetadataDb::set_last_synced(
+                    &db,
+                    work_calculated.most_recent_update_from_server,
+                )
+                .map_err(SyncError::MetadataUpdateError)?;
+            }
+
             work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+
+            if work_calculated.work_units.is_empty() {
+                break;
+            }
         }
 
         if sync_errors.is_empty() {
-            FileMetadataDb::set_last_synced(&db, work_calculated.most_recent_update_from_server)
-                .map_err(SyncError::MetadataUpdateError)?;
-
             Ok(())
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);

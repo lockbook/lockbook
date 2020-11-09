@@ -19,6 +19,17 @@ pub fn sync() {
     let config = get_config();
 
     let mut work_calculated: WorkCalculated;
+
+    let update_last_synced = |time| match set_last_synced(&config, time) {
+        Ok(_) => {}
+        Err(err) => match err {
+            CoreError::UiError(SetLastSyncedError::Stub) => {
+                exit_with("Impossible", UNEXPECTED_ERROR)
+            }
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
+
     while {
         work_calculated = match calculate_work(&config) {
             Ok(work) => work,
@@ -33,6 +44,8 @@ pub fn sync() {
         };
         !work_calculated.work_units.is_empty()
     } {
+        let mut there_were_errors = false;
+
         for work_unit in work_calculated.work_units {
             let action = match &work_unit {
                 WorkUnit::LocalChange { metadata } => format!("Pushing: {}", metadata.name),
@@ -42,18 +55,18 @@ pub fn sync() {
             let _ = io::stdout().flush();
             match execute_work(&config, &account, work_unit) {
                 Ok(_) => println!("{:<50}Done.", action),
-                Err(error) => eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error)),
+                Err(error) => {
+                    there_were_errors = true;
+                    eprintln!("{:<50}{}", action, format!("Skipped: {:?}", error))
+                }
             }
+        }
+
+        if !there_were_errors {
+            update_last_synced(work_calculated.most_recent_update_from_server);
         }
     }
 
-    match set_last_synced(&config, work_calculated.most_recent_update_from_server) {
-        Ok(_) => println!("Sync complete."),
-        Err(err) => match err {
-            CoreError::UiError(SetLastSyncedError::Stub) => {
-                exit_with("Impossible", UNEXPECTED_ERROR)
-            }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    update_last_synced(work_calculated.most_recent_update_from_server);
+    println!("Sync complete.");
 }
