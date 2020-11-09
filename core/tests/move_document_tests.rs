@@ -28,7 +28,7 @@ mod move_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -121,7 +121,7 @@ mod move_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -170,7 +170,7 @@ mod move_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -203,12 +203,7 @@ mod move_document_tests {
 
         // delete document
         assert_matches!(
-            DefaultClient::delete_document(
-                &account.api_url,
-                &account.username,
-                doc_id,
-                version,
-            ),
+            DefaultClient::delete_document(&account.api_url, &account.username, doc_id, version,),
             Ok(_)
         );
 
@@ -245,7 +240,7 @@ mod move_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
