@@ -485,8 +485,6 @@ pub async fn delete_folder(
         return Err(DeleteFolderError::InternalError);
     };
 
-    error!("{:#?}", index_responses.responses);
-
     for r in index_responses.responses.iter() {
         if !r.is_folder {
             let files_result = file_content_client::delete(
