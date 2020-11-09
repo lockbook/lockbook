@@ -30,7 +30,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -42,7 +41,7 @@ mod rename_document_tests {
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            RenameDocumentRequest::new(&account.username, &doc),
+            RenameDocumentRequest::new(&doc),
         )
         .unwrap();
     }
@@ -65,7 +64,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            RenameDocumentRequest::new(&account.username, &doc),
+            RenameDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -94,7 +93,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -106,7 +104,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -118,7 +115,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            RenameDocumentRequest::new(&account.username, &doc),
+            RenameDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -147,7 +144,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -160,7 +156,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            RenameDocumentRequest::new(&account.username, &doc),
+            RenameDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -189,7 +185,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -202,7 +197,6 @@ mod rename_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -214,7 +208,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            RenameDocumentRequest::new(&account.username, &doc),
+            RenameDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,

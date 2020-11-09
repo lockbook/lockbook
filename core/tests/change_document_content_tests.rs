@@ -31,7 +31,6 @@ mod change_document_content_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -43,7 +42,6 @@ mod change_document_content_tests {
             &account.api_url,
             &account.private_key,
             ChangeDocumentContentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
                 new_content: aes_encrypt(&doc_key, &String::from("new doc content").into_bytes()),
@@ -69,7 +67,6 @@ mod change_document_content_tests {
             &account.api_url,
             &account.private_key,
             ChangeDocumentContentRequest {
-                username: account.username.clone(),
                 id: Uuid::new_v4(),
                 old_metadata_version: 0,
                 new_content: aes_encrypt(
