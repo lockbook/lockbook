@@ -186,6 +186,12 @@ impl<
             };
         }
 
+        work_units.sort_by(|f1, f2| {
+            f1.get_metadata()
+                .metadata_version
+                .cmp(&f2.get_metadata().metadata_version)
+        });
+
         let changes = ChangeDb::get_all_local_changes(&db).map_err(LocalChangesRepoError)?;
 
         for change_description in changes {
