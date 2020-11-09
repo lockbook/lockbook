@@ -20,13 +20,9 @@ mod server_version_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> = DefaultClient::request(
-            &generated_account.api_url,
-            &account.private_key,
-            GetPublicKeyRequest {
-            },
-        )
-        .map(|r: GetPublicKeyResponse| r.key);
+        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
+            DefaultClient::request(&account, GetPublicKeyRequest {})
+                .map(|r: GetPublicKeyResponse| r.key);
 
         match result {
             Ok(_) => {

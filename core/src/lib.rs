@@ -1185,22 +1185,17 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
     let acc = DefaultAccountRepo::get_account(&db)
         .map_err(|_| Error::UiError(GetUsageError::NoAccount))?;
 
-    DefaultClient::request(
-        &acc.api_url,
-        &acc.private_key,
-        GetUsageRequest {
-        },
-    )
-    .map(|resp| resp.usages)
-    .map_err(|err| match err {
-        ApiError::Api(api::GetUsageError::ClientUpdateRequired) => {
-            Error::UiError(GetUsageError::ClientUpdateRequired)
-        }
-        ApiError::SendFailed(_) | ApiError::ReceiveFailed(_) => {
-            Error::UiError(GetUsageError::CouldNotReachServer)
-        }
-        _ => Error::Unexpected(format!("{:#?}", err)),
-    })
+    DefaultClient::request(&acc, GetUsageRequest {})
+        .map(|resp| resp.usages)
+        .map_err(|err| match err {
+            ApiError::Api(api::GetUsageError::ClientUpdateRequired) => {
+                Error::UiError(GetUsageError::ClientUpdateRequired)
+            }
+            ApiError::SendFailed(_) | ApiError::ReceiveFailed(_) => {
+                Error::UiError(GetUsageError::CouldNotReachServer)
+            }
+            _ => Error::Unexpected(format!("{:#?}", err)),
+        })
 }
 
 // This basically generates a function called `get_all_error_variants`,
