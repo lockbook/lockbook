@@ -1557,28 +1557,29 @@ mod sync_tests {
                 .unwrap()
                 .deleted
         );
-        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
-            .unwrap()
-            .is_none());
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
         assert!(
             !DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file4_delete.id)
-            .unwrap()
-            .is_none());
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file4_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
         assert!(
             DefaultFileMetadataRepo::maybe_get(&db1, new_folder.id)
                 .unwrap()
                 .unwrap()
                 .deleted
-        );
-
-        println!(
-            "{:#?}",
-            DefaultSyncService::calculate_work(&db1).unwrap().work_units
         );
 
         DefaultSyncService::sync(&db1).unwrap();
@@ -1589,10 +1590,6 @@ mod sync_tests {
         )
         .unwrap();
 
-        println!(
-            "{:#?}",
-            DefaultSyncService::calculate_work(&db2).unwrap().work_units
-        );
         DefaultSyncService::sync(&db2).unwrap();
 
         assert!(
