@@ -6,12 +6,10 @@ mod delete_document_tests {
     use crate::integration_test::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
+    use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::*;
     use lockbook_core::model::file_metadata::FileType;
-    use lockbook_core::service::clock_service::ClockImpl;
-    use lockbook_core::service::code_version_service::CodeVersionImpl;
-    use lockbook_core::service::crypto_service::RSAImpl;
+    use lockbook_core::DefaultClient;
     use uuid::Uuid;
 
     #[test]
@@ -28,7 +26,7 @@ mod delete_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -44,7 +42,7 @@ mod delete_document_tests {
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &DeleteDocumentRequest {
+            DeleteDocumentRequest {
                 username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -67,12 +65,7 @@ mod delete_document_tests {
 
         // delete document that wasn't created
         assert_matches!(
-            DefaultClient::delete_document(
-                &account.api_url,
-                &account.username,
-                Uuid::new_v4(),
-                0,
-            ),
+            DefaultClient::delete_document(&account.api_url, &account.username, Uuid::new_v4(), 0,),
             Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentNotFound
             ))
@@ -93,7 +86,7 @@ mod delete_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -109,7 +102,7 @@ mod delete_document_tests {
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &DeleteDocumentRequest {
+            DeleteDocumentRequest {
                 username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -121,7 +114,7 @@ mod delete_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &DeleteDocumentRequest {
+            DeleteDocumentRequest {
                 username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -149,7 +142,7 @@ mod delete_document_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -165,7 +158,7 @@ mod delete_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &DeleteDocumentRequest {
+            DeleteDocumentRequest {
                 username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version - 1,
