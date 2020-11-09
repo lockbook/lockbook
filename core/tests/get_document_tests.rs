@@ -17,18 +17,12 @@ mod get_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -40,8 +34,7 @@ mod get_document_tests {
         let result = aes_decrypt(
             &doc_key,
             &DefaultClient::request(
-                &account.api_url,
-                &account.private_key,
+                &account,
                 GetDocumentRequest {
                     id: doc.id,
                     content_version: doc.content_version,
@@ -58,17 +51,11 @@ mod get_document_tests {
         // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // get document we never created
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             GetDocumentRequest {
                 id: Uuid::new_v4(),
                 content_version: 0,

@@ -111,13 +111,10 @@ impl<
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
-        let version = ApiClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &file_metadata),
-        )
-        .map_err(AccountCreationError::ApiError)?
-        .folder_metadata_version;
+        let version =
+            ApiClient::request(&account, NewAccountRequest::new(&account, &file_metadata))
+                .map_err(AccountCreationError::ApiError)?
+                .folder_metadata_version;
         info!("Account creation success!");
 
         file_metadata.metadata_version = version;
@@ -166,14 +163,9 @@ impl<
             "Checking this username, public_key pair exists at {}",
             account.api_url
         );
-        let server_public_key = ApiClient::request(
-            &account.api_url,
-            &account.private_key,
-            GetPublicKeyRequest {
-            },
-        )
-        .map_err(FailedToVerifyAccountServerSide)?
-        .key;
+        let server_public_key = ApiClient::request(&account, GetPublicKeyRequest {})
+            .map_err(FailedToVerifyAccountServerSide)?
+            .key;
         if account.private_key.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }

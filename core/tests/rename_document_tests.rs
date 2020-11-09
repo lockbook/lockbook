@@ -16,19 +16,13 @@ mod rename_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -38,12 +32,7 @@ mod rename_document_tests {
 
         // rename document
         doc.name = String::from("new name");
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            RenameDocumentRequest::new(&doc),
-        )
-        .unwrap();
+        DefaultClient::request(&account, RenameDocumentRequest::new(&doc)).unwrap();
     }
 
     #[test]
@@ -51,21 +40,12 @@ mod rename_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // rename document that wasn't created
         let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.name = String::from("new name");
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            RenameDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<RenameDocumentError>::Api(
@@ -79,19 +59,13 @@ mod rename_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -101,8 +75,7 @@ mod rename_document_tests {
 
         // delete document
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -112,11 +85,7 @@ mod rename_document_tests {
 
         // rename document
         doc.name = String::from("new name");
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            RenameDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<RenameDocumentError>::Api(
@@ -130,19 +99,13 @@ mod rename_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -153,11 +116,7 @@ mod rename_document_tests {
         // rename document
         doc.name = String::from("new name");
         doc.metadata_version -= 1;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            RenameDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<RenameDocumentError>::Api(
@@ -171,19 +130,13 @@ mod rename_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -194,8 +147,7 @@ mod rename_document_tests {
         // create document in same folder
         let (doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -205,11 +157,7 @@ mod rename_document_tests {
 
         // rename first document to same name as second
         doc.name = doc2.name;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            RenameDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<RenameDocumentError>::Api(

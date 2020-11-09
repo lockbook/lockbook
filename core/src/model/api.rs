@@ -451,8 +451,7 @@ impl Request for RenameFolderRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetPublicKeyRequest {
-}
+pub struct GetPublicKeyRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyResponse {
@@ -479,8 +478,7 @@ impl Request for GetPublicKeyRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetUsageRequest {
-}
+pub struct GetUsageRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUsageResponse {

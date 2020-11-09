@@ -16,19 +16,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -40,8 +34,7 @@ mod move_document_tests {
         let (folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
@@ -51,12 +44,7 @@ mod move_document_tests {
 
         // move document
         doc.parent = folder.id;
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        )
-        .unwrap();
+        DefaultClient::request(&account, MoveDocumentRequest::new(&doc)).unwrap();
     }
 
     #[test]
@@ -64,19 +52,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create folder to move document to
         let (folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
@@ -87,11 +69,7 @@ mod move_document_tests {
         // move document that wasn't created
         let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = folder.id;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
 
         // move document that wasn't created
         assert_matches!(
@@ -107,19 +85,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -130,11 +102,7 @@ mod move_document_tests {
         // move document to folder that was never created
         let (folder, _) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         doc.parent = folder.id;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<MoveDocumentError>::Api(
@@ -148,19 +116,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -172,8 +134,7 @@ mod move_document_tests {
         let (folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
@@ -183,8 +144,7 @@ mod move_document_tests {
 
         // delete document
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -194,11 +154,7 @@ mod move_document_tests {
 
         // move deleted document
         doc.parent = folder.id;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<MoveDocumentError>::Api(
@@ -212,19 +168,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -236,8 +186,7 @@ mod move_document_tests {
         let (folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
@@ -248,11 +197,7 @@ mod move_document_tests {
         // move document
         doc.parent = folder.id;
         doc.metadata_version -= 1;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<MoveDocumentError>::Api(
@@ -266,19 +211,13 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -290,8 +229,7 @@ mod move_document_tests {
         let (folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
@@ -304,8 +242,7 @@ mod move_document_tests {
             generate_file_metadata(&account, &folder, &folder_key, FileType::Document);
         doc2.name = doc.name.clone();
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -316,11 +253,7 @@ mod move_document_tests {
         // move document
         doc.parent = folder.id;
         doc.metadata_version -= 1;
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            MoveDocumentRequest::new(&doc),
-        );
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
             Err(ApiError::<MoveDocumentError>::Api(

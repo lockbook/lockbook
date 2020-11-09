@@ -12,30 +12,16 @@ mod new_account_tests {
     fn new_account() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
     }
 
     #[test]
     fn new_account_duplicate() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        );
+        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Api(
@@ -50,11 +36,7 @@ mod new_account_tests {
         let (root, _) = generate_root_metadata(&account);
         account.username += " ";
 
-        let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        );
+        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Api(

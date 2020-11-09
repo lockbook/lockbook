@@ -17,18 +17,12 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -42,18 +36,12 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -63,8 +51,7 @@ mod create_document_tests {
 
         // create document with same id and key
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -83,18 +70,12 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -106,8 +87,7 @@ mod create_document_tests {
         let (mut doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc2.name = doc.name;
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc2,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -127,20 +107,14 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = Uuid::new_v4();
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),

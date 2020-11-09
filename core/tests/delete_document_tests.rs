@@ -16,18 +16,12 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -37,8 +31,7 @@ mod delete_document_tests {
 
         // delete document
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -52,18 +45,12 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // delete document that wasn't created
         let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -77,18 +64,12 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -98,8 +79,7 @@ mod delete_document_tests {
 
         // delete document
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -109,8 +89,7 @@ mod delete_document_tests {
 
         // delete document again
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -129,18 +108,12 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
@@ -150,8 +123,7 @@ mod delete_document_tests {
 
         // delete document with wrong version
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             DeleteDocumentRequest {
                 id: doc.id,
                 old_metadata_version: doc.metadata_version - 1,

@@ -141,8 +141,7 @@ impl<
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             GetUpdatesRequest {
                 since_metadata_version: last_sync,
             },
@@ -229,8 +228,7 @@ impl<
                         .map_err(WorkExecutionError::MetadataRepoError)?;
                     if metadata.file_type == Document {
                         let document = ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+                            &account,
                             GetDocumentRequest {
                                 id: metadata.id,
                                 content_version: metadata.content_version,
@@ -270,8 +268,7 @@ impl<
                                 && local_metadata.metadata_version != metadata.metadata_version
                             {
                                 let document = ApiClient::request(
-                                    &account.api_url,
-                                    &account.private_key,
+                                    &account,
                                     GetDocumentRequest {
                                         id: metadata.id,
                                         content_version: metadata.content_version,
@@ -354,8 +351,7 @@ impl<
 
                                         let server_version = {
                                             let server_document = ApiClient::request(
-                                                &account.api_url,
-                                                &account.private_key,
+                                                &account,
                                                 GetDocumentRequest {
                                                     id: metadata.id,
                                                     content_version: metadata.content_version,
@@ -427,8 +423,7 @@ impl<
 
                                         // Overwrite local file with server copy
                                         let new_content = ApiClient::request(
-                                            &account.api_url,
-                                            &account.private_key,
+                                            &account,
                                             GetDocumentRequest {
                                                 id: metadata.id,
                                                 content_version: metadata.content_version,
@@ -506,8 +501,7 @@ impl<
                     } else if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+            &account,
                             CreateDocumentRequest::new(&metadata, content),
                         )
                             .map_err(DocumentCreateError)?
@@ -521,8 +515,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+            &account,
                             CreateFolderRequest::new(&metadata),
                         )
                             .map_err(FolderCreateError)?
@@ -539,16 +532,14 @@ impl<
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::request(
-                                &account.api_url,
-                                &account.private_key,
+            &account,
                                 RenameDocumentRequest::new(&metadata),
                             )
                                 .map_err(DocumentRenameError)?
                                 .new_metadata_version
                         } else {
                             ApiClient::request(
-                                &account.api_url,
-                                &account.private_key,
+            &account,
                                 RenameFolderRequest::new(&metadata),
                             )
                                 .map_err(FolderRenameError)?
@@ -563,16 +554,14 @@ impl<
                     if local_change.moved.is_some() {
                         let version = if metadata.file_type == Document {
                             ApiClient::request(
-                                &account.api_url,
-                                &account.private_key,
+            &account,
                                 MoveDocumentRequest::new(&metadata),
                             )
                                 .map_err(DocumentMoveError)?
                                 .new_metadata_version
                         } else {
                             ApiClient::request(
-                                &account.api_url,
-                                &account.private_key,
+            &account,
                                 MoveFolderRequest::new(&metadata),
                             )
                                 .map_err(FolderMoveError)?
@@ -587,8 +576,7 @@ impl<
 
                     if local_change.content_edited.is_some() && metadata.file_type == Document {
                         let version = ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+            &account,
                             ChangeDocumentContentRequest {
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
@@ -605,8 +593,7 @@ impl<
                 } else { // not new and deleted
                     if metadata.file_type == Document {
                         ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+            &account,
                             DeleteDocumentRequest {
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
@@ -620,8 +607,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         ApiClient::request(
-                            &account.api_url,
-                            &account.private_key,
+            &account,
                             DeleteFolderRequest {
                                 id: metadata.id,
                                 old_metadata_version: metadata.metadata_version,
