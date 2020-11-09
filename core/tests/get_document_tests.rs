@@ -30,7 +30,6 @@ mod get_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
