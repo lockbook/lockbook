@@ -1204,7 +1204,162 @@ mod sync_tests {
             .is_none());
     }
 
-    // Test that usage reflects a reduction in usage
+    #[test]
+    fn test_folder_deletion() {
+        // Create 3 files in a folder that is going to be deleted and 3 in a folder that won't
+        // Sync 2 dbs
+        // Delete them in the second db
+        // Only 1 instruction should be in the work
+        // Sync this from db2
+        // 4 instructions should be in work for db1
+        // Sync it
+        // Make sure all the contents for those 4 files are gone from both dbs
+        // Make sure all the contents for the stay files are there in both dbs
+
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file1.md")).unwrap();
+        let file2_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file2.md")).unwrap();
+        let file3_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file3.md")).unwrap();
+
+        let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
+        let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
+        let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultFileService::delete_folder(
+            &db2,
+            DefaultFileMetadataRepo::get_by_path(&db2, &path("delete"))
+                .unwrap()
+                .unwrap()
+                .id,
+        )
+        .unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        // Only the folder should show up as the sync instruction
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            1
+        );
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            4
+        );
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+    }
 
     // Test that folders delete their children when a fresh sync happens
     // Test creating a folder and moving documents into it and then deleting the folder works

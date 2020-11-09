@@ -131,7 +131,6 @@ mod get_usage_tests {
 
         sync_all(config).unwrap();
         delete_file(config, folder.id).unwrap();
-        println!("{:#?}", sync_all(config));
 
         let local_encrypted = {
             let db = connect_to_db(config).unwrap();
