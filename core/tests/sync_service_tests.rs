@@ -1614,4 +1614,27 @@ mod sync_tests {
             .unwrap()
             .is_none());
     }
+
+    #[test]
+    fn create_document_sync_delete_document_sync() {
+        let db1 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultFileService::delete_document(&db1, file1.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        assert!(DefaultSyncService::calculate_work(&db1)
+            .unwrap()
+            .work_units
+            .is_empty());
+    }
 }
