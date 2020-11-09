@@ -29,7 +29,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -41,7 +40,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -67,7 +65,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -93,7 +90,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -105,7 +101,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -117,7 +112,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -148,7 +142,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -160,7 +153,6 @@ mod delete_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version - 1,
             },

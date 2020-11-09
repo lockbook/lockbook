@@ -30,7 +30,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -44,7 +43,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
@@ -56,7 +54,7 @@ mod move_document_tests {
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         )
         .unwrap();
     }
@@ -80,7 +78,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
@@ -93,7 +90,7 @@ mod move_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         );
 
         // move document that wasn't created
@@ -124,7 +121,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -137,7 +133,7 @@ mod move_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -166,7 +162,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -180,7 +175,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
@@ -192,7 +186,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             DeleteDocumentRequest {
-                username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
             },
@@ -204,7 +197,7 @@ mod move_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -233,7 +226,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -247,7 +239,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
@@ -260,7 +251,7 @@ mod move_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
@@ -289,7 +280,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -303,7 +293,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
@@ -318,7 +307,6 @@ mod move_document_tests {
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
-                &account.username,
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
@@ -331,7 +319,7 @@ mod move_document_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            MoveDocumentRequest::new(&account.username, &doc),
+            MoveDocumentRequest::new(&doc),
         );
         assert_matches!(
             result,
