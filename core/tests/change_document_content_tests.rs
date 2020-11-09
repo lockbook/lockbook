@@ -10,8 +10,8 @@ mod change_document_content_tests {
     use lockbook_core::model::api::*;
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
-    use uuid::Uuid;
     use lockbook_core::DefaultClient;
+    use uuid::Uuid;
 
     #[test]
     fn change_document_content() {
@@ -27,7 +27,7 @@ mod change_document_content_tests {
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let version = DefaultClient::request(
+        DefaultClient::request(
             &account.api_url,
             &account.private_key,
             CreateDocumentRequest::new(
@@ -43,7 +43,7 @@ mod change_document_content_tests {
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &ChangeDocumentContentRequest {
+            ChangeDocumentContentRequest {
                 username: account.username.clone(),
                 id: doc.id,
                 old_metadata_version: doc.metadata_version,
@@ -57,7 +57,7 @@ mod change_document_content_tests {
     fn change_document_content_not_found() {
         // new account
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(
             &account.api_url,
             &account.private_key,
@@ -69,7 +69,7 @@ mod change_document_content_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &ChangeDocumentContentRequest {
+            ChangeDocumentContentRequest {
                 username: account.username.clone(),
                 id: Uuid::new_v4(),
                 old_metadata_version: 0,
