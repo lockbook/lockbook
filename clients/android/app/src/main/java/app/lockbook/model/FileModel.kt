@@ -1,4 +1,4 @@
-package app.lockbook.ui
+package app.lockbook.model
 
 import android.content.Context
 import androidx.lifecycle.LiveData
@@ -7,9 +7,9 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
-import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
@@ -92,14 +92,41 @@ class FileModel(path: String) {
 
     fun refreshFiles() {
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
-            is Ok -> {
-                matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
-            }
+            is Ok -> matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
                     _unexpectedErrorHasOccurred.postValue(error.error)
                 }
+            }
+        }.exhaustive
+    }
+
+    fun deleteFiles(ids: List<String>): Boolean {
+        for (id in ids) {
+            if (!deleteFile(id)) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun deleteFile(id: String): Boolean {
+        return when (val deleteFileResult = CoreModel.deleteFile(config, id)) {
+            is Ok -> true
+            is Err -> {
+                when (val error = deleteFileResult.error) {
+                    is DeleteFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! The file you selected does not exist!")
+                    is DeleteFileError.Unexpected -> {
+                        Timber.e("Unable to delete file: ${error.error}")
+                        _unexpectedErrorHasOccurred.postValue(
+                            error.error
+                        )
+                    }
+                }
+
+                false
             }
         }.exhaustive
     }
