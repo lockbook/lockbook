@@ -12,17 +12,11 @@ mod get_updates_test {
         // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
-            NewAccountRequest::new(&account, &root),
-        )
-        .unwrap();
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // get updates at version 0
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             GetUpdatesRequest {
                 since_metadata_version: 0,
             },
@@ -34,8 +28,7 @@ mod get_updates_test {
 
         // get updates at version of root folder
         let result = DefaultClient::request(
-            &account.api_url,
-            &account.private_key,
+            &account,
             GetUpdatesRequest {
                 since_metadata_version: root.metadata_version,
             },

@@ -1,10 +1,10 @@
+use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::crypto::RSASigned;
 use crate::service::code_version_service::CodeVersion;
 use crate::service::crypto_service::{PubKeyCryptoService, RSASignError};
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
-use rsa::RSAPrivateKey;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -25,8 +25,7 @@ pub struct RequestWrapper<T: Request> {
 
 pub trait Client {
     fn request<T: Request>(
-        api_url: &str,
-        key: &RSAPrivateKey,
+        account: &Account,
         request: T,
     ) -> Result<T::Response, ApiError<T::Error>>;
 }
@@ -38,12 +37,11 @@ pub struct ClientImpl<Crypto: PubKeyCryptoService, Version: CodeVersion> {
 
 impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Crypto, Version> {
     fn request<T: Request>(
-        api_url: &str,
-        key: &RSAPrivateKey,
+        account: &Account,
         request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let client = ReqwestClient::new();
-        let signed_request = Crypto::sign(key, request).map_err(ApiError::Sign)?;
+        let signed_request = Crypto::sign(&account.private_key, request).map_err(ApiError::Sign)?;
         let serialized_request = serde_json::to_string(&RequestWrapper {
             signed_request,
             client_version: String::from(Version::get_code_version()),
@@ -52,7 +50,7 @@ impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Cr
         let serialized_response = client
             .request(
                 T::method(),
-                format!("{}/{}", api_url, T::endpoint()).as_str(),
+                format!("{}/{}", account.api_url, T::endpoint()).as_str(),
             )
             .body(serialized_request)
             .send()
