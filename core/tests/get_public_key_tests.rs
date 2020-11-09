@@ -16,13 +16,17 @@ mod get_public_key_tests {
             &account.api_url,
             &account.private_key,
             NewAccountRequest::new(&account, &root),
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &GetPublicKeyRequest{ username: account.username.clone() },
-        ).unwrap();
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .unwrap();
 
         assert_eq!(result, account.private_key.to_public_key());
     }
@@ -34,7 +38,9 @@ mod get_public_key_tests {
         let result = DefaultClient::request(
             &account.api_url,
             &account.private_key,
-            &GetPublicKeyRequest{ username: account.username.clone() },
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
         );
         assert_matches!(
             result,

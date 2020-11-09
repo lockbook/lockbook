@@ -6,13 +6,11 @@ mod new_account_tests {
     use crate::integration_test::{
         aes_encrypt, generate_account, generate_root_metadata, rsa_encrypt,
     };
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
+    use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::*;
     use lockbook_core::model::crypto::*;
-    use lockbook_core::service::clock_service::ClockImpl;
-    use lockbook_core::service::code_version_service::CodeVersionImpl;
-    use lockbook_core::service::crypto_service::RSAImpl;
     use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
+    use lockbook_core::DefaultClient;
     use uuid::Uuid;
 
     #[test]

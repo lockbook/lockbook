@@ -20,15 +20,14 @@ mod server_version_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
-            DefaultClient::request(
-                &generated_account.api_url,
-                &account.private_key,
-                &GetPublicKeyRequest {
-                    username: String::from(&account.username),
-                },
-            )
-            .map(|r: GetPublicKeyResponse| r.key);
+        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> = DefaultClient::request(
+            &generated_account.api_url,
+            &account.private_key,
+            GetPublicKeyRequest {
+                username: String::from(&account.username),
+            },
+        )
+        .map(|r: GetPublicKeyResponse| r.key);
 
         match result {
             Ok(_) => {
@@ -38,7 +37,8 @@ mod server_version_tests {
                 ApiError::Serialize(_)
                 | ApiError::SendFailed(_)
                 | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_) => {
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_) => {
                     panic!("Server should have rejected this due to the version being unsupported")
                 }
                 ApiError::Api(err2) => match err2 {
