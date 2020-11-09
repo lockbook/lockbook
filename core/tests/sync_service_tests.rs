@@ -1526,7 +1526,95 @@ mod sync_tests {
         );
     }
 
-    // Test that folders delete their children when a fresh sync happens
-    // Test creating a folder and moving documents into it and then deleting the folder works
-    // Test moving a document out before deleting a folder doesn't delete that document
+    #[test]
+    fn create_new_folder_and_move_old_files_into_it_then_delete_that_folder() {
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1_delete = DefaultFileService::create_at_path(&db1, &path("old/file1.md")).unwrap();
+        let file2_delete = DefaultFileService::create_at_path(&db1, &path("old/file2.md")).unwrap();
+        let file3_delete = DefaultFileService::create_at_path(&db1, &path("old/file3.md")).unwrap();
+        let file4_delete = DefaultFileService::create_at_path(&db1, &path("old/file4.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        let new_folder = DefaultFileService::create_at_path(&db1, &path("new/")).unwrap();
+        DefaultFileService::move_file(&db1, file2_delete.id, new_folder.id).unwrap();
+        DefaultFileService::move_file(&db1, file4_delete.id, new_folder.id).unwrap();
+        DefaultFileService::delete_folder(&db1, new_folder.id).unwrap();
+
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file4_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, new_folder.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        println!(
+            "{:#?}",
+            DefaultSyncService::calculate_work(&db1).unwrap().work_units
+        );
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        println!(
+            "{:#?}",
+            DefaultSyncService::calculate_work(&db2).unwrap().work_units
+        );
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file3_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file4_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, new_folder.id)
+            .unwrap()
+            .is_none());
+    }
 }
