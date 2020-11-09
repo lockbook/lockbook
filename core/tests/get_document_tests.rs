@@ -48,7 +48,8 @@ mod get_document_tests {
                     content_version: doc.content_version,
                 },
             )
-            .unwrap().content,
+            .unwrap()
+            .content,
         );
         assert_eq!(result, String::from("doc content").into_bytes());
     }

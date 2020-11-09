@@ -88,8 +88,7 @@ mod move_document_tests {
         .unwrap();
 
         // move document that wasn't created
-        let (mut doc, _) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = folder.id;
         let result = DefaultClient::request(
             &account.api_url,
@@ -133,8 +132,7 @@ mod move_document_tests {
         .unwrap();
 
         // move document to folder that was never created
-        let (folder, _) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (folder, _) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         doc.parent = folder.id;
         let result = DefaultClient::request(
             &account.api_url,
