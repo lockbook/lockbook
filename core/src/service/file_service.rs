@@ -522,7 +522,7 @@ impl<
     }
 
     fn delete_folder(db: &Db, id: Uuid) -> Result<(), DeleteFolderError> {
-        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DeleteFolderError::MetadataError)?
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
 
@@ -537,21 +537,29 @@ impl<
             .map_err(DeleteFolderError::FindingChildrenFailed)?;
 
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
-        for file in files_to_delete {
+        for mut file in files_to_delete {
             if file.file_type == Document {
                 FileDb::delete_if_exists(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
-            if file.id != id {
+            let moved = if let Some(change) = ChangesDb::get_local_changes(&db, file.id)
+                .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?
+            {
+                change.moved.is_some()
+            } else {
+                false
+            };
+
+            if file.id != id && !moved {
                 FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
 
                 ChangesDb::delete_if_exists(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
             } else {
-                file_metadata.deleted = true;
-                FileMetadataDb::insert(&db, &file_metadata)
+                file.deleted = true;
+                FileMetadataDb::insert(&db, &file)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
             }
         }
@@ -840,16 +848,8 @@ mod unit_tests {
         assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 2);
         assert_no_metadata_problems!(&db);
 
-        println!(
-            "{:?}",
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
-        );
         let file =
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/test3.txt").unwrap();
-        println!(
-            "{:?}",
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
-        );
         assert_total_filtered_paths!(&db, None, 7);
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
