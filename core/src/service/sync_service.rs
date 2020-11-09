@@ -573,12 +573,12 @@ impl<
 
                     ChangeDb::untrack_new_file(&db, metadata.id)
                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    ChangeDb::untrack_move(&db, metadata.id)
-                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    ChangeDb::untrack_rename(&db, metadata.id)
-                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    ChangeDb::untrack_edit(&db, metadata.id)
-                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
+                    // return early to allow any other child operations like move can be sent to the
+                    // server
+                    if local_change.deleted && metadata.file_type == Folder {
+                        return Ok(());
+                    }
                 }
 
                 if local_change.renamed.is_some() {

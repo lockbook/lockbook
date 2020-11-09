@@ -309,7 +309,26 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
     }
 
     fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
-        Self::delete_if_exists(&db, id)
+        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+
+        match Self::get_local_changes(&db, id)? {
+            None => Ok(()),
+            Some(mut new) => {
+                new.new = false;
+
+                if !new.deleted {
+                    Self::delete_if_exists(&db, new.id)?
+                } else {
+                    tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::SledError)?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError> {
