@@ -36,8 +36,7 @@ mod change_document_content_tests {
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // change document content
         DefaultClient::request(
