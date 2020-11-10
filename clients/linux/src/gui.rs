@@ -321,6 +321,7 @@ impl LockbookApp {
 
         let d = self.gui.new_dialog("Confirm Delete");
         d.get_content_area().add(&GtkLabel::new(Some(&msg)));
+        d.get_content_area().show_all();
         d.add_button("Cancel", GtkResponseType::Cancel);
         d.add_button("Delete", GtkResponseType::Yes);
 
