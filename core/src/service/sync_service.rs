@@ -535,7 +535,7 @@ impl<
     ) -> Result<(), WorkExecutionError> {
         match ChangeDb::get_local_changes(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
             None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
-            Some(local_change) => {
+            Some(mut local_change) => { // TODO this needs to be mut because the untracks are not taking effect
                 if local_change.new {
                     if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
@@ -573,6 +573,10 @@ impl<
 
                     ChangeDb::untrack_new_file(&db, metadata.id)
                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.new = false;
+                    local_change.renamed = None;
+                    local_change.content_edited = None;
+                    local_change.moved = None;
 
                     // return early to allow any other child operations like move can be sent to the
                     // server
@@ -603,6 +607,7 @@ impl<
                     FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                     ChangeDb::untrack_rename(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.renamed = None;
                 }
 
                 if local_change.moved.is_some() {
@@ -630,6 +635,7 @@ impl<
                     FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                     ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.moved = None;
                 }
 
                 if local_change.content_edited.is_some() && metadata.file_type == Document {
@@ -647,6 +653,7 @@ impl<
                     FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                     ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.content_edited = None;
                 }
 
                 if local_change.deleted {
@@ -669,6 +676,7 @@ impl<
 
                     ChangeDb::delete_if_exists(&db, metadata.id)
                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.deleted = false;
 
                     FileMetadataDb::non_recursive_delete_if_exists(&db, metadata.id)
                         .map_err(WorkExecutionError::MetadataRepoError)?; // Now it's safe to delete this locally
