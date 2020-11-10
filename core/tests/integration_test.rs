@@ -8,14 +8,16 @@ use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
-use lockbook_core::repo::file_metadata_repo::FILE_METADATA;
+use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AesImpl, PubKeyCryptoService, RsaImpl, SymmetricCryptoService,
 };
-use lockbook_core::{Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultLocalChangesRepo};
+use lockbook_core::{
+    Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+};
 use rsa::RSAPublicKey;
 use std::env;
 use uuid::Uuid;
@@ -136,6 +138,11 @@ pub fn assert_dbs_eq(db1: &Db, db2: &Db) {
     assert_eq!(
         DefaultDbVersionRepo::get(&db1).unwrap(),
         DefaultDbVersionRepo::get(&db2).unwrap()
+    );
+
+    assert_eq!(
+        DefaultFileMetadataRepo::get_last_updated(&db1).unwrap(),
+        DefaultFileMetadataRepo::get_last_updated(&db2).unwrap()
     );
 
     let tree1 = db1.open_tree(b"documents").unwrap();
