@@ -15,6 +15,7 @@ pub enum Msg {
     OpenFile(Uuid),
     SaveFile,
     CloseFile,
+    DeleteFile(Uuid),
 
     ToggleTreeCol(FileTreeCol),
 
