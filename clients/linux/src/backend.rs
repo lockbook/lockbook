@@ -8,6 +8,8 @@ use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
+    get_and_get_children_recursively,
+    delete_file,
     calculate_work, create_account, create_file_at_path, execute_work, export_account, get_account,
     get_children, get_db_state, get_file_by_id, get_file_by_path, get_last_synced, get_root,
     get_usage, import_account, list_paths, migrate_db, read_document, set_last_synced,
@@ -213,6 +215,20 @@ impl LbCore {
     pub fn read(&self, id: Uuid) -> Result<DecryptedValue, String> {
         match read_document(&self.config, id) {
             Ok(dval) => Ok(dval),
+            Err(err) => Err(format!("{:?}", err)),
+        }
+    }
+
+    pub fn get_children_recursively(&self, id: Uuid) -> Result<Vec<FileMetadata>, String> {
+        match get_and_get_children_recursively(&self.config, id) {
+            Ok(children) => Ok(children),
+            Err(err) => Err(format!("{:?}", err)),
+        }
+    }
+
+    pub fn delete(&self, id: Uuid) -> Result<(), String> {
+        match delete_file(&self.config, id) {
+            Ok(_) => Ok(()),
             Err(err) => Err(format!("{:?}", err)),
         }
     }
