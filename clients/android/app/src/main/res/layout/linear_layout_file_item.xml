@@ -15,26 +15,26 @@
         android:paddingVertical="5dp">
 
         <TextView
-            android:id="@+id/file_name"
+            android:id="@+id/linear_file_name"
             style="@style/File.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginTop="5dp"
-            app:layout_constraintStart_toEndOf="@+id/file_icon"
+            app:layout_constraintStart_toEndOf="@+id/linear_file_icon"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/file_description"
+            android:id="@+id/linear_file_description"
             style="@style/File.SubTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="@+id/file_name"
-            app:layout_constraintTop_toBottomOf="@+id/file_name" />
+            app:layout_constraintStart_toStartOf="@+id/linear_file_name"
+            app:layout_constraintTop_toBottomOf="@+id/linear_file_name" />
 
         <ImageView
-            android:id="@+id/file_icon"
+            android:id="@+id/linear_file_icon"
             android:layout_width="30dp"
             android:layout_height="50dp"
             android:layout_marginStart="10dp"
