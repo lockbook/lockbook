@@ -88,7 +88,8 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_sort_a_z,
             R.id.menu_list_files_sort_z_a,
             R.id.menu_list_files_sort_first_changed,
-            R.id.menu_list_files_sort_type -> {
+            R.id.menu_list_files_sort_type,
+            R.id.menu_list_files_file_layout -> {
                 menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
@@ -120,6 +121,7 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
                 if (fragment.listFilesViewModel.selectedFiles.filter { selectedFile -> selectedFile }.size == 1) {
                     menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                     menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
@@ -132,6 +134,7 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
             }
         } else {
@@ -144,6 +147,7 @@ class ListFilesActivity : AppCompatActivity() {
         menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
         if (selected.filter { selectedFile -> selectedFile }.size == 1) {
             menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
             menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
