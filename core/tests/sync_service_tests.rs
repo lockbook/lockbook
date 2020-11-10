@@ -14,7 +14,7 @@ mod sync_tests {
         DefaultLocalChangesRepo, DefaultSyncService,
     };
 
-    use crate::integration_test::{generate_account, test_db};
+    use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
     #[test]
@@ -205,7 +205,7 @@ mod sync_tests {
                 .secret,
             "meaningful messages".to_string()
         );
-        assert_eq!(&db.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db, &db2);
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_all(&db1).unwrap(),
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
 
         let new_folder =
             DefaultFileService::create_at_path(&db1, &format!("{}/folder2/", account.username))
@@ -258,7 +258,7 @@ mod sync_tests {
                 .len(),
             2
         );
-        assert_ne!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
 
         DefaultSyncService::sync(&db1).unwrap();
         assert_eq!(
@@ -296,7 +296,7 @@ mod sync_tests {
             "nice document"
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -345,12 +345,7 @@ mod sync_tests {
         DefaultFileService::move_file(&db1, file.id, new_folder2.id).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
-            DefaultFileMetadataRepo::get_all(&db2).unwrap()
-        );
-
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
 
         assert_eq!(
             DefaultFileMetadataRepo::get(&db1, file.id).unwrap().parent,
@@ -414,7 +409,7 @@ mod sync_tests {
             .name,
             "folder1-new"
         );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -469,7 +464,7 @@ mod sync_tests {
             .name,
             "folder2-new"
         );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -567,7 +562,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -654,7 +649,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -724,7 +719,7 @@ mod sync_tests {
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -786,7 +781,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -852,7 +847,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -918,7 +913,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -984,7 +979,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
