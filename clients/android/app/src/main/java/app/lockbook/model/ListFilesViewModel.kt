@@ -19,7 +19,10 @@ import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
+import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
+import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
+import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
 import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
@@ -52,6 +55,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
+    private val _switchToGridLayout = SingleMutableLiveData<String>()
     private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _showCreateFileDialog = SingleMutableLiveData<CreateFileInfo>()
@@ -88,6 +92,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
+
+    val switchToGridLayout: LiveData<String>
+        get() = _switchToGridLayout
 
     val switchMenu: LiveData<Unit>
         get() = _switchMenu
@@ -163,7 +170,13 @@ class ListFilesViewModel(path: String, application: Application) :
                         .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
                     Unit
                 }
-                SYNC_AUTOMATICALLY_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> Unit
+                FILE_LAYOUT_KEY -> {
+                    if()
+                }
+                SORT_FILES_KEY -> {
+                    fileModel.refreshFiles()
+                }
+                SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> Unit
                 else -> {
                     _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
@@ -272,6 +285,14 @@ class ListFilesViewModel(path: String, application: Application) :
                         SORT_FILES_KEY,
                         SORT_FILES_TYPE
                     ).apply()
+                    R.id.menu_list_files_linear_view -> pref.putString(
+                        FILE_LAYOUT_KEY,
+                        LINEAR_LAYOUT
+                    ).apply()
+                    R.id.menu_list_files_grid_view -> pref.putString(
+                        FILE_LAYOUT_KEY,
+                        GRID_LAYOUT
+                    ).apply()
                     R.id.menu_list_files_rename -> {
                         files.value?.let { files ->
                             val checkedFiles = files.filterIndexed { index, _ ->
@@ -316,13 +337,6 @@ class ListFilesViewModel(path: String, application: Application) :
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }.exhaustive
-
-                val files = fileModel.files.value
-                if (files is List<FileMetadata>) {
-                    fileModel.matchToDefaultSortOption(files)
-                } else {
-                    _errorHasOccurred.postValue("Unable to retrieve files from LiveData.")
-                }
             }
         }
     }

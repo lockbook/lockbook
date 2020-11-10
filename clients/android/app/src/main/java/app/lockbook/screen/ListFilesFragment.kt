@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.content.Intent
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,10 +11,16 @@ import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
+import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
-import app.lockbook.model.FilesAdapter
+import app.lockbook.model.GeneralViewAdapter
+import app.lockbook.model.GridRecyclerViewAdapter
+import app.lockbook.model.LinearRecyclerViewAdapter
 import app.lockbook.model.ListFilesViewModel
 import app.lockbook.modelfactory.ListFilesViewModelFactory
 import app.lockbook.ui.CreateFileDialogFragment
@@ -65,17 +72,16 @@ class ListFilesFragment : Fragment() {
             container,
             false
         )
+
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
             ListFilesViewModelFactory(application.filesDir.absolutePath, application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-        val adapter =
-            FilesAdapter(listFilesViewModel)
+            LinearRecyclerViewAdapter(listFilesViewModel)
 
         binding.listFilesViewModel = listFilesViewModel
-        binding.filesList.adapter = adapter
-        binding.filesList.layoutManager = LinearLayoutManager(context)
+        val adapter = setFileAdapter(binding)
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
@@ -229,7 +235,31 @@ class ListFilesFragment : Fragment() {
         return binding.root
     }
 
-    private fun unSelectAllFiles(adapter: FilesAdapter) {
+    private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
+        val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
+            .getString(SharedPreferences.FILE_LAYOUT_KEY, SharedPreferences.LINEAR_LAYOUT)
+
+        if(fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
+            val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
+            binding.filesList.adapter = adapter
+            binding.filesList.layoutManager = LinearLayoutManager(context)
+            return adapter
+        } else {
+            val orientation = resources.configuration.orientation
+            val adapter = GridRecyclerViewAdapter(listFilesViewModel)
+            binding.filesList.adapter = adapter
+
+            if (orientation == ORIENTATION_PORTRAIT) {
+                binding.filesList.layoutManager = GridLayoutManager(context, 3)
+            } else {
+                binding.filesList.layoutManager = GridLayoutManager(context, 6)
+            }
+
+            return adapter
+        }
+    }
+
+    private fun unSelectAllFiles(adapter: GeneralViewAdapter) {
         adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
@@ -339,7 +369,7 @@ class ListFilesFragment : Fragment() {
 
     private fun updateRecyclerView(
         files: List<FileMetadata>,
-        adapter: FilesAdapter
+        adapter: GeneralViewAdapter
     ) {
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
@@ -410,12 +440,6 @@ class ListFilesFragment : Fragment() {
         val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-
-//        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
-//        parentFragmentManager.registerFragmentLifecycleCallbacks(
-//                fragmentFinishedCallback,
-//            false
-//        )
     }
 
     fun onBackPressed(): Boolean {
