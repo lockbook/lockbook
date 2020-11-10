@@ -23,7 +23,7 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MoveFileViewHolder =
         MoveFileViewHolder(
             LayoutInflater.from(parent.context)
-                .inflate(R.layout.recyclerview_content_files, parent, false) as CardView
+                .inflate(R.layout.linear_layout_file_item, parent, false) as CardView
         )
 
     override fun getItemCount(): Int = files.size

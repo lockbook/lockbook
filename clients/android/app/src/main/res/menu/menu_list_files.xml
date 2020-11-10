@@ -34,6 +34,26 @@
     </item>
 
     <item
+        android:id="@+id/menu_list_files_file_layout"
+        android:icon="@drawable/ic_baseline_blur_linear_24"
+        android:orderInCategory="2"
+        android:title="@string/menu_sort"
+        app:showAsAction="always">
+        <menu>
+            <group
+                android:id="@+id/file_layout_options"
+                android:checkableBehavior="single">
+                <item
+                    android:id="@+id/menu_list_files_linear_view"
+                    android:title="@string/menu_list_files_linear_layout" />
+                <item
+                    android:id="@+id/menu_list_files_grid_view"
+                    android:title="@string/menu_list_files_grid_layout" />
+            </group>
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/menu_list_files_info"
         android:icon="@drawable/ic_baseline_info_24"
         android:orderInCategory="1"
