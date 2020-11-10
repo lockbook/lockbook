@@ -8,13 +8,11 @@ use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
-    get_and_get_children_recursively,
-    delete_file,
-    calculate_work, create_account, create_file_at_path, execute_work, export_account, get_account,
-    get_children, get_db_state, get_file_by_id, get_file_by_path, get_last_synced, get_root,
-    get_usage, import_account, list_paths, migrate_db, read_document, set_last_synced,
-    write_document, AccountExportError, CalculateWorkError, CreateAccountError, Error as CoreError,
-    ExecuteWorkError, GetAccountError, SetLastSyncedError,
+    calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
+    get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
+    get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
+    read_document, set_last_synced, write_document, AccountExportError, CalculateWorkError,
+    CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
 };
 
 fn api_url() -> String {
@@ -244,6 +242,8 @@ impl LbCore {
             };
             !work_calculated.work_units.is_empty()
         } {
+            let mut has_errors = false;
+
             for wu in work_calculated.work_units {
                 let (prefix, meta) = match &wu {
                     WorkUnit::LocalChange { metadata } => ("Pushing", metadata),
@@ -257,17 +257,22 @@ impl LbCore {
                 if let Err(err) = self.do_work(&account, wu) {
                     chan.send(LbSyncMsg::Error(format!("{}: {:?}", action, err)))
                         .unwrap();
+                    has_errors = true;
+                }
+            }
+
+            if !has_errors {
+                if let Err(err) =
+                    self.set_last_synced(work_calculated.most_recent_update_from_server)
+                {
+                    chan.send(LbSyncMsg::Error(format!("setting last sync: {:?}", err)))
+                        .unwrap();
                 }
             }
         }
 
-        match self.set_last_synced(work_calculated.most_recent_update_from_server) {
-            Ok(_) => {
-                chan.send(LbSyncMsg::Done).unwrap();
-                Ok(())
-            }
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        chan.send(LbSyncMsg::Done).unwrap();
+        Ok(())
     }
 
     pub fn calculate_work(&self) -> Result<WorkCalculated, CoreError<CalculateWorkError>> {
