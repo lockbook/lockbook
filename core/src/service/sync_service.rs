@@ -692,7 +692,10 @@ impl<
 
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
-                    Ok(_) => debug!("{:#?} executed successfully", work_unit),
+                    Ok(_) => {
+                        debug!("{:#?} executed successfully", work_unit);
+                        sync_errors.remove(&work_unit.get_metadata().id);
+                    }
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
                         sync_errors.insert(work_unit.get_metadata().id, err);
