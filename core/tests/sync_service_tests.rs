@@ -240,10 +240,6 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db2).unwrap();
 
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
-            DefaultFileMetadataRepo::get_all(&db2).unwrap()
-        );
         assert_dbs_eq(&db1, &db2);
 
         let new_folder =
@@ -258,7 +254,6 @@ mod sync_tests {
                 .len(),
             2
         );
-        assert_dbs_eq(&db1, &db2);
 
         DefaultSyncService::sync(&db1).unwrap();
         assert_eq!(

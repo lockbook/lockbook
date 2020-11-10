@@ -719,6 +719,8 @@ impl<
         }
 
         if sync_errors.is_empty() {
+            FileMetadataDb::set_last_synced(&db, work_calculated.most_recent_update_from_server)
+                .map_err(SyncError::MetadataUpdateError)?;
             Ok(())
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);

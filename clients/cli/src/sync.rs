@@ -67,6 +67,5 @@ pub fn sync() {
         }
     }
 
-    update_last_synced(work_calculated.most_recent_update_from_server);
     println!("Sync complete.");
 }
