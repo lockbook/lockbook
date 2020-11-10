@@ -18,8 +18,6 @@ pub fn sync() {
     let account = get_account_or_exit();
     let config = get_config();
 
-    let mut work_calculated: WorkCalculated;
-
     let update_last_synced = |time| match set_last_synced(&config, time) {
         Ok(_) => {}
         Err(err) => match err {
@@ -30,6 +28,7 @@ pub fn sync() {
         },
     };
 
+    let mut work_calculated: WorkCalculated;
     while {
         work_calculated = match calculate_work(&config) {
             Ok(work) => work,
