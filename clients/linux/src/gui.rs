@@ -325,12 +325,7 @@ impl LockbookApp {
         d.add_button("Cancel", GtkResponseType::Cancel);
         d.add_button("Delete", GtkResponseType::Yes);
 
-        let confirmed = match d.run() {
-            GtkResponseType::Yes => true,
-            _ => false,
-        };
-
-        if confirmed {
+        if d.run() == GtkResponseType::Yes {
             match self.core.delete(id) {
                 Ok(_) => self.gui.account.sidebar.tree.remove(&meta.id),
                 Err(err) => println!("{}", err),
