@@ -15,12 +15,14 @@ pub enum Msg {
     OpenFile(Uuid),
     SaveFile,
     CloseFile,
+    DeleteFile(Uuid),
 
     ToggleTreeCol(FileTreeCol),
 
     ShowDialogNew,
     ShowDialogOpen,
     ShowDialogPreferences,
+    ShowDialogUsage,
     ShowDialogAbout,
 
     UnexpectedErr(String, String),
