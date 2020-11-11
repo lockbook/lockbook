@@ -81,7 +81,7 @@ class ListFilesFragment : Fragment() {
             LinearRecyclerViewAdapter(listFilesViewModel)
 
         binding.listFilesViewModel = listFilesViewModel
-        val adapter = setFileAdapter(binding)
+        var adapter = setFileAdapter(binding)
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
@@ -148,6 +148,14 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { editableFile ->
                 navigateToFileEditor(editableFile)
+            }
+        )
+
+        listFilesViewModel.switchFileLayout.observe(
+            viewLifecycleOwner,
+            {
+                adapter = setFileAdapter(binding)
+                listFilesViewModel.refreshAndAssessChanges()
             }
         )
 
@@ -451,6 +459,6 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
+        listFilesViewModel.handleActivityResult(requestCode)
     }
 }
