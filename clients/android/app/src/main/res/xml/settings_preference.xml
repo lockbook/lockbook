@@ -67,7 +67,7 @@
             android:title="@string/settings_preference_background_title_background_sync_enabled"
             app:iconSpaceReserved="false" />
 
-        <app.lockbook.utils.NumberPickerPreference
+        <app.lockbook.ui.NumberPickerPreference
             android:defaultValue="15"
             android:key="background_sync_period"
             android:summary="@string/settings_preference_background_summary_sync_period"

@@ -3,14 +3,21 @@
 use lockbook_core::model::account::Account;
 use lockbook_core::model::crypto::SignedValue;
 use lockbook_core::model::crypto::*;
+use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::state::Config;
+use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
+use lockbook_core::repo::db_version_repo::DbVersionRepo;
+use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
+use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 use lockbook_core::service::auth_service::{AuthService, AuthServiceImpl};
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AesImpl, PubKeyCryptoService, RsaImpl, SymmetricCryptoService,
 };
-use lockbook_core::Db;
+use lockbook_core::{
+    Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+};
 use rsa::RSAPublicKey;
 use std::env;
 use uuid::Uuid;
@@ -102,4 +109,51 @@ pub fn rsa_key(encrypting_key: &RSAPublicKey, encrypted_key: &AesKey) -> Encrypt
         },
     )
     .unwrap()
+}
+
+pub fn assert_dbs_eq(db1: &Db, db2: &Db) {
+    let tree1 = db1.open_tree(FILE_METADATA).unwrap();
+    let value1: Vec<FileMetadata> = tree1
+        .iter()
+        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .collect();
+    let tree2 = db2.open_tree(FILE_METADATA).unwrap();
+    let value2: Vec<FileMetadata> = tree2
+        .iter()
+        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .collect();
+
+    assert_eq!(value1, value2);
+
+    assert_eq!(
+        DefaultAccountRepo::get_account(&db1).unwrap(),
+        DefaultAccountRepo::get_account(&db2).unwrap()
+    );
+
+    assert_eq!(
+        DefaultLocalChangesRepo::get_all_local_changes(&db1).unwrap(),
+        DefaultLocalChangesRepo::get_all_local_changes(&db2).unwrap()
+    );
+
+    assert_eq!(
+        DefaultDbVersionRepo::get(&db1).unwrap(),
+        DefaultDbVersionRepo::get(&db2).unwrap()
+    );
+
+    assert_eq!(
+        DefaultFileMetadataRepo::get_last_updated(&db1).unwrap(),
+        DefaultFileMetadataRepo::get_last_updated(&db2).unwrap()
+    );
+
+    let tree1 = db1.open_tree(b"documents").unwrap();
+    let value1: Vec<Document> = tree1
+        .iter()
+        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .collect();
+    let tree2 = db2.open_tree(b"documents").unwrap();
+    let value2: Vec<Document> = tree2
+        .iter()
+        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .collect();
+    assert_eq!(value1, value2);
 }

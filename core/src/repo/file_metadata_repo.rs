@@ -95,7 +95,7 @@ pub trait FileMetadataRepo {
 
 pub struct FileMetadataRepoImpl;
 
-static FILE_METADATA: &[u8; 13] = b"file_metadata";
+pub static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 

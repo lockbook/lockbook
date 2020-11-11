@@ -55,6 +55,18 @@ impl FileTree {
             m.send(Msg::OpenFile(iter_uuid));
         }));
 
+        let m = m.clone();
+        tree.connect_key_press_event(move |tree, key| {
+            if key.get_hardware_keycode() == 119 {
+                if let Some((model, iter)) = tree.get_selection().get_selected() {
+                    let iter_id = tree_iter_value!(model, &iter, 1, String);
+                    let id = Uuid::parse_str(&iter_id).unwrap();
+                    m.send(Msg::DeleteFile(id));
+                }
+            }
+            gtk::Inhibit(false)
+        });
+
         let cols = FileTreeCol::all();
         for c in &cols {
             if c.name().eq("Name") || !hidden_cols.contains(&c.name()) {
@@ -132,11 +144,11 @@ impl FileTree {
         }
     }
 
-    /*pub fn remove(&self, id: &Uuid) {
+    pub fn remove(&self, id: &Uuid) {
         if let Some(iter) = self.search(&self.iter(), &id) {
             self.model.remove(&iter);
         }
-    }*/
+    }
 
     pub fn toggle_col(&self, col: &FileTreeCol) {
         match col {

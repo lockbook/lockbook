@@ -15,6 +15,7 @@
   <color name="white">#FFFFFF</color>
   <color name="grey">#787878</color>
 
+  <color name="selectedFileBackground">#64B5F6</color>
   <color name="navigationBarColor">@color/white</color>
   <color name="iconStatusBarColor">@color/white</color>
   <color name="colorPrimary">@color/blue</color>

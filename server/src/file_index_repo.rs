@@ -502,6 +502,7 @@ impl FileMoveResponse {
     }
 }
 
+#[derive(Debug)]
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_deleted: bool,
@@ -510,6 +511,7 @@ pub struct FileDeleteResponse {
     pub is_folder: bool,
 }
 
+#[derive(Debug)]
 pub struct FileDeleteResponses {
     pub responses: Vec<FileDeleteResponse>,
 }
