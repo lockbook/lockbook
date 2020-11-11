@@ -7,7 +7,7 @@ import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.RegularClickInterface
-import kotlinx.android.synthetic.main.recyclerview_content_files.view.*
+import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
 import java.sql.Date
 import java.sql.Timestamp
 
@@ -33,9 +33,9 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
 
         val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
-        holder.cardView.file_name.text = item.name
+        holder.cardView.linear_file_name.text = item.name
 
-        holder.cardView.file_description.text = if (position != 0) {
+        holder.cardView.linear_file_description.text = if (position != 0) {
             holder.cardView.resources.getString(
                 R.string.last_synced,
                 if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
@@ -44,7 +44,7 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
             item.parent
         }
 
-        holder.cardView.file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+        holder.cardView.linear_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
     }
 
     inner class MoveFileViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
