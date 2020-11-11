@@ -34,7 +34,8 @@ use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{
-    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
+    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
+    FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
 use crate::service::account_service::AccountExportError as ASAccountExportError;
@@ -471,6 +472,32 @@ pub fn get_children(
     match DefaultFileMetadataRepo::get_children_non_recursively(&db, id) {
         Ok(file_metadata_list) => Ok(file_metadata_list),
         Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetAndGetChildrenError {
+    FileDoesNotExist,
+    DocumentTreatedAsFolder,
+}
+
+pub fn get_and_get_children_recursively(
+    config: &Config,
+    id: Uuid,
+) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
+    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+
+    match DefaultFileMetadataRepo::get_and_get_children_recursively(&db, id) {
+        Ok(children) => Ok(children),
+        Err(err) => match err {
+            FindingChildrenFailed::FileDoesNotExist => {
+                Err(Error::UiError(GetAndGetChildrenError::FileDoesNotExist))
+            }
+            FindingChildrenFailed::DocumentTreatedAsFolder => Err(Error::UiError(
+                GetAndGetChildrenError::DocumentTreatedAsFolder,
+            )),
+            FindingChildrenFailed::DbError(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+        },
     }
 }
 
