@@ -8,6 +8,7 @@ import app.lockbook.R
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
+import kotlinx.android.synthetic.main.grid_layout_file_item.view.*
 import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
 
 abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInterface): RecyclerView.Adapter<GeneralViewAdapter.FileViewHolder>() {
@@ -48,12 +49,24 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
                         App.instance.theme
                     )
                 )
-                cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                if(cardView.linear_file_icon != null) {
+                    cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                } else {
+                    cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                }
             } else {
                 if (fileMetadata.fileType == FileType.Document) {
-                    cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                    if(cardView.linear_file_icon != null) {
+                        cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                    } else {
+                        cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                    }
                 } else {
-                    cardView.linear_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                    if(cardView.linear_file_icon != null) {
+                        cardView.linear_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                    } else {
+                        cardView.grid_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                    }
                 }
                 cardView.background.setTintList(null)
                 cardView.background.setTint(
