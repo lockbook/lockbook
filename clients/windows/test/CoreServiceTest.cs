@@ -12,11 +12,16 @@ namespace test {
             get { return new CoreService(lockbookDir); }
         }
 
-        // todo: test helper to assert status and print things otherwise
-
-
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
+        }
+
+        public TExpected CastOrDie<TExpected, TActual>(TActual actual, out TExpected expected) where TExpected : TActual {
+            if (typeof(TExpected) == actual.GetType()) {
+                expected = (TExpected)actual;
+                return expected;
+            }
+            throw new InvalidCastException(string.Format("cannot cast {0} to {1}", actual.GetType().FullName, typeof(TExpected).FullName));
         }
 
         [TestInitialize]
@@ -24,6 +29,12 @@ namespace test {
             try {
                 Directory.Delete(lockbookDir, true);
             } catch (DirectoryNotFoundException) { }
+        }
+
+        [TestMethod]
+        public void GetDbState() {
+            var getDbStateResult = CoreService.GetDbState().WaitResult();
+            CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
         }
 
         [TestMethod]
@@ -35,9 +46,9 @@ namespace test {
         public void AccountExistsTrue() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
             var getAccountResult = CoreService.GetAccount().WaitResult();
-            Assert.AreEqual(typeof(Core.GetAccount.Success), getAccountResult.GetType());
+            CastOrDie(getAccountResult, out Core.GetAccount.Success _);
             Assert.IsTrue(CoreService.AccountExists().WaitResult());
         }
 
@@ -45,7 +56,7 @@ namespace test {
         public void CreateAccountSuccess() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
         }
 
         [TestMethod]
@@ -53,14 +64,13 @@ namespace test {
             // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // create another account
             var username2 = RandomUsername();
             var createAccountResult2 = CoreService.CreateAccount(username2).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult2.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.AccountExistsAlready,
-                ((Core.CreateAccount.ExpectedError)createAccountResult2).Error);
+                CastOrDie(createAccountResult2, out Core.CreateAccount.ExpectedError _).Error);
         }
 
         [TestMethod]
@@ -68,29 +78,27 @@ namespace test {
             // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // sync account to the server
             var syncResult = CoreService.SyncAll().WaitResult();
-            Assert.AreEqual(typeof(Core.SyncAll.Success), syncResult.GetType());
+            CastOrDie(syncResult, out Core.SyncAll.Success _);
 
             // delete directory to avoid AccountExistsAlready
             Directory.Delete(lockbookDir, true);
 
             // create account with the same name
             var createAccountResult2 = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult2.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.UsernameTaken,
-                ((Core.CreateAccount.ExpectedError)createAccountResult2).Error);
+                CastOrDie(createAccountResult2, out Core.CreateAccount.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void CreateAccountInvalidUsername() {
             var username = "not! a! valid! username!";
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.ExpectedError), createAccountResult.GetType());
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
-                ((Core.CreateAccount.ExpectedError)createAccountResult).Error);
+                CastOrDie(createAccountResult, out Core.CreateAccount.ExpectedError _).Error);
         }
 
         [TestMethod]
@@ -98,27 +106,27 @@ namespace test {
             // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // get account
             var getAccountResult = CoreService.GetAccount().WaitResult();
-            Assert.AreEqual(typeof(Core.GetAccount.Success), getAccountResult.GetType());
+            CastOrDie(getAccountResult, out Core.GetAccount.Success _);
         }
 
         [TestMethod]
         public void GetAccountNoAccount() {
             // get account
             var getAccountResult = CoreService.GetAccount().WaitResult();
-            Assert.AreEqual(typeof(Core.GetAccount.ExpectedError), getAccountResult.GetType());
             Assert.AreEqual(Core.GetAccount.PossibleErrors.NoAccount,
-               ((Core.GetAccount.ExpectedError)getAccountResult).Error);
+               CastOrDie(getAccountResult, out Core.GetAccount.ExpectedError _).Error);
         }
+
         [TestMethod]
         public void ImportAccount() {
             // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // export account string
             var accountString = "TODO";
@@ -128,14 +136,14 @@ namespace test {
 
             // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
-            Assert.AreEqual(typeof(Core.ImportAccount.Success), importAccountResult.GetType());
+            CastOrDie(importAccountResult, out Core.ImportAccount.Success _);
         }
 
         [TestMethod]
         public void ImportAccountAccountStringCorrupted() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // export account string
             var accountString = "#######!!@$@%";
@@ -145,10 +153,8 @@ namespace test {
 
             // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
-            Assert.AreEqual(typeof(Core.ImportAccount.ExpectedError), importAccountResult.GetType());
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
-                ((Core.ImportAccount.ExpectedError)importAccountResult).Error);
-
+                CastOrDie(importAccountResult, out Core.ImportAccount.ExpectedError _).Error);
         }
 
         [TestMethod]
@@ -156,227 +162,205 @@ namespace test {
             // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // list file metadata
             var listFileMetadataResult = CoreService.ListMetadatas().WaitResult();
-            Assert.AreEqual(typeof(Core.ListMetadatas.Success), listFileMetadataResult.GetType());
+            CastOrDie(listFileMetadataResult, out Core.ListMetadatas.Success _);
         }
 
         [TestMethod]
         public void SyncAll() {
-            // this one will be tricky let's tackle it later
+            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
+            // sync
             CoreService.SyncAll().WaitResult();
             var syncAllResult = CoreService.SyncAll().WaitResult();
-            Assert.AreEqual(typeof(Core.SyncAll.Success), syncAllResult.GetType());
+            CastOrDie(syncAllResult, out Core.SyncAll.Success _);
         }
 
         [TestMethod]
         public void SyncAllNoAccount() {
-
             CoreService.SyncAll().WaitResult();
             var syncAllResult = CoreService.SyncAll().WaitResult();
-            Assert.AreEqual(typeof(Core.SyncAll.ExpectedError), syncAllResult.GetType());
             Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
-                ((Core.SyncAll.ExpectedError)syncAllResult).Error);
+                CastOrDie(syncAllResult, out Core.SyncAll.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void CreateFile() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
         }
 
         [TestMethod]
         public void CreateFileNoAccount() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
             DeleteAccount();
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.ExpectedError), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
-                ((Core.CreateFile.ExpectedError)createFileResult).Error);
+                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void CreateFileDocTreatedAsFolder() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFileResult2 = CoreService.CreateFile("TestFile", fileId, FileType.Document).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.ExpectedError), createFileResult2.GetType());
+            var createFileResult2 = CoreService.CreateFile("TestFile", file.Id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder,
-                ((Core.CreateFile.ExpectedError)createFileResult2).Error);
+                CastOrDie(createFileResult2, out Core.CreateFile.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void WriteDoc() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult(); 
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var writeDocResult = CoreService.WriteDocument(fileId, "content").WaitResult();
-            Assert.AreEqual(typeof(Core.WriteDocument.Success), writeDocResult.GetType());
+            var writeDocResult = CoreService.WriteDocument(file.Id, "content").WaitResult();
+            CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
         }
 
         [TestMethod]
         public void WriteDocNoAccount() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult(); 
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
             DeleteAccount();
 
             var writeDocResult = CoreService.WriteDocument(fileId, "content").WaitResult();
-            Assert.AreEqual(typeof(Core.WriteDocument.ExpectedError), writeDocResult.GetType());
             Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
-                ((Core.WriteDocument.ExpectedError)writeDocResult).Error);
+                CastOrDie(writeDocResult, out Core.WriteDocument.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void ReadDoc() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult(); // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
-            Assert.AreEqual(typeof(Core.ReadDocument.Success), readDocResult.GetType());
+            CastOrDie(readDocResult, out Core.ReadDocument.Success _);
         }
 
         [TestMethod]
         public void ReadDocNoAccount() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult();  // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult(); 
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
             DeleteAccount();
 
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
-            Assert.AreEqual(typeof(Core.ReadDocument.ExpectedError), readDocResult.GetType());
             Assert.AreEqual(Core.ReadDocument.PossibleErrors.NoAccount,
-                ((Core.ReadDocument.ExpectedError)readDocResult).Error);
+                CastOrDie(readDocResult, out Core.ReadDocument.ExpectedError _).Error);
         }
 
         [TestMethod]
         public void RenameFile() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult(); // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
             var renameFileResult = CoreService.RenameFile(fileId, "NewTestFile").WaitResult();
-            Assert.AreEqual(typeof(Core.RenameFile.Success), renameFileResult.GetType());
+            CastOrDie(renameFileResult, out Core.RenameFile.Success _);
         }
 
         [TestMethod]
         public void MoveFile() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult(); // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", id, FileType.Folder).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFolderResult.GetType());
-            var folderId = ((Core.CreateFile.Success)createFolderResult).newFile.Id;
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(fileId, folderId).WaitResult();
-            Assert.AreEqual(typeof(Core.MoveFile.Success), moveFileResult.GetType());
+            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
+            CastOrDie(moveFileResult, out Core.MoveFile.Success _);
         }
 
         [TestMethod]
         public void MoveFileNoAccount() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateAccount.Success), createAccountResult.GetType());
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
-            Assert.AreEqual(typeof(Core.GetRoot.Success), getRootResult.GetType());
-            var id = ((Core.GetRoot.Success)getRootResult).root.Id;
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", id, FileType.Document).WaitResult(); // TODO: get root and use id instead of username
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFileResult.GetType());
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", id, FileType.Folder).WaitResult();
-            Assert.AreEqual(typeof(Core.CreateFile.Success), createFolderResult.GetType());
-            var folderId = ((Core.CreateFile.Success)createFolderResult).newFile.Id;
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
             DeleteAccount();
 
-            var moveFileResult = CoreService.MoveFile(fileId, folderId).WaitResult();
-            Assert.AreEqual(typeof(Core.MoveFile.ExpectedError), moveFileResult.GetType());
+            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.NoAccount,
-                ((Core.MoveFile.ExpectedError)moveFileResult).Error);
+                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
     }
 }
