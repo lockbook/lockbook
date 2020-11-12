@@ -14,7 +14,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
@@ -36,6 +35,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
@@ -257,10 +257,13 @@ class ListFilesFragment : Fragment() {
             val adapter = GridRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
 
+            val displayMetrics = requireContext().resources.displayMetrics
+            val noOfColumns = ((displayMetrics.widthPixels / displayMetrics.density) / 190.5).toInt()
+
             if (orientation == ORIENTATION_PORTRAIT) {
-                binding.filesList.layoutManager = GridLayoutManager(context, 3)
+                binding.filesList.layoutManager = GridLayoutManager(context, noOfColumns)
             } else {
-                binding.filesList.layoutManager = GridLayoutManager(context, 6)
+                binding.filesList.layoutManager = GridLayoutManager(context, noOfColumns)
             }
 
             return adapter
@@ -433,19 +436,28 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showMoveFileDialog(moveFileInfo: MoveFileInfo) {
-        val dialogFragment = MoveFileDialogFragment.newInstance(moveFileInfo.ids, moveFileInfo.names)
+        val dialogFragment = MoveFileDialogFragment.newInstance(
+            moveFileInfo.ids,
+            moveFileInfo.names
+        )
 
         dialogFragment.show(parentFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
     }
 
     private fun showRenameFileDialog(renameFileInfo: RenameFileInfo) {
-        val dialogFragment = RenameFileDialogFragment.newInstance(renameFileInfo.id, renameFileInfo.name)
+        val dialogFragment = RenameFileDialogFragment.newInstance(
+            renameFileInfo.id,
+            renameFileInfo.name
+        )
 
         dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
     }
 
     private fun showCreateFileDialog(createFileInfo: CreateFileInfo) {
-        val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
+        val dialogFragment = CreateFileDialogFragment.newInstance(
+            createFileInfo.parentId,
+            createFileInfo.fileType
+        )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
     }

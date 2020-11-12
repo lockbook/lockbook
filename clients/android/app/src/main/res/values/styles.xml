@@ -79,7 +79,13 @@
 
     <style name="File.SubTitle" parent="TextAppearance.AppCompat.Small">
         <item name="android:textColor">@color/textColor</item>
-        <item name="alpha">0.4</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:gravity">start</item>
+    </style>
+
+    <style name="File.SubSubTitle" parent="TextAppearance.AppCompat.Small">
+        <item name="android:textColor">@color/textColor</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:gravity">start</item>
     </style>
