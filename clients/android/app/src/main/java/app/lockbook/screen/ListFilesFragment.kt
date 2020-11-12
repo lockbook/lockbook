@@ -36,7 +36,6 @@ import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
 
-
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
@@ -78,7 +77,7 @@ class ListFilesFragment : Fragment() {
             ListFilesViewModelFactory(application.filesDir.absolutePath, application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-            LinearRecyclerViewAdapter(listFilesViewModel)
+        LinearRecyclerViewAdapter(listFilesViewModel)
 
         binding.listFilesViewModel = listFilesViewModel
         var adapter = setFileAdapter(binding)
@@ -247,7 +246,7 @@ class ListFilesFragment : Fragment() {
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getString(SharedPreferences.FILE_LAYOUT_KEY, SharedPreferences.LINEAR_LAYOUT)
 
-        if(fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
+        if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
             val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
             binding.filesList.layoutManager = LinearLayoutManager(context)

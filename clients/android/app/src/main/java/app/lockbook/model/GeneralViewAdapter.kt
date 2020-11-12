@@ -11,10 +11,9 @@ import app.lockbook.util.ListFilesClickInterface
 import kotlinx.android.synthetic.main.grid_layout_file_item.view.*
 import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
 
-abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInterface): RecyclerView.Adapter<GeneralViewAdapter.FileViewHolder>() {
-    abstract var files : List<FileMetadata>
+abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInterface) : RecyclerView.Adapter<GeneralViewAdapter.FileViewHolder>() {
+    abstract var files: List<FileMetadata>
     abstract var selectedFiles: MutableList<Boolean>
-
 
     inner class FileViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
         lateinit var fileMetadata: FileMetadata
@@ -49,20 +48,20 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
                         App.instance.theme
                     )
                 )
-                if(cardView.linear_file_icon != null) {
+                if (cardView.linear_file_icon != null) {
                     cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
                 } else {
                     cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
                 }
             } else {
                 if (fileMetadata.fileType == FileType.Document) {
-                    if(cardView.linear_file_icon != null) {
+                    if (cardView.linear_file_icon != null) {
                         cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
                     } else {
                         cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
                     }
                 } else {
-                    if(cardView.linear_file_icon != null) {
+                    if (cardView.linear_file_icon != null) {
                         cardView.linear_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
                     } else {
                         cardView.grid_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
