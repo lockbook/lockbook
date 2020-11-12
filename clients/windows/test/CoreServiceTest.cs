@@ -129,7 +129,8 @@ namespace test {
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             // export account string
-            var accountString = "TODO";
+            var exportAccountResult = CoreService.ExportAccount().WaitResult();
+            var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
 
             // delete directory to avoid AccountExistsAlready
             Directory.Delete(lockbookDir, true);
