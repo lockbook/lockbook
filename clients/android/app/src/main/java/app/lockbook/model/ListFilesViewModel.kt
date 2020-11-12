@@ -2,7 +2,6 @@ package app.lockbook.model
 
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
-import android.content.Intent
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData

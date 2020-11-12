@@ -4,7 +4,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
-import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.FileMetadata

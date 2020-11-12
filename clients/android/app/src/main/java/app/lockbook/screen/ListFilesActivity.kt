@@ -82,7 +82,7 @@ class ListFilesActivity : AppCompatActivity() {
             }
         }.exhaustive
 
-        when(val optionValue = preference.getString(FILE_LAYOUT_KEY, LINEAR_LAYOUT)) {
+        when (val optionValue = preference.getString(FILE_LAYOUT_KEY, LINEAR_LAYOUT)) {
             LINEAR_LAYOUT -> menu?.findItem(R.id.menu_list_files_linear_view)?.isChecked = true
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
@@ -108,7 +108,7 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_sort_first_changed,
             R.id.menu_list_files_sort_type,
             R.id.menu_list_files_grid_view,
-            R.id.menu_list_files_linear_view-> {
+            R.id.menu_list_files_linear_view -> {
                 menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
