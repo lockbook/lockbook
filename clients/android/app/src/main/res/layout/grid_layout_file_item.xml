@@ -13,13 +13,13 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="5dp">
+        android:padding="3dp">
 
         <TextView
             android:id="@+id/grid_file_name"
             style="@style/File.Title"
             android:layout_width="110dp"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:padding="5dp"
             app:layout_constraintBottom_toTopOf="@+id/grid_file_description1"
             app:layout_constraintEnd_toEndOf="parent"
@@ -29,9 +29,8 @@
         <TextView
             android:id="@+id/grid_file_description1"
             style="@style/File.SubSubTitle"
-            android:layout_width="160dp"
-            android:layout_height="40dp"
-            android:padding="5dp"
+            android:layout_width="165dp"
+            android:layout_height="38dp"
             app:layout_constraintBottom_toTopOf="@+id/grid_file_description2"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -40,9 +39,8 @@
         <TextView
             android:id="@+id/grid_file_description2"
             style="@style/File.SubSubTitle"
-            android:layout_width="160dp"
-            android:layout_height="40dp"
-            android:padding="5dp"
+            android:layout_width="165dp"
+            android:layout_height="38dp"
             app:layout_constraintBottom_toTopOf="@+id/grid_file_description1"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -51,9 +49,8 @@
         <TextView
             android:id="@+id/grid_file_description3"
             style="@style/File.SubSubTitle"
-            android:layout_width="160dp"
+            android:layout_width="165dp"
             android:layout_height="40dp"
-            android:padding="5dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

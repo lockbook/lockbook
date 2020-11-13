@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -243,8 +244,17 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
+        val config = resources.configuration
+
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getString(SharedPreferences.FILE_LAYOUT_KEY, SharedPreferences.LINEAR_LAYOUT)
+            .getString(
+                SharedPreferences.FILE_LAYOUT_KEY,
+                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                    SharedPreferences.GRID_LAYOUT
+                } else {
+                    SharedPreferences.LINEAR_LAYOUT
+                }
+            )
 
         if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
             val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
@@ -252,7 +262,7 @@ class ListFilesFragment : Fragment() {
             binding.filesList.layoutManager = LinearLayoutManager(context)
             return adapter
         } else {
-            val orientation = resources.configuration.orientation
+            val orientation = config.orientation
             val adapter = GridRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
 
