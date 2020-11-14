@@ -289,7 +289,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         files.value?.let { files ->
                             val checkedIds = getSelectedFiles(files).map { file -> file.id }
                             collapseMoreOptionsMenu()
-                            if(fileModel.deleteFiles(checkedIds)) {
+                            if (fileModel.deleteFiles(checkedIds)) {
                                 _showSuccessfulDeletion.postValue(Unit)
                             }
 
@@ -328,8 +328,8 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
-            selectedFiles[index]
-        }
+        selectedFiles[index]
+    }
 
     fun collapseMoreOptionsMenu() {
         selectedFiles = MutableList(files.value?.size ?: 0) { false }
