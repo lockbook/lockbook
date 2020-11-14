@@ -51,6 +51,10 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
+            // needs to be done first
+            var getDbStateResult = CoreService.GetDbState().WaitResult();
+            CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
+
             var migrateDbResult = CoreService.MigrateDb().WaitResult();
             CastOrDie(migrateDbResult, out Core.MigrateDb.Success _);
         }
@@ -211,6 +215,16 @@ namespace test {
 
         [TestMethod]
         public void ListMetadatas() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var listFileMetadataResult = CoreService.ListMetadatas().WaitResult();
+            CastOrDie(listFileMetadataResult, out Core.ListMetadatas.Success _);
+        }
+
+        [TestMethod]
+        public void GetChildren() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
