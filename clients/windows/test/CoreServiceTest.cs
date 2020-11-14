@@ -193,6 +193,23 @@ namespace test {
         }
 
         [TestMethod]
+        public void GetRoot() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            CastOrDie(getRootResult, out Core.GetRoot.Success _);
+        }
+
+        [TestMethod]
+        public void GetRootNoRoot() {
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            Assert.AreEqual(Core.GetRoot.PossibleErrors.NoRoot,
+                CastOrDie(getRootResult, out Core.GetRoot.ExpectedError _).Error);
+        }
+
+        [TestMethod]
         public void ListMetadatas() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
