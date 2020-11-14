@@ -14,16 +14,12 @@ use crate::model::crypto::DecryptedValue;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::{
-    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
-    get_account, get_children, get_db_state, get_file_by_id, get_root, get_usage, import_account,
-    init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
-    sync_all, write_document, Error,
-};
+use crate::{calculate_work, create_account, create_file, delete_file, execute_work, export_account, get_account, get_children, get_db_state, get_file_by_id, get_root, get_usage, import_account, init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error, get_all_error_variants};
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
         serde_json::to_string(&result).expect("Couldn't serialize result into result string!");
+
     env.new_string(serialized_result)
         .expect("Couldn't create JString from rust string!")
         .into_inner()
@@ -1121,4 +1117,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
             deserialized_work_unit,
         )),
     )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
+    env: JNIEnv,
+    _: JClass,
+) -> jstring {
+    serialize_to_jstring(&env, get_all_error_variants())
 }
