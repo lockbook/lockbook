@@ -1,11 +1,9 @@
 package app.lockbook
 
-import app.lockbook.core.getAllErrorVariants
 import app.lockbook.util.*
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
-import timber.log.Timber
 import java.util.*
 
 // You have to build the jni from core first to be able to run the tests.
@@ -43,83 +41,278 @@ inline fun <reified T> assertTypeReturn(comparableValue: Any?): T {
     return comparableValue
 }
 
-val getAllErrorVariantsConverter = object : Converter {
+const val unrecognizedErrorTemplate = " is an unrecognized error type from "
+const val obsoleteErrorTemplate = "There is an obsolete error type from "
+const val stubError = "Stub"
+
+val checkIfAllErrorsPresentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? {
-        println(jv.obj?.toJsonString(prettyPrint = true))
         val jsonObject = jv.obj!!
 
-        val accountExportJsonArray = jsonObject.array<AccountExportError>("AccountExportError")!!
-        val accountExportErrors = Klaxon().parseFromJsonArray<AccountExportError>(accountExportJsonArray)!!
+        var accountExportErrors = AccountExportError::class.nestedClasses.filter { kClass -> kClass != AccountExportError.Unexpected::class }
+        jsonObject.array<String>("AccountExportError")!!.forEach { error ->
+            val sizeBefore = accountExportErrors.size
+            accountExportErrors = accountExportErrors.filter { kClass -> error != kClass.simpleName }
+            if (accountExportErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + AccountExportError::class.simpleName)
+            }
+        }
 
-        val calculateWorkErrorJsonArray = jsonObject.array<CalculateWorkError>("CalculateWorkError")!!
-        val calculateWorkErrorErrors = Klaxon().parseFromJsonArray<CalculateWorkError>(accountExportJsonArray)!!
+        if (accountExportErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + AccountExportError::class.simpleName)
+        }
 
-        val createAccountJsonArray = jsonObject.array<CreateAccountError>("CreateAccountError")!!
-        val createAccountErrors = Klaxon().parseFromJsonArray<CreateAccountError>(accountExportJsonArray)!!
+        var calculateWorkErrors = CalculateWorkError::class.nestedClasses.filter { kClass -> kClass != CalculateWorkError.Unexpected::class }
+        jsonObject.array<String>("CalculateWorkError")!!.forEach { error ->
+            val sizeBefore = calculateWorkErrors.size
+            calculateWorkErrors = calculateWorkErrors.filter { kClass -> error != kClass.simpleName }
+            if (calculateWorkErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + CalculateWorkError::class.simpleName)
+            }
+        }
 
-        val createFileJsonArray = jsonObject.array<CreateFileError>("CreateFileError")!!
-        val createFileErrors = Klaxon().parseFromJsonArray<CreateFileError>(accountExportJsonArray)!!
+        if (calculateWorkErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + CalculateWorkError::class.simpleName)
+        }
 
-        val deleteFileJsonArray = jsonObject.array<DeleteFileError>("DeleteFileError")!!
-        val deleteFileErrors = Klaxon().parseFromJsonArray<DeleteFileError>(accountExportJsonArray)!!
+        var createFileErrors = CreateFileError::class.nestedClasses.filter { kClass -> kClass != CreateFileError.Unexpected::class }
+        jsonObject.array<String>("CreateFileError")!!.forEach { error ->
+            val sizeBefore = createFileErrors.size
+            createFileErrors = createFileErrors.filter { kClass -> error != kClass.simpleName }
+            if (createFileErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + CreateFileError::class.simpleName)
+            }
+        }
 
-        val executeWorkJsonArray = jsonObject.array<ExecuteWorkError>("ExecuteWorkError")!!
-        val executeWorkErrors = Klaxon().parseFromJsonArray<ExecuteWorkError>(accountExportJsonArray)!!
+        if (createFileErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + CreateFileError::class.simpleName)
+        }
 
-        val getAccountJsonArray = jsonObject.array<GetAccountError>("GetAccountError")!!
-        val getAccountErrors = Klaxon().parseFromJsonArray<GetAccountError>(accountExportJsonArray)!!
+        var deleteFileErrors = DeleteFileError::class.nestedClasses.filter { kClass -> kClass != DeleteFileError.Unexpected::class }
+        jsonObject.array<String>("DeleteFileError")!!.forEach { error ->
+            val sizeBefore = deleteFileErrors.size
+            deleteFileErrors = deleteFileErrors.filter { kClass -> error != kClass.simpleName }
+            if (deleteFileErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + DeleteFileError::class.simpleName)
+            }
+        }
 
-        val getChildrenJsonArray = jsonObject.array<GetChildrenError>("GetChildrenError")!!
-        val getChildrenErrors = Klaxon().parseFromJsonArray<GetChildrenError>(accountExportJsonArray)!!
+        if (deleteFileErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + DeleteFileError::class.simpleName)
+        }
 
-        val getFileByIdJsonArray = jsonObject.array<GetFileByIdError>("GetFileByIdError")!!
-        val getFileByIdErrors = Klaxon().parseFromJsonArray<GetFileByIdError>(accountExportJsonArray)!!
+        var executeWorkErrors = ExecuteWorkError::class.nestedClasses.filter { kClass -> kClass != ExecuteWorkError.Unexpected::class }
+        jsonObject.array<String>("ExecuteWorkError")!!.forEach { error ->
+            val sizeBefore = executeWorkErrors.size
+            executeWorkErrors = executeWorkErrors.filter { kClass -> error != kClass.simpleName }
+            if (executeWorkErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + ExecuteWorkError::class.simpleName)
+            }
+        }
 
-        val getRootJsonArray = jsonObject.array<GetRootError>("GetRootError")!!
-        val getRootErrors = Klaxon().parseFromJsonArray<GetRootError>(accountExportJsonArray)!!
+        if (executeWorkErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + ExecuteWorkError::class.simpleName)
+        }
 
-        val getStateJsonArray = jsonObject.array<GetStateError>("GetStateError")!!
-        val getStateErrors = Klaxon().parseFromJsonArray<GetStateError>(accountExportJsonArray)!!
+        var getAccountErrors = GetAccountError::class.nestedClasses.filter { kClass -> kClass != GetAccountError.Unexpected::class }
+        jsonObject.array<String>("GetAccountError")!!.forEach { error ->
+            val sizeBefore = getAccountErrors.size
+            getAccountErrors = getAccountErrors.filter { kClass -> error != kClass.simpleName }
+            if (getAccountErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetAccountError::class.simpleName)
+            }
+        }
 
-        val getUsageJsonArray = jsonObject.array<GetUsageError>("GetUsageError")!!
-        val getUsageErrors = Klaxon().parseFromJsonArray<GetUsageError>(accountExportJsonArray)!!
+        if (getAccountErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetAccountError::class.simpleName)
+        }
 
-        val importJsonArray = jsonObject.array<ImportError>("ImportError")!!
-        val importErrors = Klaxon().parseFromJsonArray<ImportError>(accountExportJsonArray)!!
+        var getChildrenErrors = GetChildrenError::class.nestedClasses.filter { kClass -> kClass != GetChildrenError.Unexpected::class }
+        jsonObject.array<String>("GetChildrenError")!!.forEach { error ->
+            val sizeBefore = getChildrenErrors.size
+            getChildrenErrors = getChildrenErrors.filter { kClass -> error != kClass.simpleName }
+            if (getChildrenErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetChildrenError::class.simpleName)
+            }
+        }
 
-        val insertFileJsonArray = jsonObject.array<InsertFileError>("InsertFileError")!!
-        val insertFileErrors = Klaxon().parseFromJsonArray<InsertFileError>(accountExportJsonArray)!!
+        if (getChildrenErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetChildrenError::class.simpleName)
+        }
 
-        val migrationJsonArray = jsonObject.array<MigrationError>("MigrationError")!!
-        val migrationErrors = Klaxon().parseFromJsonArray<MigrationError>(accountExportJsonArray)!!
+        var getFileByIdErrors = GetFileByIdError::class.nestedClasses.filter { kClass -> kClass != GetFileByIdError.Unexpected::class }
+        jsonObject.array<String>("GetFileByIdError")!!.forEach { error ->
+            val sizeBefore = getFileByIdErrors.size
+            getFileByIdErrors = getFileByIdErrors.filter { kClass -> error != kClass.simpleName }
+            if (getFileByIdErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetFileByIdError::class.simpleName)
+            }
+        }
 
-        val moveFileJsonArray = jsonObject.array<MoveFileError>("MoveFileError")!!
-        val moveFileErrors = Klaxon().parseFromJsonArray<MoveFileError>(accountExportJsonArray)!!
+        if (getFileByIdErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetFileByIdError::class.simpleName)
+        }
 
-        val readDocumentJsonArray = jsonObject.array<ReadDocumentError>("ReadDocumentError")!!
-        val readDocumentErrors = Klaxon().parseFromJsonArray<ReadDocumentError>(accountExportJsonArray)!!
+        var getRootErrors = GetRootError::class.nestedClasses.filter { kClass -> kClass != GetRootError.Unexpected::class }
+        jsonObject.array<String>("GetRootError")!!.forEach { error ->
+            val sizeBefore = getRootErrors.size
+            getRootErrors = getRootErrors.filter { kClass -> error != kClass.simpleName }
+            if (getRootErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetRootError::class.simpleName)
+            }
+        }
 
-        val renameFileJsonArray = jsonObject.array<RenameFileError>("RenameFileError")!!
-        val renameFileErrors = Klaxon().parseFromJsonArray<RenameFileError>(accountExportJsonArray)!!
+        if (getRootErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetRootError::class.simpleName)
+        }
 
-        val setLastSyncedJsonArray = jsonObject.array<SetLastSyncedError>("SetLastSyncedError")!!
-        val setLastSyncedErrors = Klaxon().parseFromJsonArray<SetLastSyncedError>(accountExportJsonArray)!!
-        print("${setLastSyncedErrors[1]}")
+        var getStateErrors = GetStateError::class.nestedClasses.filter { kClass -> kClass != GetStateError.Unexpected::class }
+        jsonObject.array<String>("GetStateError")!!.forEach { error ->
+            val sizeBefore = getStateErrors.size
+            getStateErrors = getStateErrors.filter { kClass -> error != kClass.simpleName }
+            if (getStateErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetStateError::class.simpleName)
+            }
+        }
 
-        val syncAllJsonArray = jsonObject.array<SyncAllError>("SyncAllError")!!
-        val syncAllErrors = Klaxon().parseFromJsonArray<SyncAllError>(accountExportJsonArray)!!
+        if (getStateErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetStateError::class.simpleName)
+        }
 
-        val writeToDocumentJsonArray = jsonObject.array<WriteToDocumentError>("WriteToDocumentError")!!
-        val writeToDocumentErrors = Klaxon().parseFromJsonArray<WriteToDocumentError>(accountExportJsonArray)!!
+        var getUsageErrors = GetUsageError::class.nestedClasses.filter { kClass -> kClass != GetUsageError.Unexpected::class }
+        jsonObject.array<String>("GetUsageError")!!.forEach { error ->
+            val sizeBefore = getUsageErrors.size
+            getUsageErrors = getUsageErrors.filter { kClass -> error != kClass.simpleName }
+            if (getStateErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + GetUsageError::class.simpleName)
+            }
+        }
 
-        return listOf(ExecuteWorkError.ClientUpdateRequired)
+        if (getUsageErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + GetUsageError::class.simpleName)
+        }
+
+        var importErrors = ImportError::class.nestedClasses.filter { kClass -> kClass != ImportError.Unexpected::class }
+        jsonObject.array<String>("ImportError")!!.forEach { error ->
+            val sizeBefore = importErrors.size
+            importErrors = importErrors.filter { kClass -> error != kClass.simpleName }
+            if (importErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + ImportError::class.simpleName)
+            }
+        }
+
+        if (importErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + ImportError::class.simpleName)
+        }
+
+        var insertFileErrors = InsertFileError::class.nestedClasses.filter { kClass -> kClass != InsertFileError.Unexpected::class }
+        jsonObject.array<String>("InsertFileError")!!.forEach { error ->
+            val sizeBefore = insertFileErrors.size
+            insertFileErrors = insertFileErrors.filter { kClass -> error != kClass.simpleName }
+            if (insertFileErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + InsertFileError::class.simpleName)
+            }
+        }
+
+        if (insertFileErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + InsertFileError::class.simpleName)
+        }
+
+        var migrationErrors = MigrationError::class.nestedClasses.filter { kClass -> kClass != MigrationError.Unexpected::class }
+        jsonObject.array<String>("MigrationError")!!.forEach { error ->
+            val sizeBefore = migrationErrors.size
+            migrationErrors = migrationErrors.filter { kClass -> error != kClass.simpleName }
+            if (migrationErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + MigrationError::class.simpleName)
+            }
+        }
+
+        if (migrationErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + MigrationError::class.simpleName)
+        }
+
+        var moveFileErrors = MoveFileError::class.nestedClasses.filter { kClass -> kClass != MoveFileError.Unexpected::class }
+        jsonObject.array<String>("MoveFileError")!!.forEach { error ->
+            val sizeBefore = moveFileErrors.size
+            moveFileErrors = moveFileErrors.filter { kClass -> error != kClass.simpleName }
+            if (moveFileErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + MoveFileError::class.simpleName)
+            }
+        }
+
+        if (moveFileErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + MoveFileError::class.simpleName)
+        }
+
+        var readDocumentErrors = ReadDocumentError::class.nestedClasses.filter { kClass -> kClass != ReadDocumentError.Unexpected::class }
+        jsonObject.array<String>("ReadDocumentError")!!.forEach { error ->
+            val sizeBefore = readDocumentErrors.size
+            readDocumentErrors = readDocumentErrors.filter { kClass -> error != kClass.simpleName }
+            if (readDocumentErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + ReadDocumentError::class.simpleName)
+            }
+        }
+
+        if (readDocumentErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + ReadDocumentError::class.simpleName)
+        }
+
+        var renameFileErrors = RenameFileError::class.nestedClasses.filter { kClass -> kClass != RenameFileError.Unexpected::class }
+        jsonObject.array<String>("RenameFileError")!!.forEach { error ->
+            val sizeBefore = renameFileErrors.size
+            renameFileErrors = renameFileErrors.filter { kClass -> error != kClass.simpleName }
+            if (renameFileErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + RenameFileError::class.simpleName)
+            }
+        }
+
+        if (renameFileErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + RenameFileError::class.simpleName)
+        }
+
+        var setLastSyncedErrors = SetLastSyncedError::class.nestedClasses.filter { kClass -> kClass != SetLastSyncedError.Unexpected::class }
+        jsonObject.array<String>("SetLastSyncedError")!!.forEach { error ->
+            val sizeBefore = setLastSyncedErrors.size
+            setLastSyncedErrors = setLastSyncedErrors.filter { kClass -> error != kClass.simpleName }
+            if (setLastSyncedErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + SetLastSyncedError::class.simpleName)
+            }
+        }
+
+        if (setLastSyncedErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + SetLastSyncedError::class.simpleName)
+        }
+
+        var syncAllErrors = SyncAllError::class.nestedClasses.filter { kClass -> kClass != SyncAllError.Unexpected::class }
+        jsonObject.array<String>("SyncAllError")!!.forEach { error ->
+            val sizeBefore = syncAllErrors.size
+            syncAllErrors = syncAllErrors.filter { kClass -> error != kClass.simpleName }
+            if (syncAllErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + SyncAllError::class.simpleName)
+            }
+        }
+
+        if (syncAllErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + SyncAllError::class.simpleName)
+        }
+
+        var writeToDocumentErrors = WriteToDocumentError::class.nestedClasses.filter { kClass -> kClass != WriteToDocumentError.Unexpected::class }
+        jsonObject.array<String>("WriteToDocumentError")!!.forEach { error ->
+            val sizeBefore = writeToDocumentErrors.size
+            writeToDocumentErrors = writeToDocumentErrors.filter { kClass -> error != kClass.simpleName }
+            if (writeToDocumentErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + WriteToDocumentError::class.simpleName)
+            }
+        }
+
+        if (writeToDocumentErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + WriteToDocumentError::class.simpleName)
+        }
+
+        return Unit
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
-
-fun getErrorVariants(): List<CoreError> = Klaxon().converter(getAllErrorVariantsConverter).parse(
-    getAllErrorVariants()
-)!!
