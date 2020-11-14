@@ -47,13 +47,13 @@ namespace test {
 
         [TestMethod]
         public void MigrateDb() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
             // needs to be done first
             var getDbStateResult = CoreService.GetDbState().WaitResult();
             CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
+
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var migrateDbResult = CoreService.MigrateDb().WaitResult();
             CastOrDie(migrateDbResult, out Core.MigrateDb.Success _);
@@ -503,6 +503,97 @@ namespace test {
             var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.NoAccount,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void MoveFileFileDoesNotExist() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var moveFileResult = CoreService.MoveFile(Guid.NewGuid().ToString(), root.Id).WaitResult();
+            Assert.AreEqual(Core.MoveFile.PossibleErrors.FileDoesNotExist,
+                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void MoveFileDocumentTreatedAsFolder() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
+
+            var createFileResult2 = CoreService.CreateFile("TestFile2", root.Id, FileType.Document).WaitResult();
+            var file2 = CastOrDie(createFileResult2, out Core.CreateFile.Success _).newFile;
+
+            var moveFileResult = CoreService.MoveFile(file.Id, file2.Id).WaitResult();
+            Assert.AreEqual(Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder,
+                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void MoveFileTargetParentHasChildNamedThat() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
+
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
+
+            var createFileResult2 = CoreService.CreateFile("TestFile", folder.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult2, out Core.CreateFile.Success _);
+
+            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
+            Assert.AreEqual(Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat,
+                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void MoveFileTargetParentDoesNotExist() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
+
+            var moveFileResult = CoreService.MoveFile(file.Id, Guid.NewGuid().ToString()).WaitResult();
+            Assert.AreEqual(Core.MoveFile.PossibleErrors.TargetParentDoesNotExist,
+                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void MoveFileCannotMoveRoot() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
+
+            var moveFileResult = CoreService.MoveFile(root.Id, folder.Id).WaitResult();
+            Assert.AreEqual(Core.MoveFile.PossibleErrors.CannotMoveRoot,
+               CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
     }
 }
