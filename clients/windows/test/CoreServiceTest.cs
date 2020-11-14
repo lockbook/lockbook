@@ -311,6 +311,23 @@ namespace test {
         }
 
         [TestMethod]
+        public void GetUsage() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getUsageResult = CoreService.GetUsage().WaitResult();
+            CastOrDie(getUsageResult, out Core.GetUsage.Success _);
+        }
+
+        [TestMethod]
+        public void GetUsageNoAccount() {
+            var getUsageResult = CoreService.GetUsage().WaitResult();
+            Assert.AreEqual(Core.GetUsage.PossibleErrors.NoAccount,
+                CastOrDie(getUsageResult, out Core.GetUsage.ExpectedError _).Error);
+        }
+
+        [TestMethod]
         public void CreateFile() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
