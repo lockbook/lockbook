@@ -10,6 +10,7 @@ namespace test {
     [TestClass]
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
+
         public CoreService CoreService {
             get { return new CoreService(lockbookDir); }
         }
@@ -46,30 +47,25 @@ namespace test {
 
         [TestMethod]
         public void MigrateDb() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // migrate
             var migrateDbResult = CoreService.MigrateDb().WaitResult();
             CastOrDie(migrateDbResult, out Core.MigrateDb.Success _);
         }
 
         [TestMethod]
         public void AccountExistsFalse() {
-            // check that account does not exist
             Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
         public void AccountExistsTrue() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // check that it exists
             var getAccountResult = CoreService.GetAccount().WaitResult();
             CastOrDie(getAccountResult, out Core.GetAccount.Success _);
             Assert.IsTrue(CoreService.AccountExists().WaitResult());
@@ -77,7 +73,6 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountSuccess() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -85,12 +80,10 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountAccountExistsAlready() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // create another account
             var username2 = RandomUsername();
             var createAccountResult2 = CoreService.CreateAccount(username2).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.AccountExistsAlready,
@@ -99,19 +92,15 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountUsernameTaken() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // sync account to the server
             var syncResult = CoreService.SyncAll().WaitResult();
             CastOrDie(syncResult, out Core.SyncAll.Success _);
 
-            // delete directory to avoid AccountExistsAlready
             Directory.Delete(lockbookDir, true);
 
-            // create account with the same name
             var createAccountResult2 = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.UsernameTaken,
                 CastOrDie(createAccountResult2, out Core.CreateAccount.ExpectedError _).Error);
@@ -119,7 +108,6 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountInvalidUsername() {
-            // create account with invalid username
             var username = "not! a! valid! username!";
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
@@ -128,19 +116,16 @@ namespace test {
 
         [TestMethod]
         public void GetAccount() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // get account
             var getAccountResult = CoreService.GetAccount().WaitResult();
             CastOrDie(getAccountResult, out Core.GetAccount.Success _);
         }
 
         [TestMethod]
         public void GetAccountNoAccount() {
-            // get account
             var getAccountResult = CoreService.GetAccount().WaitResult();
             Assert.AreEqual(Core.GetAccount.PossibleErrors.NoAccount,
                CastOrDie(getAccountResult, out Core.GetAccount.ExpectedError _).Error);
@@ -148,19 +133,16 @@ namespace test {
 
         [TestMethod]
         public void ExportAccount() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // export account
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
             CastOrDie(exportAccountResult, out Core.ExportAccount.Success _);
         }
 
         [TestMethod]
         public void ExportAccountNoAccount() {
-            // export account
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
             Assert.AreEqual(Core.ExportAccount.PossibleErrors.NoAccount,
                CastOrDie(exportAccountResult, out Core.ExportAccount.ExpectedError _).Error);
@@ -168,19 +150,15 @@ namespace test {
 
         [TestMethod]
         public void ImportAccount() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // export account string
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
             var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
 
-            // delete directory to avoid AccountExistsAlready
             Directory.Delete(lockbookDir, true);
 
-            // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
             CastOrDie(importAccountResult, out Core.ImportAccount.Success _);
         }
@@ -191,13 +169,10 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // export account string
             var accountString = "#######!!@$@%";
 
-            // delete directory to avoid AccountExistsAlready
             Directory.Delete(lockbookDir, true);
 
-            // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
                 CastOrDie(importAccountResult, out Core.ImportAccount.ExpectedError _).Error);
@@ -205,16 +180,13 @@ namespace test {
 
         [TestMethod]
         public void ImportAccountAccountExistsAlready() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // export account string
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
             var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
 
-            // import account via string (without deleting old account)
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountExistsAlready,
                 CastOrDie(importAccountResult, out Core.ImportAccount.ExpectedError _).Error);
@@ -222,24 +194,20 @@ namespace test {
 
         [TestMethod]
         public void ListMetadatas() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // list file metadata
             var listFileMetadataResult = CoreService.ListMetadatas().WaitResult();
             CastOrDie(listFileMetadataResult, out Core.ListMetadatas.Success _);
         }
 
         [TestMethod]
         public void SyncAll() {
-            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            // sync
             CoreService.SyncAll().WaitResult();
             var syncAllResult = CoreService.SyncAll().WaitResult();
             CastOrDie(syncAllResult, out Core.SyncAll.Success _);
@@ -268,15 +236,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileNoAccount() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var getRootResult = CoreService.GetRoot().WaitResult();
-            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
-            DeleteAccount();
-
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
                 CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
         }
@@ -292,9 +252,37 @@ namespace test {
 
             var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
-
+            
             var createFileResult2 = CoreService.CreateFile("TestFile", file.Id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder,
+                CastOrDie(createFileResult2, out Core.CreateFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void CreateFileCouldNotFindAParent() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var createFileResult = CoreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.CouldNotFindAParent,
+                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void CreateFileFileNameNotAvailable() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
+
+            var createFileResult2 = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameNotAvailable,
                 CastOrDie(createFileResult2, out Core.CreateFile.ExpectedError _).Error);
         }
 
