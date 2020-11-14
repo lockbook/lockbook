@@ -420,6 +420,35 @@ namespace test {
         }
 
         [TestMethod]
+        public void ReadDocTreatedFolderAsDocument() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Folder).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+
+            var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
+            Assert.AreEqual(Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument,
+                CastOrDie(readDocResult, out Core.ReadDocument.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void ReadDocFileDoesNotExist() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var readDocResult = CoreService.ReadDocument(Guid.NewGuid().ToString()).WaitResult();
+            Assert.AreEqual(Core.ReadDocument.PossibleErrors.FileDoesNotExist,
+                CastOrDie(readDocResult, out Core.ReadDocument.ExpectedError _).Error);
+        }
+
+        [TestMethod]
         public void RenameFile() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
