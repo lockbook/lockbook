@@ -267,6 +267,7 @@ class ListFilesViewModel(path: String, application: Application) :
                             SORT_FILES_KEY,
                             SORT_FILES_LAST_CHANGED
                         ).apply()
+                        fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_a_z -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
