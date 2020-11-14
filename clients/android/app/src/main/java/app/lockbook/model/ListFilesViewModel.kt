@@ -257,24 +257,37 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
                 when (id) {
-                    R.id.menu_list_files_sort_last_changed -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_LAST_CHANGED
-                    ).apply()
-                    R.id.menu_list_files_sort_a_z ->
+                    R.id.menu_list_files_sort_last_changed -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_LAST_CHANGED
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_a_z -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
                             .apply()
-                    R.id.menu_list_files_sort_z_a ->
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_z_a -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
                             .apply()
-                    R.id.menu_list_files_sort_first_changed -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_FIRST_CHANGED
-                    ).apply()
-                    R.id.menu_list_files_sort_type -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_TYPE
-                    ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_first_changed -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_FIRST_CHANGED
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_type -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_TYPE
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
                     R.id.menu_list_files_rename -> {
                         files.value?.let { files ->
                             val checkedFiles = getSelectedFiles(files)
