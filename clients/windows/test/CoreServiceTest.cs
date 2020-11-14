@@ -260,7 +260,6 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            CoreService.CalculateWork().WaitResult();
             var calculateWorkResult = CoreService.CalculateWork().WaitResult();
             CastOrDie(calculateWorkResult, out Core.CalculateWork.Success _);
         }
@@ -289,6 +288,26 @@ namespace test {
 
             var executeWorkResult = ((Task<Core.ExecuteWork.IResult>)CoreService.ExecuteWork(JsonConvert.SerializeObject(work.workUnits[0]))).WaitResult();
             CastOrDie(executeWorkResult, out Core.ExecuteWork.Success _);
+        }
+
+        [TestMethod]
+        public void GetLastSynced() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getLastSyncedResult = CoreService.GetLastSynced().WaitResult();
+            CastOrDie(getLastSyncedResult, out Core.GetLastSynced.Success _);
+        }
+
+        [TestMethod]
+        public void SetLastSynced() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var setLastSyncedResult = CoreService.SetLastSynced(420).WaitResult();
+            CastOrDie(setLastSyncedResult, out Core.SetLastSynced.Success _);
         }
 
         [TestMethod]
