@@ -287,6 +287,34 @@ namespace test {
         }
 
         [TestMethod]
+        public void CreateFileFileNameContainsSlash() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("Test/File", root.Id, FileType.Document).WaitResult();
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameContainsSlash,
+                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void CreateFileFileNameEmpty() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("", root.Id, FileType.Document).WaitResult();
+            Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameEmpty,
+                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
         public void WriteDoc() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
