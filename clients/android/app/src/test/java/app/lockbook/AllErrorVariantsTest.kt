@@ -1,6 +1,8 @@
 package app.lockbook
 
+import app.lockbook.core.getAllErrorVariants
 import app.lockbook.util.Config
+import com.beust.klaxon.Klaxon
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -22,7 +24,7 @@ class AllErrorVariantsTest {
     }
 
     @Test
-    fun test() {
-        getErrorVariants()
+    fun checkIfAllErrorsPresent() {
+        Klaxon().converter(checkIfAllErrorsPresentConverter).parse<Unit>(getAllErrorVariants())
     }
 }
