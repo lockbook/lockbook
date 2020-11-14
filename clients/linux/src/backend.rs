@@ -10,8 +10,8 @@ use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
     calculate_work, create_account, create_file_at_path, execute_work, export_account, get_account,
     get_children, get_db_state, get_file_by_id, get_file_by_path, get_last_synced, get_root,
-    import_account, list_paths, migrate_db, read_document, set_last_synced, write_document,
-    AccountExportError, CalculateWorkError, CreateAccountError, Error as CoreError,
+    get_usage, import_account, list_paths, migrate_db, read_document, set_last_synced,
+    write_document, AccountExportError, CalculateWorkError, CreateAccountError, Error as CoreError,
     ExecuteWorkError, GetAccountError, SetLastSyncedError,
 };
 
@@ -220,14 +220,16 @@ impl LbCore {
     pub fn sync(&self, chan: &glib::Sender<LbSyncMsg>) -> Result<(), String> {
         let account = self.account().unwrap().unwrap();
 
-        let mut work_calculated = match self.calculate_work() {
-            Ok(work) => work,
-            Err(err) => return Err(format!("{:?}", err)),
-        };
-
-        while !work_calculated.work_units.is_empty() {
-            for work_unit in work_calculated.work_units {
-                let (prefix, meta) = match &work_unit {
+        let mut work_calculated: WorkCalculated;
+        while {
+            work_calculated = match self.calculate_work() {
+                Ok(work) => work,
+                Err(err) => return Err(format!("{:?}", err)),
+            };
+            !work_calculated.work_units.is_empty()
+        } {
+            for wu in work_calculated.work_units {
+                let (prefix, meta) = match &wu {
                     WorkUnit::LocalChange { metadata } => ("Pushing", metadata),
                     WorkUnit::ServerChange { metadata } => ("Pulling", metadata),
                 };
@@ -236,16 +238,11 @@ impl LbCore {
                 let action = format!("{}: {}", prefix, path);
                 chan.send(LbSyncMsg::Doing(action.clone())).unwrap();
 
-                if let Err(err) = self.do_work(&account, work_unit) {
+                if let Err(err) = self.do_work(&account, wu) {
                     chan.send(LbSyncMsg::Error(format!("{}: {:?}", action, err)))
                         .unwrap();
                 }
             }
-
-            work_calculated = match self.calculate_work() {
-                Ok(work) => work,
-                Err(err) => return Err(format!("{:?}", err)),
-            };
         }
 
         match self.set_last_synced(work_calculated.most_recent_update_from_server) {
@@ -272,6 +269,13 @@ impl LbCore {
     pub fn get_last_synced(&self) -> Result<u64, String> {
         match get_last_synced(&self.config) {
             Ok(last) => Ok(last),
+            Err(err) => Err(format!("{:?}", err)),
+        }
+    }
+
+    pub fn usage(&self) -> Result<u64, String> {
+        match get_usage(&self.config) {
+            Ok(u) => Ok(u.into_iter().map(|usage| usage.byte_secs).sum()),
             Err(err) => Err(format!("{:?}", err)),
         }
     }

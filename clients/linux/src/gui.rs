@@ -9,23 +9,26 @@ use glib::clone;
 use gtk::prelude::*;
 use gtk::Orientation::Vertical;
 use gtk::{
-    AccelGroup as GtkAccelGroup, Application as GtkApp, ApplicationWindow as GtkAppWindow,
-    Box as GtkBox, CheckButton as GtkCheckBox, Dialog as GtkDialog, Entry as GtkEntry,
-    EntryCompletion as GtkEntryCompletion, Expander as GtkExpander, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Application as GtkApp,
+    ApplicationWindow as GtkAppWindow, Box as GtkBox, CheckButton as GtkCheckBox,
+    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Expander as GtkExpander, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    ResponseType as GtkResponseType, Stack as GtkStack, Widget as GtkWidget,
+    WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
+use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::filetree::FileTreeCol;
+use crate::intro::IntroScreen;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg, MsgReceiver};
-use crate::screens::Screens;
 use crate::settings::Settings;
 use crate::tree_iter_value;
+use crate::util::{Util, KILOBYTE};
 
 macro_rules! widgetize {
     ($w:expr) => {
@@ -123,6 +126,8 @@ impl LockbookApp {
                 Msg::ShowDialogNew => lb.show_dialog_new(),
                 Msg::ShowDialogOpen => lb.show_dialog_open(),
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
+                Msg::ShowDialogUsage => lb.show_dialog_usage(),
+                Msg::ShowDialogAbout => lb.show_dialog_about(),
 
                 Msg::UnexpectedErr(desc, deets) => lb.show_unexpected_err(&desc, &deets),
             }
@@ -135,15 +140,15 @@ impl LockbookApp {
     }
 
     fn create_account(&self, name: String) {
-        self.gui.screens.intro.doing("Creating account...");
+        self.gui.intro.doing("Creating account...");
 
         let gui = self.gui.clone();
         let c = self.core.clone();
 
         let ch = make_glib_chan(move |result: Result<(), String>| {
             match result {
-                Ok(_) => gui.screens.show_account(&c),
-                Err(err) => gui.screens.intro.error_create(&err),
+                Ok(_) => gui.show_account_screen(&c),
+                Err(err) => gui.intro.error_create(&err),
             }
             glib::Continue(false)
         });
@@ -153,7 +158,7 @@ impl LockbookApp {
     }
 
     fn import_account(&self, privkey: String) {
-        self.gui.screens.intro.doing("Importing account...");
+        self.gui.intro.doing("Importing account...");
 
         let gui = self.gui.clone();
         let c = self.core.clone();
@@ -166,10 +171,10 @@ impl LockbookApp {
 
                     let sync_chan = make_glib_chan(move |msg| {
                         match msg {
-                            LbSyncMsg::Doing(work) => gui.screens.intro.doing_status(&work),
+                            LbSyncMsg::Doing(work) => gui.intro.doing_status(&work),
                             LbSyncMsg::Done => {
-                                gui.screens.show_account(&cc);
-                                gui.screens.account.set_sync_status(&cc);
+                                gui.show_account_screen(&cc);
+                                gui.account.set_sync_status(&cc);
                             }
                             _ => {}
                         }
@@ -179,7 +184,7 @@ impl LockbookApp {
                     let c = c.clone();
                     std::thread::spawn(move || c.sync(&sync_chan));
                 }
-                Err(err) => gui.screens.intro.error_import(&err),
+                Err(err) => gui.intro.error_import(&err),
             }
             glib::Continue(false)
         });
@@ -196,7 +201,7 @@ impl LockbookApp {
     }
 
     fn perform_sync(&self) {
-        let acctscr = self.gui.screens.account.clone();
+        let acctscr = self.gui.account.clone();
         acctscr.set_syncing(true);
 
         let core = self.core.clone();
@@ -224,8 +229,8 @@ impl LockbookApp {
     fn new_file(&self, path: String) {
         match self.core.create_file_at_path(&path) {
             Ok(file) => {
-                self.gui.screens.account.add_file(&self.core, &file);
-                self.gui.screens.account.set_sync_status(&self.core);
+                self.gui.account.add_file(&self.core, &file);
+                self.gui.account.set_sync_status(&self.core);
                 self.open_file(file.id);
             }
             Err(err) => println!("error creating '{}': {}", path, err),
@@ -265,13 +270,13 @@ impl LockbookApp {
 
     fn edit(&self, mode: &EditMode) {
         self.gui.menubar.set(&mode);
-        self.gui.screens.account.show(&mode);
+        self.gui.account.show(&mode);
     }
 
     fn save(&self) {
         if let Some(f) = &self.model.borrow().get_opened_file() {
             if f.file_type == FileType::Document {
-                let acctscr = self.gui.screens.account.clone();
+                let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
                 let id = f.id;
@@ -304,7 +309,7 @@ impl LockbookApp {
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {
-        self.gui.screens.account.sidebar.tree.toggle_col(&c);
+        self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
     }
 
@@ -387,6 +392,38 @@ impl LockbookApp {
         d.show_all();
     }
 
+    fn show_dialog_about(&self) {
+        let logo = gdk_pixbuf::Pixbuf::from_file("./lockbook-intro.png").unwrap();
+
+        let d = GtkAboutDialog::new();
+        d.set_transient_for(Some(&self.gui.win));
+        d.set_logo(Some(&logo));
+        d.set_program_name("Lockbook");
+        d.set_version(Some(VERSION));
+        d.set_website(Some("https://lockbook.app"));
+        d.set_authors(&["The Lockbook Team"]);
+        d.set_license(Some(LICENSE));
+        d.set_comments(Some(COMMENTS));
+        d.connect_response(move |d, resp| {
+            if let GtkResponseType::DeleteEvent = resp {
+                d.close();
+            }
+        });
+        d.show_all();
+    }
+
+    fn show_dialog_usage(&self) {
+        match self.core.usage() {
+            Ok(n_bytes) => {
+                let usage = GuiUtil::usage(n_bytes);
+                let d = self.gui.new_dialog("My Lockbook Usage");
+                d.get_content_area().add(&usage);
+                d.show_all();
+            }
+            Err(err) => self.show_unexpected_err("Unable to get usage", &err),
+        };
+    }
+
     fn show_dialog_export_account(&self, privkey: &str) {
         let bx = GtkBox::new(Vertical, 0);
         bx.add(&GuiUtil::selectable_label(&privkey));
@@ -439,18 +476,27 @@ impl Model {
 
 struct Gui {
     win: GtkAppWindow,
-    screens: Screens,
     menubar: Menubar,
+    screens: GtkStack,
+    intro: IntroScreen,
+    account: Rc<AccountScreen>,
 }
 
 impl Gui {
     fn new(app: &GtkApp, m: &Messenger, s: &Settings) -> Self {
+        // Menubar.
         let accels = GtkAccelGroup::new();
-        let screens = Screens::new(m, &s);
-
         let menubar = Menubar::new(m, &accels);
         menubar.set(&EditMode::None);
 
+        // Screens.
+        let intro = IntroScreen::new(m);
+        let account = AccountScreen::new(m, &s);
+        let screens = GtkStack::new();
+        screens.add_named(&intro.cntr, "intro");
+        screens.add_named(&account.cntr, "account");
+
+        // Window.
         let w = GtkAppWindow::new(app);
         w.set_title("Lockbook");
         w.set_default_size(1300, 700);
@@ -461,20 +507,44 @@ impl Gui {
         w.add(&{
             let base = GtkBox::new(Vertical, 0);
             base.add(&menubar.cntr);
-            base.pack_start(&screens.cntr, true, true, 0);
+            base.pack_start(&screens, true, true, 0);
             base
         });
 
         Self {
             win: w,
-            screens: screens,
-            menubar: menubar,
+            menubar,
+            screens,
+            intro,
+            account: Rc::new(account),
         }
     }
 
     fn show(&self, core: &LbCore, m: &Messenger) {
         self.win.show_all();
-        self.screens.init(&core, &m);
+        match core.account() {
+            Ok(acct) => match acct {
+                Some(_) => self.show_account_screen(&core),
+                None => self.show_intro_screen(),
+            },
+            Err(err) => m.send(Msg::UnexpectedErr(
+                "Unable to load account".to_string(),
+                err,
+            )),
+        }
+    }
+
+    fn show_intro_screen(&self) {
+        self.menubar.for_intro_screen();
+        self.intro.cntr.show_all();
+        self.screens.set_visible_child_name("intro");
+    }
+
+    fn show_account_screen(&self, core: &LbCore) {
+        self.menubar.for_account_screen();
+        self.account.cntr.show_all();
+        self.account.fill(&core);
+        self.screens.set_visible_child_name("account");
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {
@@ -511,6 +581,29 @@ impl GuiUtil {
             gtk::Inhibit(false)
         });
         lbl
+    }
+
+    fn usage(usage: u64) -> GtkBox {
+        let limit = KILOBYTE as f64 * 20.0;
+
+        let pbar = gtk::ProgressBar::new();
+        pbar.set_size_request(300, -1);
+        pbar.set_margin_start(16);
+        pbar.set_margin_end(16);
+        pbar.set_fraction(usage as f64 / limit);
+
+        let human_limit = Util::human_readable_bytes(limit as u64);
+        let human_usage = Util::human_readable_bytes(usage);
+
+        let lbl = GtkLabel::new(Some(&format!("{} / {}", human_usage, human_limit)));
+        lbl.set_margin_bottom(24);
+
+        let cntr = GtkBox::new(Vertical, 0);
+        cntr.set_margin_top(32);
+        cntr.set_margin_bottom(36);
+        cntr.add(&lbl);
+        cntr.add(&pbar);
+        cntr
     }
 }
 
@@ -582,3 +675,35 @@ const STYLE: &str = "
     font-size: 20px;
 }
 ";
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const COMMENTS: &str = "
+Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.
+";
+
+const LICENSE: &str = "
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>";

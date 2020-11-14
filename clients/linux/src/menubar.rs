@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use glib::clone;
 use gtk::prelude::*;
 use gtk::{
     AccelGroup as GtkAccelGroup, Menu as GtkMenu, MenuBar as GtkMenuBar, MenuItem as GtkMenuItem,
@@ -33,7 +32,7 @@ macro_rules! menu_set {
         };
         $(
             match $items {
-                Items::Separator => submenu.append(&GtkSeparatorMenuItem::new()),
+                Item::Separator => submenu.append(&GtkSeparatorMenuItem::new()),
                 _ => submenu.append($item_map.get($items).unwrap()),
             }
         )*
@@ -42,29 +41,36 @@ macro_rules! menu_set {
 }
 
 pub struct Menubar {
-    items: HashMap<Items, GtkMenuItem>,
+    items: HashMap<Item, GtkMenuItem>,
     file: GtkMenuItem,
     edit: GtkMenuItem,
     acct: GtkMenuItem,
+    help: GtkMenuItem,
     pub cntr: GtkMenuBar,
 }
 
 impl Menubar {
     pub fn new(m: &Messenger, accels: &GtkAccelGroup) -> Self {
+        let items = Item::hashmap(&m, &accels);
+
         let file = GtkMenuItem::with_label("File");
         let edit = GtkMenuItem::with_label("Edit");
         let acct = GtkMenuItem::with_label("Account");
+        let help = GtkMenuItem::with_label("Help");
 
         let cntr = GtkMenuBar::new();
-        for menu in &[&file, &edit, &acct] {
+        for menu in &[&file, &edit, &acct, &help] {
             cntr.append(*menu);
         }
 
+        menu_set!(help, items, &Item::HelpAbout);
+
         Self {
-            items: Items::hashmap(&m, &accels),
+            items,
             file,
             edit,
             acct,
+            help,
             cntr,
         }
     }
@@ -79,12 +85,12 @@ impl Menubar {
                 menu_set!(
                     self.file,
                     self.items,
-                    &Items::FileNew,
-                    &Items::FileOpen,
-                    &Items::Separator,
-                    &Items::FileClose,
-                    &Items::Separator,
-                    &Items::FileQuit
+                    &Item::FileNew,
+                    &Item::FileOpen,
+                    &Item::Separator,
+                    &Item::FileClose,
+                    &Item::Separator,
+                    &Item::FileQuit
                 );
             }
             EditMode::PlainText {
@@ -94,50 +100,58 @@ impl Menubar {
                 menu_set!(
                     self.file,
                     self.items,
-                    &Items::FileNew,
-                    &Items::FileOpen,
-                    &Items::Separator,
-                    &Items::FileSave,
-                    &Items::FileClose,
-                    &Items::Separator,
-                    &Items::FileQuit
+                    &Item::FileNew,
+                    &Item::FileOpen,
+                    &Item::Separator,
+                    &Item::FileSave,
+                    &Item::FileClose,
+                    &Item::Separator,
+                    &Item::FileQuit
                 );
             }
             EditMode::None => {
                 menu_set!(
                     self.file,
                     self.items,
-                    &Items::FileNew,
-                    &Items::FileOpen,
-                    &Items::Separator,
-                    &Items::FileQuit
+                    &Item::FileNew,
+                    &Item::FileOpen,
+                    &Item::FileQuit
                 );
-                menu_set!(self.edit, self.items, &Items::EditPreferences);
-                menu_set!(self.acct, self.items, &Items::AccountExport);
+                menu_set!(self.edit, self.items, &Item::EditPreferences);
+                menu_set!(
+                    self.acct,
+                    self.items,
+                    &Item::AccountSync,
+                    &Item::AccountUsage,
+                    &Item::AccountExport
+                );
             }
+        }
+    }
+
+    pub fn for_intro_screen(&self) {
+        self.cntr.foreach(|w| {
+            if *w == self.file || *w == self.edit || *w == self.acct {
+                self.cntr.remove(w);
+            }
+        });
+    }
+
+    pub fn for_account_screen(&self) {
+        self.cntr.foreach(|w| self.cntr.remove(w));
+        for menu in &[&self.file, &self.edit, &self.acct, &self.help] {
+            self.cntr.append(*menu);
         }
     }
 }
 
-macro_rules! menuitem_accel {
-    ($txt:literal, $accel:literal, $accelgrp:expr, $action:expr) => {
-        let (key, modifier) = gtk::accelerator_parse($accel);
-
-        let mi = GtkMenuItem::with_label($txt);
-        mi.add_accelerator(
-            "activate",
-            $accelgrp,
-            key,
-            modifier,
-            gtk::AccelFlags::VISIBLE,
-        );
-        mi.connect_activate($action);
-        return mi;
-    };
-}
+// Each menu Item has a name and accelertor, as well as a certain Msg it sends when clicked. In
+// order to avoid having to implement Clone and (more tediously) Copy on the Msg enum, a function
+// is used to pass the Item's particular Msg for initialization.
+type ItemData = (&'static str, &'static str, fn() -> Msg);
 
 #[derive(Hash, Eq, PartialEq, Debug)]
-enum Items {
+enum Item {
     FileNew,
     FileOpen,
     FileSave,
@@ -146,115 +160,47 @@ enum Items {
 
     EditPreferences,
 
+    AccountSync,
+    AccountUsage,
     AccountExport,
+
+    HelpAbout,
 
     Separator,
 }
 
-impl Items {
+impl Item {
     fn hashmap(m: &Messenger, accels: &GtkAccelGroup) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
-        for item in Items::all() {
-            let make = item.constructor();
-            items.insert(item, make(&m, &accels));
+        for (item_key, (name, accel, msg)) in Self::data() {
+            let mi = GtkMenuItem::with_label(name);
+
+            if accel != "" {
+                let (key, modifier) = gtk::accelerator_parse(accel);
+                mi.add_accelerator("activate", accels, key, modifier, gtk::AccelFlags::VISIBLE);
+            }
+
+            let m = m.clone();
+            mi.connect_activate(move |_| m.send(msg()));
+
+            items.insert(item_key, mi);
         }
         items
     }
 
-    fn all() -> Vec<Self> {
+    #[rustfmt::skip]
+    fn data() -> Vec<(Self, ItemData)> {
         vec![
-            Self::FileNew,
-            Self::FileOpen,
-            Self::FileSave,
-            Self::FileClose,
-            Self::FileQuit,
-            Self::EditPreferences,
-            Self::AccountExport,
+            (Self::FileNew, ("New", "<Primary>N", || Msg::ShowDialogNew)),
+            (Self::FileOpen, ("Open", "<Primary>O", || Msg::ShowDialogOpen)),
+            (Self::FileSave, ("Save", "<Primary>S", || Msg::SaveFile)),
+            (Self::FileClose, ("Close File", "<Primary>W", || Msg::CloseFile)),
+            (Self::FileQuit, ("Quit", "", || Msg::Quit)),
+            (Self::EditPreferences, ("Preferences", "", || Msg::ShowDialogPreferences)),
+            (Self::AccountSync, ("Sync", "", || Msg::PerformSync)),
+            (Self::AccountUsage, ("Usage", "", || Msg::ShowDialogUsage)),
+            (Self::AccountExport, ("Export", "", || Msg::ExportAccount)),
+            (Self::HelpAbout, ("About", "", || Msg::ShowDialogAbout)),
         ]
-    }
-
-    fn constructor(&self) -> fn(&Messenger, &GtkAccelGroup) -> GtkMenuItem {
-        match self {
-            Items::FileNew => Self::file_new,
-            Items::FileOpen => Self::file_open,
-            Items::FileSave => Self::file_save,
-            Items::FileClose => Self::file_close,
-            Items::FileQuit => Self::file_quit,
-
-            Items::EditPreferences => Self::edit_preferences,
-
-            Items::AccountExport => Self::acct_export,
-
-            _ => panic!("Trying to make '{:?}' menu item", self),
-        }
-    }
-
-    fn file_new(m: &Messenger, accels: &GtkAccelGroup) -> GtkMenuItem {
-        menuitem_accel!(
-            "New",
-            "<Primary>N",
-            accels,
-            clone!(@strong m => move |_| {
-                m.send(Msg::ShowDialogNew);
-            })
-        );
-    }
-
-    fn file_open(m: &Messenger, accels: &GtkAccelGroup) -> GtkMenuItem {
-        menuitem_accel!(
-            "Open",
-            "<Primary>O",
-            accels,
-            clone!(@strong m => move |_| {
-                m.send(Msg::ShowDialogOpen);
-            })
-        );
-    }
-
-    fn file_save(m: &Messenger, accels: &GtkAccelGroup) -> GtkMenuItem {
-        menuitem_accel!(
-            "Save",
-            "<Primary>S",
-            accels,
-            clone!(@strong m => move |_| {
-                m.send(Msg::SaveFile);
-            })
-        );
-    }
-
-    fn file_close(m: &Messenger, accels: &GtkAccelGroup) -> GtkMenuItem {
-        menuitem_accel!(
-            "Close File",
-            "<Primary>W",
-            accels,
-            clone!(@strong m => move |_| {
-                m.send(Msg::CloseFile);
-            })
-        );
-    }
-
-    fn file_quit(m: &Messenger, _: &GtkAccelGroup) -> GtkMenuItem {
-        let mi = GtkMenuItem::with_label("Quit");
-        mi.connect_activate(clone!(@strong m => move |_| {
-            m.send(Msg::Quit);
-        }));
-        mi
-    }
-
-    fn edit_preferences(m: &Messenger, _: &GtkAccelGroup) -> GtkMenuItem {
-        let mi = GtkMenuItem::with_label("Preferences");
-        mi.connect_activate(clone!(@strong m => move |_| {
-            m.send(Msg::ShowDialogPreferences);
-        }));
-        mi
-    }
-
-    fn acct_export(m: &Messenger, accels: &GtkAccelGroup) -> GtkMenuItem {
-        menuitem_accel!(
-            "Export...",
-            "<Primary>E",
-            accels,
-            clone!(@strong m => move |_| m.send(Msg::ExportAccount))
-        );
     }
 }
