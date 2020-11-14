@@ -242,17 +242,34 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            CoreService.SyncAll().WaitResult();
             var syncAllResult = CoreService.SyncAll().WaitResult();
             CastOrDie(syncAllResult, out Core.SyncAll.Success _);
         }
 
         [TestMethod]
         public void SyncAllNoAccount() {
-            CoreService.SyncAll().WaitResult();
             var syncAllResult = CoreService.SyncAll().WaitResult();
             Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
                 CastOrDie(syncAllResult, out Core.SyncAll.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void CalculateWork() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            CoreService.CalculateWork().WaitResult();
+            var calculateWorkResult = CoreService.CalculateWork().WaitResult();
+            CastOrDie(calculateWorkResult, out Core.CalculateWork.Success _);
+        }
+
+        [TestMethod]
+        public void CalculateWorkNoAccount() {
+            CoreService.CalculateWork().WaitResult();
+            var calculateWorkResult = CoreService.CalculateWork().WaitResult();
+            Assert.AreEqual(Core.CalculateWork.PossibleErrors.NoAccount,
+                CastOrDie(calculateWorkResult, out Core.CalculateWork.ExpectedError _).Error);
         }
 
         [TestMethod]
