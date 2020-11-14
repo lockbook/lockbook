@@ -1,6 +1,8 @@
 using Core;
 using lockbook;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using System;
 using System.IO;
 
@@ -21,7 +23,12 @@ namespace test {
                 expected = (TExpected)actual;
                 return expected;
             }
-            throw new InvalidCastException(string.Format("cannot cast {0} to {1}", actual.GetType().FullName, typeof(TExpected).FullName));
+            throw new InvalidCastException(
+                string.Format(
+                    "expected {0} but got {1}: {2}",
+                    typeof(TExpected).FullName,
+                    actual.GetType().FullName,
+                    JsonConvert.SerializeObject(actual, new StringEnumConverter())));
         }
 
         [TestInitialize]
@@ -38,15 +45,31 @@ namespace test {
         }
 
         [TestMethod]
+        public void MigrateDb() {
+            // create account
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            // migrate
+            var migrateDbResult = CoreService.MigrateDb().WaitResult();
+            CastOrDie(migrateDbResult, out Core.MigrateDb.Success _);
+        }
+
+        [TestMethod]
         public void AccountExistsFalse() {
+            // check that account does not exist
             Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
         public void AccountExistsTrue() {
+            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            // check that it exists
             var getAccountResult = CoreService.GetAccount().WaitResult();
             CastOrDie(getAccountResult, out Core.GetAccount.Success _);
             Assert.IsTrue(CoreService.AccountExists().WaitResult());
@@ -54,6 +77,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountSuccess() {
+            // create account
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -95,6 +119,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountInvalidUsername() {
+            // create account with invalid username
             var username = "not! a! valid! username!";
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
@@ -155,6 +180,23 @@ namespace test {
             // import account via string
             var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
+                CastOrDie(importAccountResult, out Core.ImportAccount.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void ImportAccountAccountExistsAlready() {
+            // create account
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            // export account string
+            var exportAccountResult = CoreService.ExportAccount().WaitResult();
+            var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
+
+            // import account via string (without deleting old account)
+            var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
+            Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountExistsAlready,
                 CastOrDie(importAccountResult, out Core.ImportAccount.ExpectedError _).Error);
         }
 

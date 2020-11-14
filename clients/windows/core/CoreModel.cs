@@ -84,7 +84,7 @@ namespace Core {
         public interface IResult { }
         public class Success : IResult { }
         public enum PossibleErrors {
-            ClientUpdateRequired,
+            StateRequiresCleaning,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
