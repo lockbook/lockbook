@@ -22,3 +22,4 @@ external fun moveFile(config: String, id: String, parentId: String): String
 external fun syncAll(config: String): String
 external fun calculateSyncWork(config: String): String
 external fun executeSyncWork(config: String, account: String, workUnit: String): String
+external fun getAllErrorVariants(): String
