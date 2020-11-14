@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace test {
     [TestClass]
@@ -266,10 +267,28 @@ namespace test {
 
         [TestMethod]
         public void CalculateWorkNoAccount() {
-            CoreService.CalculateWork().WaitResult();
             var calculateWorkResult = CoreService.CalculateWork().WaitResult();
             Assert.AreEqual(Core.CalculateWork.PossibleErrors.NoAccount,
                 CastOrDie(calculateWorkResult, out Core.CalculateWork.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void ExecuteWork() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
+
+            var calculateWorkResult = CoreService.CalculateWork().WaitResult();
+            var work = CastOrDie(calculateWorkResult, out Core.CalculateWork.Success _).workCalculated;
+
+            var executeWorkResult = ((Task<Core.ExecuteWork.IResult>)CoreService.ExecuteWork(JsonConvert.SerializeObject(work.workUnits[0]))).WaitResult();
+            CastOrDie(executeWorkResult, out Core.ExecuteWork.Success _);
         }
 
         [TestMethod]
