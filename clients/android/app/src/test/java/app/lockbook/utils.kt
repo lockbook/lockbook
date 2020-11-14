@@ -51,6 +51,8 @@ val checkIfAllErrorsPresentConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         val jsonObject = jv.obj!!
 
+        print(jsonObject.toJsonString(prettyPrint = true))
+
         var accountExportErrors = AccountExportError::class.nestedClasses.filter { kClass -> kClass != AccountExportError.Unexpected::class }
         jsonObject.array<String>("AccountExportError")!!.forEach { error ->
             val sizeBefore = accountExportErrors.size
@@ -62,6 +64,19 @@ val checkIfAllErrorsPresentConverter = object : Converter {
 
         if (accountExportErrors.isNotEmpty()) {
             throw Throwable(obsoleteErrorTemplate + AccountExportError::class.simpleName)
+        }
+
+        var createAccountErrors = CreateAccountError::class.nestedClasses.filter { kClass -> kClass != CreateAccountError.Unexpected::class }
+        jsonObject.array<String>("CreateAccountError")!!.forEach { error ->
+            val sizeBefore = createAccountErrors.size
+            createAccountErrors = createAccountErrors.filter { kClass -> error != kClass.simpleName }
+            if (createAccountErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + CreateAccountError::class.simpleName)
+            }
+        }
+
+        if (createAccountErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + CreateAccountError::class.simpleName)
         }
 
         var calculateWorkErrors = CalculateWorkError::class.nestedClasses.filter { kClass -> kClass != CalculateWorkError.Unexpected::class }
