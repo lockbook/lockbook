@@ -229,8 +229,11 @@ namespace test {
             var createAccountResult = CoreService.CreateAccount(username).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
-            var listFileMetadataResult = CoreService.ListMetadatas().WaitResult();
-            CastOrDie(listFileMetadataResult, out Core.ListMetadatas.Success _);
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var getChildrenResult = CoreService.GetChildren(root.Id).WaitResult();
+            CastOrDie(getChildrenResult, out Core.GetChildren.Success _);
         }
 
         [TestMethod]
