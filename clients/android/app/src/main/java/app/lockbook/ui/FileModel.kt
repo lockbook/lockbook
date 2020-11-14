@@ -192,7 +192,11 @@ class FileModel(path: String) {
                         Result.retry()
                     }
                     is SyncAllError.ExecuteWorkError -> {
-                        Timber.e("Could not execute some work.}")
+                        Timber.e("Could not execute some work.")
+                        Result.failure()
+                    }
+                    is SyncAllError.ClientUpdateRequired -> {
+                        Timber.e("Client update required.")
                         Result.failure()
                     }
                     is SyncAllError.Unexpected -> {
