@@ -5,7 +5,6 @@ import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 
 const val okTag = "Ok"
 const val errTag = "Err"
@@ -733,6 +732,7 @@ val syncAllConverter = object : Converter {
                             SyncAllError.CouldNotReachServer::class.simpleName -> SyncAllError.CouldNotReachServer
                             SyncAllError.NoAccount::class.simpleName -> SyncAllError.NoAccount
                             SyncAllError.ExecuteWorkError::class.simpleName -> SyncAllError.ExecuteWorkError
+                            SyncAllError.ClientUpdateRequired::class.simpleName -> SyncAllError.ClientUpdateRequired
                             else -> SyncAllError.Unexpected("syncAllConverter $unmatchedUiError $error")
                         }
                     )
@@ -813,6 +813,7 @@ val executeSyncWorkConverter = object : Converter {
                         when (error) {
                             ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
                             ExecuteWorkError.ClientUpdateRequired::class.simpleName -> ExecuteWorkError.ClientUpdateRequired
+                            ExecuteWorkError.BadAccount::class.simpleName -> ExecuteWorkError.BadAccount
                             else -> ExecuteWorkError.Unexpected("executeSyncWorkConverter $unmatchedUiError $error")
                         }
                     )
