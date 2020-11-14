@@ -147,6 +147,26 @@ namespace test {
         }
 
         [TestMethod]
+        public void ExportAccount() {
+            // create account
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            // export account
+            var exportAccountResult = CoreService.ExportAccount().WaitResult();
+            CastOrDie(exportAccountResult, out Core.ExportAccount.Success _);
+        }
+
+        [TestMethod]
+        public void ExportAccountNoAccount() {
+            // export account
+            var exportAccountResult = CoreService.ExportAccount().WaitResult();
+            Assert.AreEqual(Core.ExportAccount.PossibleErrors.NoAccount,
+               CastOrDie(exportAccountResult, out Core.ExportAccount.ExpectedError _).Error);
+        }
+
+        [TestMethod]
         public void ImportAccount() {
             // create account
             var username = RandomUsername();
