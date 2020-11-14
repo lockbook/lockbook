@@ -410,12 +410,6 @@ class ListFilesFragment : Fragment() {
         val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-
-//        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
-//        parentFragmentManager.registerFragmentLifecycleCallbacks(
-//                fragmentFinishedCallback,
-//            false
-//        )
     }
 
     fun onBackPressed(): Boolean {
