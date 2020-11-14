@@ -3,27 +3,29 @@ package app.lockbook.util
 val <T> T.exhaustive: T
     get() = this
 
-sealed class InitLoggerError {
+sealed class CoreError
+
+sealed class InitLoggerError: CoreError() {
     data class Unexpected(val error: String) : InitLoggerError()
 }
 
-sealed class GetUsageError {
+sealed class GetUsageError: CoreError() {
     object NoAccount : GetUsageError()
     object CouldNotReachServer : GetUsageError()
     object ClientUpdateRequired : GetUsageError()
     data class Unexpected(val error: String) : GetUsageError()
 }
 
-sealed class GetStateError {
+sealed class GetStateError: CoreError() {
     data class Unexpected(val error: String) : GetStateError()
 }
 
-sealed class MigrationError {
+sealed class MigrationError: CoreError() {
     object StateRequiresCleaning : MigrationError()
     data class Unexpected(val error: String) : MigrationError()
 }
 
-sealed class CreateAccountError {
+sealed class CreateAccountError: CoreError() {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
     object CouldNotReachServer : CreateAccountError()
@@ -32,7 +34,7 @@ sealed class CreateAccountError {
     data class Unexpected(val error: String) : CreateAccountError()
 }
 
-sealed class ImportError {
+sealed class ImportError: CoreError() {
     object AccountStringCorrupted : ImportError()
     object AccountExistsAlready : ImportError()
     object AccountDoesNotExist : ImportError()
@@ -42,33 +44,33 @@ sealed class ImportError {
     data class Unexpected(val error: String) : ImportError()
 }
 
-sealed class AccountExportError {
+sealed class AccountExportError: CoreError() {
     object NoAccount : AccountExportError()
     data class Unexpected(val error: String) : AccountExportError()
 }
 
-sealed class GetAccountError {
+sealed class GetAccountError: CoreError() {
     object NoAccount : GetAccountError()
     data class Unexpected(val error: String) : GetAccountError()
 }
 
-sealed class SetLastSyncedError {
+sealed class SetLastSyncedError: CoreError() {
     data class Unexpected(val error: String) : SetLastSyncedError()
 }
 
-sealed class GetRootError {
+sealed class GetRootError: CoreError() {
     object NoRoot : GetRootError()
     data class Unexpected(val error: String) : GetRootError()
 }
 
-sealed class WriteToDocumentError {
+sealed class WriteToDocumentError: CoreError() {
     object NoAccount : WriteToDocumentError()
     object FileDoesNotExist : WriteToDocumentError()
     object FolderTreatedAsDocument : WriteToDocumentError()
     data class Unexpected(val error: String) : WriteToDocumentError()
 }
 
-sealed class CreateFileError {
+sealed class CreateFileError: CoreError() {
     object NoAccount : CreateFileError()
     object DocumentTreatedAsFolder : CreateFileError()
     object CouldNotFindAParent : CreateFileError()
@@ -78,32 +80,32 @@ sealed class CreateFileError {
     data class Unexpected(val error: String) : CreateFileError()
 }
 
-sealed class GetChildrenError {
+sealed class GetChildrenError: CoreError() {
     data class Unexpected(val error: String) : GetChildrenError()
 }
 
-sealed class GetFileByIdError {
+sealed class GetFileByIdError: CoreError() {
     object NoFileWithThatId : GetFileByIdError()
     data class Unexpected(val error: String) : GetFileByIdError()
 }
 
-sealed class InsertFileError {
+sealed class InsertFileError: CoreError() {
     data class Unexpected(val error: String) : InsertFileError()
 }
 
-sealed class DeleteFileError {
+sealed class DeleteFileError: CoreError() {
     object NoFileWithThatId : DeleteFileError()
     data class Unexpected(val error: String) : DeleteFileError()
 }
 
-sealed class ReadDocumentError {
+sealed class ReadDocumentError: CoreError() {
     object TreatedFolderAsDocument : ReadDocumentError()
     object NoAccount : ReadDocumentError()
     object FileDoesNotExist : ReadDocumentError()
     data class Unexpected(val error: String) : ReadDocumentError()
 }
 
-sealed class RenameFileError {
+sealed class RenameFileError: CoreError() {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()
     object FileNameNotAvailable : RenameFileError()
@@ -112,7 +114,7 @@ sealed class RenameFileError {
     data class Unexpected(val error: String) : RenameFileError()
 }
 
-sealed class MoveFileError {
+sealed class MoveFileError: CoreError() {
     object NoAccount : MoveFileError()
     object FileDoesNotExist : MoveFileError()
     object DocumentTreatedAsFolder : MoveFileError()
@@ -122,21 +124,21 @@ sealed class MoveFileError {
     data class Unexpected(val error: String) : MoveFileError()
 }
 
-sealed class SyncAllError {
+sealed class SyncAllError: CoreError() {
     object NoAccount : SyncAllError()
     object CouldNotReachServer : SyncAllError()
     object ExecuteWorkError : SyncAllError()
     data class Unexpected(val error: String) : SyncAllError()
 }
 
-sealed class CalculateWorkError {
+sealed class CalculateWorkError: CoreError() {
     object NoAccount : CalculateWorkError()
     object CouldNotReachServer : CalculateWorkError()
     object ClientUpdateRequired : CalculateWorkError()
     data class Unexpected(val error: String) : CalculateWorkError()
 }
 
-sealed class ExecuteWorkError {
+sealed class ExecuteWorkError: CoreError() {
     object CouldNotReachServer : ExecuteWorkError()
     object ClientUpdateRequired : ExecuteWorkError()
     data class Unexpected(val error: String) : ExecuteWorkError()
