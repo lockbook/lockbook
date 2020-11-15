@@ -26,7 +26,7 @@
 
         <TextView
             android:id="@+id/linear_file_description"
-            style="@style/File.SubTitle"
+            style="@style/File.SubSubTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintBottom_toBottomOf="parent"

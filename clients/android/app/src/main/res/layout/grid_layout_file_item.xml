@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="190sp"
     android:layout_height="190sp"
     app:cardCornerRadius="0dp"
@@ -12,57 +11,37 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="3dp">
+        android:layout_height="match_parent">
 
         <TextView
             android:id="@+id/grid_file_name"
             style="@style/File.Title"
-            android:layout_width="110dp"
-            android:layout_height="40dp"
-            android:padding="5dp"
-            app:layout_constraintBottom_toTopOf="@+id/grid_file_description1"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/grid_file_icon"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <TextView
-            android:id="@+id/grid_file_description1"
-            style="@style/File.SubSubTitle"
-            android:layout_width="165dp"
-            android:layout_height="38dp"
-            app:layout_constraintBottom_toTopOf="@+id/grid_file_description2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            app:layout_constraintBottom_toTopOf="@+id/grid_file_description"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/grid_file_icon" />
 
         <TextView
-            android:id="@+id/grid_file_description2"
+            android:id="@+id/grid_file_description"
             style="@style/File.SubSubTitle"
-            android:layout_width="165dp"
-            android:layout_height="38dp"
-            app:layout_constraintBottom_toTopOf="@+id/grid_file_description1"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/grid_file_description3" />
-
-        <TextView
-            android:id="@+id/grid_file_description3"
-            style="@style/File.SubSubTitle"
-            android:layout_width="165dp"
-            android:layout_height="40dp"
+            android:gravity="center"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/grid_file_description2" />
+            app:layout_constraintTop_toBottomOf="@+id/grid_file_name" />
 
         <ImageView
             android:id="@+id/grid_file_icon"
-            android:layout_width="50dp"
-            android:layout_height="70dp"
+            android:layout_width="80dp"
+            android:layout_height="100dp"
             android:contentDescription="@string/file_image_content_description"
-            android:padding="5dp"
-            android:src="@drawable/ic_baseline_insert_drive_file_24"
+            app:layout_constraintBottom_toTopOf="@+id/grid_file_name"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
