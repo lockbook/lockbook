@@ -11,10 +11,7 @@ namespace test {
     [TestClass]
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
-
-        public CoreService CoreService {
-            get { return new CoreService(lockbookDir); }
-        }
+        const CoreService CoreService = new CoreService(lockbookDir);
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
