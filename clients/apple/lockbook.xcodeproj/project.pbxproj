@@ -15,6 +15,8 @@
 		1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
 		EA04B3AE2519906A008598CB /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA08372A25198AC9008EA3F3 /* AccountView.swift */; };
 		EA08372B25198AC9008EA3F3 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA08372A25198AC9008EA3F3 /* AccountView.swift */; };
+		EA0A0C83255CDB1500CE5BFD /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA0A0C82255CDB1500CE5BFD /* FileListView.swift */; };
+		EA0A0C84255CDB1500CE5BFD /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA0A0C82255CDB1500CE5BFD /* FileListView.swift */; };
 		EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E8182516643400B9158C /* SwiftLockbookCore */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
@@ -24,8 +26,8 @@
 		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
 		EA5C7D7F2516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
 		EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
-		EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* CreateFileView.swift */; };
-		EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* CreateFileView.swift */; };
+		EA77C3502519AC70006B5247 /* ActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* ActionsView.swift */; };
+		EA77C3512519AC70006B5247 /* ActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA77C34F2519AC70006B5247 /* ActionsView.swift */; };
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
@@ -63,6 +65,7 @@
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		1F7E4FC425212E5F0045F606 /* ContentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentEditor.swift; sourceTree = "<group>"; };
 		EA08372A25198AC9008EA3F3 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		EA0A0C82255CDB1500CE5BFD /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
 		EA5C7D682516605F00F7F358 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
@@ -72,7 +75,7 @@
 		EA5C7D772516606000F7F358 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA5C7D792516606100F7F358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EA5C7D7A2516606100F7F358 /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
-		EA77C34F2519AC70006B5247 /* CreateFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFileView.swift; sourceTree = "<group>"; };
+		EA77C34F2519AC70006B5247 /* ActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsView.swift; sourceTree = "<group>"; };
 		EA831A542534E3C80048CE26 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		EA831A592534E5020048CE26 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		EAB4B4FF25167AF50071D1CD /* Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core.swift; sourceTree = "<group>"; };
@@ -208,9 +211,15 @@
 			isa = PBXGroup;
 			children = (
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
+				EA0A0C82255CDB1500CE5BFD /* FileListView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
+<<<<<<< HEAD
 				EA08372A25198AC9008EA3F3 /* AccountView.swift */,
 				EA77C34F2519AC70006B5247 /* CreateFileView.swift */,
+=======
+				EA08372725198A81008EA3F3 /* Account */,
+				EA77C34F2519AC70006B5247 /* ActionsView.swift */,
+>>>>>>> master
 			);
 			path = Book;
 			sourceTree = "<group>";
@@ -296,6 +305,8 @@
 				Base,
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
+			packageReferences = (
+			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -334,7 +345,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA77C3502519AC70006B5247 /* CreateFileView.swift in Sources */,
+				EA77C3502519AC70006B5247 /* ActionsView.swift in Sources */,
 				EAEDCD032516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				EADE1A5925352EAA00710996 /* ContentBuffer.swift in Sources */,
 				EA831A552534E3C80048CE26 /* AppView.swift in Sources */,
@@ -352,6 +363,7 @@
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				EAC3DA51251FB8ED009499BA /* NotificationButton.swift in Sources */,
+				EA0A0C83255CDB1500CE5BFD /* FileListView.swift in Sources */,
 				EAC3DA40251EEB45009499BA /* SyncIndicator.swift in Sources */,
 				1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */,
 				1F7E4FBC252122450045F606 /* TitleFieldStyle.swift in Sources */,
@@ -365,7 +377,7 @@
 				EAC3DA38251ED7B3009499BA /* FlipToggleStyle.swift in Sources */,
 				EAB4B50125167AF50071D1CD /* Core.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
-				EA77C3512519AC70006B5247 /* CreateFileView.swift in Sources */,
+				EA77C3512519AC70006B5247 /* ActionsView.swift in Sources */,
 				EAC3DA41251EEB45009499BA /* SyncIndicator.swift in Sources */,
 				EAEDCCFB2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
@@ -379,6 +391,7 @@
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
+				EA0A0C84255CDB1500CE5BFD /* FileListView.swift in Sources */,
 				1F7E4FBD252122450045F606 /* TitleFieldStyle.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */,

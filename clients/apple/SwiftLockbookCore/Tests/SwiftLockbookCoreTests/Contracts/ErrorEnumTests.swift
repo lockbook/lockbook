@@ -18,7 +18,6 @@ class ErrorEnumTests: XCTestCase {
         let GetFileByIdError: [GetFileByIdError]
         let GetFileByPathError: [GetFileByPathError]
         let InsertFileError: [InsertFileError]
-        let DeleteFileError: [DeleteFileError]
         let ReadDocumentError: [ReadDocumentError]
         let ListPathsError: [ListPathsError]
         let ListMetadatasError: [ListMetadatasError]
@@ -30,7 +29,8 @@ class ErrorEnumTests: XCTestCase {
         let SetLastSyncedError: [SetLastSyncedError]
         let GetLastSyncedError: [GetLastSyncedError]
         let GetUsageError: [GetUsageError]
-        
+        let FileDeleteError: [FileDeleteError]
+
         func noneEmpty() -> Bool {
             !GetStateError.isEmpty
                 && !MigrationError.isEmpty
@@ -46,7 +46,6 @@ class ErrorEnumTests: XCTestCase {
                 && !GetFileByIdError.isEmpty
                 && !GetFileByPathError.isEmpty
                 && !InsertFileError.isEmpty
-                && !DeleteFileError.isEmpty
                 && !ReadDocumentError.isEmpty
                 && !ListPathsError.isEmpty
                 && !ListMetadatasError.isEmpty
@@ -58,6 +57,7 @@ class ErrorEnumTests: XCTestCase {
                 && !SetLastSyncedError.isEmpty
                 && !GetLastSyncedError.isEmpty
                 && !GetUsageError.isEmpty
+                && !FileDeleteError.isEmpty
         }
     }
     
