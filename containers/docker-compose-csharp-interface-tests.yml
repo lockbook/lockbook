@@ -3,14 +3,14 @@ version: '3'
 services:
   filesdb:
     image: minio/minio:RELEASE.2020-05-16T01-33-21Z
-    container_name: filesdb-swift-$HASH
+    container_name: filesdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
 
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
-    container_name: config_filesdb-swift-$HASH
+    container_name: config_filesdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -26,13 +26,13 @@ services:
 
   indexdb:
     image: postgres:12.3
-    container_name: indexdb-swift-$HASH
+    container_name: indexdb-csharp-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
 
   config_indexdb:
     image: postgres:12.3
-    container_name: config_indexdb-swift-$HASH
+    container_name: config_indexdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -48,7 +48,7 @@ services:
 
   lockbook_server:
     image: server:$HASH
-    container_name: server-swift-$HASH
+    container_name: server-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
