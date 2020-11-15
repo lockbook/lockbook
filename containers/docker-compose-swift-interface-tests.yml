@@ -53,7 +53,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=lockbook_server=debug ./target/debug/lockbook_server
+        RUST_LOG=lockbook_server=debug cargo run \
       '
 
   swift_interface_tests:
