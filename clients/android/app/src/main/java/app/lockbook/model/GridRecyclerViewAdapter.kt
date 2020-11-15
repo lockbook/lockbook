@@ -42,17 +42,9 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
         val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
         holder.cardView.grid_file_name.text = item.name
-        holder.cardView.grid_file_description1.text = holder.cardView.resources.getString(
+        holder.cardView.grid_file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
-        )
-        holder.cardView.grid_file_description2.text = holder.cardView.resources.getString(
-            R.string.popup_info_id,
-            item.id
-        )
-        holder.cardView.grid_file_description3.text = holder.cardView.resources.getString(
-            R.string.popup_info_content_version,
-            item.contentVersion.toString()
         )
 
         when {
