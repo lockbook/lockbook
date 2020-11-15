@@ -118,7 +118,7 @@ namespace lockbook {
             where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
             where TPossibleErrs : struct, Enum
             where TUnexpectedErr : UnexpectedError, TIResult, new() {
-            var IResult = await Task.Run(() => {
+            var result = await Task.Run(() => {
                 string coreResponse;
                 try {
                     coreMutex.WaitOne();
@@ -129,11 +129,11 @@ namespace lockbook {
                 return coreResponse;
             });
 
-            var obj = JObject.Parse(IResult);
+            var obj = JObject.Parse(result);
             var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
             var content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + IResult);
-            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + IResult);
+            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + result);
+            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + result);
             switch (tag) {
                 case "Ok":
                     return parseOk(content);
@@ -141,20 +141,31 @@ namespace lockbook {
                     var errObj = JObject.Parse(content);
                     var errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
                     var errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + IResult);
-                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + IResult);
+                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + result);
+                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + result);
                     switch (errTag) {
                         case "UiError":
                             if (Enum.TryParse<TPossibleErrs>(errContent, out var value)) return ExpectedErrors.New<TIResult, TExpectedErr, TPossibleErrs>(value);
-                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + IResult);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + result);
                         case "Unexpected":
                             return UnexpectedErrors.New<TIResult, TUnexpectedErr>(errContent);
                         default:
-                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + IResult);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + result);
                     }
                 default:
                     return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
+        }
+
+        public async Task InitLoggerSafely() {
+            await Task.Run(() => {
+                try {
+                    coreMutex.WaitOne();
+                    init_logger_safely(path);
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
+            });
         }
 
         public async Task<Core.GetDbState.IResult> GetDbState() {
