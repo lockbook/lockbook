@@ -157,6 +157,17 @@ namespace lockbook {
             }
         }
 
+        public async Task InitLoggerSafely() {
+            await Task.Run(() => {
+                try {
+                    coreMutex.WaitOne();
+                    init_logger_safely(path);
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
+            });
+        }
+
         public async Task<Core.GetDbState.IResult> GetDbState() {
             return await FFICommon<Core.GetDbState.IResult, Core.GetDbState.ExpectedError, Core.GetDbState.PossibleErrors, Core.GetDbState.UnexpectedError>(
                 () => get_db_state(path),

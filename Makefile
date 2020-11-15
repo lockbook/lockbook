@@ -92,6 +92,7 @@ integration_tests: is_docker_running
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
 
 .PHONY: android
@@ -145,6 +146,12 @@ performance_bench: performance server
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
+
+.PHONY: dev_stack_run
+dev_stack_run: server
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
 
 # Helpers
 .PHONY: is_docker_running
