@@ -76,7 +76,7 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func markFileForDeletion(id: UUID) -> FfiResult<Bool, DeleteFileError> {
+    public func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
