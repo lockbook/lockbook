@@ -124,3 +124,16 @@ jobs:
         run: make swift_interface_tests
       - name: Compile and run tests
         run: make swift_interface_tests_run
+  CSharp-Interface-Tests:
+    runs-on: self-hosted
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build server container
+        run: make server
+      - name: Build test container
+        run: make csharp_interface_tests
+      - name: Compile and run tests
+        run: make csharp_interface_tests_run
