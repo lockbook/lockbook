@@ -15,10 +15,10 @@ COPY server/Cargo.toml .
 COPY server/Cargo.lock .
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
-RUN cargo build
+RUN cargo build --release
 
 # Build our source
 COPY server .
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/main.rs
-RUN cargo build
+RUN cargo build --release
