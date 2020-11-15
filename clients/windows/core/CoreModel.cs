@@ -35,6 +35,8 @@ namespace Core {
         public string Parent;
         [JsonProperty("file_type")]
         public string Type;
+        [JsonProperty("deleted")]
+        public bool deleted;
     }
 
     public class DecryptedValue {
