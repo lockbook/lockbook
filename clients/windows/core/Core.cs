@@ -24,82 +24,82 @@ namespace lockbook {
 
         private static Mutex coreMutex = new Mutex();
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern void init_logger_safely(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_db_state(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr migrate_db(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_account(string writeable_path, string username, string api_url);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr import_account(string writeable_path, string account_string);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr export_account(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_account(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_file_at_path(string writeable_path, string path_and_name);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr write_document(string writeable_path, string id, string content);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_file(string writeable_path, string name, string parent, string file_type);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_root(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_children(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_file_by_path(string writeable_path, string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr read_document(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr delete_file(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr list_paths(string writeable_path, string filter);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr rename_file(string writeable_path, string id, string new_name);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr list_metadatas(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr move_file(string writeable_path, string id, string new_parent);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr calculate_work(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr execute_work(string writeable_path, string work_unit);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr sync_all(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr set_last_synced(string writeable_path, ulong last_sync);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_last_synced(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_usage(string writeable_path);
 
         private static string getStringAndRelease(IntPtr pointer) {
