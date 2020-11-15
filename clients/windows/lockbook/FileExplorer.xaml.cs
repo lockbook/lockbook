@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
@@ -110,7 +111,8 @@ namespace lockbook {
         }
 
         // TODO consider diffing trees and performing the min update to prevent the UI from flashing
-        private async Task PopulateTree(List<FileMetadata> coreFiles) {
+        private async Task PopulateTree(List<FileMetadata> coreFilesWithDeleted) {
+            var coreFiles = coreFilesWithDeleted.Where(f => !f.deleted);
 
             var expandedItems = new HashSet<string>();
 
@@ -279,6 +281,28 @@ namespace lockbook {
                     }
                     break;
                 case Core.RenameFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+            }
+        }
+
+        private async void DeleteFile(object sender, RoutedEventArgs e) {
+            string id = (string)((MenuFlyoutItem)sender).Tag;
+
+            var result = await App.CoreService.DeleteFile(id);
+
+            switch (result) {
+                case Core.DeleteFile.Success:
+                    await RefreshFiles();
+                    break;
+                case Core.DeleteFile.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.DeleteFile.PossibleErrors.NoFileWithThatId:
+                            await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                    }
+                    break;
+                case Core.DeleteFile.UnexpectedError uhOh:
                     await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
