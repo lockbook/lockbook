@@ -2,6 +2,7 @@
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -11,9 +12,7 @@ namespace lockbook {
     /// Provides application-specific behavior to supplement the default Application class.
     /// </summary>
     sealed partial class App : Application {
-        public static CoreService CoreService {
-            get { return new CoreService(Windows.Storage.ApplicationData.Current.LocalFolder.Path); }
-        }
+        public static CoreService CoreService;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -51,6 +50,9 @@ namespace lockbook {
                 // Place the frame in the current Window
                 Window.Current.Content = rootFrame;
             }
+
+            CoreService = new CoreService(Windows.Storage.ApplicationData.Current.LocalFolder.Path);
+            await CoreService.InitLoggerSafely();
 
             if (e.PrelaunchActivated == false)
             {

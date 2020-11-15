@@ -14,6 +14,7 @@ mod intro;
 mod menubar;
 mod messages;
 mod settings;
+mod util;
 
 use std::env;
 use std::sync::Arc;

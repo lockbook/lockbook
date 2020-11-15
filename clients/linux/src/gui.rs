@@ -28,6 +28,7 @@ use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg, MsgReceiver};
 use crate::settings::Settings;
 use crate::tree_iter_value;
+use crate::util::{Util, KILOBYTE};
 
 macro_rules! widgetize {
     ($w:expr) => {
@@ -119,12 +120,14 @@ impl LockbookApp {
                 Msg::OpenFile(id) => lb.open_file(id),
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close(),
+                Msg::DeleteFile(id) => lb.delete_file(id),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
                 Msg::ShowDialogNew => lb.show_dialog_new(),
                 Msg::ShowDialogOpen => lb.show_dialog_open(),
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
+                Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
                 Msg::UnexpectedErr(desc, deets) => lb.show_unexpected_err(&desc, &deets),
@@ -306,6 +309,32 @@ impl LockbookApp {
         }
     }
 
+    fn delete_file(&self, id: Uuid) {
+        let meta = self.core.file_by_id(id).ok().unwrap();
+        let path = self.core.full_path_for(&meta);
+        let mut msg = format!("Are you sure you want to delete '{}'?", path);
+
+        if meta.file_type == FileType::Folder {
+            let children = self.core.get_children_recursively(meta.id).ok().unwrap();
+            msg = format!("{} ({} files)", msg, children.len());
+        }
+
+        let d = self.gui.new_dialog("Confirm Delete");
+        d.get_content_area().add(&GtkLabel::new(Some(&msg)));
+        d.get_content_area().show_all();
+        d.add_button("Cancel", GtkResponseType::Cancel);
+        d.add_button("Delete", GtkResponseType::Yes);
+
+        if d.run() == GtkResponseType::Yes {
+            match self.core.delete(id) {
+                Ok(_) => self.gui.account.sidebar.tree.remove(&meta.id),
+                Err(err) => println!("{}", err),
+            }
+        }
+
+        d.close();
+    }
+
     fn toggle_tree_col(&self, c: FileTreeCol) {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
@@ -408,6 +437,18 @@ impl LockbookApp {
             }
         });
         d.show_all();
+    }
+
+    fn show_dialog_usage(&self) {
+        match self.core.usage() {
+            Ok(n_bytes) => {
+                let usage = GuiUtil::usage(n_bytes);
+                let d = self.gui.new_dialog("My Lockbook Usage");
+                d.get_content_area().add(&usage);
+                d.show_all();
+            }
+            Err(err) => self.show_unexpected_err("Unable to get usage", &err),
+        };
     }
 
     fn show_dialog_export_account(&self, privkey: &str) {
@@ -567,6 +608,29 @@ impl GuiUtil {
             gtk::Inhibit(false)
         });
         lbl
+    }
+
+    fn usage(usage: u64) -> GtkBox {
+        let limit = KILOBYTE as f64 * 20.0;
+
+        let pbar = gtk::ProgressBar::new();
+        pbar.set_size_request(300, -1);
+        pbar.set_margin_start(16);
+        pbar.set_margin_end(16);
+        pbar.set_fraction(usage as f64 / limit);
+
+        let human_limit = Util::human_readable_bytes(limit as u64);
+        let human_usage = Util::human_readable_bytes(usage);
+
+        let lbl = GtkLabel::new(Some(&format!("{} / {}", human_usage, human_limit)));
+        lbl.set_margin_bottom(24);
+
+        let cntr = GtkBox::new(Vertical, 0);
+        cntr.set_margin_top(32);
+        cntr.set_margin_bottom(36);
+        cntr.add(&lbl);
+        cntr.add(&pbar);
+        cntr
     }
 }
 

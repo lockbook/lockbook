@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     app:popupTheme="@style/DarkBlue.Actionbar"
-    tools:context="app.lockbook.login.WelcomeActivity">
+    tools:context="app.lockbook.screen.WelcomeActivity">
     <item
         android:id="@+id/menu_list_files_sort"
         android:icon="@drawable/ic_baseline_sort_24"
@@ -34,17 +34,49 @@
     </item>
 
     <item
-        android:icon="@drawable/ic_baseline_more_vert_24"
+        android:id="@+id/menu_list_files_info"
+        android:icon="@drawable/ic_baseline_info_24"
+        android:orderInCategory="1"
+        android:title="@string/menu_list_files_info"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_delete"
+        android:icon="@drawable/ic_baseline_delete_24"
         android:orderInCategory="2"
+        android:title="@string/menu_list_files_delete"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_rename"
+        android:icon="@drawable/ic_baseline_text_format_24"
+        android:orderInCategory="3"
+        android:title="@string/menu_list_files_rename"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_list_files_move"
+        android:icon="@drawable/ic_baseline_content_cut_24"
+        android:title="@string/menu_list_files_move"
+        android:visible="false"
+        android:orderInCategory="4"
+        app:showAsAction="always" />
+
+    <item
+        android:icon="@drawable/ic_baseline_more_vert_24"
+        android:orderInCategory="5"
         app:showAsAction="always"
         android:title="@string/overflow">
-        <menu>
+        <menu
+            android:id="@+id/menu_list_files_more">
             <item
                 android:id="@+id/menu_list_files_settings"
-                android:title="@string/settings_title"
-                app:showAsAction="always" />
+                android:title="@string/settings_title" />
+
         </menu>
     </item>
-
 
 </menu>

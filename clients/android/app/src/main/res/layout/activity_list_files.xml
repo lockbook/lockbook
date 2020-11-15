@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
-    tools:context=".login.WelcomeActivity">
+    tools:context=".screen.WelcomeActivity">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/list_files_toolbar"
@@ -17,7 +17,7 @@
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/files_fragment"
-        android:name="app.lockbook.loggedin.listfiles.ListFilesFragment"
+        android:name="app.lockbook.screen.ListFilesFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:layout="@layout/fragment_list_files" />

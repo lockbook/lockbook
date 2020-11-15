@@ -27,7 +27,7 @@ public struct Account: Codable {
         var d: [UInt64]
         var primes: [[UInt64]]
         
-        static let empty: RSAPrivateKey = RSAPrivateKey(n: [], e: [], d: [], primes: [])
+        public static let empty: RSAPrivateKey = RSAPrivateKey(n: [], e: [], d: [], primes: [])
     }
 }
 
