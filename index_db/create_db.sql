@@ -17,10 +17,11 @@ CREATE TABLE IF NOT EXISTS files (
 	metadata_version	BIGINT NOT NULL,
 	content_version		BIGINT NOT NULL,
 	CONSTRAINT pk_files						PRIMARY KEY (id),
-	CONSTRAINT uk_files_name_parent			UNIQUE (parent, name),
-	CONSTRAINT fk_files_parent_files_id	FOREIGN KEY (parent) REFERENCES files(id),
+	CONSTRAINT fk_files_parent_files_id		FOREIGN KEY (parent) REFERENCES files(id),
 	CONSTRAINT fk_files_owner_accounts_name	FOREIGN KEY (owner) REFERENCES accounts(name)
 );
+
+CREATE UNIQUE INDEX uk_files_name_parent ON files (parent, name) WHERE (NOT deleted);
 
 CREATE TABLE IF NOT EXISTS user_access_keys (
 	file_id			TEXT NOT NULL,

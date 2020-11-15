@@ -194,6 +194,15 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.showSuccessfulDeletion.observe(
+            viewLifecycleOwner,
+            {
+                if (container != null) {
+                    showSuccessfulDeletionSnackbar(container)
+                }
+            }
+        )
+
         listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
@@ -337,6 +346,10 @@ class ListFilesFragment : Fragment() {
         }
     }
 
+    private fun showSuccessfulDeletionSnackbar(view: ViewGroup) {
+        Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
+    }
+
     private fun updateRecyclerView(
         files: List<FileMetadata>,
         adapter: FilesAdapter
@@ -410,12 +423,6 @@ class ListFilesFragment : Fragment() {
         val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-
-//        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
-//        parentFragmentManager.registerFragmentLifecycleCallbacks(
-//                fragmentFinishedCallback,
-//            false
-//        )
     }
 
     fun onBackPressed(): Boolean {

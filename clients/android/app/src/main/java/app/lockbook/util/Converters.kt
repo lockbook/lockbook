@@ -573,7 +573,7 @@ val deleteFileConverter = object : Converter {
                 if (error != null) {
                     Err(
                         when (error) {
-                            DeleteFileError.NoFileWithThatId::class.simpleName -> DeleteFileError.NoFileWithThatId
+                            DeleteFileError.FileDoesNotExist::class.simpleName -> DeleteFileError.FileDoesNotExist
                             else -> DeleteFileError.Unexpected("deleteFileConverter $unmatchedUiError $error")
                         }
                     )

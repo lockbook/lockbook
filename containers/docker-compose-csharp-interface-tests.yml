@@ -57,7 +57,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=lockbook_server=debug cargo run
+        RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
 
   csharp_interface_tests:
