@@ -89,6 +89,15 @@ lib_c_for_swift:
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift lib_c_for_swift_ios
 
+.PHONY: lib_c_for_windows
+lib_c_for_windows:
+	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
+	cargo build --release
+	@mkdir -p ${windows_lib}
+	-cp target/release/${libName} ${windows_lib}
+	-cp target/release/${macosLibName} ${windows_lib}
+	-cp target/release/${windowsLibName} ${windows_lib}
+
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'
 libName = 'liblockbook_core.so'
@@ -99,3 +108,6 @@ windowsLibName = 'liblockbook_core.dll'
 swift_inc := ../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
 swift_lib := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
 swift_lib_ios := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
+
+# Windows Library Location
+windows_lib := ../clients/windows/core/
