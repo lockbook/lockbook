@@ -276,7 +276,7 @@ class ListFilesFragment : Fragment() {
             binding.filesList.adapter = adapter
 
             val displayMetrics = requireContext().resources.displayMetrics
-            val noOfColumns = ((displayMetrics.widthPixels / displayMetrics.density) / 190.5).toInt()
+            val noOfColumns = (((displayMetrics.widthPixels / displayMetrics.density) / 90)).toInt()
 
             if (orientation == ORIENTATION_PORTRAIT) {
                 binding.filesList.layoutManager = GridLayoutManager(context, noOfColumns)
