@@ -32,5 +32,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=lockbook_server=debug cargo test \
+        RUST_LOG=lockbook_server=debug cargo test --release \
       '

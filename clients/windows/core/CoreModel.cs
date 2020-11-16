@@ -35,6 +35,8 @@ namespace Core {
         public string Parent;
         [JsonProperty("file_type")]
         public string Type;
+        [JsonProperty("deleted")]
+        public bool deleted;
     }
 
     public class DecryptedValue {
@@ -84,7 +86,7 @@ namespace Core {
         public interface IResult { }
         public class Success : IResult { }
         public enum PossibleErrors {
-            ClientUpdateRequired,
+            StateRequiresCleaning,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
