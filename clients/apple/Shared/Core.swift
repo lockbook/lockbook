@@ -125,7 +125,11 @@ class Core: ObservableObject {
         self.documenstDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
         self.state = .ReadyToUse
-        self.updateFiles()
+        self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
+        if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
+            self.files = metas
+            self.grouped = [buildTree(meta: root)]
+        }
     }
 }
 

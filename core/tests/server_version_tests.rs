@@ -50,7 +50,7 @@ mod server_version_tests {
                     | GetPublicKeyError::UserNotFound => panic!(
                         "Server should have rejected this due to the version being unsupported"
                     ),
-                    GetPublicKeyError::ClientUpdateRequired => println!("test passed"),
+                    GetPublicKeyError::ClientUpdateRequired => {}
                 },
             },
         }
