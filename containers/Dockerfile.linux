@@ -20,11 +20,11 @@ COPY core ../core
 COPY containers/dummy.rs src/main.rs
 COPY clients/linux/Cargo.toml .
 COPY clients/linux/Cargo.lock .
-RUN cargo build
+RUN cargo build --release
 
 # Build our source
 COPY clients/linux .
 
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/main.rs
-RUN cargo build
+RUN cargo build --release
