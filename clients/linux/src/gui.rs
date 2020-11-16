@@ -120,6 +120,7 @@ impl LockbookApp {
                 Msg::OpenFile(id) => lb.open_file(id),
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close(),
+                Msg::DeleteFile(id) => lb.delete_file(id),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
@@ -306,6 +307,32 @@ impl LockbookApp {
         if self.model.borrow().get_opened_file().is_some() {
             self.edit(&EditMode::None);
         }
+    }
+
+    fn delete_file(&self, id: Uuid) {
+        let meta = self.core.file_by_id(id).ok().unwrap();
+        let path = self.core.full_path_for(&meta);
+        let mut msg = format!("Are you sure you want to delete '{}'?", path);
+
+        if meta.file_type == FileType::Folder {
+            let children = self.core.get_children_recursively(meta.id).ok().unwrap();
+            msg = format!("{} ({} files)", msg, children.len());
+        }
+
+        let d = self.gui.new_dialog("Confirm Delete");
+        d.get_content_area().add(&GtkLabel::new(Some(&msg)));
+        d.get_content_area().show_all();
+        d.add_button("Cancel", GtkResponseType::Cancel);
+        d.add_button("Delete", GtkResponseType::Yes);
+
+        if d.run() == GtkResponseType::Yes {
+            match self.core.delete(id) {
+                Ok(_) => self.gui.account.sidebar.tree.remove(&meta.id),
+                Err(err) => println!("{}", err),
+            }
+        }
+
+        d.close();
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {

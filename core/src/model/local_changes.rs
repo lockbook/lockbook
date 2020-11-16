@@ -1,9 +1,11 @@
-use crate::model::crypto::{Document, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::model::crypto::{Document, UserAccessInfo};
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalChange {
+    pub timestamp: u128,
     pub id: Uuid,
     pub renamed: Option<Renamed>,
     pub moved: Option<Moved>,
@@ -54,7 +56,7 @@ impl From<Uuid> for Moved {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Edited {
-    pub old_value: Document,
+    pub old_value: Document, // Stored so sync can perform merges
     pub access_info: UserAccessInfo,
     pub old_content_checksum: Vec<u8>,
 }

@@ -268,7 +268,6 @@ mod move_document_tests {
                 &account.username,
                 &sign(&account),
                 doc_id,
-                version,
             ),
             Ok(_)
         );

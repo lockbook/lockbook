@@ -73,7 +73,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "API_URL"
-            value = "http://localhost:8000"
+            value = "http://qa.lockbook.app:8000"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
