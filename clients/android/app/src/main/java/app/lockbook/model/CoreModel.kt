@@ -250,16 +250,16 @@ object CoreModel {
     fun deleteFile(
         config: Config,
         id: String
-    ): Result<Unit, DeleteFileError> {
-        val deleteFile: Result<Unit, DeleteFileError>? =
+    ): Result<Unit, FileDeleteError> {
+        val fileDelete: Result<Unit, FileDeleteError>? =
             Klaxon().converter(deleteFileConverter)
                 .parse(deleteFile(Klaxon().toJsonString(config), id))
 
-        if (deleteFile != null) {
-            return deleteFile
+        if (fileDelete != null) {
+            return fileDelete
         }
 
-        return Err(DeleteFileError.Unexpected("deleteFileConverter was unable to be called!"))
+        return Err(FileDeleteError.Unexpected("deleteFileConverter was unable to be called!"))
     }
 
     fun renameFile(
