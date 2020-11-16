@@ -92,7 +92,7 @@ sealed class InsertFileError {
 }
 
 sealed class DeleteFileError {
-    object NoFileWithThatId : DeleteFileError()
+    object FileDoesNotExist : DeleteFileError()
     data class Unexpected(val error: String) : DeleteFileError()
 }
 
