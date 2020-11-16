@@ -157,6 +157,8 @@
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
+    <string name="menu_list_files_linear_layout">Linear File Layout</string>
+    <string name="menu_list_files_grid_layout">Grid File Layout</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
