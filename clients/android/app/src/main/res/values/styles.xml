@@ -76,6 +76,13 @@
         <item name="android:fontFamily">monospace</item>
     </style>
 
+    <style name="File.TitleGrid" parent="TextAppearance.AppCompat">
+        <item name="android:textColor">@color/documentNameTextColor</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+
     <style name="File.SubTitle" parent="TextAppearance.AppCompat.Small">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>

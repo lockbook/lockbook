@@ -10,8 +10,6 @@ import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
 import kotlinx.android.synthetic.main.grid_layout_file_item.view.*
-import java.sql.Date
-import java.sql.Timestamp
 
 class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) :
     GeneralViewAdapter(listFilesClickInterface) {
@@ -38,14 +36,8 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
 
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val item = files[position]
-
-        val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
         holder.cardView.grid_file_name.text = item.name
-        holder.cardView.grid_file_description.text = holder.cardView.resources.getString(
-            R.string.last_synced,
-            if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
-        )
 
         when {
             selectedFiles[position] -> {
