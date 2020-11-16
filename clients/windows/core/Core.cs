@@ -24,82 +24,82 @@ namespace lockbook {
 
         private static Mutex coreMutex = new Mutex();
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern void init_logger_safely(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_db_state(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr migrate_db(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_account(string writeable_path, string username, string api_url);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr import_account(string writeable_path, string account_string);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr export_account(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_account(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_file_at_path(string writeable_path, string path_and_name);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr write_document(string writeable_path, string id, string content);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr create_file(string writeable_path, string name, string parent, string file_type);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_root(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_children(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_file_by_path(string writeable_path, string path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr read_document(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr delete_file(string writeable_path, string id);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr list_paths(string writeable_path, string filter);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr rename_file(string writeable_path, string id, string new_name);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr list_metadatas(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr move_file(string writeable_path, string id, string new_parent);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr calculate_work(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr execute_work(string writeable_path, string work_unit);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr sync_all(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr set_last_synced(string writeable_path, ulong last_sync);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_last_synced(string writeable_path);
 
-        [DllImport("lockbook_core.dll")]
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_usage(string writeable_path);
 
         private static string getStringAndRelease(IntPtr pointer) {
@@ -118,7 +118,7 @@ namespace lockbook {
             where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
             where TPossibleErrs : struct, Enum
             where TUnexpectedErr : UnexpectedError, TIResult, new() {
-            var IResult = await Task.Run(() => {
+            var result = await Task.Run(() => {
                 string coreResponse;
                 try {
                     coreMutex.WaitOne();
@@ -129,11 +129,11 @@ namespace lockbook {
                 return coreResponse;
             });
 
-            var obj = JObject.Parse(IResult);
+            var obj = JObject.Parse(result);
             var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
             var content = obj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + IResult);
-            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + IResult);
+            if (tag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no tag): " + result);
+            if (content == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no content): " + result);
             switch (tag) {
                 case "Ok":
                     return parseOk(content);
@@ -141,20 +141,31 @@ namespace lockbook {
                     var errObj = JObject.Parse(content);
                     var errTag = errObj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
                     var errContent = errObj.SelectToken("content", errorWhenNoMatch: false)?.ToString();
-                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + IResult);
-                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + IResult);
+                    if (errTag == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err tag): " + result);
+                    if (errContent == null) return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (no err content): " + result);
                     switch (errTag) {
                         case "UiError":
                             if (Enum.TryParse<TPossibleErrs>(errContent, out var value)) return ExpectedErrors.New<TIResult, TExpectedErr, TPossibleErrs>(value);
-                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + IResult);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (unknown UI err variant): " + result);
                         case "Unexpected":
                             return UnexpectedErrors.New<TIResult, TUnexpectedErr>(errContent);
                         default:
-                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + IResult);
+                            return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (err content tag neither UiError nor Unexpected): " + result);
                     }
                 default:
                     return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
+        }
+
+        public async Task InitLoggerSafely() {
+            await Task.Run(() => {
+                try {
+                    coreMutex.WaitOne();
+                    init_logger_safely(path);
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
+            });
         }
 
         public async Task<Core.GetDbState.IResult> GetDbState() {
