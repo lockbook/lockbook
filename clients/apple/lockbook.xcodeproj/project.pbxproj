@@ -207,10 +207,10 @@
 		EAEDCD092516FBA200EBE313 /* Book */ = {
 			isa = PBXGroup;
 			children = (
+				EA08372725198A81008EA3F3 /* Account */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EA0A0C82255CDB1500CE5BFD /* FileListView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
-				EA08372725198A81008EA3F3 /* Account */,
 				EA77C34F2519AC70006B5247 /* ActionsView.swift */,
 			);
 			path = Book;
