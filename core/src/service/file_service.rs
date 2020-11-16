@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use sled::Db;
 use uuid::Uuid;
 
@@ -33,7 +34,6 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
-use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -112,6 +112,30 @@ pub enum FileMoveError {
     CouldNotFindParents(FindingParentsFailed),
 }
 
+#[derive(Debug)]
+pub enum DeleteDocumentError {
+    CouldNotFindFile,
+    FolderTreatedAsDocument,
+    FailedToRecordChange(local_changes_repo::DbError),
+    FailedToUpdateMetadata(file_metadata_repo::DbError),
+    FailedToDeleteDocument(document_repo::Error),
+    FailedToTrackDelete(local_changes_repo::DbError),
+    DbError(file_metadata_repo::DbError),
+}
+
+#[derive(Debug)]
+pub enum DeleteFolderError {
+    MetadataError(file_metadata_repo::DbError),
+    CouldNotFindFile,
+    FailedToDeleteMetadata(file_metadata_repo::DbError),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
+    FailedToRecordChange(local_changes_repo::DbError),
+    CouldNotFindParents(FindingParentsFailed),
+    DocumentTreatedAsFolder,
+    FailedToDeleteDocument(document_repo::Error),
+    FailedToDeleteChangeEntry(local_changes_repo::DbError),
+}
+
 pub trait FileService {
     fn create(
         db: &Db,
@@ -133,6 +157,10 @@ pub trait FileService {
     fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), FileMoveError>;
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
+
+    fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError>;
+
+    fn delete_folder(db: &Db, id: Uuid) -> Result<(), DeleteFolderError>;
 }
 
 pub struct FileServiceImpl<
@@ -184,8 +212,8 @@ impl<
         }
 
         // Check that this file name is available
-        for child in
-            DefaultFileMetadataRepo::get_children(&db, parent).map_err(MetadataRepoError)?
+        for child in DefaultFileMetadataRepo::get_children_non_recursively(&db, parent)
+            .map_err(MetadataRepoError)?
         {
             if child.name == name {
                 return Err(FileNameNotAvailable);
@@ -243,7 +271,7 @@ impl<
 
         // We're going to look ahead, and find or create the right child
         'path: for index in 0..path_components.len() - 1 {
-            let children = FileMetadataDb::get_children(&db, current.id)
+            let children = FileMetadataDb::get_children_non_recursively(&db, current.id)
                 .map_err(NewFileFromPathError::DbError)?;
             debug!(
                 "children: {:?}",
@@ -355,7 +383,7 @@ impl<
                     return Err(CannotRenameRoot);
                 }
 
-                let siblings = FileMetadataDb::get_children(&db, file.parent)
+                let siblings = FileMetadataDb::get_children_non_recursively(&db, file.parent)
                     .map_err(DocumentRenameError::DbError)?;
 
                 // Check that this file name is available
@@ -393,8 +421,9 @@ impl<
                             return Err(FileMoveError::DocumentTreatedAsFolder);
                         }
 
-                        let siblings = FileMetadataDb::get_children(&db, parent_metadata.id)
-                            .map_err(FileMoveError::DbError)?;
+                        let siblings =
+                            FileMetadataDb::get_children_non_recursively(&db, parent_metadata.id)
+                                .map_err(FileMoveError::DbError)?;
 
                         // Check that this file name is available
                         for child in siblings {
@@ -458,16 +487,98 @@ impl<
 
         Ok(contents)
     }
+
+    fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError> {
+        let mut file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(DeleteDocumentError::DbError)?
+            .ok_or(DeleteDocumentError::CouldNotFindFile)?;
+
+        if file_metadata.file_type == Folder {
+            return Err(DeleteDocumentError::FolderTreatedAsDocument);
+        }
+
+        let new = if let Some(change) = ChangesDb::get_local_changes(&db, id)
+            .map_err(DeleteDocumentError::FailedToTrackDelete)?
+        {
+            change.new
+        } else {
+            false
+        };
+
+        if !new {
+            file_metadata.deleted = true;
+            FileMetadataDb::insert(&db, &file_metadata)
+                .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
+        } else {
+            FileMetadataDb::non_recursive_delete_if_exists(&db, id)
+                .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
+        }
+
+        FileDb::delete_if_exists(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
+        ChangesDb::track_delete(&db, id, file_metadata.file_type)
+            .map_err(DeleteDocumentError::FailedToTrackDelete)?;
+
+        Ok(())
+    }
+
+    fn delete_folder(db: &Db, id: Uuid) -> Result<(), DeleteFolderError> {
+        let file_metadata = FileMetadataDb::maybe_get(&db, id)
+            .map_err(DeleteFolderError::MetadataError)?
+            .ok_or(DeleteFolderError::CouldNotFindFile)?;
+
+        if file_metadata.file_type == Document {
+            return Err(DeleteFolderError::DocumentTreatedAsFolder);
+        }
+
+        ChangesDb::track_delete(&db, id, file_metadata.file_type)
+            .map_err(DeleteFolderError::FailedToRecordChange)?;
+
+        let files_to_delete = FileMetadataDb::get_and_get_children_recursively(&db, id)
+            .map_err(DeleteFolderError::FindingChildrenFailed)?;
+
+        // Server has told us we have the most recent version of all children in this directory and that we can delete now
+        for mut file in files_to_delete {
+            if file.file_type == Document {
+                FileDb::delete_if_exists(&db, file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteDocument)?;
+            }
+
+            let moved = if let Some(change) = ChangesDb::get_local_changes(&db, file.id)
+                .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?
+            {
+                change.moved.is_some()
+            } else {
+                false
+            };
+
+            if file.id != id && !moved {
+                FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
+
+                ChangesDb::delete_if_exists(&db, file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
+            } else {
+                file.deleted = true;
+                FileMetadataDb::insert(&db, &file)
+                    .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod unit_tests {
+    use uuid::Uuid;
+
     use crate::model::account::Account;
     use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::repo::document_repo::DocumentRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -477,10 +588,10 @@ mod unit_tests {
         DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
+        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
+        DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultLocalChangesRepo, NewFileFromPathError,
     };
-    use uuid::Uuid;
 
     type DefaultDbProvider = TempBackedDB;
 
@@ -737,16 +848,8 @@ mod unit_tests {
         assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 2);
         assert_no_metadata_problems!(&db);
 
-        println!(
-            "{:?}",
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
-        );
         let file =
             DefaultFileService::create_at_path(&db, "username/folder1/folder2/test3.txt").unwrap();
-        println!(
-            "{:?}",
-            DefaultFileMetadataRepo::get_all_paths(&db, None).unwrap()
-        );
         assert_total_filtered_paths!(&db, None, 7);
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
@@ -1041,5 +1144,185 @@ mod unit_tests {
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn test_document_delete_new_documents_no_trace_when_deleted() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
+
+        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
+        DefaultFileService::delete_document(&db, doc1.id).unwrap();
+        assert_total_local_changes!(&db, 0);
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db, doc1.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, doc1.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_document_delete_after_sync() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
+
+        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
+        DefaultLocalChangesRepo::delete_if_exists(&db, doc1.id).unwrap();
+
+        DefaultFileService::delete_document(&db, doc1.id).unwrap();
+        assert_total_local_changes!(&db, 1);
+        assert!(
+            DefaultLocalChangesRepo::get_local_changes(&db, doc1.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db, doc1.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+    }
+
+    #[test]
+    fn test_folders_are_created_in_order() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        DefaultFileService::create_at_path(&db, &format!("{}/a/b/c/d/", account.username)).unwrap();
+        let folder1 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/c/d/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder2 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/c/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder3 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/b/", account.username))
+                .unwrap()
+                .unwrap();
+        let folder4 =
+            DefaultFileMetadataRepo::get_by_path(&db, &format!("{}/a/", account.username))
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(
+            DefaultLocalChangesRepo::get_all_local_changes(&db)
+                .unwrap()
+                .into_iter()
+                .map(|change| change.id)
+                .collect::<Vec<Uuid>>(),
+            vec![folder4.id, folder3.id, folder2.id, folder1.id]
+        );
+    }
+
+    #[test]
+    fn test_delete_folder() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
+        let document1 = DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+        let document2 = DefaultFileService::create(&db, "doc2", folder1.id, Document).unwrap();
+        let document3 = DefaultFileService::create(&db, "doc3", folder1.id, Document).unwrap();
+
+        assert_total_local_changes!(&db, 4);
+
+        DefaultFileService::delete_folder(&db, folder1.id).unwrap();
+        assert_total_local_changes!(&db, 1);
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document1.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document2.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document3.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, document1.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document2.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document3.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_other_things_are_not_touched_during_delete() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        let folder1 = DefaultFileService::create(&db, "folder1", root.id, Folder).unwrap();
+        DefaultFileService::create(&db, "doc1", folder1.id, Document).unwrap();
+        DefaultFileService::create(&db, "doc2", folder1.id, Document).unwrap();
+        DefaultFileService::create(&db, "doc3", folder1.id, Document).unwrap();
+
+        let folder2 = DefaultFileService::create(&db, "folder2", root.id, Folder).unwrap();
+        let document4 = DefaultFileService::create(&db, "doc1", folder2.id, Document).unwrap();
+        let document5 = DefaultFileService::create(&db, "doc2", folder2.id, Document).unwrap();
+        let document6 = DefaultFileService::create(&db, "doc3", folder2.id, Document).unwrap();
+
+        assert_total_local_changes!(&db, 8);
+
+        DefaultFileService::delete_folder(&db, folder1.id).unwrap();
+        assert_total_local_changes!(&db, 5);
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document4.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document5.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db, document6.id)
+            .unwrap()
+            .is_some());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db, document4.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document5.id)
+            .unwrap()
+            .is_some());
+        assert!(DefaultDocumentRepo::maybe_get(&db, document6.id)
+            .unwrap()
+            .is_some());
     }
 }

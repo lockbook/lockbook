@@ -2,14 +2,12 @@ package app.lockbook.model
 
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
-import android.content.Intent
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
-import app.lockbook.ui.FileModel
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
@@ -19,7 +17,10 @@ import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
+import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
+import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
+import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
 import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
@@ -52,6 +53,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
+    private val _switchFileLayout = SingleMutableLiveData<Unit>()
     private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _showCreateFileDialog = SingleMutableLiveData<CreateFileInfo>()
@@ -59,6 +61,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
+    private val _showSuccessfulDeletion = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -89,6 +92,9 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
 
+    val switchFileLayout: LiveData<Unit>
+        get() = _switchFileLayout
+
     val switchMenu: LiveData<Unit>
         get() = _switchMenu
 
@@ -109,6 +115,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
+
+    val showSuccessfulDeletion: LiveData<Unit>
+        get() = _showSuccessfulDeletion
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -163,7 +172,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
                     Unit
                 }
-                SYNC_AUTOMATICALLY_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> Unit
+                SORT_FILES_KEY -> {
+                    fileModel.refreshFiles()
+                }
+                SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
                 else -> {
                     _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
@@ -187,13 +199,12 @@ class ListFilesViewModel(path: String, application: Application) :
         return true
     }
 
-    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    fun handleActivityResult(requestCode: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (requestCode) {
                     TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
-                    RESULT_CANCELED -> {
-                    }
+                    RESULT_CANCELED -> {}
                     else -> {
                         Timber.e("Unable to recognize match requestCode: $requestCode.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
@@ -254,29 +265,54 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
                 when (id) {
-                    R.id.menu_list_files_sort_last_changed -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_LAST_CHANGED
-                    ).apply()
-                    R.id.menu_list_files_sort_a_z ->
+                    R.id.menu_list_files_sort_last_changed -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_LAST_CHANGED
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_a_z -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
                             .apply()
-                    R.id.menu_list_files_sort_z_a ->
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_z_a -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
                             .apply()
-                    R.id.menu_list_files_sort_first_changed -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_FIRST_CHANGED
-                    ).apply()
-                    R.id.menu_list_files_sort_type -> pref.putString(
-                        SORT_FILES_KEY,
-                        SORT_FILES_TYPE
-                    ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_first_changed -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_FIRST_CHANGED
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_sort_type -> {
+                        pref.putString(
+                            SORT_FILES_KEY,
+                            SORT_FILES_TYPE
+                        ).apply()
+                        fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_linear_view -> {
+                        pref.putString(
+                            FILE_LAYOUT_KEY,
+                            LINEAR_LAYOUT
+                        ).apply()
+                        _switchFileLayout.postValue(Unit)
+                    }
+                    R.id.menu_list_files_grid_view -> {
+                        pref.putString(
+                            FILE_LAYOUT_KEY,
+                            GRID_LAYOUT
+                        ).apply()
+                        _switchFileLayout.postValue(Unit)
+                    }
                     R.id.menu_list_files_rename -> {
                         files.value?.let { files ->
-                            val checkedFiles = files.filterIndexed { index, _ ->
-                                selectedFiles[index]
-                            }
+                            val checkedFiles = getSelectedFiles(files)
                             if (checkedFiles.size == 1) {
                                 _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
                             } else {
@@ -285,13 +321,19 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
                     R.id.menu_list_files_delete -> {
-                        _errorHasOccurred.postValue("Delete hasn't been implemented yet.")
+                        files.value?.let { files ->
+                            val checkedIds = getSelectedFiles(files).map { file -> file.id }
+                            collapseMoreOptionsMenu()
+                            if (fileModel.deleteFiles(checkedIds)) {
+                                _showSuccessfulDeletion.postValue(Unit)
+                            }
+
+                            fileModel.refreshFiles()
+                        }
                     }
                     R.id.menu_list_files_info -> {
                         files.value?.let { files ->
-                            val checkedFiles = files.filterIndexed { index, _ ->
-                                selectedFiles[index]
-                            }
+                            val checkedFiles = getSelectedFiles(files)
                             if (checkedFiles.size == 1) {
                                 _showFileInfoDialog.postValue(checkedFiles[0])
                             } else {
@@ -303,9 +345,9 @@ class ListFilesViewModel(path: String, application: Application) :
                         files.value?.let { files ->
                             _showMoveFileDialog.postValue(
                                 MoveFileInfo(
-                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                    getSelectedFiles(files)
                                         .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                    getSelectedFiles(files)
                                         .map { fileMetadata -> fileMetadata.name }.toTypedArray()
                                 )
                             )
@@ -316,15 +358,12 @@ class ListFilesViewModel(path: String, application: Application) :
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     }
                 }.exhaustive
-
-                val files = fileModel.files.value
-                if (files is List<FileMetadata>) {
-                    fileModel.matchToDefaultSortOption(files)
-                } else {
-                    _errorHasOccurred.postValue("Unable to retrieve files from LiveData.")
-                }
             }
         }
+    }
+
+    private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
+        selectedFiles[index]
     }
 
     fun collapseMoreOptionsMenu() {
@@ -474,7 +513,6 @@ class ListFilesViewModel(path: String, application: Application) :
     fun refreshAndAssessChanges() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                Timber.e("CALLED")
                 collapseMoreOptionsMenu()
                 fileModel.refreshFiles()
             }
