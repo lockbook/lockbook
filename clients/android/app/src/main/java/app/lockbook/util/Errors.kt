@@ -93,9 +93,9 @@ sealed class InsertFileError : CoreError() {
     data class Unexpected(val error: String) : InsertFileError()
 }
 
-sealed class DeleteFileError : CoreError() {
-    object FileDoesNotExist : DeleteFileError()
-    data class Unexpected(val error: String) : DeleteFileError()
+sealed class FileDeleteError : CoreError() {
+    object FileDoesNotExist : FileDeleteError()
+    data class Unexpected(val error: String) : FileDeleteError()
 }
 
 sealed class ReadDocumentError : CoreError() {

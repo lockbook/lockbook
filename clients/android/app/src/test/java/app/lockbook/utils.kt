@@ -105,17 +105,17 @@ val checkIfAllErrorsPresentConverter = object : Converter {
             throw Throwable(obsoleteErrorTemplate + CreateFileError::class.simpleName)
         }
 
-        var deleteFileErrors = DeleteFileError::class.nestedClasses.filter { kClass -> kClass != DeleteFileError.Unexpected::class }
-        jsonObject.array<String>("DeleteFileError")!!.forEach { error ->
-            val sizeBefore = deleteFileErrors.size
-            deleteFileErrors = deleteFileErrors.filter { kClass -> error != kClass.simpleName }
-            if (deleteFileErrors.size == sizeBefore && error != stubError) {
-                throw Throwable(error + unrecognizedErrorTemplate + DeleteFileError::class.simpleName)
+        var fileDeleteErrors = FileDeleteError::class.nestedClasses.filter { kClass -> kClass != FileDeleteError.Unexpected::class }
+        jsonObject.array<String>("FileDeleteError")!!.forEach { error ->
+            val sizeBefore = fileDeleteErrors.size
+            fileDeleteErrors = fileDeleteErrors.filter { kClass -> error != kClass.simpleName }
+            if (fileDeleteErrors.size == sizeBefore && error != stubError) {
+                throw Throwable(error + unrecognizedErrorTemplate + FileDeleteError::class.simpleName)
             }
         }
 
-        if (deleteFileErrors.isNotEmpty()) {
-            throw Throwable(obsoleteErrorTemplate + DeleteFileError::class.simpleName)
+        if (fileDeleteErrors.isNotEmpty()) {
+            throw Throwable(obsoleteErrorTemplate + FileDeleteError::class.simpleName)
         }
 
         var executeWorkErrors = ExecuteWorkError::class.nestedClasses.filter { kClass -> kClass != ExecuteWorkError.Unexpected::class }
