@@ -33,7 +33,13 @@ struct ActionsView: View {
                         .foregroundColor(.green)
                 }
                 Button(action: {
-                    core.api.deleteFile(id: selected.id)
+                    switch core.api.deleteFile(id: selected.id) {
+                    case .success(_):
+                        core.updateFiles()
+                        presentationMode.wrappedValue.dismiss()
+                    case .failure(let err):
+                        core.handleError(err)
+                    }
                 }) {
                     Label("Delete", systemImage: "trash")
                         .foregroundColor(.red)
