@@ -8,7 +8,6 @@ import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
-import app.lockbook.ui.FileModel
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
@@ -62,6 +61,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
+    private val _showSuccessfulDeletion = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -115,6 +115,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
+
+    val showSuccessfulDeletion: LiveData<Unit>
+        get() = _showSuccessfulDeletion
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -309,9 +312,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                     R.id.menu_list_files_rename -> {
                         files.value?.let { files ->
-                            val checkedFiles = files.filterIndexed { index, _ ->
-                                selectedFiles[index]
-                            }
+                            val checkedFiles = getSelectedFiles(files)
                             if (checkedFiles.size == 1) {
                                 _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
                             } else {
@@ -320,13 +321,19 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
                     R.id.menu_list_files_delete -> {
-                        _errorHasOccurred.postValue("Delete hasn't been implemented yet.")
+                        files.value?.let { files ->
+                            val checkedIds = getSelectedFiles(files).map { file -> file.id }
+                            collapseMoreOptionsMenu()
+                            if (fileModel.deleteFiles(checkedIds)) {
+                                _showSuccessfulDeletion.postValue(Unit)
+                            }
+
+                            fileModel.refreshFiles()
+                        }
                     }
                     R.id.menu_list_files_info -> {
                         files.value?.let { files ->
-                            val checkedFiles = files.filterIndexed { index, _ ->
-                                selectedFiles[index]
-                            }
+                            val checkedFiles = getSelectedFiles(files)
                             if (checkedFiles.size == 1) {
                                 _showFileInfoDialog.postValue(checkedFiles[0])
                             } else {
@@ -338,9 +345,9 @@ class ListFilesViewModel(path: String, application: Application) :
                         files.value?.let { files ->
                             _showMoveFileDialog.postValue(
                                 MoveFileInfo(
-                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                    getSelectedFiles(files)
                                         .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                    files.filterIndexed { index, _ -> selectedFiles[index] }
+                                    getSelectedFiles(files)
                                         .map { fileMetadata -> fileMetadata.name }.toTypedArray()
                                 )
                             )
@@ -353,6 +360,10 @@ class ListFilesViewModel(path: String, application: Application) :
                 }.exhaustive
             }
         }
+    }
+
+    private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
+        selectedFiles[index]
     }
 
     fun collapseMoreOptionsMenu() {

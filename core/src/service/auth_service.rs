@@ -82,7 +82,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
 
         let auth_time = auth_comp.next().ok_or(())?.parse::<u128>()?;
         let range = auth_time..auth_time + max_auth_delay;
-        let current_time = Time::get_time();
+        let current_time = 0;
 
         if !range.contains(&current_time) {
             return Err(TimeStampOutOfBounds(current_time - auth_time));
@@ -91,7 +91,7 @@ impl<Time: Clock, Crypto: PubKeyCryptoService> AuthService for AuthServiceImpl<T
     }
 
     fn generate_auth(account: &Account) -> Result<SignedValue, AuthGenError> {
-        let to_sign = format!("{},{}", &account.username, Time::get_time().to_string());
+        let to_sign = format!("{},{}", &account.username, 0);
         Ok(Crypto::sign(&account.keys, &to_sign).map_err(AuthGenError::RsaError)?)
     }
 }
@@ -107,20 +107,21 @@ mod unit_tests {
     use crate::service::auth_service::{AuthService, AuthServiceImpl, VerificationError};
     use crate::service::clock_service::Clock;
     use crate::service::crypto_service::RsaImpl;
+    use std::time::SystemTimeError;
 
     struct EarlyClock;
 
     impl Clock for EarlyClock {
-        fn get_time() -> u128 {
-            500
+        fn get_time() -> Result<u128, SystemTimeError> {
+            Ok(500)
         }
     }
 
     struct LateClock;
 
     impl Clock for LateClock {
-        fn get_time() -> u128 {
-            520
+        fn get_time() -> Result<u128, SystemTimeError> {
+            Ok(520)
         }
     }
 

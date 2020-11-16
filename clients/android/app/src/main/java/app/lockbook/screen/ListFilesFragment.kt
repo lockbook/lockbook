@@ -208,6 +208,15 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.showSuccessfulDeletion.observe(
+            viewLifecycleOwner,
+            {
+                if (container != null) {
+                    showSuccessfulDeletionSnackbar(container)
+                }
+            }
+        )
+
         listFilesViewModel.fileModelErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
@@ -385,6 +394,10 @@ class ListFilesFragment : Fragment() {
         list_files_frame_layout.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
+    }
+
+    private fun showSuccessfulDeletionSnackbar(view: ViewGroup) {
+        Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
     }
 
     private fun updateRecyclerView(

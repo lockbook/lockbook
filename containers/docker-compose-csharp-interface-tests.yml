@@ -3,13 +3,14 @@ version: '3'
 services:
   filesdb:
     image: minio/minio:RELEASE.2020-05-16T01-33-21Z
-    container_name: filesdb-$TYPE-$HASH
+    container_name: filesdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
+
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
-    container_name: config_filesdb-$TYPE-$HASH
+    container_name: config_filesdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -22,14 +23,16 @@ services:
         /usr/bin/mc policy set public filesdb/$$FILES_DB_BUCKET && \
         tail -f /dev/null
       '
+
   indexdb:
     image: postgres:12.3
-    container_name: indexdb-$TYPE-$HASH
+    container_name: indexdb-csharp-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
+
   config_indexdb:
     image: postgres:12.3
-    container_name: config_indexdb-$TYPE-$HASH
+    container_name: config_indexdb-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -42,16 +45,30 @@ services:
         psql -wq -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER --db $$INDEX_DB_DB -f /index_db/create_db.sql && \
         tail -f /dev/null
       '
+
   lockbook_server:
     image: server:$HASH
-    container_name: server-$TYPE-$HASH
+    container_name: server-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
-      - indexdb
-      - filesdb
+      - config_filesdb
+      - config_indexdb
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
+      '
+
+  csharp_interface_tests:
+    image: csharp_interface_tests:$HASH
+    container_name: csharp_interface_tests-csharp-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        dotnet test
       '

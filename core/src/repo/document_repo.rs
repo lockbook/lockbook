@@ -20,7 +20,7 @@ pub trait DocumentRepo {
     fn insert(db: &Db, id: Uuid, document: &Document) -> Result<(), Error>;
     fn get(db: &Db, id: Uuid) -> Result<Document, Error>;
     fn maybe_get(db: &Db, id: Uuid) -> Result<Option<Document>, DbError>;
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
+    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), Error>;
 }
 
 pub struct DocumentRepoImpl;
@@ -59,7 +59,7 @@ impl DocumentRepo for DocumentRepoImpl {
         }
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
+    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), Error> {
         let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
         tree.remove(id.as_bytes()).map_err(Error::SledError)?;
         Ok(())

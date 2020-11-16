@@ -2,16 +2,20 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use crate::integration_test::{generate_account, test_db};
     use lockbook_core::model::crypto::DecryptedValue;
     use lockbook_core::model::work_unit::WorkUnit;
+    use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
-        DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
+        DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultLocalChangesRepo, DefaultSyncService,
     };
+
+    use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
+    use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
     #[test]
     fn test_create_files_and_folders_sync() {
@@ -201,7 +205,7 @@ mod sync_tests {
                 .secret,
             "meaningful messages".to_string()
         );
-        assert_eq!(&db.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db, &db2);
     }
 
     #[test]
@@ -236,11 +240,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db2).unwrap();
 
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
-            DefaultFileMetadataRepo::get_all(&db2).unwrap()
-        );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
 
         let new_folder =
             DefaultFileService::create_at_path(&db1, &format!("{}/folder2/", account.username))
@@ -254,7 +254,6 @@ mod sync_tests {
                 .len(),
             2
         );
-        assert_ne!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
 
         DefaultSyncService::sync(&db1).unwrap();
         assert_eq!(
@@ -292,7 +291,7 @@ mod sync_tests {
             "nice document"
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -341,12 +340,7 @@ mod sync_tests {
         DefaultFileService::move_file(&db1, file.id, new_folder2.id).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert_eq!(
-            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
-            DefaultFileMetadataRepo::get_all(&db2).unwrap()
-        );
-
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
 
         assert_eq!(
             DefaultFileMetadataRepo::get(&db1, file.id).unwrap().parent,
@@ -410,7 +404,7 @@ mod sync_tests {
             .name,
             "folder1-new"
         );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -465,7 +459,7 @@ mod sync_tests {
             .name,
             "folder2-new"
         );
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -563,7 +557,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -650,7 +644,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -720,7 +714,7 @@ mod sync_tests {
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -782,7 +776,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -848,7 +842,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -914,7 +908,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -980,7 +974,7 @@ mod sync_tests {
             .unwrap()
             .secret
             .contains("Offline Line"));
-        assert_eq!(&db1.checksum().unwrap(), &db2.checksum().unwrap());
+        assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
@@ -1042,7 +1036,12 @@ mod sync_tests {
             .work_units
             .is_empty());
 
-        assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err())
+        assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err());
+
+        assert!(DefaultSyncService::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
     }
 
     #[test]
@@ -1067,6 +1066,587 @@ mod sync_tests {
             .work_units
             .is_empty());
 
-        assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err())
+        assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err());
+    }
+
+    #[test]
+    // Test that documents are deleted when a fresh sync happens
+    fn delete_document_test_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+        assert!(DefaultFileMetadataRepo::get(&db1, file.id).unwrap().deleted);
+        DefaultSyncService::sync(&db1).unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+        DefaultSyncService::sync(&db2).unwrap();
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultFileService::read_document(&db2, file.id).is_err());
+    }
+
+    #[test]
+    fn delete_new_document_never_synced() {
+        let db1 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            0
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileService::read_document(&db1, file.id).is_err());
+    }
+
+    #[test]
+    // Test that documents are deleted after a sync
+    fn delete_document_test_after_sync() {
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let file =
+            DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
+                .unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultLocalChangesRepo::get_local_changes(&db2, file.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_folder_deletion() {
+        // Create 3 files in a folder that is going to be deleted and 3 in a folder that won't
+        // Sync 2 dbs
+        // Delete them in the second db
+        // Only 1 instruction should be in the work
+        // Sync this from db2
+        // 4 instructions should be in work for db1
+        // Sync it
+        // Make sure all the contents for those 4 files are gone from both dbs
+        // Make sure all the contents for the stay files are there in both dbs
+
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file1.md")).unwrap();
+        let file2_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file2.md")).unwrap();
+        let file3_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file3.md")).unwrap();
+
+        let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
+        let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
+        let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultFileService::delete_folder(
+            &db2,
+            DefaultFileMetadataRepo::get_by_path(&db2, &path("delete"))
+                .unwrap()
+                .unwrap()
+                .id,
+        )
+        .unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        // Only the folder should show up as the sync instruction
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            1
+        );
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            4
+        );
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+    }
+
+    #[test]
+    fn test_moving_a_document_out_of_a_folder_before_delete_sync() {
+        // Create 3 files in a folder that is going to be deleted and 3 in a folder that won't
+        // Sync 2 dbs
+        // Move a doc out
+        // Delete them in the second db
+        // Only 1 instruction should be in the work
+        // Sync this from db2
+        // 4 instructions should be in work for db1
+        // Sync it
+        // Make sure all the contents for those 4 files are gone from both dbs
+        // Make sure all the contents for the stay files are there in both dbs
+
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file1.md")).unwrap();
+        let file2_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file2A.md")).unwrap();
+        let file3_delete =
+            DefaultFileService::create_at_path(&db1, &path("delete/file3.md")).unwrap();
+
+        let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
+        let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
+        let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+        DefaultFileService::move_file(&db2, file2_delete.id, file1_stay.parent).unwrap();
+        DefaultFileService::delete_folder(
+            &db2,
+            DefaultFileMetadataRepo::get_by_path(&db2, &path("delete"))
+                .unwrap()
+                .unwrap()
+                .id,
+        )
+        .unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        // Only the folder should show up as the sync instruction
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db2)
+                .unwrap()
+                .work_units
+                .len(),
+            2
+        );
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+
+        assert_eq!(
+            DefaultSyncService::calculate_work(&db1)
+                .unwrap()
+                .work_units
+                .len(),
+            4
+        );
+        DefaultSyncService::sync(&db1).unwrap();
+
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.parent)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file3_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+    }
+
+    #[test]
+    fn create_new_folder_and_move_old_files_into_it_then_delete_that_folder() {
+        let db1 = test_db();
+        let db2 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1_delete = DefaultFileService::create_at_path(&db1, &path("old/file1.md")).unwrap();
+        let file2_delete = DefaultFileService::create_at_path(&db1, &path("old/file2.md")).unwrap();
+        let file3_delete = DefaultFileService::create_at_path(&db1, &path("old/file3.md")).unwrap();
+        let file4_delete = DefaultFileService::create_at_path(&db1, &path("old/file4.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        let new_folder = DefaultFileService::create_at_path(&db1, &path("new/")).unwrap();
+        DefaultFileService::move_file(&db1, file2_delete.id, new_folder.id).unwrap();
+        DefaultFileService::move_file(&db1, file4_delete.id, new_folder.id).unwrap();
+        DefaultFileService::delete_folder(&db1, new_folder.id).unwrap();
+
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db1, file3_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, file4_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            DefaultFileMetadataRepo::maybe_get(&db1, new_folder.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultAccountService::import_account(
+            &db2,
+            &DefaultAccountService::export_account(&db1).unwrap(),
+        )
+        .unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap();
+
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file2_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !DefaultFileMetadataRepo::maybe_get(&db2, file3_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, file4_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultFileMetadataRepo::maybe_get(&db2, new_folder.id)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn create_document_sync_delete_document_sync() {
+        let db1 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
+
+        DefaultSyncService::sync(&db1).unwrap();
+        DefaultFileService::delete_document(&db1, file1.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        assert!(DefaultSyncService::calculate_work(&db1)
+            .unwrap()
+            .work_units
+            .is_empty());
+    }
+
+    #[test]
+    fn deleted_path_is_released() {
+        let db1 = test_db();
+        let generated_account = generate_account();
+        let account = DefaultAccountService::create_account(
+            &db1,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
+
+        let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::delete_document(&db1, file1.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
     }
 }

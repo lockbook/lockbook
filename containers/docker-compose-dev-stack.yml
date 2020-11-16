@@ -3,13 +3,15 @@ version: '3'
 services:
   filesdb:
     image: minio/minio:RELEASE.2020-05-16T01-33-21Z
-    container_name: filesdb-$TYPE-$HASH
+    container_name: filesdb-integration-$HASH
     env_file:
       - ../containers/test.env
+    ports:
+      - "8002:9000"
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
-    container_name: config_filesdb-$TYPE-$HASH
+    container_name: config_filesdb-integration-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -24,12 +26,14 @@ services:
       '
   indexdb:
     image: postgres:12.3
-    container_name: indexdb-$TYPE-$HASH
+    container_name: indexdb-integration-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "8001:5432"
   config_indexdb:
     image: postgres:12.3
-    container_name: config_indexdb-$TYPE-$HASH
+    container_name: config_indexdb-integration-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -44,12 +48,14 @@ services:
       '
   lockbook_server:
     image: server:$HASH
-    container_name: server-$TYPE-$HASH
+    container_name: server-integration-$HASH
     env_file:
       - ../containers/test.env
+    ports:
+      - "8000:8000"
     depends_on:
-      - indexdb
-      - filesdb
+      - config_filesdb
+      - config_indexdb
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \

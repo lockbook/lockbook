@@ -92,6 +92,7 @@ integration_tests: is_docker_running
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
 
 .PHONY: android
@@ -119,10 +120,19 @@ kotlin_interface_tests_run: server kotlin_interface_tests
 swift_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.swift_interface_tests . --tag swift_interface_tests:$(hash)
 
-.PHONY: swift_interface_tests
-swift_interface_tests_run: server swift_interface_tests_run
+.PHONY: swift_interface_tests_run
+swift_interface_tests_run: server swift_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) up --exit-code-from=swift_interface_tests
+
+.PHONY: csharp_interface_tests
+csharp_interface_tests: is_docker_running
+	docker build -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash)
+
+.PHONY: csharp_interface_tests_run
+csharp_interface_tests_run: server csharp_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) up --exit-code-from=csharp_interface_tests
 
 .PHONY: performance
 performance: is_docker_running
@@ -136,6 +146,12 @@ performance_bench: performance server
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
+
+.PHONY: dev_stack_run
+dev_stack_run: server
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
 
 # Helpers
 .PHONY: is_docker_running
