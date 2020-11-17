@@ -143,14 +143,7 @@ mod move_document_tests {
         .unwrap();
 
         // delete document
-        DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-            },
-        )
-        .unwrap();
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
         // move deleted document
         doc.parent = folder.id;

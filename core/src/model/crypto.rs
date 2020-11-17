@@ -53,7 +53,7 @@ impl<T: DeserializeOwned> RSAEncrypted<T> {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Timestamped<T> {
     pub value: T,
-    pub timestamp: u64,
+    pub timestamp: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
