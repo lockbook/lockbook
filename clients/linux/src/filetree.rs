@@ -1,6 +1,5 @@
 use uuid::Uuid;
 
-use glib::clone;
 use gtk::prelude::*;
 use gtk::{
     CellRendererText as GtkCellRendererText, TreeIter as GtkTreeIter, TreeStore as GtkTreeStore,
@@ -29,18 +28,21 @@ macro_rules! tree_iter_value {
 pub struct FileTree {
     cols: Vec<FileTreeCol>,
     model: GtkTreeStore,
-    pub tree: GtkTreeView,
+    tree: GtkTreeView,
 }
 
 impl FileTree {
-    pub fn new(m: &Messenger, hidden_cols: &Vec<String>) -> Self {
+    pub fn new(msngr: &Messenger, hidden_cols: &Vec<String>) -> Self {
         let model = GtkTreeStore::new(&FileTreeCol::all_types());
 
         let tree = GtkTreeView::with_model(&model);
+        tree.set_enable_search(false);
         tree.connect_columns_changed(|t| {
             t.set_headers_visible(t.get_columns().len() > 1);
         });
-        tree.connect_row_activated(clone!(@strong m => move |t, path, _| {
+
+        let m = msngr.clone();
+        tree.connect_row_activated(move |t, path, _| {
             if t.row_expanded(&path) {
                 t.collapse_row(&path);
                 m.send(Msg::CloseFile);
@@ -53,9 +55,9 @@ impl FileTree {
             let iter_id = tree_iter_value!(model, &iter, 1, String);
             let iter_uuid = Uuid::parse_str(&iter_id).unwrap();
             m.send(Msg::OpenFile(iter_uuid));
-        }));
+        });
 
-        let m = m.clone();
+        let m = msngr.clone();
         tree.connect_key_press_event(move |tree, key| {
             if key.get_hardware_keycode() == 119 {
                 if let Some((model, iter)) = tree.get_selection().get_selected() {
@@ -75,6 +77,10 @@ impl FileTree {
         }
 
         Self { tree, model, cols }
+    }
+
+    pub fn widget(&self) -> &GtkTreeView {
+        &self.tree
     }
 
     pub fn fill(&self, b: &LbCore) {

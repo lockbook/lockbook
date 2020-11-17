@@ -94,6 +94,7 @@ impl Menubar {
                 );
             }
             EditMode::PlainText {
+                path: _,
                 meta: _,
                 content: _,
             } => {
@@ -192,7 +193,7 @@ impl Item {
     fn data() -> Vec<(Self, ItemData)> {
         vec![
             (Self::FileNew, ("New", "<Primary>N", || Msg::ShowDialogNew)),
-            (Self::FileOpen, ("Open", "<Primary>O", || Msg::ShowDialogOpen)),
+            (Self::FileOpen, ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
             (Self::FileSave, ("Save", "<Primary>S", || Msg::SaveFile)),
             (Self::FileClose, ("Close File", "<Primary>W", || Msg::CloseFile)),
             (Self::FileQuit, ("Quit", "", || Msg::Quit)),
