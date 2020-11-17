@@ -3,24 +3,23 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use uuid::Uuid;
 
 use gio::prelude::*;
 use gtk::prelude::*;
-use gtk::Orientation::Vertical;
+use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Application as GtkApp,
-    ApplicationWindow as GtkAppWindow, Box as GtkBox, CheckButton as GtkCheckBox,
-    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
-    Expander as GtkExpander, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
+    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button as GtkButton,
+    CheckButton as GtkCheckBox, Clipboard as GtkClipboard, Dialog as GtkDialog, Entry as GtkEntry,
+    EntryCompletion as GtkEntryCompletion, Expander as GtkExpander, Image as GtkImage,
+    Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
     ProgressBar as GtkProgressBar, ResponseType as GtkResponseType, SortColumn as GtkSortColumn,
-    SortType as GtkSortType, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
-    TreeModelSort as GtkTreeModelSort, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
-    WindowPosition as GtkWindowPosition,
+    SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter,
+    TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort, Widget as GtkWidget,
+    WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
-
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
@@ -193,10 +192,53 @@ impl LockbookApp {
     }
 
     fn export_account(&self) {
+        let spinner = GtkSpinner::new();
+        spinner.set_margin_end(8);
+        spinner.show();
+        spinner.start();
+
+        let placeholder = GtkBox::new(Horizontal, 0);
+        placeholder.set_valign(GtkAlign::Center);
+        placeholder.set_margin_top(200);
+        placeholder.set_margin_bottom(200);
+        placeholder.set_margin_start(125);
+        placeholder.set_margin_end(125);
+        placeholder.add(&spinner);
+        placeholder.add(&GtkLabel::new(Some("Generating QR code...")));
+
+        let image_cntr = GtkBox::new(Horizontal, 0);
+        image_cntr.set_margin_start(8);
+        image_cntr.set_margin_end(8);
+        image_cntr.set_center_widget(Some(&placeholder));
+
         match self.core.export_account() {
-            Ok(privkey) => self.show_dialog_export_account(&privkey),
+            Ok(privkey) => {
+                let btn = GtkButton::with_label("Copy to Clipboard");
+                btn.connect_clicked(move |_| GuiUtil::copy_to_clipboard(&privkey));
+
+                let btn_cntr = GtkBox::new(Horizontal, 0);
+                btn_cntr.set_center_widget(Some(&btn));
+                btn_cntr.set_margin_bottom(8);
+
+                let d = self.gui.new_dialog("Lockbook Private Key");
+                d.get_content_area().pack_start(&image_cntr, true, true, 8);
+                d.get_content_area().add(&btn_cntr);
+                d.set_resizable(false);
+                d.show_all()
+            }
             Err(err) => self.show_unexpected_err("Unable to export account", &err),
         }
+
+        let ch = make_glib_chan(move |path: Result<String, String>| {
+            let path = path.unwrap();
+            let qr_image = GtkImage::from_file(&path);
+            image_cntr.set_center_widget(Some(&qr_image));
+            image_cntr.show_all();
+            glib::Continue(false)
+        });
+
+        let core = self.core.clone();
+        std::thread::spawn(move || core.account_qrcode(&ch));
     }
 
     fn perform_sync(&self) {
@@ -473,17 +515,6 @@ impl LockbookApp {
         };
     }
 
-    fn show_dialog_export_account(&self, privkey: &str) {
-        let bx = GtkBox::new(Vertical, 0);
-        bx.add(&GuiUtil::selectable_label(&privkey));
-        bx.add(&GtkLabel::new(Some("(Click the key above to highlight)")));
-
-        let d = self.gui.new_dialog("My Lockbook Private Key");
-        d.get_content_area().add(&bx);
-        d.set_resizable(false);
-        d.show_all();
-    }
-
     fn show_unexpected_err(&self, desc: &str, deets: &str) {
         let lbl = GtkLabel::new(Some(&format!("ERROR: {}", desc)));
         GtkWidgetExt::set_widget_name(&lbl, "unexpected_err_lbl");
@@ -714,6 +745,10 @@ impl Gui {
 
 struct GuiUtil;
 impl GuiUtil {
+    fn copy_to_clipboard(txt: &str) {
+        GtkClipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&txt);
+    }
+
     fn settings(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkNotebook {
         let tabs = GtkNotebook::new();
         for tab_data in vec![
