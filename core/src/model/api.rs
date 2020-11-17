@@ -105,7 +105,6 @@ impl Request for CreateDocumentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
     pub id: Uuid,
-    pub old_metadata_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -161,6 +160,7 @@ pub enum MoveDocumentError {
     UserNotFound,
     DocumentNotFound,
     ParentNotFound,
+    ParentDeleted,
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
@@ -318,7 +318,6 @@ impl Request for CreateFolderRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
     pub id: Uuid,
-    pub old_metadata_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -374,6 +373,7 @@ pub enum MoveFolderError {
     UserNotFound,
     FolderNotFound,
     ParentNotFound,
+    ParentDeleted,
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
@@ -487,7 +487,7 @@ pub struct GetUsageResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileUsage {
-    pub file_id: String,
+    pub file_id: Uuid,
     pub byte_secs: u64,
     pub secs: u64,
 }

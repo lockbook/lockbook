@@ -53,7 +53,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=lockbook_server=debug cargo run \
+        RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
 
   integration_tests:
@@ -66,5 +66,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        LOCKBOOK_DEBUG=1 cargo test -- --nocapture \
+        LOCKBOOK_DEBUG=1 cargo test --no-fail-fast -- --nocapture \
       '

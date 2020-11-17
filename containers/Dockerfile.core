@@ -10,7 +10,8 @@ WORKDIR core
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
-RUN cargo build
+COPY core/benches ./benches
+RUN cargo build --release
 
 # Build our source
 COPY core .
@@ -18,4 +19,4 @@ COPY core .
 ENV API_URL=unused
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
-RUN cargo build
+RUN cargo build --release

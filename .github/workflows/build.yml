@@ -16,6 +16,7 @@ jobs:
       run: make clean
   Core:
     runs-on: self-hosted
+    needs: Clean
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -31,6 +32,7 @@ jobs:
       run: make core_lint
   Cli:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -44,8 +46,25 @@ jobs:
       run: make cli_fmt
     - name: Lint
       run: make cli_lint
+  Linux:
+    runs-on: self-hosted
+    needs: Core
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build container
+      run: make linux
+    - name: Check Formatting
+      run: make linux_fmt
+    - name: Lint
+      run: make linux_lint
+    - name: Compile and run tests
+      run: make linux_test
   Android:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -59,6 +78,7 @@ jobs:
         run: make android_lint
   Integration-Tests:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -72,6 +92,7 @@ jobs:
       run: make integration_tests_run
   Server-Integration-Tests:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -85,6 +106,7 @@ jobs:
         run: make server_tests_run
   Kotlin-Interface-Tests:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -98,6 +120,7 @@ jobs:
       run: make kotlin_interface_tests_run
   Swift-Interface-Tests:
     runs-on: self-hosted
+    needs: Core
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -109,3 +132,17 @@ jobs:
         run: make swift_interface_tests
       - name: Compile and run tests
         run: make swift_interface_tests_run
+  CSharp-Interface-Tests:
+    runs-on: self-hosted
+    needs: Core
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build server container
+        run: make server
+      - name: Build test container
+        run: make csharp_interface_tests
+      - name: Compile and run tests
+        run: make csharp_interface_tests_run

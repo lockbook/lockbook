@@ -145,7 +145,7 @@ mod account_tests {
                 | AccountCreationError::KeySerializationError(_) => {
                     panic!("This action should have failed with AccountAlreadyExists!")
                 }
-                AccountCreationError::AccountExistsAlready => println!("Success."),
+                AccountCreationError::AccountExistsAlready => {}
             },
         }
     }
@@ -203,7 +203,7 @@ mod account_tests {
                 "This should not have allowed this account to be imported as one exists already"
             ),
             Err(err) => match err {
-                Error::UiError(ImportError::AccountExistsAlready) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountExistsAlready) => {}
                 Error::UiError(ImportError::AccountStringCorrupted)
                 | Error::UiError(ImportError::AccountDoesNotExist)
                 | Error::UiError(ImportError::UsernamePKMismatch)
@@ -221,7 +221,7 @@ mod account_tests {
         match import_account(&cfg1, "clearly a bad account string") {
             Ok(_) => panic!("This should not be a valid account string"),
             Err(err) => match err {
-                Error::UiError(ImportError::AccountStringCorrupted) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountStringCorrupted) => {}
                 Error::UiError(ImportError::AccountExistsAlready)
                 | Error::UiError(ImportError::AccountDoesNotExist)
                 | Error::UiError(ImportError::UsernamePKMismatch)
@@ -258,7 +258,7 @@ mod account_tests {
         match import_account(&cfg2, &account_string) {
             Ok(_) => panic!("Should not have passed"),
             Err(err) => match err {
-                Error::UiError(ImportError::AccountDoesNotExist) => println!("Test passed!"),
+                Error::UiError(ImportError::AccountDoesNotExist) => {}
                 Error::UiError(ImportError::AccountStringCorrupted)
                 | Error::UiError(ImportError::AccountExistsAlready)
                 | Error::UiError(ImportError::ClientUpdateRequired)
@@ -296,7 +296,7 @@ mod account_tests {
         match import_account(&test_config(), &bad_account_string) {
             Ok(_) => panic!("Should have failed"),
             Err(err) => match err {
-                Error::UiError(ImportError::UsernamePKMismatch) => println!("Test passed!"),
+                Error::UiError(ImportError::UsernamePKMismatch) => {}
                 Error::UiError(ImportError::AccountStringCorrupted)
                 | Error::UiError(ImportError::AccountExistsAlready)
                 | Error::UiError(ImportError::ClientUpdateRequired)

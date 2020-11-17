@@ -45,18 +45,6 @@ pub async fn change_document_content(
         }
     })?;
 
-    usage_service::track(
-        &transaction,
-        &request.id,
-        &request.username,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        error!("Usage tracking error: {:?}", err);
-        ChangeDocumentContentError::InternalError
-    })?;
-
     let create_result = file_content_client::create(
         &server_state.files_db_client,
         request.id,
@@ -85,6 +73,18 @@ pub async fn change_document_content(
         );
         return Err(ChangeDocumentContentError::InternalError);
     };
+
+    usage_service::track_content_change(
+        &transaction,
+        &request.id,
+        &request.username,
+        &request.new_content,
+    )
+    .await
+    .map_err(|err| {
+        error!("Usage tracking error: {:?}", err);
+        ChangeDocumentContentError::InternalError
+    })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(ChangeDocumentContentResponse {
@@ -140,7 +140,7 @@ pub async fn create_document(
         }
     })?;
 
-    usage_service::track(
+    usage_service::track_content_change(
         &transaction,
         &request.id,
         &request.username,
@@ -198,14 +198,9 @@ pub async fn delete_document(
         }
     };
 
-    let index_result = file_index_repo::delete_file(
-        &transaction,
-        request.id,
-        request.old_metadata_version,
-        FileType::Document,
-    )
-    .await;
-    let (old_content_version, new_version) = index_result.map_err(|e| match e {
+    let index_result =
+        file_index_repo::delete_file(&transaction, request.id, FileType::Document).await;
+    let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
         file_index_repo::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
@@ -218,10 +213,17 @@ pub async fn delete_document(
         }
     })?;
 
+    let single_index_response = if let Some(result) = index_responses.responses.iter().last() {
+        result
+    } else {
+        error!("Internal server error! Unexpected zero or multiple postgres rows");
+        return Err(DeleteDocumentError::InternalError);
+    };
+
     let files_result = file_content_client::delete(
         &server_state.files_db_client,
         request.id,
-        old_content_version,
+        single_index_response.old_content_version,
     )
     .await;
     if files_result.is_err() {
@@ -232,9 +234,16 @@ pub async fn delete_document(
         return Err(DeleteDocumentError::InternalError);
     };
 
+    usage_service::track_deletion(&transaction, &request.id, &request.username)
+        .await
+        .map_err(|err| {
+            error!("Usage tracking error: {:?}", err);
+            DeleteDocumentError::InternalError
+        })?;
+
     match transaction.commit().await {
         Ok(()) => Ok(DeleteDocumentResponse {
-            new_metadata_and_content_version: new_version,
+            new_metadata_and_content_version: single_index_response.new_metadata_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -277,6 +286,7 @@ pub async fn move_document(
         file_index_repo::FileError::Deleted => MoveDocumentError::DocumentDeleted,
         file_index_repo::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
+        file_index_repo::FileError::ParentDeleted => MoveDocumentError::ParentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot move document in Postgres: {:?}",
@@ -446,14 +456,9 @@ pub async fn delete_folder(
         }
     };
 
-    let result = file_index_repo::delete_file(
-        &transaction,
-        request.id,
-        request.old_metadata_version,
-        FileType::Folder,
-    )
-    .await;
-    let (_, new_version) = result.map_err(|e| match e {
+    let index_result =
+        file_index_repo::delete_file(&transaction, request.id, FileType::Folder).await;
+    let index_responses = index_result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
         file_index_repo::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
         file_index_repo::FileError::Deleted => DeleteFolderError::FolderDeleted,
@@ -466,9 +471,46 @@ pub async fn delete_folder(
         }
     })?;
 
+    let root_result = if let Some(result) = index_responses
+        .responses
+        .iter()
+        .filter(|r| r.id == request.id)
+        .last()
+    {
+        result
+    } else {
+        error!("Internal server error! Unexpected zero or multiple postgres rows for delete folder root");
+        return Err(DeleteFolderError::InternalError);
+    };
+
+    for r in index_responses.responses.iter() {
+        if !r.is_folder {
+            let files_result = file_content_client::delete(
+                &server_state.files_db_client,
+                r.id,
+                r.old_content_version,
+            )
+            .await;
+            if files_result.is_err() {
+                error!(
+                    "Internal server error! Cannot delete file in S3: {:?}",
+                    files_result
+                );
+                return Err(DeleteFolderError::InternalError);
+            };
+
+            usage_service::track_deletion(&transaction, &r.id, &request.username)
+                .await
+                .map_err(|err| {
+                    error!("Usage tracking error: {:?}", err);
+                    DeleteFolderError::InternalError
+                })?;
+        }
+    }
+
     match transaction.commit().await {
         Ok(()) => Ok(DeleteFolderResponse {
-            new_metadata_version: new_version,
+            new_metadata_version: root_result.new_metadata_version,
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
@@ -511,6 +553,7 @@ pub async fn move_folder(
         file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
+        file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
         _ => {
             error!(
                 "Internal server error! Cannot move folder in Postgres: {:?}",

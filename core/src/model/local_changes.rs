@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalChange {
+    pub timestamp: i64,
     pub id: Uuid,
     pub renamed: Option<Renamed>,
     pub moved: Option<Moved>,
@@ -54,7 +55,7 @@ impl From<Uuid> for Moved {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Edited {
-    pub old_value: EncryptedDocument,
+    pub old_value: EncryptedDocument, // Stored so sync can perform merges
     pub access_info: UserAccessInfo,
     pub old_content_checksum: Vec<u8>,
 }

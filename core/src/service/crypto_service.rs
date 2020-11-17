@@ -126,12 +126,13 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
         if current_time < auth_time {
             // TODO: introduce tolerance?
             return Err(RSAVerifyError::SignatureInTheFuture(
-                current_time - auth_time,
+                (current_time - auth_time) as u64,
             ));
         }
+        let max_delay_ms = max_delay_ms as i64;
         if current_time > auth_time + max_delay_ms {
             return Err(RSAVerifyError::SignatureExpired(
-                auth_time + max_delay_ms - current_time,
+                (auth_time + max_delay_ms - current_time) as u64,
             ));
         }
 
@@ -160,14 +161,14 @@ mod unit_test_pubkey {
 
     struct EarlyClock;
     impl Clock for EarlyClock {
-        fn get_time() -> u64 {
+        fn get_time() -> i64 {
             500
         }
     }
 
     struct LateClock;
     impl Clock for LateClock {
-        fn get_time() -> u64 {
+        fn get_time() -> i64 {
             520
         }
     }

@@ -30,14 +30,7 @@ mod delete_document_tests {
         .unwrap();
 
         // delete document
-        DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-            },
-        )
-        .unwrap();
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
     }
 
     #[test]
@@ -49,14 +42,7 @@ mod delete_document_tests {
 
         // delete document that wasn't created
         let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-            },
-        )
-        .unwrap();
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
     }
 
     #[test]
@@ -78,61 +64,14 @@ mod delete_document_tests {
         .unwrap();
 
         // delete document
-        DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-            },
-        )
-        .unwrap();
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
         // delete document again
-        let result = DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-            },
-        );
+        let result = DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id });
         assert_matches!(
             result,
             Err(ApiError::<DeleteDocumentError>::Api(
                 DeleteDocumentError::DocumentDeleted
-            ))
-        );
-    }
-
-    #[test]
-    fn delete_document_conflict() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
-
-        // create document
-        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap();
-
-        // delete document with wrong version
-        let result = DefaultClient::request(
-            &account,
-            DeleteDocumentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version - 1,
-            },
-        );
-        assert_matches!(
-            result,
-            Err(ApiError::<DeleteDocumentError>::Api(
-                DeleteDocumentError::EditConflict
             ))
         );
     }
