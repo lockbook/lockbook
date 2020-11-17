@@ -17,10 +17,15 @@ pub enum Msg {
     CloseFile,
     DeleteFile(Uuid),
 
+    SearchFieldFocus,
+    SearchFieldBlur,
+    SearchFieldUpdate,
+    SearchFieldUpdateIcon,
+    SearchFieldExec(Option<String>),
+
     ToggleTreeCol(FileTreeCol),
 
     ShowDialogNew,
-    ShowDialogOpen,
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
