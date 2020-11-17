@@ -1,12 +1,12 @@
 package app.lockbook
 
 import app.lockbook.core.deleteFile
-import app.lockbook.utils.*
+import app.lockbook.model.CoreModel
+import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import org.junit.*
 
-@Ignore("Delete endpoint doesn't work yet")
 class DeleteFileTest {
     var config = Config(createRandomPath())
 
@@ -74,7 +74,7 @@ class DeleteFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<DeleteFileError.NoFileWithThatId>(
+        assertType<DeleteFileError.FileDoesNotExist>(
             CoreModel.deleteFile(config, generateId()).component2()
         )
     }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::SystemTimeError;
 
 use serde::Serialize;
 use sled::Db;
@@ -25,7 +26,7 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_encryption_service::FileEncryptionService;
-use crate::service::file_service::FileService;
+use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
@@ -34,8 +35,8 @@ use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
     DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
     FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
-    ReadingCurrentVersionError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
-    WritingMergedFileError,
+    ReadingCurrentVersionError, RecursiveDeleteError, ResolveConflictByCreatingNewFileError,
+    SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -49,6 +50,7 @@ pub enum CalculateWorkError {
     GetUpdatesError(client::ApiError<api::GetUpdatesError>),
 }
 
+// TODO standardize enum variant notation within core
 #[derive(Debug)]
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
@@ -62,8 +64,12 @@ pub enum WorkExecutionError {
     FolderCreateError(client::ApiError<CreateFolderError>),
     DocumentChangeError(client::ApiError<ChangeDocumentContentError>),
     DocumentDeleteError(client::ApiError<DeleteDocumentError>),
+    RecursiveDeleteError(Vec<String>),
     FolderDeleteError(client::ApiError<DeleteFolderError>),
-    SaveDocumentError(document_repo::Error), // Delete uses this and it shouldn't
+    LocalFolderDeleteError(file_service::DeleteFolderError),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
+    SaveDocumentError(document_repo::Error),
+    // Delete uses this and it shouldn't
     // TODO make more general
     LocalChangesRepoError(local_changes_repo::DbError),
     AutoRenameError(file_service::DocumentRenameError),
@@ -72,6 +78,8 @@ pub enum WorkExecutionError {
     ReadingCurrentVersionError(file_service::ReadDocumentError),
     WritingMergedFileError(file_service::DocumentUpdateError),
     FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
+    ErrorCreatingRecoveryFile(NewFileFromPathError),
+    ErrorCalculatingCurrentTime(SystemTimeError),
 }
 
 #[derive(Debug)]
@@ -165,6 +173,12 @@ impl<
             };
         }
 
+        work_units.sort_by(|f1, f2| {
+            f1.get_metadata()
+                .metadata_version
+                .cmp(&f2.get_metadata().metadata_version)
+        });
+
         let changes = ChangeDb::get_all_local_changes(&db).map_err(LocalChangesRepoError)?;
 
         for change_description in changes {
@@ -198,7 +212,7 @@ impl<
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
         // Make sure no naming conflicts occur as a result of this metadata
-        let conflicting_files = FileMetadataDb::get_children(&db, metadata.parent)
+        let conflicting_files = FileMetadataDb::get_children_non_recursively(&db, metadata.parent)
             .map_err(WorkExecutionError::MetadataRepoError)?
             .into_iter()
             .filter(|potential_conflict| potential_conflict.name == metadata.name)
@@ -254,11 +268,49 @@ impl<
                     None => {
                         // It has no modifications of any sort, just update it
                         if metadata.deleted {
-                            // Delete this file, server deleted it and we have no local changes
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
                             if metadata.file_type == Document {
+                                // A deleted document
+                                FileMetadataDb::non_recursive_delete(&db, metadata.id)
+                                    .map_err(WorkExecutionError::MetadataRepoError)?;
+
+                                ChangeDb::delete(&db, metadata.id)
+                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                            } else {
+                                // A deleted folder
+                                let delete_errors =
+                                    FileMetadataDb::get_and_get_children_recursively(
+                                        &db,
+                                        metadata.id,
+                                    )
+                                    .map_err(WorkExecutionError::FindingChildrenFailed)?
+                                    .into_iter()
+                                    .map(|file_metadata| -> Option<String> {
+                                        match DocsDb::delete(&db, file_metadata.id) {
+                                            Ok(_) => {
+                                                match FileMetadataDb::non_recursive_delete(
+                                                    &db,
+                                                    metadata.id,
+                                                ) {
+                                                    Ok(_) => {
+                                                        match ChangeDb::delete(&db, metadata.id) {
+                                                            Ok(_) => None,
+                                                            Err(err) => Some(format!("{:?}", err)),
+                                                        }
+                                                    }
+                                                    Err(err) => Some(format!("{:?}", err)),
+                                                }
+                                            }
+                                            Err(err) => Some(format!("{:?}", err)),
+                                        }
+                                    })
+                                    .flatten()
+                                    .collect::<Vec<String>>();
+
+                                if !delete_errors.is_empty() {
+                                    return Err(RecursiveDeleteError(delete_errors));
+                                }
                             }
                         } else {
                             // The normal fast forward case
@@ -285,8 +337,13 @@ impl<
                     Some(local_changes) => {
                         // It's dirty, merge changes
 
-                        // Straightforward metadata merge
-                        if !metadata.deleted {
+                        // You deleted this file locally, send this to the server
+                        if local_changes.deleted && !metadata.deleted {
+                            // If we wanted to recover files that were deleted locally but things
+                            // on the server changed, we could do so here.
+
+                            // straightforward metadata merge
+                        } else if !local_changes.deleted && !metadata.deleted {
                             // We renamed it locally
                             if let Some(renamed_locally) = local_changes.renamed {
                                 // Check if both renamed, if so, server wins
@@ -325,8 +382,6 @@ impl<
                                     if metadata.name.ends_with(".md")
                                         || metadata.name.ends_with(".txt")
                                     {
-                                        debug!("File {} is mergable: {}", metadata.id, metadata.id);
-
                                         let common_ancestor = FileCrypto::user_read_document(
                                             &account,
                                             &edited_locally.old_value,
@@ -334,20 +389,9 @@ impl<
                                         )
                                         .map_err(DecryptingOldVersionForMergeError)?;
 
-                                        debug!(
-                                            "{} Common ans: {}",
-                                            metadata.id,
-                                            String::from_utf8_lossy(&common_ancestor)
-                                        );
-
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
                                                 .map_err(ReadingCurrentVersionError)?;
-                                        debug!(
-                                            "{} current: {}",
-                                            metadata.id,
-                                            String::from_utf8_lossy(&current_version)
-                                        );
 
                                         let server_version = {
                                             let server_document = ApiClient::request(
@@ -368,38 +412,19 @@ impl<
                                             .map_err(DecryptingOldVersionForMergeError)?
                                             // This assumes that a file is never re-keyed.
                                         };
-                                        debug!(
-                                            "{} server: {}",
-                                            metadata.id,
-                                            String::from_utf8_lossy(&server_version)
-                                        );
 
                                         let result = match diffy::merge_bytes(
                                             &common_ancestor,
                                             &current_version,
                                             &server_version,
                                         ) {
-                                            Ok(no_conflicts) => {
-                                                info!("File {} was merged cleanly", metadata.id);
-                                                no_conflicts
-                                            }
-                                            Err(conflicts) => {
-                                                info!("File {} has merge conflicts!", metadata.id);
-                                                conflicts
-                                            }
+                                            Ok(no_conflicts) => no_conflicts,
+                                            Err(conflicts) => conflicts,
                                         };
-
-                                        debug!(
-                                            "{} result: {}",
-                                            metadata.id,
-                                            String::from_utf8_lossy(&result)
-                                        );
 
                                         Files::write_document(&db, metadata.id, &result)
                                             .map_err(WritingMergedFileError)?;
                                     } else {
-                                        debug!("File is not mergable: {}", metadata.id);
-
                                         // Create a new file
                                         let new_file = DefaultFileService::create(
                                             &db,
@@ -442,40 +467,59 @@ impl<
                                 }
                             }
 
-                            // You deleted a file, but you didn't have the most recent content, server wins
-                            if local_changes.deleted
-                                && local_metadata.content_version != metadata.content_version
-                            {
-                                ChangeDb::untrack_delete(&db, metadata.id)
-                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                            }
-
                             FileMetadataDb::insert(&db, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if local_changes.content_edited.is_none() {
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-
-                            ChangeDb::delete_if_exists(&db, metadata.id)
-                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
-
+                        } else if !local_changes.deleted && metadata.deleted {
                             if metadata.file_type == Document {
+                                // A deleted document
+                                FileMetadataDb::non_recursive_delete(&db, metadata.id)
+                                    .map_err(WorkExecutionError::MetadataRepoError)?;
+
+                                ChangeDb::delete(&db, metadata.id)
+                                    .map_err(WorkExecutionError::LocalChangesRepoError)?;
+
                                 DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                            } else {
+                                // A deleted folder
+                                let delete_errors =
+                                    FileMetadataDb::get_and_get_children_recursively(
+                                        &db,
+                                        metadata.id,
+                                    )
+                                    .map_err(WorkExecutionError::FindingChildrenFailed)?
+                                    .into_iter()
+                                    .map(|file_metadata| -> Option<String> {
+                                        match DocsDb::delete(&db, file_metadata.id) {
+                                            Ok(_) => {
+                                                match FileMetadataDb::non_recursive_delete(
+                                                    &db,
+                                                    metadata.id,
+                                                ) {
+                                                    Ok(_) => {
+                                                        match ChangeDb::delete(&db, metadata.id) {
+                                                            Ok(_) => None,
+                                                            Err(err) => Some(format!("{:?}", err)),
+                                                        }
+                                                    }
+                                                    Err(err) => Some(format!("{:?}", err)),
+                                                }
+                                            }
+                                            Err(err) => Some(format!("{:?}", err)),
+                                        }
+                                    })
+                                    .flatten()
+                                    .collect::<Vec<String>>();
+
+                                if !delete_errors.is_empty() {
+                                    return Err(RecursiveDeleteError(delete_errors));
+                                }
                             }
-                        } else {
-                            error!("The server deleted this file, and you have local changes! You have to undelete this file unimplemented!() server wins for now");
-                            FileMetadataDb::actually_delete(&db, metadata.id)
-                                .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                            if metadata.file_type == Document {
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
-                            }
-                            ChangeDb::delete_if_exists(&db, metadata.id)
-                                .map_err(WorkExecutionError::LocalChangesRepoError)?;
                         }
                     }
                 }
             }
         }
+
         Ok(())
     }
 
@@ -486,19 +530,9 @@ impl<
     ) -> Result<(), WorkExecutionError> {
         match ChangeDb::get_local_changes(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
             None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
-            Some(local_change) => {
+            Some(mut local_change) => { // TODO this needs to be mut because the untracks are not taking effect
                 if local_change.new {
-                    if local_change.deleted {
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                        if metadata.file_type == Document {
-                            DocsDb::delete(&db, metadata.id)
-                                .map_err(SaveDocumentError)?
-                        }
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    } else if metadata.file_type == Document {
+                    if metadata.file_type == Document {
                         let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::request(
             &account,
@@ -509,10 +543,6 @@ impl<
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     } else {
                         let version = ApiClient::request(
             &account,
@@ -523,102 +553,81 @@ impl<
 
                         metadata.metadata_version = version;
                         metadata.content_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-                } else if !local_change.deleted { // not new and not deleted
-                    if local_change.renamed.is_some() {
-                        let version = if metadata.file_type == Document {
-                            ApiClient::request(
-            &account,
-                                RenameDocumentRequest::new(&metadata),
-                            )
-                                .map_err(DocumentRenameError)?
-                                .new_metadata_version
-                        } else {
-                            ApiClient::request(
-            &account,
-                                RenameFolderRequest::new(&metadata),
-                            )
-                                .map_err(FolderRenameError)?
-                                .new_metadata_version
-                        };
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::untrack_rename(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     }
 
-                    if local_change.moved.is_some() {
-                        let version = if metadata.file_type == Document {
-                            ApiClient::request(
-            &account,
-                                MoveDocumentRequest::new(&metadata),
-                            )
-                                .map_err(DocumentMoveError)?
-                                .new_metadata_version
-                        } else {
-                            ApiClient::request(
-            &account,
-                                MoveFolderRequest::new(&metadata),
-                            )
-                                .map_err(FolderMoveError)?
-                                .new_metadata_version
-                        };
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    ChangeDb::untrack_new_file(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.new = false;
+                    local_change.renamed = None;
+                    local_change.content_edited = None;
+                    local_change.moved = None;
 
-                        ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    // return early to allow any other child operations like move can be sent to the
+                    // server
+                    if local_change.deleted && metadata.file_type == Folder {
+                        return Ok(());
                     }
+                }
 
-                    if local_change.content_edited.is_some() && metadata.file_type == Document {
-                        let version = ApiClient::request(
-            &account,
-                            ChangeDocumentContentRequest {
-                                id: metadata.id,
-                                old_metadata_version: metadata.metadata_version,
-                                new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?
-                            },
-                        ).map_err(DocumentChangeError)?.new_metadata_and_content_version;
-
-                        metadata.content_version = version;
-                        metadata.metadata_version = version;
-                        FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
-
-                        ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
-                    }
-                } else { // not new and deleted
-                    if metadata.file_type == Document {
-                        ApiClient::request(
-            &account,
-                            DeleteDocumentRequest {
-                                id: metadata.id,
-                                old_metadata_version: metadata.metadata_version,
-                            },
-                        ).map_err(DocumentDeleteError)?;
-
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                        DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?;
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                if local_change.renamed.is_some() {
+                    let version = if metadata.file_type == Document {
+                        ApiClient::request(&account, RenameDocumentRequest::new(&metadata))
+                            .map_err(DocumentRenameError)?.new_metadata_version
                     } else {
-                        ApiClient::request(
-            &account,
-                            DeleteFolderRequest {
-                                id: metadata.id,
-                                old_metadata_version: metadata.metadata_version,
-                            },
-                        ).map_err(FolderDeleteError)?;
+                        ApiClient::request(&account, RenameFolderRequest::new(&metadata))
+                            .map_err(FolderRenameError)?.new_metadata_version
+                    };
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        FileMetadataDb::actually_delete(&db, metadata.id)
-                            .map_err(WorkExecutionError::MetadataRepoErrorOpt)?;
-                        ChangeDb::delete_if_exists(&db, metadata.id)
-                            .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_rename(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.renamed = None;
+                }
+
+                if local_change.moved.is_some() {
+                    let version = if metadata.file_type == Document {
+                        ApiClient::request(&account, MoveDocumentRequest::new(&metadata)).map_err(DocumentMoveError)?.new_metadata_version
+                    } else {
+                        ApiClient::request(&account, MoveFolderRequest::new(&metadata)).map_err(FolderMoveError)?.new_metadata_version
+                    };
+
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                    ChangeDb::untrack_move(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.moved = None;
+                }
+
+                if local_change.content_edited.is_some() && metadata.file_type == Document {
+                    let version = ApiClient::request(&account, ChangeDocumentContentRequest{
+                        id: metadata.id,
+                        old_metadata_version: metadata.metadata_version,
+                        new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?,
+                    }).map_err(DocumentChangeError)?.new_metadata_and_content_version;
+
+                    metadata.content_version = version;
+                    metadata.metadata_version = version;
+                    FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+
+                    ChangeDb::untrack_edit(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.content_edited = None;
+                }
+
+                if local_change.deleted {
+                    if metadata.file_type == Document {
+                        ApiClient::request(&account, DeleteDocumentRequest{ id: metadata.id }).map_err(DocumentDeleteError)?;
+                    } else {
+                        ApiClient::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(FolderDeleteError)?;
                     }
+
+                    ChangeDb::delete(&db, metadata.id)
+                        .map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    local_change.deleted = false;
+
+                    FileMetadataDb::non_recursive_delete(&db, metadata.id)
+                        .map_err(WorkExecutionError::MetadataRepoError)?; // Now it's safe to delete this locally
                 }
             }
         }
@@ -640,8 +649,8 @@ impl<
             for work_unit in work_calculated.work_units {
                 match Self::execute_work(&db, &account, work_unit.clone()) {
                     Ok(_) => {
+                        debug!("{:#?} executed successfully", work_unit);
                         sync_errors.remove(&work_unit.get_metadata().id);
-                        debug!("{:#?} executed successfully", work_unit)
                     }
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
@@ -650,13 +659,24 @@ impl<
                 }
             }
 
+            if sync_errors.is_empty() {
+                FileMetadataDb::set_last_synced(
+                    &db,
+                    work_calculated.most_recent_update_from_server,
+                )
+                .map_err(SyncError::MetadataUpdateError)?;
+            }
+
             work_calculated = Self::calculate_work(&db).map_err(SyncError::CalculateWorkError)?;
+
+            if work_calculated.work_units.is_empty() {
+                break;
+            }
         }
 
         if sync_errors.is_empty() {
             FileMetadataDb::set_last_synced(&db, work_calculated.most_recent_update_from_server)
                 .map_err(SyncError::MetadataUpdateError)?;
-
             Ok(())
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);

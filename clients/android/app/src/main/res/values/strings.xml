@@ -138,12 +138,25 @@
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_bytes_usage">Bytes used</string>
+    <string name="handwriting_editor_erase">Erase</string>
+    <string name="menu_list_files_rename">Rename file</string>
+    <string name="menu_list_files_delete">Delete file</string>
+    <string name="menu_list_files_info">File info</string>
+    <string name="menu_list_files_move">Move file</string>
+    <string name="default_value">ERROR</string>
+    <string name="dialog_rename_file_title">Rename File</string>
+    <string name="popup_info_title">File Info</string>
     <string name="menu_markdown_link">Insert link</string>
     <string name="menu_markdown_code">Insert code</string>
     <string name="menu_markdown_italics">Format italics</string>
     <string name="menu_markdown_bold">Insert bold text</string>
     <string name="menu_markdown_title">Insert title</string>
     <string name="menu_markdown_image">Insert image</string>
+    <string name="cancel">Cancel</string>
+    <string name="move_file_confirm">Move to this folder</string>
+    <string name="text_editor_hint">Type here</string>
+    <string name="rename_file_rename">Rename</string>
+    <string name="create_file_create">Create</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

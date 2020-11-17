@@ -6,7 +6,7 @@
 
         <variable
             name="listFilesViewModel"
-            type="app.lockbook.loggedin.listfiles.ListFilesViewModel" />
+            type="app.lockbook.model.ListFilesViewModel" />
     </data>
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
