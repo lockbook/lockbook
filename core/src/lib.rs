@@ -1,7 +1,20 @@
 #![recursion_limit = "256"]
+
 #[macro_use]
 extern crate log;
 extern crate reqwest;
+
+use std::env;
+use std::path::Path;
+use std::str::FromStr;
+
+use serde::Serialize;
+use serde_json::json;
+use serde_json::value::Value;
+pub use sled::Db;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use uuid::Uuid;
 
 use crate::client::{ApiError, Client, ClientImpl};
 use crate::model::account::Account;
@@ -19,12 +32,13 @@ use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
-use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+use crate::repo::document_repo::DocumentRepoImpl;
+use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{
-    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingParentsFailed,
+    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
+    FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::repo::{document_repo, file_metadata_repo};
 use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
@@ -35,6 +49,7 @@ use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
+use crate::service::file_service;
 use crate::service::file_service::{
     DocumentRenameError, FileMoveError, ReadDocumentError as FSReadDocumentError,
 };
@@ -45,67 +60,6 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use serde::Serialize;
-use serde_json::json;
-use serde_json::value::Value;
-pub use sled::Db;
-use std::env;
-use std::path::Path;
-use std::str::FromStr;
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
-pub mod c_interface;
-pub mod client;
-pub mod java_interface;
-mod json_interface;
-pub mod loggers;
-pub mod model;
-pub mod repo;
-pub mod service;
-
-pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
-static DB_NAME: &str = "lockbook.sled";
-static LOG_FILE: &str = "lockbook.log";
-
-pub type DefaultClock = ClockImpl;
-pub type DefaultCrypto = RSAImpl<DefaultClock>;
-pub type DefaultSymmetric = AESImpl;
-pub type DefaultDbProvider = DiskBackedDB;
-pub type DefaultCodeVersion = CodeVersionImpl;
-pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
-pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService =
-    DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
-pub type DefaultAccountService = AccountServiceImpl<
-    DefaultCrypto,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileEncryptionService,
-    DefaultFileMetadataRepo,
->;
-pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
-pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
-pub type DefaultSyncService = FileSyncService<
-    DefaultFileMetadataRepo,
-    DefaultLocalChangesRepo,
-    DefaultDocumentRepo,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileService,
-    DefaultFileEncryptionService,
->;
-pub type DefaultFileService = FileServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultDocumentRepo,
-    DefaultLocalChangesRepo,
-    DefaultAccountRepo,
-    DefaultFileEncryptionService,
->;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -518,9 +472,35 @@ pub fn get_children(
 ) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DefaultFileMetadataRepo::get_children(&db, id) {
+    match DefaultFileMetadataRepo::get_children_non_recursively(&db, id) {
         Ok(file_metadata_list) => Ok(file_metadata_list),
         Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetAndGetChildrenError {
+    FileDoesNotExist,
+    DocumentTreatedAsFolder,
+}
+
+pub fn get_and_get_children_recursively(
+    config: &Config,
+    id: Uuid,
+) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
+    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+
+    match DefaultFileMetadataRepo::get_and_get_children_recursively(&db, id) {
+        Ok(children) => Ok(children),
+        Err(err) => match err {
+            FindingChildrenFailed::FileDoesNotExist => {
+                Err(Error::UiError(GetAndGetChildrenError::FileDoesNotExist))
+            }
+            FindingChildrenFailed::DocumentTreatedAsFolder => Err(Error::UiError(
+                GetAndGetChildrenError::DocumentTreatedAsFolder,
+            )),
+            FindingChildrenFailed::DbError(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+        },
     }
 }
 
@@ -583,23 +563,45 @@ pub fn insert_file(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum DeleteFileError {
-    NoFileWithThatId,
+pub enum FileDeleteError {
+    FileDoesNotExist,
 }
 
-pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<DeleteFileError>> {
+pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
-    match DocumentRepoImpl::delete(&db, id) {
-        Ok(()) => Ok(()),
-        Err(err) => match err {
-            document_repo::Error::SledError(_) | document_repo::Error::SerdeError(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
+    match DefaultFileMetadataRepo::get(&db, id) {
+        Ok(meta) => match meta.file_type {
+            FileType::Document => {
+                DefaultFileService::delete_document(&db, id).map_err(|err| match err {
+                    file_service::DeleteDocumentError::CouldNotFindFile
+                    | file_service::DeleteDocumentError::FolderTreatedAsDocument
+                    | file_service::DeleteDocumentError::FailedToRecordChange(_)
+                    | file_service::DeleteDocumentError::FailedToUpdateMetadata(_)
+                    | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
+                    | file_service::DeleteDocumentError::FailedToTrackDelete(_)
+                    | file_service::DeleteDocumentError::DbError(_) => {
+                        Error::Unexpected(format!("{:#?}", err))
+                    }
+                })
             }
-            document_repo::Error::FileRowMissing(_) => {
-                Err(Error::UiError(DeleteFileError::NoFileWithThatId))
+            FileType::Folder => {
+                DefaultFileService::delete_folder(&db, id).map_err(|err| match err {
+                    file_service::DeleteFolderError::MetadataError(_)
+                    | file_service::DeleteFolderError::CouldNotFindFile
+                    | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
+                    | file_service::DeleteFolderError::FindingChildrenFailed(_)
+                    | file_service::DeleteFolderError::FailedToRecordChange(_)
+                    | file_service::DeleteFolderError::CouldNotFindParents(_)
+                    | file_service::DeleteFolderError::DocumentTreatedAsFolder
+                    | file_service::DeleteFolderError::FailedToDeleteDocument(_)
+                    | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
+                        Error::Unexpected(format!("{:#?}", err))
+                    }
+                })
             }
         },
+        Err(_) => Err(Error::UiError(FileDeleteError::FileDoesNotExist)),
     }
 }
 
@@ -622,6 +624,7 @@ pub fn read_document(
             FSReadDocumentError::TreatedFolderAsDocument => {
                 Err(Error::UiError(ReadDocumentError::TreatedFolderAsDocument))
             }
+
             FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
                 AccountRepoError::NoAccount => Err(Error::UiError(ReadDocumentError::NoAccount)),
                 AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
@@ -961,6 +964,7 @@ pub fn execute_work(
                     | MoveDocumentError::UserNotFound
                     | MoveDocumentError::DocumentNotFound
                     | MoveDocumentError::ParentNotFound
+                    | MoveDocumentError::ParentDeleted
                     | MoveDocumentError::EditConflict
                     | MoveDocumentError::DocumentDeleted
                     | MoveDocumentError::DocumentPathTaken => {
@@ -990,7 +994,8 @@ pub fn execute_work(
                     | MoveFolderError::EditConflict
                     | MoveFolderError::FolderDeleted
                     | MoveFolderError::FolderPathTaken
-                    | MoveFolderError::ParentNotFound => {
+                    | MoveFolderError::ParentNotFound
+                    | MoveFolderError::ParentDeleted => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
@@ -1132,7 +1137,12 @@ pub fn execute_work(
             | WorkExecutionError::DecryptingOldVersionForMergeError(_)
             | WorkExecutionError::ReadingCurrentVersionError(_)
             | WorkExecutionError::WritingMergedFileError(_)
+            | WorkExecutionError::ErrorCreatingRecoveryFile(_)
+            | WorkExecutionError::ErrorCalculatingCurrentTime(_)
             | WorkExecutionError::FindingParentsForConflictingFileError(_)
+            | WorkExecutionError::LocalFolderDeleteError(_)
+            | WorkExecutionError::FindingChildrenFailed(_)
+            | WorkExecutionError::RecursiveDeleteError(_)
             | WorkExecutionError::LocalChangesRepoError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
@@ -1228,7 +1238,7 @@ impl_get_variants!(
     GetFileByIdError,
     GetFileByPathError,
     InsertFileError,
-    DeleteFileError,
+    FileDeleteError,
     ReadDocumentError,
     ListPathsError,
     ListMetadatasError,
@@ -1241,3 +1251,55 @@ impl_get_variants!(
     GetLastSyncedError,
     GetUsageError,
 );
+
+pub mod c_interface;
+pub mod client;
+pub mod java_interface;
+mod json_interface;
+pub mod loggers;
+pub mod model;
+pub mod repo;
+pub mod service;
+
+pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
+pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
+static DB_NAME: &str = "lockbook.sled";
+static LOG_FILE: &str = "lockbook.log";
+
+pub type DefaultClock = ClockImpl;
+pub type DefaultCrypto = RSAImpl<DefaultClock>;
+pub type DefaultSymmetric = AESImpl;
+pub type DefaultDbProvider = DiskBackedDB;
+pub type DefaultCodeVersion = CodeVersionImpl;
+pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
+pub type DefaultAccountRepo = AccountRepoImpl;
+pub type DefaultDbVersionRepo = DbVersionRepoImpl;
+pub type DefaultDbStateService =
+    DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
+pub type DefaultAccountService = AccountServiceImpl<
+    DefaultCrypto,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultFileEncryptionService,
+    DefaultFileMetadataRepo,
+>;
+pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
+pub type DefaultDocumentRepo = DocumentRepoImpl;
+pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
+pub type DefaultSyncService = FileSyncService<
+    DefaultFileMetadataRepo,
+    DefaultLocalChangesRepo,
+    DefaultDocumentRepo,
+    DefaultAccountRepo,
+    DefaultClient,
+    DefaultFileService,
+    DefaultFileEncryptionService,
+>;
+pub type DefaultFileService = FileServiceImpl<
+    DefaultFileMetadataRepo,
+    DefaultDocumentRepo,
+    DefaultLocalChangesRepo,
+    DefaultAccountRepo,
+    DefaultFileEncryptionService,
+>;

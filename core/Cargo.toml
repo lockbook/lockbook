@@ -9,6 +9,7 @@ license = "BSD-3-Clause"
 [lib]
 name = "lockbook_core"
 crate-type = ["lib", "staticlib", "cdylib"]
+bench = false
 
 [dependencies]
 aead = "0.2.0"
@@ -32,3 +33,14 @@ strum = "0.19.5"
 strum_macros = "0.19.4"
 tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+
+[profile.release]
+debug = true
+
+[dev-dependencies]
+criterion = "0.3.3"
+cpuprofiler = "0.0.4"
+
+[[bench]]
+name = "performator"
+harness = false
