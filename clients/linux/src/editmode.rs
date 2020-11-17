@@ -8,6 +8,7 @@ pub enum EditMode {
     },
 
     PlainText {
+        path: String,
         meta: FileMetadata,
         content: String,
     },
