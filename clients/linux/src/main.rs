@@ -4,6 +4,7 @@ extern crate gio;
 extern crate glib;
 extern crate gtk;
 extern crate pango;
+extern crate qrcode_generator;
 
 mod account;
 mod backend;
