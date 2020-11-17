@@ -52,7 +52,7 @@
                                         Click="RenameFile"
                                         Tag="{x:Bind Id}" />
                                         <MenuFlyoutItem Text="Delete"
-                                        Click="Unimplemented"
+                                        Click="DeleteFile"
                                         Tag="{x:Bind Id}" />
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Nuke all data"
