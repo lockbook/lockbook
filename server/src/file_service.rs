@@ -264,6 +264,11 @@ pub async fn move_document(
     if !username_is_valid(&request.username) {
         return Err(MoveDocumentError::InvalidUsername);
     }
+
+    if request.id == request.new_parent {
+        return Err(MoveDocumentError::FolderMovedIntoItself)
+    }
+
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
@@ -450,6 +455,9 @@ pub async fn delete_folder(
     if !username_is_valid(&request.username) {
         return Err(DeleteFolderError::InvalidUsername);
     }
+
+    
+
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
