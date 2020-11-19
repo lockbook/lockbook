@@ -5,9 +5,11 @@ use gtk::{
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Paned as GtkPaned, ScrolledWindow as GtkScrolledWindow,
-    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TextView as GtkTextView,
-    WrapMode as GtkWrapMode,
+    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
 };
+use sourceview::prelude::*;
+use sourceview::Buffer as GtkSourceViewBuffer;
+use sourceview::View as GtkSourceView;
 
 use lockbook_core::model::file_metadata::FileMetadata;
 
@@ -328,7 +330,7 @@ impl SyncPanel {
 
 struct Editor {
     info: GtkBox,
-    textarea: GtkTextView,
+    textarea: GtkSourceView,
     stack: GtkStack,
     cntr: GtkScrolledWindow,
 }
@@ -343,10 +345,11 @@ impl Editor {
         info.set_vexpand(false);
         info.set_valign(GtkAlign::Center);
 
-        let textarea = GtkTextView::new();
+        let textarea = GtkSourceView::new();
         textarea.set_property_monospace(true);
         textarea.set_wrap_mode(GtkWrapMode::Word);
         textarea.set_left_margin(4);
+        textarea.set_tab_width(4);
 
         let stack = GtkStack::new();
         stack.add_named(&empty, "empty");
@@ -365,9 +368,14 @@ impl Editor {
     }
 
     fn set_file(&self, content: &str) {
+        let tvb = self.textarea.get_buffer().unwrap();
+        let svb = tvb.downcast::<GtkSourceViewBuffer>().unwrap();
+        svb.begin_not_undoable_action();
+        svb.set_text(content);
+        svb.end_not_undoable_action();
+
         self.show("textarea");
         self.textarea.grab_focus();
-        self.textarea.get_buffer().unwrap().set_text(content);
     }
 
     fn show_folder_info(&self, f: &FileMetadata, n_children: usize) {
