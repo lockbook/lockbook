@@ -101,6 +101,7 @@ pub enum DocumentRenameError {
 pub enum FileMoveError {
     AccountRetrievalError(account_repo::AccountRepoError),
     TargetParentHasChildNamedThat,
+    FolderMovedIntoItself,
     FileDoesNotExist,
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
@@ -127,6 +128,7 @@ pub enum DeleteDocumentError {
 pub enum DeleteFolderError {
     MetadataError(file_metadata_repo::DbError),
     CouldNotFindFile,
+    CannotDeleteRoot,
     FailedToDeleteMetadata(file_metadata_repo::DbError),
     FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
     FailedToRecordChange(local_changes_repo::DbError),
@@ -407,6 +409,10 @@ impl<
     fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
         let account = AccountDb::get_account(&db).map_err(FileMoveError::AccountRetrievalError)?;
 
+        if id == new_parent {
+            return Err(FileMoveError::FolderMovedIntoItself);
+        }
+
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
@@ -525,6 +531,10 @@ impl<
         let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DeleteFolderError::MetadataError)?
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
+
+        if file_metadata.id == file_metadata.parent {
+            return Err(DeleteFolderError::CannotDeleteRoot)
+        }
 
         if file_metadata.file_type == Document {
             return Err(DeleteFolderError::DocumentTreatedAsFolder);
