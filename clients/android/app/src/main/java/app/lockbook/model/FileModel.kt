@@ -116,8 +116,8 @@ class FileModel(path: String) {
             is Ok -> true
             is Err -> {
                 when (val error = deleteFileResult.error) {
-                    is DeleteFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! The file you selected does not exist!")
-                    is DeleteFileError.Unexpected -> {
+                    is FileDeleteError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! The file you selected does not exist!")
+                    is FileDeleteError.Unexpected -> {
                         Timber.e("Unable to delete file: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
                             error.error
@@ -218,7 +218,11 @@ class FileModel(path: String) {
                         Result.retry()
                     }
                     is SyncAllError.ExecuteWorkError -> {
-                        Timber.e("Could not execute some work.}")
+                        Timber.e("Could not execute some work.")
+                        Result.failure()
+                    }
+                    is SyncAllError.ClientUpdateRequired -> {
+                        Timber.e("Client update required.")
                         Result.failure()
                     }
                     is SyncAllError.Unexpected -> {
