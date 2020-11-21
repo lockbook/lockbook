@@ -474,4 +474,109 @@ mod move_document_tests {
             ))
         );
     }
+
+    #[test]
+    fn move_folder_cannot_move_root() {
+        // new account
+        let account = generate_account();
+        let folder_id = Uuid::new_v4();
+        let folder_key = AesImpl::generate_key();
+
+        assert_matches!(
+            ClientImpl::new_account(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                account.keys.to_public_key(),
+                folder_id,
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &folder_key),
+                },
+                rsa_key(&account.keys.to_public_key(), &folder_key)
+            ),
+            Ok(_)
+        );
+
+        // moving root into itself
+        assert_matches!(
+            ClientImpl::move_folder(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                folder_id,
+                version,
+                folder_id,
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &folder_key),
+                },
+            ),
+            Err(ApiError::<MoveFolderError>::Api(
+                MoveFolderError::CannotMoveRoot
+            ))
+        );
+    }
+
+    #[test]
+    fn move_folder_into_itself() {
+        // new account
+        let account = generate_account();
+        let folder_id = Uuid::new_v4();
+        let folder_key = AesImpl::generate_key();
+
+        assert_matches!(
+            ClientImpl::new_account(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                account.keys.to_public_key(),
+                folder_id,
+                FolderAccessInfo {
+                    folder_id: folder_id,
+                    access_key: aes_key(&folder_key, &folder_key),
+                },
+                rsa_key(&account.keys.to_public_key(), &folder_key)
+            ),
+            Ok(_)
+        );
+
+        // create folder to move itself into
+        let subfolder_id = Uuid::new_v4();
+        let subfolder_key = AesImpl::generate_key();
+
+        assert_matches!(
+            ClientImpl::create_folder(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                subfolder_id,
+                &random_filename(),
+                folder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&folder_key, &subfolder_key),
+                },
+            ),
+            Ok(_)
+        );
+
+        assert_matches!(
+            ClientImpl::move_folder(
+                &account.api_url,
+                &account.username,
+                &sign(&account),
+                subfolder_id,
+                version,
+                subfolder_id,
+                FolderAccessInfo {
+                    folder_id: subfolder_id,
+                    access_key: aes_key(&subfolder_key, &subfolder_key),
+                }
+            ),
+            Err(ApiError::<MoveFileError>::Api(
+                MoveFileError::CannotMoveIntoDescendant
+            ))
+        );
+    }
 }
