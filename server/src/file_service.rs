@@ -456,8 +456,6 @@ pub async fn delete_folder(
         return Err(DeleteFolderError::InvalidUsername);
     }
 
-    
-
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
@@ -563,6 +561,7 @@ pub async fn move_folder(
         file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
+        file_index_repo::FileError::IllegalRootChange => MoveFolderError::CannotMoveRoot,
         file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
         _ => {
             error!(
