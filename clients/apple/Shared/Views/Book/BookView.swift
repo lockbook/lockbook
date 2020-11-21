@@ -28,19 +28,6 @@ struct BookView: View {
     }
 }
 
-struct FileCell: View {
-    let meta: FileMetadata
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(meta.name)
-            Label(intEpochToString(epoch: meta.contentVersion), systemImage: meta.fileType == .Folder ? "folder" : "doc")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
