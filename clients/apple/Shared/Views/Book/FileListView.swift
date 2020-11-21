@@ -7,27 +7,21 @@ struct FileListView: View {
     @State var selectedFile: FileMetadataWithChildren?
     @State var showingAccount: Bool = false
     @State var showingActions: Bool = false
+    @State var creating: (FileMetadata, Bool)?
+    @State var creatingName: String = ""
 
     var body: some View {
         let baseView = List {
+            creating.map({ tup in
+                SyntheticFileCell(params: tup, nameField: $creatingName, onCreate: { handleCreate(meta: tup.0, isFolder: tup.1) }, onCancel: doneCreating)
+            })
             OutlineGroup(core.grouped, children: \.children) { meta in
-                if meta.meta.fileType == .Folder {
-                    FileCell(meta: meta.meta)
-                        .foregroundColor(selectedFile.map({ $0.id == meta.id }) ?? false ? .accentColor : .primary)
-                        .onLongPressGesture {
-                            selectedFile = meta
-                            showingActions = true
-                        }
-                } else {
-                    NavigationLink(destination: EditorView(core: core, meta: meta.meta).equatable()) {
-                        FileCell(meta: meta.meta)
-                            .foregroundColor(selectedFile.map({ $0.id == meta.id }) ?? false ? .accentColor : .primary)
-                    }
+                renderCell(meta: meta)
+                    .foregroundColor(selectedFile.map({ $0.id == meta.id }) ?? false ? .accentColor : .primary)
                     .onLongPressGesture {
                         selectedFile = meta
                         showingActions = true
                     }
-                }
             }
             HStack {
                 Spacer()
@@ -41,7 +35,7 @@ struct FileListView: View {
             core.sync()
         })
         .popover(isPresented: $showingActions, content: {
-            ActionsView(core: core, maybeSelected: selectedFile)
+            ActionsView(core: core, maybeSelected: selectedFile, creating: $creating)
                 .padding()
         })
 
@@ -78,6 +72,36 @@ struct FileListView: View {
                 }
             }
         #endif
+    }
+
+    func handleCreate(meta: FileMetadata, isFolder: Bool) {
+        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: isFolder) {
+        case .success(_):
+            doneCreating()
+            core.updateFiles()
+        case .failure(let err):
+            core.handleError(err)
+        }
+    }
+    func doneCreating() {
+        withAnimation {
+            creating = .none
+            creatingName = ""
+        }
+    }
+
+    func renderCell(meta: FileMetadataWithChildren) -> AnyView {
+        if meta.meta.fileType == .Folder {
+            return AnyView(
+                FileCell(meta: meta.meta)
+            )
+        } else {
+            return AnyView(
+                NavigationLink(destination: EditorView(core: core, meta: meta.meta).equatable()) {
+                    FileCell(meta: meta.meta)
+                }
+            )
+        }
     }
 }
 
