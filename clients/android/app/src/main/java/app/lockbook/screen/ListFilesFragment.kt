@@ -1,6 +1,8 @@
 package app.lockbook.screen
 
 import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,10 +12,15 @@ import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
+import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
-import app.lockbook.model.FilesAdapter
+import app.lockbook.model.GeneralViewAdapter
+import app.lockbook.model.GridRecyclerViewAdapter
+import app.lockbook.model.LinearRecyclerViewAdapter
 import app.lockbook.model.ListFilesViewModel
 import app.lockbook.modelfactory.ListFilesViewModelFactory
 import app.lockbook.ui.CreateFileDialogFragment
@@ -65,17 +72,16 @@ class ListFilesFragment : Fragment() {
             container,
             false
         )
+
         val application = requireNotNull(this.activity).application
         val listFilesViewModelFactory =
             ListFilesViewModelFactory(application.filesDir.absolutePath, application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-        val adapter =
-            FilesAdapter(listFilesViewModel)
+        LinearRecyclerViewAdapter(listFilesViewModel)
 
         binding.listFilesViewModel = listFilesViewModel
-        binding.filesList.adapter = adapter
-        binding.filesList.layoutManager = LinearLayoutManager(context)
+        var adapter = setFileAdapter(binding)
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
@@ -142,6 +148,14 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { editableFile ->
                 navigateToFileEditor(editableFile)
+            }
+        )
+
+        listFilesViewModel.switchFileLayout.observe(
+            viewLifecycleOwner,
+            {
+                adapter = setFileAdapter(binding)
+                listFilesViewModel.refreshAndAssessChanges()
             }
         )
 
@@ -238,7 +252,43 @@ class ListFilesFragment : Fragment() {
         return binding.root
     }
 
-    private fun unSelectAllFiles(adapter: FilesAdapter) {
+    private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
+        val config = resources.configuration
+
+        val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
+            .getString(
+                SharedPreferences.FILE_LAYOUT_KEY,
+                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                    SharedPreferences.GRID_LAYOUT
+                } else {
+                    SharedPreferences.LINEAR_LAYOUT
+                }
+            )
+
+        if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
+            val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
+            binding.filesList.adapter = adapter
+            binding.filesList.layoutManager = LinearLayoutManager(context)
+            return adapter
+        } else {
+            val orientation = config.orientation
+            val adapter = GridRecyclerViewAdapter(listFilesViewModel)
+            binding.filesList.adapter = adapter
+
+            val displayMetrics = requireContext().resources.displayMetrics
+            val noOfColumns = (((displayMetrics.widthPixels / displayMetrics.density) / 90)).toInt()
+
+            if (orientation == ORIENTATION_PORTRAIT) {
+                binding.filesList.layoutManager = GridLayoutManager(context, noOfColumns)
+            } else {
+                binding.filesList.layoutManager = GridLayoutManager(context, noOfColumns)
+            }
+
+            return adapter
+        }
+    }
+
+    private fun unSelectAllFiles(adapter: GeneralViewAdapter) {
         adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
@@ -352,7 +402,7 @@ class ListFilesFragment : Fragment() {
 
     private fun updateRecyclerView(
         files: List<FileMetadata>,
-        adapter: FilesAdapter
+        adapter: GeneralViewAdapter
     ) {
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
@@ -408,19 +458,28 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showMoveFileDialog(moveFileInfo: MoveFileInfo) {
-        val dialogFragment = MoveFileDialogFragment.newInstance(moveFileInfo.ids, moveFileInfo.names)
+        val dialogFragment = MoveFileDialogFragment.newInstance(
+            moveFileInfo.ids,
+            moveFileInfo.names
+        )
 
         dialogFragment.show(parentFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
     }
 
     private fun showRenameFileDialog(renameFileInfo: RenameFileInfo) {
-        val dialogFragment = RenameFileDialogFragment.newInstance(renameFileInfo.id, renameFileInfo.name)
+        val dialogFragment = RenameFileDialogFragment.newInstance(
+            renameFileInfo.id,
+            renameFileInfo.name
+        )
 
         dialogFragment.show(parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
     }
 
     private fun showCreateFileDialog(createFileInfo: CreateFileInfo) {
-        val dialogFragment = CreateFileDialogFragment.newInstance(createFileInfo.parentId, createFileInfo.fileType)
+        val dialogFragment = CreateFileDialogFragment.newInstance(
+            createFileInfo.parentId,
+            createFileInfo.fileType
+        )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
     }
@@ -434,6 +493,6 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.handleActivityResult(requestCode, resultCode, data)
+        listFilesViewModel.handleActivityResult(requestCode)
     }
 }
