@@ -5,6 +5,7 @@ use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
 use lockbook_core::model::api::*;
 use lockbook_core::model::file_metadata::FileType;
+use crate::file_index_repo::FileError;
 
 pub async fn change_document_content(
     server_state: &mut ServerState,
@@ -33,10 +34,21 @@ pub async fn change_document_content(
     .await;
 
     let (old_content_version, new_version) = result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
-        file_index_repo::FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
-        _ => {
+        FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
+        FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
+        FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
+        FileError::FolderMovedIntoDescendants
+        | FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist 
+        | FileError::ParentDoesNotExist
+        | FileError::ParentDeleted 
+        | FileError::IllegalRootChange 
+        | FileError::PathTaken 
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot change document content version in Postgres: {:?}",
                 e
@@ -128,17 +140,28 @@ pub async fn create_document(
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
-        file_index_repo::FileError::IdTaken => CreateDocumentError::FileIdTaken,
-        file_index_repo::FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
-        file_index_repo::FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
-        file_index_repo::FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
-        _ => {
+        FileError::IdTaken => CreateDocumentError::FileIdTaken,
+        FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
+        FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
+        FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
+        FileError::Deleted
+        | FileError::Deserialize(_)
+        | FileError::DoesNotExist
+        | FileError::IncorrectOldVersion
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_)  => {
             error!(
                 "Internal server error! Cannot create document in Postgres: {:?}",
                 e
             );
             CreateDocumentError::InternalError
         }
+        
     })?;
 
     usage_service::track_content_change(
@@ -202,16 +225,28 @@ pub async fn delete_document(
     let index_result =
         file_index_repo::delete_file(&transaction, request.id, FileType::Document).await;
     let index_responses = index_result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
-        file_index_repo::FileError::Deleted => DeleteDocumentError::DocumentDeleted,
-        _ => {
+        FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
+        FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
+        FileError::Deleted => DeleteDocumentError::DocumentDeleted,
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::ParentDoesNotExist
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::PathTaken
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_)  => {
             error!(
                 "Internal server error! Cannot delete document in Postgres: {:?}",
                 e
             );
             DeleteDocumentError::InternalError
         }
+        
     })?;
 
     let single_index_response = if let Some(result) = index_responses.responses.iter().last() {
@@ -287,19 +322,28 @@ pub async fn move_document(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
-        file_index_repo::FileError::Deleted => MoveDocumentError::DocumentDeleted,
-        file_index_repo::FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
-        file_index_repo::FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
-        file_index_repo::FileError::ParentDeleted => MoveDocumentError::ParentDeleted,
-        _ => {
+        FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
+        FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
+        FileError::Deleted => MoveDocumentError::DocumentDeleted,
+        FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
+        FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
+        FileError::ParentDeleted => MoveDocumentError::ParentDeleted,
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot move document in Postgres: {:?}",
                 e
             );
             MoveDocumentError::InternalError
         }
+        
     })?;
 
     match transaction.commit().await {
@@ -341,17 +385,28 @@ pub async fn rename_document(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
-        file_index_repo::FileError::Deleted => RenameDocumentError::DocumentDeleted,
-        file_index_repo::FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
-        _ => {
+        FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
+        FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
+        FileError::Deleted => RenameDocumentError::DocumentDeleted,
+        FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::ParentDoesNotExist
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot rename document in Postgres: {:?}",
                 e
             );
             RenameDocumentError::InternalError
         }
+        
     })?;
 
     match transaction.commit().await {
@@ -420,17 +475,28 @@ pub async fn create_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        file_index_repo::FileError::IdTaken => CreateFolderError::FileIdTaken,
-        file_index_repo::FileError::PathTaken => CreateFolderError::FolderPathTaken,
-        file_index_repo::FileError::OwnerDoesNotExist => CreateFolderError::UserNotFound,
-        file_index_repo::FileError::ParentDoesNotExist => CreateFolderError::ParentNotFound,
-        _ => {
+        FileError::IdTaken => CreateFolderError::FileIdTaken,
+        FileError::PathTaken => CreateFolderError::FolderPathTaken,
+        FileError::OwnerDoesNotExist => CreateFolderError::UserNotFound,
+        FileError::ParentDoesNotExist => CreateFolderError::ParentNotFound,
+        FileError::Deleted
+        | FileError::Deserialize(_)
+        | FileError::DoesNotExist
+        | FileError::IncorrectOldVersion
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot create folder in Postgres: {:?}",
                 e
             );
             CreateFolderError::InternalError
         }
+        
     })?;
 
     match transaction.commit().await {
@@ -467,16 +533,28 @@ pub async fn delete_folder(
     let index_result =
         file_index_repo::delete_file(&transaction, request.id, FileType::Folder).await;
     let index_responses = index_result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
-        file_index_repo::FileError::Deleted => DeleteFolderError::FolderDeleted,
-        _ => {
+        FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
+        FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
+        FileError::Deleted => DeleteFolderError::FolderDeleted,
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::ParentDoesNotExist
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::IllegalRootChange
+        | FileError::PathTaken
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot delete folder in Postgres: {:?}",
                 e
             );
             DeleteFolderError::InternalError
         }
+
     })?;
 
     let root_result = if let Some(result) = index_responses
@@ -564,13 +642,20 @@ pub async fn move_folder(
         file_index_repo::FileError::IllegalRootChange => MoveFolderError::CannotMoveRoot,
         file_index_repo::FileError::FolderMovedIntoDescendants => MoveFolderError::CannotMoveIntoDescendant,
         file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
-        _ => {
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot move folder in Postgres: {:?}",
                 e
             );
             MoveFolderError::InternalError
         }
+        
     })?;
 
     match transaction.commit().await {
@@ -612,18 +697,28 @@ pub async fn rename_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
-        file_index_repo::FileError::IllegalRootChange => RenameFolderError::CannotRenameRoot,
-        file_index_repo::FileError::Deleted => RenameFolderError::FolderDeleted,
-        file_index_repo::FileError::PathTaken => RenameFolderError::FolderPathTaken,
-        _ => {
+        FileError::DoesNotExist => RenameFolderError::FolderNotFound,
+        FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
+        FileError::IllegalRootChange => RenameFolderError::CannotRenameRoot,
+        FileError::Deleted => RenameFolderError::FolderDeleted,
+        FileError::PathTaken => RenameFolderError::FolderPathTaken,
+        FileError::Deserialize(_)
+        | FileError::IdTaken
+        | FileError::OwnerDoesNotExist
+        | FileError::ParentDoesNotExist
+        | FileError::ParentDeleted
+        | FileError::FolderMovedIntoDescendants
+        | FileError::Postgres(_)
+        | FileError::Serialize(_)
+        | FileError::WrongFileType
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot rename folder in Postgres: {:?}",
                 e
             );
             RenameFolderError::InternalError
         }
+
     })?;
 
     match transaction.commit().await {
