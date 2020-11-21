@@ -60,6 +60,7 @@ pub enum FileError {
     OwnerDoesNotExist,
     ParentDoesNotExist,
     ParentDeleted,
+    FolderMovedIntoDescendants,
     IllegalRootChange,
     PathTaken,
     Postgres(PostgresError),
@@ -178,6 +179,7 @@ pub async fn change_document_content_version(
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
                 old.content_version AS old_content_version,
+                old.parent AS parent_id,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
@@ -276,7 +278,16 @@ pub async fn move_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
+            "
+            WITH RECURSIVE file_descendants AS (
+                SELECT * FROM files AS parent
+                WHERE parent.id = $1
+                AND parent.is_folder = $3
+                    UNION
+                SELECT children.* FROM files AS children
+                JOIN file_descendants ON file_descendants.id = children.parent
+            ),
+            old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
             parent AS (
                 SELECT * FROM files WHERE id = $4
             )
@@ -288,6 +299,7 @@ pub async fn move_file(
                         AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $4
                     ELSE old.parent END),
@@ -297,6 +309,7 @@ pub async fn move_file(
                         AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END),
@@ -306,6 +319,7 @@ pub async fn move_file(
                         AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $5
                     ELSE old.parent_access_key END)
@@ -316,6 +330,7 @@ pub async fn move_file(
                 old.deleted AS old_deleted,
                 parent.deleted AS parent_deleted,
                 parent.id AS parent_id,
+                EXISTS(SELECT * FROM file_descendants WHERE id = $4) AS moved_into_descendant,
                 old.metadata_version AS old_metadata_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -364,8 +379,8 @@ pub async fn rename_file(
             RETURNING
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
-                parent.id AS parent_id,
                 old.content_version AS old_content_version,
+                old.parent AS parent_id,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
@@ -472,6 +487,7 @@ struct FileMoveResponse {
     old_deleted: bool,
     parent_deleted: bool,
     parent_id: Uuid,
+    moved_into_descendant: bool,
     old_metadata_version: u64,
     new_metadata_version: u64,
     is_folder: bool,
@@ -493,6 +509,7 @@ impl FileMoveResponse {
                 row.try_get::<&str, &str>("parent_id")
                     .map_err(FileError::Postgres)?,
             ).map_err(FileError::Deserialize)?,
+            moved_into_descendant: row.try_get::<&str, bool>("moved_into_descendant").map_err(FileError::Postgres)?,
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -525,6 +542,8 @@ impl FileMoveResponse {
             Err(FileError::ParentDoesNotExist)
         } else if self.parent_id == id {
             Err(FileError::IllegalRootChange)
+        } else if self.moved_into_descendant {
+            Err(FileError::FolderMovedIntoDescendants)
         } else {
             Ok(self)
         }
