@@ -562,6 +562,7 @@ pub async fn move_folder(
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
         file_index_repo::FileError::IllegalRootChange => MoveFolderError::CannotMoveRoot,
+        file_index_repo::FileError::FolderMovedIntoDescendants => MoveFolderError::CannotMoveIntoDescendant,
         file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
         _ => {
             error!(
@@ -613,6 +614,7 @@ pub async fn rename_folder(
     let new_version = result.map_err(|e| match e {
         file_index_repo::FileError::DoesNotExist => RenameFolderError::FolderNotFound,
         file_index_repo::FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
+        file_index_repo::FileError::IllegalRootChange => RenameFolderError::CannotRenameRoot,
         file_index_repo::FileError::Deleted => RenameFolderError::FolderDeleted,
         file_index_repo::FileError::PathTaken => RenameFolderError::FolderPathTaken,
         _ => {
