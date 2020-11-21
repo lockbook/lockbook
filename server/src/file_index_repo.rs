@@ -60,6 +60,7 @@ pub enum FileError {
     OwnerDoesNotExist,
     ParentDoesNotExist,
     ParentDeleted,
+    IllegalRootChange,
     PathTaken,
     Postgres(PostgresError),
     Serialize(serde_json::Error),
@@ -71,29 +72,29 @@ impl From<PostgresError> for FileError {
     fn from(e: PostgresError) -> FileError {
         match (e.code(), e.to_string()) {
             (Some(error_code), error_string)
-                if error_code == &SqlState::UNIQUE_VIOLATION
-                    && error_string.contains("pk_files") =>
-            {
-                FileError::IdTaken
-            }
+            if error_code == &SqlState::UNIQUE_VIOLATION
+                && error_string.contains("pk_files") =>
+                {
+                    FileError::IdTaken
+                }
             (Some(error_code), error_string)
-                if error_code == &SqlState::UNIQUE_VIOLATION
-                    && error_string.contains("uk_files_name_parent") =>
-            {
-                FileError::PathTaken
-            }
+            if error_code == &SqlState::UNIQUE_VIOLATION
+                && error_string.contains("uk_files_name_parent") =>
+                {
+                    FileError::PathTaken
+                }
             (Some(error_code), error_string)
-                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
-                    && error_string.contains("fk_files_parent_files_id") =>
-            {
-                FileError::ParentDoesNotExist
-            }
+            if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                && error_string.contains("fk_files_parent_files_id") =>
+                {
+                    FileError::ParentDoesNotExist
+                }
             (Some(error_code), error_string)
-                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
-                    && error_string.contains("fk_files_owner_accounts_name") =>
-            {
-                FileError::OwnerDoesNotExist
-            }
+            if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                && error_string.contains("fk_files_owner_accounts_name") =>
+                {
+                    FileError::OwnerDoesNotExist
+                }
             _ => FileError::Postgres(e),
         }
     }
@@ -187,7 +188,7 @@ pub async fn change_document_content_version(
         .await
         .map_err(FileError::Postgres)?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, FileType::Document)?;
+        .validate(old_metadata_version, FileType::Document, id)?;
     Ok((metadata.old_content_version, metadata.new_metadata_version))
 }
 
@@ -284,6 +285,7 @@ pub async fn move_file(
                 parent =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
@@ -292,6 +294,7 @@ pub async fn move_file(
                 metadata_version =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
@@ -300,6 +303,7 @@ pub async fn move_file(
                 parent_access_key =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
@@ -311,6 +315,7 @@ pub async fn move_file(
             RETURNING
                 old.deleted AS old_deleted,
                 parent.deleted AS parent_deleted,
+                parent.id AS parent_id,
                 old.metadata_version AS old_metadata_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -324,7 +329,7 @@ pub async fn move_file(
         )
         .await?;
     let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type)?;
+        .validate(old_metadata_version, file_type, id)?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -341,11 +346,17 @@ pub async fn rename_file(
             UPDATE files new
             SET
                 name =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted
+                    AND old.metadata_version = $2
+                    AND old.is_folder = $3
+                    AND old.id != old.parent
                     THEN $4
                     ELSE old.name END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted
+                    AND old.metadata_version = $2
+                    AND old.is_folder = $3
+                    AND old.id != old.parent
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
             FROM old
@@ -353,6 +364,7 @@ pub async fn rename_file(
             RETURNING
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
+                parent.id AS parent_id,
                 old.content_version AS old_content_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -365,7 +377,7 @@ pub async fn rename_file(
         )
         .await?;
     let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type)?;
+        .validate(old_metadata_version, file_type, id)?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -409,6 +421,7 @@ struct FileUpdateResponse {
     old_deleted: bool,
     old_metadata_version: u64,
     old_content_version: u64,
+    parent_id: Uuid,
     new_metadata_version: u64,
     is_folder: bool,
 }
@@ -423,6 +436,11 @@ impl FileUpdateResponse {
             old_content_version: row
                 .try_get::<&str, i64>("old_content_version")
                 .map_err(FileError::Postgres)? as u64,
+            parent_id: serde_json::from_str::<Uuid>(
+                row.try_get::<&str, &str>("parent_id")
+                    .map_err(FileError::Postgres)?,
+            )
+                .map_err(FileError::Deserialize)?,
             new_metadata_version: row
                 .try_get::<&str, i64>("new_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -434,6 +452,7 @@ impl FileUpdateResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
+        id: Uuid
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -441,6 +460,8 @@ impl FileUpdateResponse {
             Err(FileError::Deleted)
         } else if self.old_metadata_version != expected_old_metadata_version {
             Err(FileError::IncorrectOldVersion)
+        } else if self.parent_id == id {
+            Err(FileError::IllegalRootChange)
         } else {
             Ok(self)
         }
@@ -450,6 +471,7 @@ impl FileUpdateResponse {
 struct FileMoveResponse {
     old_deleted: bool,
     parent_deleted: bool,
+    parent_id: Uuid,
     old_metadata_version: u64,
     new_metadata_version: u64,
     is_folder: bool,
@@ -467,6 +489,10 @@ impl FileMoveResponse {
                 Some(true) => true,
                 _ => false,
             },
+            parent_id: serde_json::from_str::<Uuid>(
+                row.try_get::<&str, &str>("parent_id")
+                    .map_err(FileError::Postgres)?,
+            ).map_err(FileError::Deserialize)?,
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -485,6 +511,7 @@ impl FileMoveResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
+        id: Uuid
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -496,6 +523,8 @@ impl FileMoveResponse {
             Err(FileError::IncorrectOldVersion)
         } else if !self.parent_exists {
             Err(FileError::ParentDoesNotExist)
+        } else if self.parent_id == id {
+            Err(FileError::IllegalRootChange)
         } else {
             Ok(self)
         }
@@ -525,7 +554,7 @@ impl FileDeleteResponses {
                         row.try_get::<&str, &str>("id")
                             .map_err(FileError::Postgres)?,
                     )
-                    .map_err(FileError::Deserialize)?,
+                        .map_err(FileError::Deserialize)?,
                     old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
@@ -567,7 +596,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("id")
                 .map_err(FileError::Postgres)?,
         )
-        .map_err(FileError::Deserialize)?,
+            .map_err(FileError::Deserialize)?,
         file_type: {
             if row
                 .try_get::<&str, bool>("is_folder")
@@ -582,14 +611,14 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("parent")
                 .map_err(FileError::Postgres)?,
         )
-        .map_err(FileError::Deserialize)?,
+            .map_err(FileError::Deserialize)?,
         name: row.try_get("name").map_err(FileError::Postgres)?,
         owner: row.try_get("owner").map_err(FileError::Postgres)?,
         signature: serde_json::from_str(
             row.try_get::<&str, &str>("signature")
                 .map_err(FileError::Postgres)?,
         )
-        .map_err(FileError::Deserialize)?,
+            .map_err(FileError::Deserialize)?,
         metadata_version: row
             .try_get::<&str, i64>("metadata_version")
             .map_err(FileError::Postgres)? as u64,
@@ -622,7 +651,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("parent_access_key")
                 .map_err(FileError::Postgres)?,
         )
-        .map_err(FileError::Deserialize)?,
+            .map_err(FileError::Deserialize)?,
     })
 }
 
