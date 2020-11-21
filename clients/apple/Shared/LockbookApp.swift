@@ -30,4 +30,11 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         #endif
     }
+
+    /// Allows free use of .autocapitalization without having to if else it on macOS
+    #if os(macOS)
+    func autocapitalization(_ bunk: String?) -> some View {
+        self
+    }
+    #endif
 }
