@@ -573,25 +573,25 @@ val deleteFileConverter = object : Converter {
                 if (error != null) {
                     Err(
                         when (error) {
-                            DeleteFileError.FileDoesNotExist::class.simpleName -> DeleteFileError.FileDoesNotExist
-                            else -> DeleteFileError.Unexpected("deleteFileConverter $unmatchedUiError $error")
+                            FileDeleteError.FileDoesNotExist::class.simpleName -> FileDeleteError.FileDoesNotExist
+                            else -> FileDeleteError.Unexpected("deleteFileConverter $unmatchedUiError $error")
                         }
                     )
                 } else {
-                    Err(DeleteFileError.Unexpected("deleteFileConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                    Err(FileDeleteError.Unexpected("deleteFileConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
                 }
             }
             unexpectedTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(DeleteFileError.Unexpected(error))
+                    Err(FileDeleteError.Unexpected(error))
                 } else {
-                    Err(DeleteFileError.Unexpected("deleteFileConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                    Err(FileDeleteError.Unexpected("deleteFileConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
                 }
             }
-            else -> Err(DeleteFileError.Unexpected("deleteFileConverter $unmatchedErrorTag $errorTag"))
+            else -> Err(FileDeleteError.Unexpected("deleteFileConverter $unmatchedErrorTag $errorTag"))
         }
-        else -> Err(DeleteFileError.Unexpected("deleteFileConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+        else -> Err(FileDeleteError.Unexpected("deleteFileConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -732,6 +732,7 @@ val syncAllConverter = object : Converter {
                             SyncAllError.CouldNotReachServer::class.simpleName -> SyncAllError.CouldNotReachServer
                             SyncAllError.NoAccount::class.simpleName -> SyncAllError.NoAccount
                             SyncAllError.ExecuteWorkError::class.simpleName -> SyncAllError.ExecuteWorkError
+                            SyncAllError.ClientUpdateRequired::class.simpleName -> SyncAllError.ClientUpdateRequired
                             else -> SyncAllError.Unexpected("syncAllConverter $unmatchedUiError $error")
                         }
                     )
@@ -812,6 +813,7 @@ val executeSyncWorkConverter = object : Converter {
                         when (error) {
                             ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
                             ExecuteWorkError.ClientUpdateRequired::class.simpleName -> ExecuteWorkError.ClientUpdateRequired
+                            ExecuteWorkError.BadAccount::class.simpleName -> ExecuteWorkError.BadAccount
                             else -> ExecuteWorkError.Unexpected("executeSyncWorkConverter $unmatchedUiError $error")
                         }
                     )
