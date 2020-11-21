@@ -930,6 +930,7 @@ pub fn execute_work(
                         Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
                     }
                     RenameFolderError::InternalError
+                    | RenameFolderError::CannotRenameRoot
                     | RenameFolderError::InvalidAuth
                     | RenameFolderError::InvalidUsername
                     | RenameFolderError::ExpiredAuth
@@ -983,6 +984,8 @@ pub fn execute_work(
                         Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
                     }
                     MoveFolderError::InternalError
+                    | MoveFolderError::CannotMoveIntoDescendant
+                    | MoveFolderError::CannotMoveRoot
                     | MoveFolderError::InvalidAuth
                     | MoveFolderError::InvalidUsername
                     | MoveFolderError::ExpiredAuth
@@ -1106,6 +1109,7 @@ pub fn execute_work(
                         Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
                     }
                     DeleteFolderError::InternalError
+                    | DeleteFolderError::CannotDeleteRoot
                     | DeleteFolderError::InvalidAuth
                     | DeleteFolderError::InvalidUsername
                     | DeleteFolderError::ExpiredAuth
