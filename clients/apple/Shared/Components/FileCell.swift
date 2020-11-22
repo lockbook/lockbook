@@ -15,7 +15,7 @@ struct FileCell: View {
 }
 
 struct SyntheticFileCell: View {
-    let params: (FileMetadata, Bool)
+    let params: (FileMetadata, FileType)
     @Binding var nameField: String
     let onCreate: () -> Void
     let onCancel: () -> Void
@@ -25,7 +25,7 @@ struct SyntheticFileCell: View {
             VStack(alignment: .leading) {
                 TextField("new file...", text: $nameField)
                     .autocapitalization(.none)
-                Label("Child of \(params.0.name)", systemImage: params.1 ? "folder" : "doc")
+                Label("New \(params.1.rawValue) in \(params.0.name)", systemImage: params.1 == .Folder ? "folder" : "doc")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
@@ -46,7 +46,7 @@ struct FileCell_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             FileCell(meta: Core().files[0])
-            SyntheticFileCell(params: (Core().files[0], false), nameField: .constant(""), onCreate: {}, onCancel: {})
+            SyntheticFileCell(params: (Core().files[0], .Document), nameField: .constant(""), onCreate: {}, onCancel: {})
         }
         .previewLayout(.fixed(width: 300, height: 50))
     }
