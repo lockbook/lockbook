@@ -51,7 +51,12 @@ struct EditorView: View, Equatable {
                 }
             #if os(iOS)
             baseEditor
-                .navigationBarItems(trailing: EditorStatus(status: contentBuffer.status))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        EditorStatus(status: contentBuffer.status)
+                    }
+                }
             #else
             baseEditor
                 .toolbar(content: {
