@@ -241,8 +241,8 @@ impl LbCore {
         }
     }
 
-    pub fn delete(&self, id: Uuid) -> Result<(), String> {
-        match delete_file(&self.config, id) {
+    pub fn delete(&self, id: &Uuid) -> Result<(), String> {
+        match delete_file(&self.config, *id) {
             Ok(_) => Ok(()),
             Err(err) => Err(format!("{:?}", err)),
         }
