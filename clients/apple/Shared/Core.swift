@@ -10,7 +10,7 @@ class Core: ObservableObject {
     @Published var account: Account?
     @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
-    @Published var grouped: [FileMetadataWithChildren] = []
+    @Published var root: FileMetadata?
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
@@ -51,6 +51,12 @@ class Core: ObservableObject {
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
             DispatchQueue.main.async {
                 self.account = nil
+                switch self.api.getState() {
+                case .success(let db):
+                    self.state = db
+                case .failure(let err):
+                    self.handleError(err)
+                }
             }
         }
     }
@@ -74,10 +80,10 @@ class Core: ObservableObject {
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
+                self.root = root
                 switch api.listFiles() {
                 case .success(let metas):
                     self.files = metas
-                    self.grouped = [buildTree(meta: root)]
                 case .failure(let err):
                     handleError(err)
                 }
@@ -124,7 +130,7 @@ class Core: ObservableObject {
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
-            self.grouped = [buildTree(meta: root)]
+            self.root = root
         }
     }
 }
