@@ -12,13 +12,15 @@ use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
     Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button as GtkButton,
-    CheckButton as GtkCheckBox, Clipboard as GtkClipboard, Dialog as GtkDialog, Entry as GtkEntry,
-    EntryCompletion as GtkEntryCompletion, Expander as GtkExpander, Image as GtkImage,
-    Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
-    ProgressBar as GtkProgressBar, ResponseType as GtkResponseType, SortColumn as GtkSortColumn,
-    SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter,
-    TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort, Widget as GtkWidget,
-    WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Clipboard as GtkClipboard,
+    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Expander as GtkExpander, Image as GtkImage, Label as GtkLabel, ListStore as GtkListStore,
+    Notebook as GtkNotebook, ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
+    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
@@ -111,8 +113,8 @@ impl LockbookApp {
                 Msg::NewFile(path) => lb.new_file(path),
                 Msg::OpenFile(id) => lb.open_file(id),
                 Msg::SaveFile => lb.save(),
-                Msg::CloseFile => lb.close(),
-                Msg::DeleteFile(id) => lb.delete_file(id),
+                Msg::CloseFile => lb.close_file(),
+                Msg::DeleteFiles => lb.delete_files(),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
@@ -350,36 +352,92 @@ impl LockbookApp {
         }
     }
 
-    fn close(&self) {
-        if self.state.borrow().get_opened_file().is_some() {
+    fn close_file(&self) {
+        let mut state = self.state.borrow_mut();
+        if state.get_opened_file().is_some() {
             self.edit(&EditMode::None);
+            state.set_opened_file(None);
         }
     }
 
-    fn delete_file(&self, id: Uuid) {
-        let meta = self.core.file_by_id(id).ok().unwrap();
-        let path = self.core.full_path_for(&meta);
-        let mut msg = format!("Are you sure you want to delete '{}'?", path);
-
-        if meta.file_type == FileType::Folder {
-            let children = self.core.get_children_recursively(meta.id).ok().unwrap();
-            msg = format!("{} ({} files)", msg, children.len());
+    fn delete_files(&self) {
+        let (selected_files, files_model) = self.gui.account.tree().selected_rows();
+        if selected_files.is_empty() {
+            return;
         }
 
+        let mut file_data: Vec<(String, Uuid, String)> = Vec::new();
+        for tpath in selected_files {
+            let iter = files_model.get_iter(&tpath).unwrap();
+            let id = tree_iter_value!(files_model, &iter, 1, String);
+            let uuid = Uuid::parse_str(&id).unwrap();
+
+            let meta = self.core.file_by_id(uuid).ok().unwrap();
+            let path = self.core.full_path_for(&meta);
+
+            let n_children = if meta.file_type == FileType::Folder {
+                let children = self.core.get_children_recursively(meta.id).ok().unwrap();
+                (children.len() - 1).to_string()
+            } else {
+                "".to_string()
+            };
+
+            file_data.push((path, meta.id, n_children));
+        }
+
+        let tree_add_col = |tree: &GtkTreeView, name: &str, id| {
+            let cell = GtkCellRendererText::new();
+            cell.set_padding(12, 4);
+
+            let c = GtkTreeViewColumn::new();
+            c.set_title(&name);
+            c.pack_start(&cell, true);
+            c.add_attribute(&cell, "text", id);
+            tree.append_column(&c);
+        };
+
+        let model = GtkTreeStore::new(&[glib::Type::String, glib::Type::String]);
+        let tree = GtkTreeView::with_model(&model);
+        tree.get_selection().set_mode(GtkSelectionMode::None);
+        tree.set_enable_search(false);
+        tree.set_can_focus(false);
+        tree.set_margin_top(16);
+        tree.set_margin_bottom(16);
+        tree.set_margin_start(16);
+        tree.set_margin_end(16);
+        tree_add_col(&tree, "Name", 0);
+        tree_add_col(&tree, "Children", 1);
+        for f in &file_data {
+            let (path, _, n_children) = f;
+            model.insert_with_values(None, None, &[0, 1], &[&path, &n_children]);
+        }
+
+        let msg = "Are you absolutely sure you want to delete the following files?";
+        let lbl = GtkLabel::new(Some(&msg));
+        lbl.set_margin_top(16);
+        lbl.set_margin_start(16);
+        lbl.set_margin_end(16);
+
         let d = self.gui.new_dialog("Confirm Delete");
-        d.get_content_area().add(&GtkLabel::new(Some(&msg)));
+        d.get_content_area().add(&lbl);
+        d.get_content_area().add(&tree);
         d.get_content_area().show_all();
-        d.add_button("Cancel", GtkResponseType::Cancel);
-        d.add_button("Delete", GtkResponseType::Yes);
+        d.set_default_response(GtkResponseType::Cancel);
+        d.add_button("No", GtkResponseType::Cancel);
+        d.add_button("I'm Sure", GtkResponseType::Yes);
 
         if d.run() == GtkResponseType::Yes {
-            match self.core.delete(id) {
-                Ok(_) => self.gui.account.tree().remove(&meta.id),
-                Err(err) => println!("{}", err),
+            for f in &file_data {
+                let (_, id, _) = f;
+                match self.core.delete(&id) {
+                    Ok(_) => self.gui.account.tree().remove(&id),
+                    Err(err) => println!("{}", err),
+                }
             }
         }
 
         d.close();
+        self.gui.account.sync().set_status(&self.core);
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {
@@ -445,13 +503,18 @@ impl LockbookApp {
     }
 
     fn search_field_blur(&self) {
-        let path = match self.state.borrow().get_opened_file() {
-            Some(meta) => self.core.full_path_for(meta),
-            None => "".to_string(),
+        let txt = match self.state.borrow().get_opened_file() {
+            Some(meta) => {
+                self.gui.account.focus_editor();
+                self.core.full_path_for(meta)
+            }
+            None => {
+                self.gui.account.tree().focus();
+                "".to_string()
+            }
         };
-        self.gui.account.set_search_field_text(&path);
         self.gui.account.deselect_search_field();
-        self.gui.account.tree().focus();
+        self.gui.account.set_search_field_text(&txt);
     }
 
     fn search_field_exec(&self, explicit: Option<String>) {

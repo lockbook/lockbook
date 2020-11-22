@@ -3,6 +3,7 @@ use uuid::Uuid;
 use crate::filetree::FileTreeCol;
 
 pub type MsgReceiver = glib::Receiver<Msg>;
+pub type MsgFn = fn() -> Msg;
 
 pub enum Msg {
     CreateAccount(String),
@@ -15,7 +16,7 @@ pub enum Msg {
     OpenFile(Uuid),
     SaveFile,
     CloseFile,
-    DeleteFile(Uuid),
+    DeleteFiles,
 
     SearchFieldFocus,
     SearchFieldBlur,

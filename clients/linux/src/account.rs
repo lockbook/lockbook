@@ -33,9 +33,9 @@ impl AccountScreen {
         let editor = Editor::new();
 
         let paned = GtkPaned::new(Horizontal);
+        paned.set_position(350);
         paned.add1(&sidebar.cntr);
         paned.add2(&editor.cntr);
-        paned.set_position(300);
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.add(&header.cntr);
@@ -125,6 +125,10 @@ impl AccountScreen {
 
     pub fn deselect_search_field(&self) {
         self.header.search.select_region(0, 0);
+    }
+
+    pub fn focus_editor(&self) {
+        self.editor.textarea.grab_focus();
     }
 
     pub fn tree(&self) -> &FileTree {
