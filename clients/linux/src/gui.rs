@@ -274,22 +274,26 @@ impl LockbookApp {
             Ok(file) => {
                 self.gui.account.add_file(&self.core, &file);
                 self.gui.account.sync().set_status(&self.core);
-                self.open_file(file.id);
+                self.open_file(Some(file.id));
             }
             Err(err) => println!("error creating '{}': {}", path, err),
         }
     }
 
-    fn open_file(&self, id: Uuid) {
-        match self.core.file_by_id(id) {
-            Ok(meta) => {
-                self.state.borrow_mut().set_opened_file(Some(meta.clone()));
-                match meta.file_type {
-                    FileType::Document => self.open_document(meta.id),
-                    FileType::Folder => self.open_folder(&meta),
+    fn open_file(&self, maybe_id: Option<Uuid>) {
+        let selected = self.gui.account.tree().get_selected_uuid();
+
+        if let Some(id) = maybe_id.or(selected) {
+            match self.core.file_by_id(id) {
+                Ok(meta) => {
+                    self.state.borrow_mut().set_opened_file(Some(meta.clone()));
+                    match meta.file_type {
+                        FileType::Document => self.open_document(meta.id),
+                        FileType::Folder => self.open_folder(&meta),
+                    }
                 }
+                Err(err) => println!("error opening '{}': {}", id, err),
             }
-            Err(err) => println!("error opening '{}': {}", id, err),
         }
     }
 
@@ -523,7 +527,7 @@ impl LockbookApp {
         let path = explicit.unwrap_or_else(|| best_match.unwrap_or(entry_text));
 
         match self.core.file_by_path(&path) {
-            Ok(meta) => self.messenger.send(Msg::OpenFile(meta.id)),
+            Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
             Err(_) => self.gui.account.set_search_field_icon(
                 "dialog-error-symbolic",
                 Some(&format!("The file '{}' does not exist", path)),
