@@ -13,7 +13,7 @@ pub enum Msg {
     Quit,
 
     NewFile(String),
-    OpenFile(Uuid),
+    OpenFile(Option<Uuid>),
     SaveFile,
     CloseFile,
     DeleteFiles,
