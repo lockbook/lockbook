@@ -533,7 +533,7 @@ impl<
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
 
         if file_metadata.id == file_metadata.parent {
-            return Err(DeleteFolderError::CannotDeleteRoot)
+            return Err(DeleteFolderError::CannotDeleteRoot);
         }
 
         if file_metadata.file_type == Document {
