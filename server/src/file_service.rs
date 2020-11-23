@@ -1,11 +1,11 @@
 use crate::file_content_client;
 use crate::file_index_repo;
+use crate::file_index_repo::FileError;
 use crate::usage_service;
 use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
 use lockbook_core::model::api::*;
 use lockbook_core::model::file_metadata::FileType;
-use crate::file_index_repo::FileError;
 
 pub async fn change_document_content(
     server_state: &mut ServerState,
@@ -40,11 +40,11 @@ pub async fn change_document_content(
         FileError::FolderMovedIntoDescendants
         | FileError::Deserialize(_)
         | FileError::IdTaken
-        | FileError::OwnerDoesNotExist 
+        | FileError::OwnerDoesNotExist
         | FileError::ParentDoesNotExist
-        | FileError::ParentDeleted 
-        | FileError::IllegalRootChange 
-        | FileError::PathTaken 
+        | FileError::ParentDeleted
+        | FileError::IllegalRootChange
+        | FileError::PathTaken
         | FileError::Postgres(_)
         | FileError::Serialize(_)
         | FileError::WrongFileType
@@ -154,14 +154,13 @@ pub async fn create_document(
         | FileError::Postgres(_)
         | FileError::Serialize(_)
         | FileError::WrongFileType
-        | FileError::Unknown(_)  => {
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot create document in Postgres: {:?}",
                 e
             );
             CreateDocumentError::InternalError
         }
-        
     })?;
 
     usage_service::track_content_change(
@@ -239,14 +238,13 @@ pub async fn delete_document(
         | FileError::Postgres(_)
         | FileError::Serialize(_)
         | FileError::WrongFileType
-        | FileError::Unknown(_)  => {
+        | FileError::Unknown(_) => {
             error!(
                 "Internal server error! Cannot delete document in Postgres: {:?}",
                 e
             );
             DeleteDocumentError::InternalError
         }
-        
     })?;
 
     let single_index_response = if let Some(result) = index_responses.responses.iter().last() {
@@ -301,7 +299,7 @@ pub async fn move_document(
     }
 
     if request.id == request.new_parent {
-        return Err(MoveDocumentError::FolderMovedIntoItself)
+        return Err(MoveDocumentError::FolderMovedIntoItself);
     }
 
     let transaction = match server_state.index_db_client.transaction().await {
@@ -343,7 +341,6 @@ pub async fn move_document(
             );
             MoveDocumentError::InternalError
         }
-        
     })?;
 
     match transaction.commit().await {
@@ -406,7 +403,6 @@ pub async fn rename_document(
             );
             RenameDocumentError::InternalError
         }
-        
     })?;
 
     match transaction.commit().await {
@@ -496,7 +492,6 @@ pub async fn create_folder(
             );
             CreateFolderError::InternalError
         }
-        
     })?;
 
     match transaction.commit().await {
@@ -554,7 +549,6 @@ pub async fn delete_folder(
             );
             DeleteFolderError::InternalError
         }
-
     })?;
 
     let root_result = if let Some(result) = index_responses
@@ -640,7 +634,9 @@ pub async fn move_folder(
         file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
         file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
         file_index_repo::FileError::IllegalRootChange => MoveFolderError::CannotMoveRoot,
-        file_index_repo::FileError::FolderMovedIntoDescendants => MoveFolderError::CannotMoveIntoDescendant,
+        file_index_repo::FileError::FolderMovedIntoDescendants => {
+            MoveFolderError::CannotMoveIntoDescendant
+        }
         file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
         FileError::Deserialize(_)
         | FileError::IdTaken
@@ -655,7 +651,6 @@ pub async fn move_folder(
             );
             MoveFolderError::InternalError
         }
-        
     })?;
 
     match transaction.commit().await {
@@ -718,7 +713,6 @@ pub async fn rename_folder(
             );
             RenameFolderError::InternalError
         }
-
     })?;
 
     match transaction.commit().await {

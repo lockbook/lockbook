@@ -562,7 +562,7 @@ pub fn insert_file(
 #[derive(Debug, Serialize, EnumIter)]
 pub enum FileDeleteError {
     FileDoesNotExist,
-    CannotDeleteRoot
+    CannotDeleteRoot,
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
@@ -585,7 +585,9 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
             }
             FileType::Folder => {
                 DefaultFileService::delete_folder(&db, id).map_err(|err| match err {
-                    file_service::DeleteFolderError::CannotDeleteRoot => Error::UiError(FileDeleteError::CannotDeleteRoot),
+                    file_service::DeleteFolderError::CannotDeleteRoot => {
+                        Error::UiError(FileDeleteError::CannotDeleteRoot)
+                    }
                     file_service::DeleteFolderError::MetadataError(_)
                     | file_service::DeleteFolderError::CouldNotFindFile
                     | file_service::DeleteFolderError::FailedToDeleteMetadata(_)

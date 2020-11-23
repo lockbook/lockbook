@@ -73,29 +73,29 @@ impl From<PostgresError> for FileError {
     fn from(e: PostgresError) -> FileError {
         match (e.code(), e.to_string()) {
             (Some(error_code), error_string)
-            if error_code == &SqlState::UNIQUE_VIOLATION
-                && error_string.contains("pk_files") =>
-                {
-                    FileError::IdTaken
-                }
+                if error_code == &SqlState::UNIQUE_VIOLATION
+                    && error_string.contains("pk_files") =>
+            {
+                FileError::IdTaken
+            }
             (Some(error_code), error_string)
-            if error_code == &SqlState::UNIQUE_VIOLATION
-                && error_string.contains("uk_files_name_parent") =>
-                {
-                    FileError::PathTaken
-                }
+                if error_code == &SqlState::UNIQUE_VIOLATION
+                    && error_string.contains("uk_files_name_parent") =>
+            {
+                FileError::PathTaken
+            }
             (Some(error_code), error_string)
-            if error_code == &SqlState::FOREIGN_KEY_VIOLATION
-                && error_string.contains("fk_files_parent_files_id") =>
-                {
-                    FileError::ParentDoesNotExist
-                }
+                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                    && error_string.contains("fk_files_parent_files_id") =>
+            {
+                FileError::ParentDoesNotExist
+            }
             (Some(error_code), error_string)
-            if error_code == &SqlState::FOREIGN_KEY_VIOLATION
-                && error_string.contains("fk_files_owner_accounts_name") =>
-                {
-                    FileError::OwnerDoesNotExist
-                }
+                if error_code == &SqlState::FOREIGN_KEY_VIOLATION
+                    && error_string.contains("fk_files_owner_accounts_name") =>
+            {
+                FileError::OwnerDoesNotExist
+            }
             _ => FileError::Postgres(e),
         }
     }
@@ -189,8 +189,11 @@ pub async fn change_document_content_version(
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, FileType::Document, id)?;
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        FileType::Document,
+        id,
+    )?;
     Ok((metadata.old_content_version, metadata.new_metadata_version))
 }
 
@@ -343,8 +346,11 @@ pub async fn move_file(
             ],
         )
         .await?;
-    let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type, id)?;
+    let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        file_type,
+        id,
+    )?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -391,8 +397,11 @@ pub async fn rename_file(
             ],
         )
         .await?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type, id)?;
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        file_type,
+        id,
+    )?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -455,7 +464,7 @@ impl FileUpdateResponse {
                 row.try_get::<&str, &str>("parent_id")
                     .map_err(FileError::Postgres)?,
             )
-                .map_err(FileError::Deserialize)?,
+            .map_err(FileError::Deserialize)?,
             new_metadata_version: row
                 .try_get::<&str, i64>("new_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -467,7 +476,7 @@ impl FileUpdateResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
-        id: Uuid
+        id: Uuid,
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -508,8 +517,11 @@ impl FileMoveResponse {
             parent_id: serde_json::from_str::<Uuid>(
                 row.try_get::<&str, &str>("parent_id")
                     .map_err(FileError::Postgres)?,
-            ).map_err(FileError::Deserialize)?,
-            moved_into_descendant: row.try_get::<&str, bool>("moved_into_descendant").map_err(FileError::Postgres)?,
+            )
+            .map_err(FileError::Deserialize)?,
+            moved_into_descendant: row
+                .try_get::<&str, bool>("moved_into_descendant")
+                .map_err(FileError::Postgres)?,
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -528,7 +540,7 @@ impl FileMoveResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
-        id: Uuid
+        id: Uuid,
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -573,7 +585,7 @@ impl FileDeleteResponses {
                         row.try_get::<&str, &str>("id")
                             .map_err(FileError::Postgres)?,
                     )
-                        .map_err(FileError::Deserialize)?,
+                    .map_err(FileError::Deserialize)?,
                     old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
@@ -615,7 +627,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("id")
                 .map_err(FileError::Postgres)?,
         )
-            .map_err(FileError::Deserialize)?,
+        .map_err(FileError::Deserialize)?,
         file_type: {
             if row
                 .try_get::<&str, bool>("is_folder")
@@ -630,14 +642,14 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("parent")
                 .map_err(FileError::Postgres)?,
         )
-            .map_err(FileError::Deserialize)?,
+        .map_err(FileError::Deserialize)?,
         name: row.try_get("name").map_err(FileError::Postgres)?,
         owner: row.try_get("owner").map_err(FileError::Postgres)?,
         signature: serde_json::from_str(
             row.try_get::<&str, &str>("signature")
                 .map_err(FileError::Postgres)?,
         )
-            .map_err(FileError::Deserialize)?,
+        .map_err(FileError::Deserialize)?,
         metadata_version: row
             .try_get::<&str, i64>("metadata_version")
             .map_err(FileError::Postgres)? as u64,
@@ -670,7 +682,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
             row.try_get::<&str, &str>("parent_access_key")
                 .map_err(FileError::Postgres)?,
         )
-            .map_err(FileError::Deserialize)?,
+        .map_err(FileError::Deserialize)?,
     })
 }
 
