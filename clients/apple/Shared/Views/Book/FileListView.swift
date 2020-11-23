@@ -35,12 +35,6 @@ struct FileListView: View {
             .onDelete(perform: {
                 handleDelete(meta: filtered[$0.first!])
             })
-            HStack {
-                Spacer()
-                Text("\(core.files.count) items")
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
         }
         .onReceive(core.timer, perform: { _ in
             core.sync()
@@ -57,31 +51,53 @@ struct FileListView: View {
                         Image(systemName: "person.circle.fill")
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: core.sync) {
+                        Image(systemName: "arrow.right.arrow.left.circle.fill")
+                    }
+                }
+                ToolbarItemGroup(placement: .bottomBar) {
                     Button(action: { creating = .Folder }) {
                         Image(systemName: "folder.fill.badge.plus")
                     }
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { creating = .Document }) {
                         Image(systemName: "doc.on.doc.fill")
                     }
+                    Spacer()
+                    Spacer()
+                    Text("\(core.files.count) items")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Spacer()
+                    Spacer()
+                    ProgressView()
+                        .opacity(core.syncing ? 1.0 : 0)
                 }
             }
         #else
-        return baseView
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { creating = .Folder }) {
-                        Image(systemName: "folder.fill.badge.plus")
-                    }
+        return VStack {
+            baseView
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction, content: { HStack { } })
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { creating = .Document }) {
-                        Image(systemName: "doc.on.doc.fill")
-                    }
+            Spacer()
+            HStack {
+                Button(action: { creating = .Folder }) {
+                    Image(systemName: "folder.badge.plus")
                 }
+                Button(action: { creating = .Document }) {
+                    Image(systemName: "doc.on.doc")
+                }
+                Spacer()
+                Text("\(core.files.count) items")
+                    .foregroundColor(.secondary)
+                Spacer()
+                ProgressView()
+                    .controlSize(.small)
+                    .opacity(core.syncing ? 1.0 : 0)
             }
+            .padding()
+        }
         #endif
     }
 
