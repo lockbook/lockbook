@@ -170,9 +170,15 @@ impl Header {
         search.set_placeholder_text(Some("Enter a file location..."));
 
         let m = msngr.clone();
+        search.connect_focus_out_event(move |_, _| {
+            m.send(Msg::SearchFieldBlur(false));
+            gtk::Inhibit(false)
+        });
+
+        let m = msngr.clone();
         search.connect_key_press_event(move |_, key| {
             if key.get_hardware_keycode() == ESC {
-                m.send(Msg::SearchFieldBlur);
+                m.send(Msg::SearchFieldBlur(true));
             }
             gtk::Inhibit(false)
         });

@@ -119,7 +119,7 @@ impl LockbookApp {
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
                 Msg::SearchFieldFocus => lb.search_field_focus(),
-                Msg::SearchFieldBlur => lb.search_field_blur(),
+                Msg::SearchFieldBlur(escaped) => lb.search_field_blur(escaped),
                 Msg::SearchFieldUpdate => lb.search_field_update(),
                 Msg::SearchFieldUpdateIcon => lb.search_field_update_icon(),
                 Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
@@ -506,17 +506,22 @@ impl LockbookApp {
         self.gui.account.set_search_field_icon(icon_name, None);
     }
 
-    fn search_field_blur(&self) {
-        let txt = match self.state.borrow().get_opened_file() {
-            Some(meta) => {
-                self.gui.account.focus_editor();
-                self.core.full_path_for(meta)
+    fn search_field_blur(&self, escaped: bool) {
+        let state = self.state.borrow();
+        let opened_file = state.get_opened_file();
+
+        if escaped {
+            match opened_file {
+                Some(_) => self.gui.account.focus_editor(),
+                None => self.gui.account.tree().focus(),
             }
-            None => {
-                self.gui.account.tree().focus();
-                "".to_string()
-            }
+        }
+
+        let txt = match opened_file {
+            Some(meta) => self.core.full_path_for(meta),
+            None => "".to_string(),
         };
+
         self.gui.account.deselect_search_field();
         self.gui.account.set_search_field_text(&txt);
     }
