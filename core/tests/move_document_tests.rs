@@ -491,8 +491,9 @@ mod move_document_tests {
                 folder_id: folder_id,
                 access_key: aes_key(&folder_key, &folder_key),
             },
-            rsa_key(&account.keys.to_public_key(), &folder_key)
-        ).unwrap();
+            rsa_key(&account.keys.to_public_key(), &folder_key),
+        )
+        .unwrap();
 
         // moving root into itself
         assert_matches!(
@@ -551,7 +552,8 @@ mod move_document_tests {
                 folder_id: subfolder_id,
                 access_key: aes_key(&folder_key, &subfolder_key),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_matches!(
             ClientImpl::move_folder(
