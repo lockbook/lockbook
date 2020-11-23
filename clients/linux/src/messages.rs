@@ -19,7 +19,7 @@ pub enum Msg {
     DeleteFiles,
 
     SearchFieldFocus,
-    SearchFieldBlur,
+    SearchFieldBlur(bool),
     SearchFieldUpdate,
     SearchFieldUpdateIcon,
     SearchFieldExec(Option<String>),
