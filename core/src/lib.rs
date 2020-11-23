@@ -71,7 +71,7 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
         .and_then(|s| log::LevelFilter::from_str(s.as_str()).ok())
-        .unwrap_or_else(|| log::LevelFilter::Debug);
+        .unwrap_or(log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
         .map_err(|err| Error::Unexpected(format!("IO Error: {:#?}", err)))?
