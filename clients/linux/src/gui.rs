@@ -764,7 +764,7 @@ impl Gui {
         }
         w.add(&{
             let base = GtkBox::new(Vertical, 0);
-            base.add(&menubar.cntr);
+            base.add(menubar.widget());
             base.pack_start(&screens, true, true, 0);
             base
         });
