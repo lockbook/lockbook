@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::model::crypto::DecryptedDocument;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::state::Config;
 use lockbook_core::model::work_unit::WorkUnit;
@@ -192,9 +192,7 @@ impl LbCore {
     }
 
     pub fn save(&self, id: Uuid, content: String) -> Result<(), String> {
-        let dec = DecryptedValue::from(content);
-
-        match write_document(&self.config, id, &dec) {
+        match write_document(&self.config, id, content.as_bytes()) {
             Ok(_) => Ok(()),
             Err(err) => Err(format!("{:?}", err)),
         }
@@ -203,14 +201,14 @@ impl LbCore {
     pub fn open(&self, id: &Uuid) -> Result<(FileMetadata, String), String> {
         match self.file_by_id(*id) {
             Ok(meta) => match self.read(meta.id) {
-                Ok(decrypted) => Ok((meta, decrypted.secret)),
+                Ok(decrypted) => Ok((meta, String::from_utf8(decrypted).unwrap())),
                 Err(err) => Err(err),
             },
             Err(err) => Err(format!("{:?}", err)),
         }
     }
 
-    pub fn read(&self, id: Uuid) -> Result<DecryptedValue, String> {
+    pub fn read(&self, id: Uuid) -> Result<DecryptedDocument, String> {
         match read_document(&self.config, id) {
             Ok(dval) => Ok(dval),
             Err(err) => Err(format!("{:?}", err)),
