@@ -4,11 +4,13 @@ mod integration_test;
 mod get_usage_tests {
     use crate::integration_test::{generate_account, random_filename, test_config};
     use lockbook_core::model::file_metadata::FileType;
+    use lockbook_core::model::file_metadata::FileType::Folder;
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::{
         connect_to_db, create_account, create_file, delete_file, get_root, get_usage, init_logger,
         sync_all, write_document, DefaultDocumentRepo,
     };
+    use std::path::Path;
 
     #[test]
     fn report_usage() {
