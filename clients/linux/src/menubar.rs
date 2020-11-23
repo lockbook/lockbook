@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
 use gtk::prelude::*;
-use gtk::{
-    AccelGroup as GtkAccelGroup, Menu as GtkMenu, MenuBar as GtkMenuBar, MenuItem as GtkMenuItem,
-    SeparatorMenuItem as GtkSeparatorMenuItem,
-};
+use gtk::AccelGroup as GtkAccelGroup;
+use gtk::Menu as GtkMenu;
+use gtk::MenuBar as GtkMenuBar;
+use gtk::MenuItem as GtkMenuItem;
+use gtk::SeparatorMenuItem as GtkSeparatorMenuItem;
 
 use crate::editmode::EditMode;
 use crate::messages::{Messenger, Msg};
 
 // menu_set! clears out the existing submenu (or creates and sets a new one if none exists) and
-// append the given items.
+// appends the given items.
 //
 // There are two more concise methods that did not work:
 // 1) Simply creating and setting a new submenu does not work because the widgets in the existing
@@ -18,7 +19,7 @@ use crate::messages::{Messenger, Msg};
 // 2) Setting the submenu to None, then creating and setting a new submenu resulted in a segfault
 //    that I could not get to the bottom of.
 macro_rules! menu_set {
-    ($menu:expr, $item_map:expr, $( $items:expr ),*) => {
+    ($menu:expr, $item_map:expr, $( $items:ident ),*) => {
         let submenu = {
             if let Some(m) = $menu.get_submenu() {
                 let m = m.downcast::<GtkMenu>().unwrap();
@@ -31,9 +32,9 @@ macro_rules! menu_set {
             }
         };
         $(
-            match $items {
+            match Item::$items {
                 Item::Separator => submenu.append(&GtkSeparatorMenuItem::new()),
-                _ => submenu.append($item_map.get($items).unwrap()),
+                _ => submenu.append($item_map.get(&Item::$items).unwrap()),
             }
         )*
         $menu.show_all();
@@ -46,7 +47,7 @@ pub struct Menubar {
     edit: GtkMenuItem,
     acct: GtkMenuItem,
     help: GtkMenuItem,
-    pub cntr: GtkMenuBar,
+    mbar: GtkMenuBar,
 }
 
 impl Menubar {
@@ -58,12 +59,12 @@ impl Menubar {
         let acct = GtkMenuItem::with_label("Account");
         let help = GtkMenuItem::with_label("Help");
 
-        let cntr = GtkMenuBar::new();
+        let mbar = GtkMenuBar::new();
         for menu in &[&file, &edit, &acct, &help] {
-            cntr.append(*menu);
+            mbar.append(*menu);
         }
 
-        menu_set!(help, items, &Item::HelpAbout);
+        menu_set!(help, items, HelpAbout);
 
         Self {
             items,
@@ -71,8 +72,12 @@ impl Menubar {
             edit,
             acct,
             help,
-            cntr,
+            mbar,
         }
+    }
+
+    pub fn widget(&self) -> &GtkMenuBar {
+        &self.mbar
     }
 
     pub fn set(&self, mode: &EditMode) {
@@ -83,14 +88,8 @@ impl Menubar {
                 n_children: _,
             } => {
                 menu_set!(
-                    self.file,
-                    self.items,
-                    &Item::FileNew,
-                    &Item::FileOpen,
-                    &Item::Separator,
-                    &Item::FileClose,
-                    &Item::Separator,
-                    &Item::FileQuit
+                    self.file, self.items, FileNew, FileOpen, Separator, FileClose, Separator,
+                    FileQuit
                 );
             }
             EditMode::PlainText {
@@ -99,57 +98,44 @@ impl Menubar {
                 content: _,
             } => {
                 menu_set!(
-                    self.file,
-                    self.items,
-                    &Item::FileNew,
-                    &Item::FileOpen,
-                    &Item::Separator,
-                    &Item::FileSave,
-                    &Item::FileClose,
-                    &Item::Separator,
-                    &Item::FileQuit
+                    self.file, self.items, FileNew, FileOpen, Separator, FileSave, FileClose,
+                    Separator, FileQuit
                 );
             }
             EditMode::None => {
-                menu_set!(
-                    self.file,
-                    self.items,
-                    &Item::FileNew,
-                    &Item::FileOpen,
-                    &Item::FileQuit
-                );
-                menu_set!(self.edit, self.items, &Item::EditPreferences);
+                menu_set!(self.file, self.items, FileNew, FileOpen, FileQuit);
+                menu_set!(self.edit, self.items, EditPreferences);
                 menu_set!(
                     self.acct,
                     self.items,
-                    &Item::AccountSync,
-                    &Item::AccountUsage,
-                    &Item::AccountExport
+                    AccountSync,
+                    AccountUsage,
+                    AccountExport
                 );
             }
         }
     }
 
     pub fn for_intro_screen(&self) {
-        self.cntr.foreach(|w| {
+        self.mbar.foreach(|w| {
             if *w == self.file || *w == self.edit || *w == self.acct {
-                self.cntr.remove(w);
+                self.mbar.remove(w);
             }
         });
     }
 
     pub fn for_account_screen(&self) {
-        self.cntr.foreach(|w| self.cntr.remove(w));
+        self.mbar.foreach(|w| self.mbar.remove(w));
         for menu in &[&self.file, &self.edit, &self.acct, &self.help] {
-            self.cntr.append(*menu);
+            self.mbar.append(*menu);
         }
     }
 }
 
-// Each menu Item has a name and accelertor, as well as a certain Msg it sends when clicked. In
-// order to avoid having to implement Clone and (more tediously) Copy on the Msg enum, a function
-// is used to pass the Item's particular Msg for initialization.
-type ItemData = (&'static str, &'static str, fn() -> Msg);
+// Each menu Item has a name and optional accelerator, as well as a Msg it sends when activated.
+type ItemName = &'static str;
+type ItemAccel = &'static str;
+type ItemData = (ItemName, ItemAccel, fn() -> Msg);
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 enum Item {
