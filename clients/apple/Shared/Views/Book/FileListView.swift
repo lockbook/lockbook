@@ -31,6 +31,13 @@ struct FileListView: View {
             }
             ForEach(filtered) { meta in
                 renderCell(meta: meta)
+                    .contextMenu(menuItems: {
+                        Button(action: {
+                            handleDelete(meta: meta)
+                        }) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                    })
             }
             .onDelete(perform: {
                 handleDelete(meta: filtered[$0.first!])
