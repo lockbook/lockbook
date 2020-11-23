@@ -42,7 +42,7 @@ impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Cr
     ) -> Result<T::Response, ApiError<T::Error>> {
         let client = ReqwestClient::new();
         let signed_request = Crypto::sign(&account.private_key, request).map_err(ApiError::Sign)?;
-        let serialized_request = serde_json::to_string(&RequestWrapper {
+        let serialized_request = serde_json::to_vec(&RequestWrapper {
             signed_request,
             client_version: String::from(Version::get_code_version()),
         })
