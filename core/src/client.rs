@@ -5,6 +5,7 @@ use crate::service::code_version_service::CodeVersion;
 use crate::service::crypto_service::{PubKeyCryptoService, RSASignError};
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -24,7 +25,9 @@ pub struct RequestWrapper<T: Request> {
 }
 
 pub trait Client {
-    fn request<T: Request>(
+    fn request<
+        T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
+    >(
         account: &Account,
         request: T,
     ) -> Result<T::Response, ApiError<T::Error>>;
@@ -36,7 +39,9 @@ pub struct ClientImpl<Crypto: PubKeyCryptoService, Version: CodeVersion> {
 }
 
 impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Crypto, Version> {
-    fn request<T: Request>(
+    fn request<
+        T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
+    >(
         account: &Account,
         request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
