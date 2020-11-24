@@ -32,10 +32,9 @@ use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::DocumentRepoImpl;
-use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{
-    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
-    FindingParentsFailed,
+    DbError, Error as FileMetadataRepoError, FileMetadataRepo, FileMetadataRepoImpl, Filter,
+    FindingChildrenFailed, FindingParentsFailed,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
 use crate::service::account_service::AccountExportError as ASAccountExportError;
@@ -71,7 +70,7 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
         .and_then(|s| log::LevelFilter::from_str(s.as_str()).ok())
-        .unwrap_or_else(|| log::LevelFilter::Debug);
+        .unwrap_or(log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
         .map_err(|err| Error::Unexpected(format!("IO Error: {:#?}", err)))?
@@ -512,10 +511,10 @@ pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<G
     match DefaultFileMetadataRepo::get(&db, id) {
         Ok(file_metadata) => Ok(file_metadata),
         Err(err) => match err {
-            file_metadata_repo::Error::FileRowMissing(_) => {
+            FileMetadataRepoError::FileRowMissing(_) => {
                 Err(Error::UiError(GetFileByIdError::NoFileWithThatId))
             }
-            file_metadata_repo::Error::SledError(_) | file_metadata_repo::Error::SerdeError(_) => {
+            FileMetadataRepoError::SledError(_) | FileMetadataRepoError::SerdeError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
