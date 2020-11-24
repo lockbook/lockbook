@@ -17,8 +17,9 @@ pub mod utils;
 
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{body, Body, Method, Request, Response, StatusCode};
+use hyper::{body, Body, Method, Response, StatusCode};
 use lockbook_core::loggers;
+use lockbook_core::model::api::Request;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
@@ -72,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
         async move {
-            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
+            Ok::<_, Infallible>(service_fn(move |req: hyper::Request<Body>| {
                 let server_state = server_state.clone();
                 route(server_state, req)
             }))
@@ -86,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 async fn route(
     server_state: Arc<Mutex<ServerState>>,
-    request: Request<Body>,
+    request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     let mut s = server_state.lock().await;
     match (request.method(), request.uri().path()) {
@@ -159,17 +160,15 @@ async fn route(
     }
 }
 
-async fn handle<'a, Request, Response, ResponseError, Fut>(
+async fn handle<
+    'a,
+    TRequest: Request<Response = impl Serialize, Error = impl Serialize> + DeserializeOwned,
+    Fut: Future<Output = Result<TRequest::Response, TRequest::Error>>,
+>(
     server_state: &'a mut ServerState,
     request: hyper::Request<Body>,
-    endpoint_handle: impl FnOnce(&'a mut ServerState, Request) -> Fut,
-) -> Result<hyper::Response<Body>, hyper::http::Error>
-where
-    Fut: Future<Output = Result<Response, ResponseError>>,
-    Request: DeserializeOwned,
-    Response: Serialize,
-    ResponseError: Serialize,
-{
+    endpoint_handle: impl FnOnce(&'a mut ServerState, TRequest) -> Fut,
+) -> Result<hyper::Response<Body>, hyper::http::Error> {
     if server_state.index_db_client.is_closed() {
         match file_index_repo::connect(&server_state.config.index_db).await {
             Err(e) => {
@@ -181,7 +180,7 @@ where
             }
         }
     }
-    serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
+    serialize(match deserialize(request).await {
         Ok(req) => Ok(endpoint_handle(server_state, req).await),
         Err(err) => Err(err),
     })
@@ -190,25 +189,22 @@ where
 #[derive(Debug)]
 enum Error {
     HyperBodyToBytes(hyper::Error),
-    HyperBodyBytesToString(std::string::FromUtf8Error),
     JsonDeserialize(serde_json::error::Error),
     JsonSerialize(serde_json::error::Error),
 }
 
-async fn deserialize<Request: DeserializeOwned>(
+async fn deserialize<TRequest: DeserializeOwned>(
     request: hyper::Request<Body>,
-) -> Result<Request, Error> {
+) -> Result<TRequest, Error> {
     let body_bytes = body::to_bytes(request.into_body())
         .await
         .map_err(Error::HyperBodyToBytes)?;
-    let body_string =
-        String::from_utf8(body_bytes.to_vec()).map_err(Error::HyperBodyBytesToString)?;
-    let request = serde_json::from_str(&body_string).map_err(Error::JsonDeserialize)?;
+    let request = serde_json::from_slice(&body_bytes).map_err(Error::JsonDeserialize)?;
     Ok(request)
 }
 
-fn serialize<Response: Serialize, ResponseError: Serialize>(
-    response: Result<Result<Response, ResponseError>, Error>,
+fn serialize<TRequest: Request<Response = impl Serialize, Error = impl Serialize>>(
+    response: Result<Result<TRequest::Response, TRequest::Error>, Error>,
 ) -> Result<hyper::Response<Body>, hyper::http::Error> {
     let response_body =
         response.and_then(|r| serde_json::to_string(&r).map_err(Error::JsonSerialize));
