@@ -3,13 +3,12 @@ use crate::model::crypto::*;
 use crate::model::file_metadata::FileMetadata;
 use reqwest::Method;
 use rsa::RSAPublicKey;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub trait Request: Serialize {
-    type Response: DeserializeOwned;
-    type Error: DeserializeOwned;
+pub trait Request {
+    type Response;
+    type Error;
     fn method() -> Method;
     fn endpoint() -> &'static str;
 }
