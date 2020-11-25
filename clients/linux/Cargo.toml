@@ -5,13 +5,16 @@ authors = ["steverusso <steverusso@pm.me"]
 edition = "2018"
 
 [dependencies]
+fuzzy-matcher = "*"
 lockbook_core = { path = "../../core" }
 gdk = "0.13.2"
 gdk-pixbuf = "0.9.0"
 glib = "0.10"
-gtk = { version = "0.9.0", features = ["v3_16"] }
+gtk = { version = "0.9.0", features = ["v3_22"] }
 gio = { version = "", features = ["v2_44"] }
 pango = "0.9.1"
+qrcode-generator = "*"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
+sourceview = "0.9.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
