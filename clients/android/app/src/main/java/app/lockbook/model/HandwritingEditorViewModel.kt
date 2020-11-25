@@ -50,7 +50,7 @@ class HandwritingEditorViewModel(
     private fun readDocument(id: String): String? {
         when (val documentResult = CoreModel.getDocumentContent(config, id)) {
             is Ok -> {
-                return documentResult.value.secret
+                return documentResult.value
             }
             is Err -> when (val error = documentResult.error) {
                 is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
