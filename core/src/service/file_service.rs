@@ -409,10 +409,6 @@ impl<
     fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
         let account = AccountDb::get_account(&db).map_err(FileMoveError::AccountRetrievalError)?;
 
-        if id == new_parent {
-            return Err(FileMoveError::FolderMovedIntoItself);
-        }
-
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
@@ -430,6 +426,15 @@ impl<
                         let siblings =
                             FileMetadataDb::get_children_non_recursively(&db, parent_metadata.id)
                                 .map_err(FileMoveError::DbError)?;
+
+                        if file.file_type == FileType::Folder {
+                            let children = FileMetadataDb::get_and_get_children_recursively(&db, id).map_err(FileMoveError::DbError)?;
+                            for child in children {
+                                if child.parent == new_parent {
+                                    return Err(FileMoveError::FolderMovedIntoItself)
+                                }
+                            }
+                        }
 
                         // Check that this file name is available
                         for child in siblings {
