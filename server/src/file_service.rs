@@ -531,13 +531,13 @@ pub async fn delete_folder(
         FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
         FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
         FileError::Deleted => DeleteFolderError::FolderDeleted,
+        FileError::IllegalRootChange => DeleteFolderError::CannotDeleteRoot,
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
         | FileError::ParentDoesNotExist
         | FileError::ParentDeleted
         | FileError::FolderMovedIntoDescendants
-        | FileError::IllegalRootChange
         | FileError::PathTaken
         | FileError::Postgres(_)
         | FileError::Serialize(_)

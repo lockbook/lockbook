@@ -247,9 +247,13 @@ pub async fn delete_file(
             old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
             UPDATE files new
             SET
-                deleted = TRUE,
+                deleted = (CASE old.id != old.parent
+                    THEN TRUE
+                    ELSE old.deleted END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted
+                    (CASE WHEN
+                    NOT old.deleted
+                    AND old.id != old.parent
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
             FROM old
@@ -257,6 +261,7 @@ pub async fn delete_file(
             RETURNING
                 old.id AS id,
                 old.deleted AS old_deleted,
+                old.parent AS parent_id,
                 old.content_version AS old_content_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -566,6 +571,7 @@ impl FileMoveResponse {
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_deleted: bool,
+    pub parent_id: Uuid,
     pub old_content_version: u64,
     pub new_metadata_version: u64,
     pub is_folder: bool,
@@ -587,6 +593,11 @@ impl FileDeleteResponses {
                     )
                     .map_err(FileError::Deserialize)?,
                     old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
+                    parent_id: serde_json::from_str::<Uuid>(
+                        row.try_get::<&str, &str>("parent_id")
+                            .map_err(FileError::Postgres)?,
+                    )
+                        .map_err(FileError::Deserialize)?,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
                         .map_err(FileError::Postgres)?
@@ -609,6 +620,11 @@ impl FileDeleteResponses {
             r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
         }) {
             Err(FileError::WrongFileType)
+        } else if !self
+            .responses
+            .iter()
+            .any(|r| r.parent_id == r.id) {
+            Err(FileError::IllegalRootChange)
         } else if !self
             .responses
             .iter()
