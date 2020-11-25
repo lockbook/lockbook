@@ -754,6 +754,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
             }
             FileMoveError::CannotMoveRoot => Err(Error::UiError(MoveFileError::CannotMoveRoot)),
             FileMoveError::DbError(_)
+            | FileMoveError::FindingChildrenFailed(_)
             | FileMoveError::FailedToRecordChange(_)
             | FileMoveError::FailedToDecryptKey(_)
             | FileMoveError::FailedToReEncryptKey(_)

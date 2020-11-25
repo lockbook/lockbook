@@ -106,6 +106,7 @@ pub enum FileMoveError {
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
     CannotMoveRoot,
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
     DbError(file_metadata_repo::DbError),
     FailedToRecordChange(local_changes_repo::DbError),
     FailedToDecryptKey(KeyDecryptionFailure),
@@ -428,7 +429,7 @@ impl<
                                 .map_err(FileMoveError::DbError)?;
 
                         if file.file_type == FileType::Folder {
-                            let children = FileMetadataDb::get_and_get_children_recursively(&db, id).map_err(FileMoveError::DbError)?;
+                            let children = FileMetadataDb::get_and_get_children_recursively(&db, id).map_err(FileMoveError::FindingChildrenFailed)?;
                             for child in children {
                                 if child.parent == new_parent {
                                     return Err(FileMoveError::FolderMovedIntoItself)
