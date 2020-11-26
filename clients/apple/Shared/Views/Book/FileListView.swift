@@ -5,7 +5,6 @@ struct FileListView: View {
     @ObservedObject var core: Core
     let account: Account
     let root: FileMetadata
-    @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
     @State var currentFolder: FileMetadata
@@ -49,20 +48,7 @@ struct FileListView: View {
 
         #if os(iOS)
         return baseView
-            .sheet(isPresented: $showingAccount, content: {
-                AccountView(core: core, account: account)
-            })
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { showingAccount.toggle() }) {
-                        Image(systemName: "person.circle.fill")
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: core.sync) {
-                        Image(systemName: "arrow.right.arrow.left.circle.fill")
-                    }
-                }
                 ToolbarItemGroup(placement: .bottomBar) {
                     Button(action: { creating = .Folder }) {
                         Image(systemName: "folder.fill.badge.plus")
