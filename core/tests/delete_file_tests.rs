@@ -187,7 +187,7 @@ mod delete_document_tests {
             },
             rsa_key(&account.keys.to_public_key(), &folder_key),
         )
-            .unwrap();
+        .unwrap();
 
         // rename document
         assert_matches!(
