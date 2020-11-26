@@ -3,12 +3,32 @@ import SwiftLockbookCore
 
 struct BookView: View {
     @ObservedObject var core: Core
+    @State var showingAccount: Bool = false
     let account: Account
     
     var body: some View {
         NavigationView {
+            #if os(iOS)
             makeList()
+                .sheet(isPresented: $showingAccount, content: {
+                    AccountView(core: core, account: account)
+                })
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: { showingAccount.toggle() }) {
+                            Image(systemName: "person.circle.fill")
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: core.sync) {
+                            Image(systemName: "arrow.right.arrow.left.circle.fill")
+                        }
+                    }
+                }
                 .navigationTitle(account.username)
+            #else
+            makeList()
+            #endif
 
             Text("Pick a file!")
         }
@@ -29,9 +49,14 @@ struct BookView: View {
         case .some(let root):
             return AnyView(FileListView(core: core, account: account, root: root))
         case .none:
-            return AnyView(VStack {
-                Text("Please sync!")
-            })
+            return AnyView(
+                VStack(spacing: 10) {
+                    Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
+                    #if os(macOS)
+                    Text("Shift-Command-S (⇧⌘S)")
+                    #endif
+                }
+            )
         }
     }
 }
