@@ -88,6 +88,7 @@ server/ca-certificate.crt
 server/qa-ca-certificate.crt
 .idea/
 *.iml
+clients/linux/target
 integration_tests/target/
 containers/qa.env
 containers/prod.env
