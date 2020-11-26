@@ -74,7 +74,7 @@ mod move_document_tests {
         // move document that wasn't created
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentNotFound
             ))
         );
@@ -105,7 +105,7 @@ mod move_document_tests {
         let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::ParentNotFound
             ))
         );
@@ -150,7 +150,7 @@ mod move_document_tests {
         let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentDeleted
             ))
         );
@@ -193,7 +193,7 @@ mod move_document_tests {
         let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::EditConflict
             ))
         );
@@ -249,7 +249,7 @@ mod move_document_tests {
         let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Api(
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentPathTaken
             ))
         );

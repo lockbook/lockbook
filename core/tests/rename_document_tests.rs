@@ -48,7 +48,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentNotFound
             ))
         );
@@ -81,7 +81,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentDeleted
             ))
         );
@@ -112,7 +112,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::EditConflict
             ))
         );
@@ -153,7 +153,7 @@ mod rename_document_tests {
         let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
-            Err(ApiError::<RenameDocumentError>::Api(
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentPathTaken
             ))
         );

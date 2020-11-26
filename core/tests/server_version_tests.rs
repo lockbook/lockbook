@@ -2,6 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod server_version_tests {
+    use crate::assert_matches;
     use crate::integration_test::{generate_account, test_config};
     use lockbook_core::client::{ApiError, Client};
     use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
@@ -24,27 +25,9 @@ mod server_version_tests {
             DefaultClient::request(&account, GetPublicKeyRequest {})
                 .map(|r: GetPublicKeyResponse| r.key);
 
-        match result {
-            Ok(_) => {
-                panic!("Server should have rejected this due to the version being unsupported")
-            }
-            Err(err) => match err {
-                ApiError::Serialize(_)
-                | ApiError::SendFailed(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => {
-                    panic!("Server should have rejected this due to the version being unsupported")
-                }
-                ApiError::Api(err2) => match err2 {
-                    GetPublicKeyError::InternalError
-                    | GetPublicKeyError::InvalidUsername
-                    | GetPublicKeyError::UserNotFound => panic!(
-                        "Server should have rejected this due to the version being unsupported"
-                    ),
-                    GetPublicKeyError::ClientUpdateRequired => {}
-                },
-            },
-        }
+        assert_matches!(
+            result,
+            Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired)
+        );
     }
 }

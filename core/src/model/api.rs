@@ -14,6 +14,21 @@ pub trait Request {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RequestWrapper<T: Request> {
+    pub signed_request: RSASigned<T>,
+    pub client_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum ErrorWrapper<E> {
+    Endpoint(E),
+    ClientUpdateRequired,
+    InvalidAuth,
+    ExpiredAuth,
+    InternalError,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
@@ -27,16 +42,12 @@ pub struct ChangeDocumentContentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ChangeDocumentContentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
-    ClientUpdateRequired,
 }
 
 impl Request for ChangeDocumentContentRequest {
@@ -66,16 +77,12 @@ pub struct CreateDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum CreateDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
-    ClientUpdateRequired,
 }
 
 impl CreateDocumentRequest {
@@ -113,16 +120,12 @@ pub struct DeleteDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DeleteDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
-    ClientUpdateRequired,
 }
 
 impl Request for DeleteDocumentRequest {
@@ -151,10 +154,7 @@ pub struct MoveDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MoveDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
@@ -163,7 +163,6 @@ pub enum MoveDocumentError {
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
-    ClientUpdateRequired,
 }
 
 impl MoveDocumentRequest {
@@ -202,17 +201,13 @@ pub struct RenameDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RenameDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     DocumentDeleted,
     EditConflict,
     DocumentPathTaken,
-    ClientUpdateRequired,
 }
 
 impl RenameDocumentRequest {
@@ -249,9 +244,7 @@ pub struct GetDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetDocumentError {
-    InternalError,
     DocumentNotFound,
-    ClientUpdateRequired,
 }
 
 impl Request for GetDocumentRequest {
@@ -280,16 +273,12 @@ pub struct CreateFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum CreateFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FileIdTaken,
     FolderPathTaken,
     ParentNotFound,
-    ClientUpdateRequired,
 }
 
 impl CreateFolderRequest {
@@ -326,16 +315,12 @@ pub struct DeleteFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DeleteFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
     EditConflict,
     FolderDeleted,
-    ClientUpdateRequired,
 }
 
 impl Request for DeleteFolderRequest {
@@ -364,10 +349,7 @@ pub struct MoveFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MoveFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
@@ -376,7 +358,6 @@ pub enum MoveFolderError {
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
-    ClientUpdateRequired,
 }
 
 impl MoveFolderRequest {
@@ -415,17 +396,13 @@ pub struct RenameFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RenameFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
     FolderDeleted,
     EditConflict,
     FolderPathTaken,
-    ClientUpdateRequired,
 }
 
 impl RenameFolderRequest {
@@ -459,10 +436,8 @@ pub struct GetPublicKeyResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetPublicKeyError {
-    InternalError,
     InvalidUsername,
     UserNotFound,
-    ClientUpdateRequired,
 }
 
 impl Request for GetPublicKeyRequest {
@@ -493,10 +468,8 @@ pub struct FileUsage {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUsageError {
-    InternalError,
     InvalidUsername,
     UserNotFound,
-    ClientUpdateRequired,
 }
 
 impl Request for GetUsageRequest {
@@ -522,13 +495,8 @@ pub struct GetUpdatesResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUpdatesError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
-    NotPermissioned,
     UserNotFound,
     InvalidUsername,
-    ClientUpdateRequired,
 }
 
 impl Request for GetUpdatesRequest {
@@ -558,15 +526,11 @@ pub struct NewAccountResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
     UsernameTaken,
     InvalidPublicKey,
     InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
-    ClientUpdateRequired,
 }
 
 impl NewAccountRequest {

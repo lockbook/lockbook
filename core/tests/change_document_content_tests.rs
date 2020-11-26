@@ -64,7 +64,7 @@ mod change_document_content_tests {
         );
         assert_matches!(
             result,
-            Err(ApiError::<ChangeDocumentContentError>::Api(
+            Err(ApiError::<ChangeDocumentContentError>::Endpoint(
                 ChangeDocumentContentError::DocumentNotFound
             ))
         );

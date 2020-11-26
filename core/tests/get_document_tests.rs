@@ -63,7 +63,7 @@ mod get_document_tests {
         );
         assert_matches!(
             result,
-            Err(ApiError::<GetDocumentError>::Api(
+            Err(ApiError::<GetDocumentError>::Endpoint(
                 GetDocumentError::DocumentNotFound
             ))
         );
