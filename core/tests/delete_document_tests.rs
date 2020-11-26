@@ -70,7 +70,7 @@ mod delete_document_tests {
         let result = DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id });
         assert_matches!(
             result,
-            Err(ApiError::<DeleteDocumentError>::Api(
+            Err(ApiError::<DeleteDocumentError>::Endpoint(
                 DeleteDocumentError::DocumentDeleted
             ))
         );

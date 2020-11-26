@@ -54,7 +54,7 @@ mod account_tests {
         assert!(
             matches!(
                 err,
-                AccountCreationError::ApiError(ApiError::Api(NewAccountError::UsernameTaken))
+                AccountCreationError::ApiError(ApiError::Endpoint(NewAccountError::UsernameTaken))
             ),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
             &generated_account.username,
@@ -75,7 +75,9 @@ mod account_tests {
             assert!(
                 matches!(
                     err,
-                    AccountCreationError::ApiError(ApiError::Api(NewAccountError::InvalidUsername))
+                    AccountCreationError::ApiError(ApiError::Endpoint(
+                        NewAccountError::InvalidUsername
+                    ))
                 ),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,

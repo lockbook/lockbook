@@ -18,6 +18,7 @@ pub mod utils;
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Method, Response, StatusCode};
+use lockbook_core::client::RequestWrapper;
 use lockbook_core::loggers;
 use lockbook_core::model::api::Request;
 use serde::de::DeserializeOwned;
@@ -195,11 +196,12 @@ enum Error {
 
 async fn deserialize<TRequest: DeserializeOwned>(
     request: hyper::Request<Body>,
-) -> Result<TRequest, Error> {
+) -> Result<RequestWrapper<TRequest>, Error> {
     let body_bytes = body::to_bytes(request.into_body())
         .await
         .map_err(Error::HyperBodyToBytes)?;
-    let request = serde_json::from_slice(&body_bytes).map_err(Error::JsonDeserialize)?;
+    let request: RequestWrapper<TRequest> =
+        serde_json::from_slice(&body_bytes).map_err(Error::JsonDeserialize)?;
     Ok(request)
 }
 
