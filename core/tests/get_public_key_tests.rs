@@ -27,7 +27,7 @@ mod get_public_key_tests {
         let result = DefaultClient::request(&account, GetPublicKeyRequest {});
         assert_matches!(
             result,
-            Err(ApiError::<GetPublicKeyError>::Api(
+            Err(ApiError::<GetPublicKeyError>::Endpoint(
                 GetPublicKeyError::UserNotFound
             ))
         );

@@ -18,13 +18,7 @@ use uuid::Uuid;
 
 use crate::client::{ApiError, Client, ClientImpl};
 use crate::model::account::Account;
-use crate::model::api;
-use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
-    GetUsageRequest, MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError,
-    RenameFolderError,
-};
+use crate::model::api::{FileUsage, GetPublicKeyError, GetUsageRequest, NewAccountError};
 use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
@@ -154,20 +148,14 @@ pub fn create_account(
                 Err(Error::UiError(CreateAccountError::AccountExistsAlready))
             }
             AccountCreationError::ApiError(network) => match network {
-                ApiError::Api(api_err) => match api_err {
+                ApiError::Endpoint(api_err) => match api_err {
                     NewAccountError::UsernameTaken => {
                         Err(Error::UiError(CreateAccountError::UsernameTaken))
                     }
                     NewAccountError::InvalidUsername => {
                         Err(Error::UiError(CreateAccountError::InvalidUsername))
                     }
-                    NewAccountError::ClientUpdateRequired => {
-                        Err(Error::UiError(CreateAccountError::ClientUpdateRequired))
-                    }
-                    NewAccountError::InternalError
-                    | NewAccountError::InvalidAuth
-                    | NewAccountError::ExpiredAuth
-                    | NewAccountError::InvalidPublicKey
+                    NewAccountError::InvalidPublicKey
                     | NewAccountError::InvalidUserAccessKey
                     | NewAccountError::FileIdTaken => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
@@ -176,10 +164,16 @@ pub fn create_account(
                 ApiError::SendFailed(_) => {
                     Err(Error::UiError(CreateAccountError::CouldNotReachServer))
                 }
+                ApiError::ClientUpdateRequired => {
+                    Err(Error::UiError(CreateAccountError::ClientUpdateRequired))
+                }
                 ApiError::Serialize(_)
                 | ApiError::ReceiveFailed(_)
                 | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", network))),
+                | ApiError::Sign(_)
+                | ApiError::InternalError
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", network))),
             },
             AccountCreationError::KeyGenerationError(_)
             | AccountCreationError::AccountRepoError(_)
@@ -222,21 +216,24 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error
             }
             AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
                 ApiError::SendFailed(_) => Err(Error::UiError(ImportError::CouldNotReachServer)),
-                ApiError::Api(api_err) => match api_err {
+                ApiError::Endpoint(api_err) => match api_err {
                     GetPublicKeyError::UserNotFound => {
                         Err(Error::UiError(ImportError::AccountDoesNotExist))
                     }
-                    GetPublicKeyError::ClientUpdateRequired => {
-                        Err(Error::UiError(ImportError::ClientUpdateRequired))
-                    }
-                    GetPublicKeyError::InvalidUsername | GetPublicKeyError::InternalError => {
+                    GetPublicKeyError::InvalidUsername => {
                         Err(Error::Unexpected(format!("{:#?}", api_err)))
                     }
                 },
+                ApiError::ClientUpdateRequired => {
+                    Err(Error::UiError(ImportError::ClientUpdateRequired))
+                }
                 ApiError::Serialize(_)
                 | ApiError::ReceiveFailed(_)
                 | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", client_err))),
+                | ApiError::Sign(_)
+                | ApiError::InternalError
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", client_err))),
             },
             AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
@@ -796,14 +793,17 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                     ApiError::SendFailed(_) => {
                         Err(Error::UiError(SyncAllError::CouldNotReachServer))
                     }
-                    ApiError::Api(GetUpdatesError::ClientUpdateRequired) => {
+                    ApiError::ClientUpdateRequired => {
                         Err(Error::UiError(SyncAllError::ClientUpdateRequired))
                     }
                     ApiError::Serialize(_)
                     | ApiError::ReceiveFailed(_)
                     | ApiError::Deserialize(_)
-                    | ApiError::Api(_)
-                    | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
+                    | ApiError::Sign(_)
+                    | ApiError::InternalError
+                    | ApiError::InvalidAuth
+                    | ApiError::ExpiredAuth
+                    | ApiError::Endpoint(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
                 },
             },
             SyncError::WorkExecutionError(_) => Err(Error::UiError(SyncAllError::ExecuteWorkError)),
@@ -840,23 +840,17 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
                 ApiError::SendFailed(_) => {
                     Err(Error::UiError(CalculateWorkError::CouldNotReachServer))
                 }
-                ApiError::Api(get_updates_error) => match get_updates_error {
-                    GetUpdatesError::ClientUpdateRequired => {
-                        Err(Error::UiError(CalculateWorkError::ClientUpdateRequired))
-                    }
-                    GetUpdatesError::InternalError
-                    | GetUpdatesError::InvalidAuth
-                    | GetUpdatesError::ExpiredAuth
-                    | GetUpdatesError::NotPermissioned
-                    | GetUpdatesError::UserNotFound
-                    | GetUpdatesError::InvalidUsername => {
-                        Err(Error::Unexpected(format!("{:#?}", get_updates_error)))
-                    }
-                },
+                ApiError::ClientUpdateRequired => {
+                    Err(Error::UiError(CalculateWorkError::ClientUpdateRequired))
+                }
                 ApiError::Serialize(_)
                 | ApiError::ReceiveFailed(_)
                 | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
+                | ApiError::Sign(_)
+                | ApiError::InternalError
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth
+                | ApiError::Endpoint(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
             },
         },
     }
@@ -879,256 +873,12 @@ pub fn execute_work(
     match DefaultSyncService::execute_work(&db, &account, wu) {
         Ok(_) => Ok(()),
         Err(err) => match err {
-            WorkExecutionError::DocumentGetError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    GetDocumentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    GetDocumentError::InternalError | GetDocumentError::DocumentNotFound => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::DocumentRenameError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    RenameDocumentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    RenameDocumentError::InternalError
-                    | RenameDocumentError::InvalidAuth
-                    | RenameDocumentError::InvalidUsername
-                    | RenameDocumentError::ExpiredAuth
-                    | RenameDocumentError::NotPermissioned
-                    | RenameDocumentError::UserNotFound
-                    | RenameDocumentError::DocumentNotFound
-                    | RenameDocumentError::DocumentDeleted
-                    | RenameDocumentError::EditConflict
-                    | RenameDocumentError::DocumentPathTaken => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::FolderRenameError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    RenameFolderError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    RenameFolderError::InternalError
-                    | RenameFolderError::InvalidAuth
-                    | RenameFolderError::InvalidUsername
-                    | RenameFolderError::ExpiredAuth
-                    | RenameFolderError::NotPermissioned
-                    | RenameFolderError::UserNotFound
-                    | RenameFolderError::FolderNotFound
-                    | RenameFolderError::FolderDeleted
-                    | RenameFolderError::EditConflict
-                    | RenameFolderError::FolderPathTaken => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::DocumentMoveError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    MoveDocumentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    MoveDocumentError::InternalError
-                    | MoveDocumentError::InvalidAuth
-                    | MoveDocumentError::InvalidUsername
-                    | MoveDocumentError::ExpiredAuth
-                    | MoveDocumentError::NotPermissioned
-                    | MoveDocumentError::UserNotFound
-                    | MoveDocumentError::DocumentNotFound
-                    | MoveDocumentError::ParentNotFound
-                    | MoveDocumentError::ParentDeleted
-                    | MoveDocumentError::EditConflict
-                    | MoveDocumentError::DocumentDeleted
-                    | MoveDocumentError::DocumentPathTaken => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::FolderMoveError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    MoveFolderError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    MoveFolderError::InternalError
-                    | MoveFolderError::InvalidAuth
-                    | MoveFolderError::InvalidUsername
-                    | MoveFolderError::ExpiredAuth
-                    | MoveFolderError::NotPermissioned
-                    | MoveFolderError::UserNotFound
-                    | MoveFolderError::FolderNotFound
-                    | MoveFolderError::EditConflict
-                    | MoveFolderError::FolderDeleted
-                    | MoveFolderError::FolderPathTaken
-                    | MoveFolderError::ParentNotFound
-                    | MoveFolderError::ParentDeleted => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::DocumentCreateError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    CreateDocumentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    CreateDocumentError::InternalError
-                    | CreateDocumentError::InvalidAuth
-                    | CreateDocumentError::InvalidUsername
-                    | CreateDocumentError::ExpiredAuth
-                    | CreateDocumentError::NotPermissioned
-                    | CreateDocumentError::UserNotFound
-                    | CreateDocumentError::FileIdTaken
-                    | CreateDocumentError::DocumentPathTaken
-                    | CreateDocumentError::ParentNotFound => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::FolderCreateError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    CreateFolderError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    CreateFolderError::InternalError
-                    | CreateFolderError::InvalidAuth
-                    | CreateFolderError::InvalidUsername
-                    | CreateFolderError::ExpiredAuth
-                    | CreateFolderError::NotPermissioned
-                    | CreateFolderError::UserNotFound
-                    | CreateFolderError::FileIdTaken
-                    | CreateFolderError::FolderPathTaken
-                    | CreateFolderError::ParentNotFound => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::DocumentChangeError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    ChangeDocumentContentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    ChangeDocumentContentError::InternalError
-                    | ChangeDocumentContentError::InvalidAuth
-                    | ChangeDocumentContentError::InvalidUsername
-                    | ChangeDocumentContentError::ExpiredAuth
-                    | ChangeDocumentContentError::NotPermissioned
-                    | ChangeDocumentContentError::UserNotFound
-                    | ChangeDocumentContentError::DocumentNotFound
-                    | ChangeDocumentContentError::EditConflict
-                    | ChangeDocumentContentError::DocumentDeleted => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::DocumentDeleteError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    DeleteDocumentError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    DeleteDocumentError::InternalError
-                    | DeleteDocumentError::InvalidAuth
-                    | DeleteDocumentError::InvalidUsername
-                    | DeleteDocumentError::ExpiredAuth
-                    | DeleteDocumentError::NotPermissioned
-                    | DeleteDocumentError::UserNotFound
-                    | DeleteDocumentError::DocumentNotFound
-                    | DeleteDocumentError::EditConflict
-                    | DeleteDocumentError::DocumentDeleted => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
-            WorkExecutionError::FolderDeleteError(api) => match api {
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
-                }
-                ApiError::Api(api_err) => match api_err {
-                    DeleteFolderError::ClientUpdateRequired => {
-                        Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
-                    }
-                    DeleteFolderError::InternalError
-                    | DeleteFolderError::InvalidAuth
-                    | DeleteFolderError::InvalidUsername
-                    | DeleteFolderError::ExpiredAuth
-                    | DeleteFolderError::NotPermissioned
-                    | DeleteFolderError::UserNotFound
-                    | DeleteFolderError::FolderNotFound
-                    | DeleteFolderError::EditConflict
-                    | DeleteFolderError::FolderDeleted => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_) => Err(Error::Unexpected(format!("{:#?}", api))),
-            },
+            WorkExecutionError::SendFailed(_) => {
+                Err(Error::UiError(ExecuteWorkError::CouldNotReachServer))
+            }
+            WorkExecutionError::ClientUpdateRequired => {
+                Err(Error::UiError(ExecuteWorkError::ClientUpdateRequired))
+            }
             WorkExecutionError::MetadataRepoError(_)
             | WorkExecutionError::MetadataRepoErrorOpt(_)
             | WorkExecutionError::SaveDocumentError(_)
@@ -1143,7 +893,24 @@ pub fn execute_work(
             | WorkExecutionError::LocalFolderDeleteError(_)
             | WorkExecutionError::FindingChildrenFailed(_)
             | WorkExecutionError::RecursiveDeleteError(_)
-            | WorkExecutionError::LocalChangesRepoError(_) => {
+            | WorkExecutionError::LocalChangesRepoError(_)
+            | WorkExecutionError::InvalidAuth
+            | WorkExecutionError::ExpiredAuth
+            | WorkExecutionError::InternalError
+            | WorkExecutionError::Sign(_)
+            | WorkExecutionError::Serialize(_)
+            | WorkExecutionError::ReceiveFailed(_)
+            | WorkExecutionError::Deserialize(_)
+            | WorkExecutionError::DocumentGetError(_)
+            | WorkExecutionError::DocumentRenameError(_)
+            | WorkExecutionError::FolderRenameError(_)
+            | WorkExecutionError::DocumentMoveError(_)
+            | WorkExecutionError::FolderMoveError(_)
+            | WorkExecutionError::DocumentCreateError(_)
+            | WorkExecutionError::FolderCreateError(_)
+            | WorkExecutionError::DocumentChangeError(_)
+            | WorkExecutionError::DocumentDeleteError(_)
+            | WorkExecutionError::FolderDeleteError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
@@ -1198,13 +965,16 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
     DefaultClient::request(&acc, GetUsageRequest {})
         .map(|resp| resp.usages)
         .map_err(|err| match err {
-            ApiError::Api(api::GetUsageError::ClientUpdateRequired) => {
-                Error::UiError(GetUsageError::ClientUpdateRequired)
-            }
-            ApiError::SendFailed(_) | ApiError::ReceiveFailed(_) => {
-                Error::UiError(GetUsageError::CouldNotReachServer)
-            }
-            _ => Error::Unexpected(format!("{:#?}", err)),
+            ApiError::SendFailed(_) => Error::UiError(GetUsageError::CouldNotReachServer),
+            ApiError::ClientUpdateRequired => Error::UiError(GetUsageError::ClientUpdateRequired),
+            ApiError::Endpoint(_)
+            | ApiError::InvalidAuth
+            | ApiError::ExpiredAuth
+            | ApiError::InternalError
+            | ApiError::Sign(_)
+            | ApiError::Serialize(_)
+            | ApiError::ReceiveFailed(_)
+            | ApiError::Deserialize(_) => Error::Unexpected(format!("{:#?}", err)),
         })
 }
 

@@ -5,7 +5,7 @@ use serde::Serialize;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::client::Client;
+use crate::client::{ApiError, Client};
 use crate::model::account::Account;
 use crate::model::api;
 use crate::model::api::{
@@ -25,6 +25,7 @@ use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
+use crate::service::crypto_service::RSASignError;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
@@ -32,11 +33,9 @@ use crate::service::sync_service::CalculateWorkError::{
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    AutoRenameError, DecryptingOldVersionForMergeError, DocumentChangeError, DocumentCreateError,
-    DocumentDeleteError, DocumentGetError, DocumentMoveError, DocumentRenameError,
-    FolderCreateError, FolderDeleteError, FolderMoveError, FolderRenameError,
-    ReadingCurrentVersionError, RecursiveDeleteError, ResolveConflictByCreatingNewFileError,
-    SaveDocumentError, WritingMergedFileError,
+    AutoRenameError, DecryptingOldVersionForMergeError, ReadingCurrentVersionError,
+    RecursiveDeleteError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
+    WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -55,17 +54,17 @@ pub enum CalculateWorkError {
 pub enum WorkExecutionError {
     MetadataRepoError(file_metadata_repo::DbError),
     MetadataRepoErrorOpt(file_metadata_repo::Error),
-    DocumentGetError(client::ApiError<GetDocumentError>),
-    DocumentRenameError(client::ApiError<RenameDocumentError>),
-    FolderRenameError(client::ApiError<RenameFolderError>),
-    DocumentMoveError(client::ApiError<MoveDocumentError>),
-    FolderMoveError(client::ApiError<MoveFolderError>),
-    DocumentCreateError(client::ApiError<CreateDocumentError>),
-    FolderCreateError(client::ApiError<CreateFolderError>),
-    DocumentChangeError(client::ApiError<ChangeDocumentContentError>),
-    DocumentDeleteError(client::ApiError<DeleteDocumentError>),
+    DocumentGetError(GetDocumentError),
+    DocumentRenameError(RenameDocumentError),
+    FolderRenameError(RenameFolderError),
+    DocumentMoveError(MoveDocumentError),
+    FolderMoveError(MoveFolderError),
+    DocumentCreateError(CreateDocumentError),
+    FolderCreateError(CreateFolderError),
+    DocumentChangeError(ChangeDocumentContentError),
+    DocumentDeleteError(DeleteDocumentError),
+    FolderDeleteError(DeleteFolderError),
     RecursiveDeleteError(Vec<String>),
-    FolderDeleteError(client::ApiError<DeleteFolderError>),
     LocalFolderDeleteError(file_service::DeleteFolderError),
     FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
     SaveDocumentError(document_repo::Error),
@@ -80,6 +79,109 @@ pub enum WorkExecutionError {
     FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
     ErrorCreatingRecoveryFile(NewFileFromPathError),
     ErrorCalculatingCurrentTime(SystemTimeError),
+    ClientUpdateRequired,
+    InvalidAuth,
+    ExpiredAuth,
+    InternalError,
+    Sign(RSASignError),
+    Serialize(serde_json::error::Error),
+    SendFailed(reqwest::Error),
+    ReceiveFailed(reqwest::Error),
+    Deserialize(serde_json::error::Error),
+}
+
+fn work_execution_error_from_api_error_common<T>(
+    err: ApiError<T>,
+) -> Result<WorkExecutionError, T> {
+    match err {
+        ApiError::Endpoint(e) => Err(e),
+        ApiError::ClientUpdateRequired => Ok(WorkExecutionError::ClientUpdateRequired),
+        ApiError::InvalidAuth => Ok(WorkExecutionError::InvalidAuth),
+        ApiError::ExpiredAuth => Ok(WorkExecutionError::ExpiredAuth),
+        ApiError::InternalError => Ok(WorkExecutionError::InternalError),
+        ApiError::Sign(e) => Ok(WorkExecutionError::Sign(e)),
+        ApiError::Serialize(e) => Ok(WorkExecutionError::Serialize(e)),
+        ApiError::SendFailed(e) => Ok(WorkExecutionError::SendFailed(e)),
+        ApiError::ReceiveFailed(e) => Ok(WorkExecutionError::ReceiveFailed(e)),
+        ApiError::Deserialize(e) => Ok(WorkExecutionError::Deserialize(e)),
+    }
+}
+
+fn ok<T>(r: Result<T, T>) -> T {
+    match r {
+        Ok(t) => t,
+        Err(t) => t,
+    }
+}
+
+impl From<ApiError<GetDocumentError>> for WorkExecutionError {
+    fn from(err: ApiError<GetDocumentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentGetError))
+    }
+}
+
+impl From<ApiError<RenameDocumentError>> for WorkExecutionError {
+    fn from(err: ApiError<RenameDocumentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentRenameError))
+    }
+}
+
+impl From<ApiError<RenameFolderError>> for WorkExecutionError {
+    fn from(err: ApiError<RenameFolderError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::FolderRenameError))
+    }
+}
+
+impl From<ApiError<MoveDocumentError>> for WorkExecutionError {
+    fn from(err: ApiError<MoveDocumentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentMoveError))
+    }
+}
+
+impl From<ApiError<MoveFolderError>> for WorkExecutionError {
+    fn from(err: ApiError<MoveFolderError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::FolderMoveError))
+    }
+}
+
+impl From<ApiError<CreateDocumentError>> for WorkExecutionError {
+    fn from(err: ApiError<CreateDocumentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentCreateError))
+    }
+}
+
+impl From<ApiError<CreateFolderError>> for WorkExecutionError {
+    fn from(err: ApiError<CreateFolderError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::FolderCreateError))
+    }
+}
+
+impl From<ApiError<ChangeDocumentContentError>> for WorkExecutionError {
+    fn from(err: ApiError<ChangeDocumentContentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentChangeError))
+    }
+}
+
+impl From<ApiError<DeleteDocumentError>> for WorkExecutionError {
+    fn from(err: ApiError<DeleteDocumentError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::DocumentDeleteError))
+    }
+}
+
+impl From<ApiError<DeleteFolderError>> for WorkExecutionError {
+    fn from(err: ApiError<DeleteFolderError>) -> Self {
+        ok(work_execution_error_from_api_error_common(err)
+            .map_err(WorkExecutionError::FolderDeleteError))
+    }
 }
 
 #[derive(Debug)]
@@ -248,7 +350,7 @@ impl<
                                 content_version: metadata.content_version,
                             },
                         )
-                        .map_err(DocumentGetError)?
+                        .map_err(WorkExecutionError::from)?
                         .content;
 
                         DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
@@ -326,7 +428,7 @@ impl<
                                         content_version: metadata.content_version,
                                     },
                                 )
-                                .map_err(DocumentGetError)?
+                                .map_err(WorkExecutionError::from)?
                                 .content;
 
                                 DocsDb::insert(&db, metadata.id, &document)
@@ -401,7 +503,7 @@ impl<
                                                     content_version: metadata.content_version,
                                                 },
                                             )
-                                            .map_err(DocumentGetError)?
+                                            .map_err(WorkExecutionError::from)?
                                             .content;
 
                                             FileCrypto::user_read_document(
@@ -454,7 +556,7 @@ impl<
                                                 content_version: metadata.content_version,
                                             },
                                         )
-                                        .map_err(DocumentGetError)?
+                                        .map_err(WorkExecutionError::from)?
                                         .content;
 
                                         DocsDb::insert(&db, metadata.id, &new_content)
@@ -538,7 +640,7 @@ impl<
             &account,
                             CreateDocumentRequest::new(&metadata, content),
                         )
-                            .map_err(DocumentCreateError)?
+                            .map_err(WorkExecutionError::from)?
                             .new_metadata_and_content_version;
 
                         metadata.metadata_version = version;
@@ -548,7 +650,7 @@ impl<
             &account,
                             CreateFolderRequest::new(&metadata),
                         )
-                            .map_err(FolderCreateError)?
+                            .map_err(WorkExecutionError::from)?
                             .new_metadata_version;
 
                         metadata.metadata_version = version;
@@ -574,10 +676,10 @@ impl<
                 if local_change.renamed.is_some() {
                     let version = if metadata.file_type == Document {
                         ApiClient::request(&account, RenameDocumentRequest::new(&metadata))
-                            .map_err(DocumentRenameError)?.new_metadata_version
+                            .map_err(WorkExecutionError::from)?.new_metadata_version
                     } else {
                         ApiClient::request(&account, RenameFolderRequest::new(&metadata))
-                            .map_err(FolderRenameError)?.new_metadata_version
+                            .map_err(WorkExecutionError::from)?.new_metadata_version
                     };
                     metadata.metadata_version = version;
                     FileMetadataDb::insert(&db, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
@@ -588,9 +690,9 @@ impl<
 
                 if local_change.moved.is_some() {
                     let version = if metadata.file_type == Document {
-                        ApiClient::request(&account, MoveDocumentRequest::new(&metadata)).map_err(DocumentMoveError)?.new_metadata_version
+                        ApiClient::request(&account, MoveDocumentRequest::new(&metadata)).map_err(WorkExecutionError::from)?.new_metadata_version
                     } else {
-                        ApiClient::request(&account, MoveFolderRequest::new(&metadata)).map_err(FolderMoveError)?.new_metadata_version
+                        ApiClient::request(&account, MoveFolderRequest::new(&metadata)).map_err(WorkExecutionError::from)?.new_metadata_version
                     };
 
                     metadata.metadata_version = version;
@@ -605,7 +707,7 @@ impl<
                         id: metadata.id,
                         old_metadata_version: metadata.metadata_version,
                         new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?,
-                    }).map_err(DocumentChangeError)?.new_metadata_and_content_version;
+                    }).map_err(WorkExecutionError::from)?.new_metadata_and_content_version;
 
                     metadata.content_version = version;
                     metadata.metadata_version = version;
@@ -617,9 +719,9 @@ impl<
 
                 if local_change.deleted {
                     if metadata.file_type == Document {
-                        ApiClient::request(&account, DeleteDocumentRequest{ id: metadata.id }).map_err(DocumentDeleteError)?;
+                        ApiClient::request(&account, DeleteDocumentRequest{ id: metadata.id }).map_err(WorkExecutionError::from)?;
                     } else {
-                        ApiClient::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(FolderDeleteError)?;
+                        ApiClient::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(WorkExecutionError::from)?;
                     }
 
                     ChangeDb::delete(&db, metadata.id)
