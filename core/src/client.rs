@@ -1,27 +1,36 @@
 use crate::model::account::Account;
 use crate::model::api::*;
-use crate::model::crypto::RSASigned;
 use crate::service::code_version_service::CodeVersion;
 use crate::service::crypto_service::{PubKeyCryptoService, RSASignError};
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug)]
 pub enum ApiError<E> {
+    Endpoint(E),
+    ClientUpdateRequired,
+    InvalidAuth,
+    ExpiredAuth,
+    InternalError,
     Sign(RSASignError),
     Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
     Deserialize(serde_json::error::Error),
-    Api(E),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RequestWrapper<T: Request> {
-    pub signed_request: RSASigned<T>,
-    pub client_version: String,
+impl<E> From<ErrorWrapper<E>> for ApiError<E> {
+    fn from(err: ErrorWrapper<E>) -> Self {
+        match err {
+            ErrorWrapper::Endpoint(e) => ApiError::Endpoint(e),
+            ErrorWrapper::ClientUpdateRequired => ApiError::ClientUpdateRequired,
+            ErrorWrapper::InvalidAuth => ApiError::InvalidAuth,
+            ErrorWrapper::ExpiredAuth => ApiError::ExpiredAuth,
+            ErrorWrapper::InternalError => ApiError::InternalError,
+        }
+    }
 }
 
 pub trait Client {
@@ -60,10 +69,10 @@ impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Cr
             .body(serialized_request)
             .send()
             .map_err(ApiError::SendFailed)?
-            .text()
+            .bytes()
             .map_err(ApiError::ReceiveFailed)?;
-        let response: Result<T::Response, T::Error> =
-            serde_json::from_str(&serialized_response).map_err(ApiError::Deserialize)?;
-        response.map_err(ApiError::Api)
+        let response: Result<T::Response, ErrorWrapper<T::Error>> =
+            serde_json::from_slice(&serialized_response).map_err(ApiError::Deserialize)?;
+        response.map_err(ApiError::from)
     }
 }
