@@ -429,10 +429,12 @@ impl<
                                 .map_err(FileMoveError::DbError)?;
 
                         if file.file_type == FileType::Folder {
-                            let children = FileMetadataDb::get_and_get_children_recursively(&db, id).map_err(FileMoveError::FindingChildrenFailed)?;
+                            let children =
+                                FileMetadataDb::get_and_get_children_recursively(&db, id)
+                                    .map_err(FileMoveError::FindingChildrenFailed)?;
                             for child in children {
                                 if child.parent == new_parent {
-                                    return Err(FileMoveError::FolderMovedIntoItself)
+                                    return Err(FileMoveError::FolderMovedIntoItself);
                                 }
                             }
                         }
