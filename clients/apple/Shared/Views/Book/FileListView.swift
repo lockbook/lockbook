@@ -7,21 +7,23 @@ struct FileListView: View {
     let root: FileMetadata
     @State var creating: FileType?
     @State var creatingName: String = ""
+    @State var path: [FileMetadata]
     @State var currentFolder: FileMetadata
 
     var body: some View {
-        let filtered = core.files.filter {
-            $0.parent == currentFolder.id && $0.id != currentFolder.id
-        }
+        let filtered = computeFileList()
         let baseView = List {
-            HStack {
-                Button(action: {
-                    selectFolder(meta: core.files.first(where: { $0.id == currentFolder.parent })!)
-                }) {
+            Button(action: handleNavigateUp) {
+                HStack {
                     Image(systemName: "arrow.turn.left.up")
+                        .foregroundColor(.accentColor)
+                    ForEach(path) {
+                        Text($0.name)
+                        Text("/")
+                            .foregroundColor(.accentColor)
+                    }
+                    Text(currentFolder.name)
                 }
-                .foregroundColor(.accentColor)
-                Text(currentFolder.name)
             }
             creating.map { creatingType in
                 SyntheticFileCell(params: (currentFolder, creatingType), nameField: $creatingName, onCreate: {
@@ -98,6 +100,7 @@ struct FileListView: View {
         self.core = core
         self.account = account
         self.root = root
+        self._path = .init(initialValue: [])
         self._currentFolder = .init(initialValue: root)
     }
 
@@ -120,9 +123,24 @@ struct FileListView: View {
         }
     }
 
-    func selectFolder(meta: FileMetadata) {
+    func handleSelectFolder(meta: FileMetadata) {
         withAnimation {
+            path.append(currentFolder)
             currentFolder = meta
+        }
+    }
+
+    func handleNavigateUp() {
+        withAnimation {
+            path.popLast().map {
+                currentFolder = $0
+            }
+        }
+    }
+
+    func computeFileList() -> [FileMetadata] {
+        core.files.filter {
+            $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
     }
 
@@ -136,7 +154,7 @@ struct FileListView: View {
     func renderCell(meta: FileMetadata) -> AnyView {
         if meta.fileType == .Folder {
             return AnyView(
-                Button(action: { selectFolder(meta: meta) }) {
+                Button(action: { handleSelectFolder(meta: meta) }) {
                     FileCell(meta: meta)
                 }
             )
