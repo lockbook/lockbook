@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  filesdb:
+    image: minio/minio:RELEASE.2020-05-16T01-33-21Z
+    container_name: filesdb-integration-$HASH
+    env_file:
+      - ../containers/test.env
+    ports:
+      - "8002:9000"
+    entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
+  config_filesdb:
+    image: minio/mc:RELEASE.2020-05-16T01-44-37Z
+    container_name: config_filesdb-integration-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - filesdb
+    entrypoint: >
+      /bin/sh -c '\
+        while ! nc -z $$FILES_DB_HOST $$FILES_DB_PORT; do echo "$$FILES_DB_HOST Waiting for Minio to start..." && sleep 0.2; done; \
+        /usr/bin/mc config host add filesdb $$FILES_DB_SCHEME://$$FILES_DB_HOST:$$FILES_DB_PORT $$FILES_DB_ACCESS_KEY $$FILES_DB_SECRET_KEY && \
+        /usr/bin/mc mb --region=$$FILES_DB_REGION filesdb/$$FILES_DB_BUCKET && \
+        /usr/bin/mc policy set public filesdb/$$FILES_DB_BUCKET && \
+        tail -f /dev/null
+      '
+  indexdb:
+    image: postgres:12.3
+    container_name: indexdb-integration-$HASH
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "8001:5432"
+  config_indexdb:
+    image: postgres:12.3
+    container_name: config_indexdb-integration-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - indexdb
+    volumes:
+      - $PWD/index_db:/index_db
+    entrypoint: >
+      /bin/sh -c '\
+        while ! pg_isready -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER; do echo "Waiting for Postgres to start..." && sleep 0.2; done; \
+        psql -wq -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER --db $$INDEX_DB_DB -f /index_db/create_db.sql && \
+        tail -f /dev/null
+      '
