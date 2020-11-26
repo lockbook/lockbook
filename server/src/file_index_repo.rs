@@ -337,7 +337,7 @@ pub async fn move_file(
             RETURNING
                 old.deleted AS old_deleted,
                 parent.deleted AS parent_deleted,
-                parent.id AS parent_id,
+                old.parent AS parent_id,
                 EXISTS(SELECT * FROM file_descendants WHERE id = $4) AS moved_into_descendant,
                 old.metadata_version AS old_metadata_version,
                 new.metadata_version AS new_metadata_version,
@@ -597,7 +597,7 @@ impl FileDeleteResponses {
                         row.try_get::<&str, &str>("parent_id")
                             .map_err(FileError::Postgres)?,
                     )
-                        .map_err(FileError::Deserialize)?,
+                    .map_err(FileError::Deserialize)?,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
                         .map_err(FileError::Postgres)?
@@ -620,10 +620,7 @@ impl FileDeleteResponses {
             r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
         }) {
             Err(FileError::WrongFileType)
-        } else if !self
-            .responses
-            .iter()
-            .any(|r| r.parent_id == r.id) {
+        } else if !self.responses.iter().any(|r| r.parent_id == r.id) {
             Err(FileError::IllegalRootChange)
         } else if !self
             .responses
