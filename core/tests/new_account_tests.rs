@@ -24,7 +24,7 @@ mod new_account_tests {
         let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
-            Err(ApiError::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Endpoint(
                 NewAccountError::UsernameTaken
             ))
         );
@@ -39,7 +39,7 @@ mod new_account_tests {
         let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
-            Err(ApiError::<NewAccountError>::Api(
+            Err(ApiError::<NewAccountError>::Endpoint(
                 NewAccountError::InvalidUsername
             ))
         );
@@ -72,7 +72,7 @@ mod new_account_tests {
     //             },
     //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
-    //         Err(ApiError::<NewAccountError>::Api(
+    //         Err(ApiError::<NewAccountError>::Endpoint(
     //             NewAccountError::InvalidPublicKey
     //         ))
     //     );
@@ -99,7 +99,7 @@ mod new_account_tests {
     //             },
     //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
-    //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
+    //         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidAuth))
     //     );
     // }
 }

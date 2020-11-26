@@ -59,7 +59,7 @@ mod create_document_tests {
         );
         assert_matches!(
             result,
-            Err(ApiError::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Endpoint(
                 CreateDocumentError::FileIdTaken
             ))
         );
@@ -96,7 +96,7 @@ mod create_document_tests {
 
         assert_matches!(
             result,
-            Err(ApiError::<CreateDocumentError>::Api(
+            Err(ApiError::<CreateDocumentError>::Endpoint(
                 CreateDocumentError::DocumentPathTaken
             ))
         );
