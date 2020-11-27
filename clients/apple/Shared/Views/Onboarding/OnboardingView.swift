@@ -7,6 +7,7 @@ struct OnboardingView: View {
         VStack {
             NavigationView {
                 VStack(spacing: 40) {
+                    Text("Lockbook").font(.system(.largeTitle, design: .monospaced))
                     NavigationLink(destination: CreateAccountView(core: self.core)) {
                         Label("Create", systemImage: "person.crop.circle.badge.plus")
                     }
