@@ -4,8 +4,8 @@ mod integration_test;
 mod get_updates_test {
     use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{Client, ClientImpl};
-    use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
+    use lockbook_models::crypto::*;
     use uuid::Uuid;
 
     #[test]

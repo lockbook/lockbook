@@ -2,8 +2,6 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use lockbook_core::model::crypto::DecryptedValue;
-    use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::AccountService;
@@ -13,6 +11,8 @@ mod sync_tests {
         DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, DefaultSyncService,
     };
+    use lockbook_models::crypto::DecryptedValue;
+    use lockbook_models::work_unit::WorkUnit;
 
     use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;

@@ -1,10 +1,5 @@
 #![allow(dead_code)]
 
-use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::SignedValue;
-use lockbook_core::model::crypto::*;
-use lockbook_core::model::file_metadata::FileMetadata;
-use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
@@ -18,6 +13,11 @@ use lockbook_core::service::crypto_service::{
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
+use lockbook_models::account::Account;
+use lockbook_models::crypto::SignedValue;
+use lockbook_models::crypto::*;
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::state::Config;
 use rsa::RSAPublicKey;
 use std::env;
 use uuid::Uuid;

@@ -423,7 +423,7 @@ mod unit_tests {
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
-    use lockbook_models::local_changes::LocalChange;
+    use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
     use lockbook_models::state::dummy_config;
 
     type DefaultDbProvider = TempBackedDB;

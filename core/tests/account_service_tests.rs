@@ -12,12 +12,12 @@ mod account_tests {
     };
 
     use crate::integration_test::{generate_account, random_username, test_config, test_db};
-    use lockbook_core::model::account::Account;
-    use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::db_provider::DbProvider;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_models::account::Account;
+    use lockbook_models::api::NewAccountError;
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 

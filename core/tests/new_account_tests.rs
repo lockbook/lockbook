@@ -4,9 +4,9 @@ mod integration_test;
 mod new_account_tests {
     use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
+    use lockbook_models::api::*;
+    use lockbook_models::crypto::*;
     // use rsa::{BigUint, RSAPrivateKey};
     use uuid::Uuid;
 

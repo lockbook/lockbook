@@ -1,9 +1,6 @@
 use cpuprofiler::PROFILER;
 use criterion::profiler::Profiler;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::model::file_metadata::FileType::Document;
-use lockbook_core::model::state::Config;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
@@ -12,6 +9,9 @@ use lockbook_core::{
     connect_to_db, DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService,
     DefaultSyncService,
 };
+use lockbook_models::crypto::DecryptedValue;
+use lockbook_models::file_metadata::FileType::Document;
+use lockbook_models::state::Config;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
 use std::env;

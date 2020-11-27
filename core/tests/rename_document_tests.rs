@@ -6,9 +6,9 @@ mod rename_document_tests {
         aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
     };
     use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
     use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
+    use lockbook_models::api::*;
+    use lockbook_models::crypto::*;
     use uuid::Uuid;
 
     use crate::assert_matches;

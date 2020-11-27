@@ -5,8 +5,8 @@ mod server_version_tests {
     use crate::integration_test::{generate_account, test_config};
 
     use lockbook_core::client::{api_request, ApiError};
-    use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
     use lockbook_core::{create_account, get_account};
+    use lockbook_models::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
     use reqwest::Method;
     use rsa::RSAPublicKey;
 
