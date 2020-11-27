@@ -3,7 +3,7 @@ use std::env;
 use chrono::Duration;
 use chrono_human_duration::ChronoHumanDuration;
 
-use lockbook_core::model::state::Config;
+use lockbook_core::lockbook_models::state::Config;
 use lockbook_core::service::clock_service::Clock;
 use lockbook_core::Error as CoreError;
 use lockbook_core::{
@@ -17,7 +17,7 @@ use crate::{
     NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
     UPDATE_REQUIRED,
 };
-use lockbook_core::model::account::Account;
+use lockbook_core::lockbook_models::account::Account;
 use lockbook_core::service::db_state_service::State;
 use std::process::exit;
 

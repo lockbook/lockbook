@@ -2,8 +2,8 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
-use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::model::file_metadata::FileType::Folder;
+use lockbook_core::lockbook_models::crypto::DecryptedValue;
+use lockbook_core::lockbook_models::file_metadata::FileType::Folder;
 use lockbook_core::{
     create_file_at_path, write_document, CreateFileAtPathError, Error as CoreError,
     WriteToDocumentError,

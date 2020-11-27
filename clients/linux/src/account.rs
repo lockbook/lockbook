@@ -11,7 +11,7 @@ use sourceview::prelude::*;
 use sourceview::Buffer as GtkSourceViewBuffer;
 use sourceview::View as GtkSourceView;
 
-use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::lockbook_models::file_metadata::FileMetadata;
 
 use crate::backend::LbCore;
 use crate::editmode::EditMode;

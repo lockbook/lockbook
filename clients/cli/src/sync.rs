@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::work_unit::WorkUnit;
+use lockbook_core::lockbook_models::work_unit::WorkUnit;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
     calculate_work, execute_work, set_last_synced, CalculateWorkError, Error as CoreError,

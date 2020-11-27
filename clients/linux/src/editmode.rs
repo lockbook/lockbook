@@ -1,4 +1,4 @@
-use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::lockbook_models::file_metadata::FileMetadata;
 
 pub enum EditMode {
     Folder {

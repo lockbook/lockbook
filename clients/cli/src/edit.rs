@@ -5,7 +5,7 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::lockbook_models::crypto::DecryptedValue;
 use lockbook_core::{
     get_file_by_path, read_document, write_document, Error as CoreError, GetFileByPathError,
     ReadDocumentError, WriteToDocumentError,

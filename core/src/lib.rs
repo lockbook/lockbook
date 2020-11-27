@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-extern crate lockbook_models;
+pub extern crate lockbook_models;
 #[macro_use]
 extern crate log;
 extern crate reqwest;

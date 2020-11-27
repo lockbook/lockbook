@@ -3,11 +3,11 @@ use std::path::Path;
 use qrcode_generator::QrCodeEcc;
 use uuid::Uuid;
 
-use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::DecryptedValue;
-use lockbook_core::model::file_metadata::FileMetadata;
-use lockbook_core::model::state::Config;
-use lockbook_core::model::work_unit::WorkUnit;
+use lockbook_core::lockbook_models::account::Account;
+use lockbook_core::lockbook_models::crypto::DecryptedValue;
+use lockbook_core::lockbook_models::file_metadata::FileMetadata;
+use lockbook_core::lockbook_models::state::Config;
+use lockbook_core::lockbook_models::work_unit::WorkUnit;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{

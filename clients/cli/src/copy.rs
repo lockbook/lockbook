@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use lockbook_core::model::crypto::DecryptedValue;
+use lockbook_core::lockbook_models::crypto::DecryptedValue;
 use lockbook_core::{
     create_file_at_path, get_file_by_path, write_document, CreateFileAtPathError,
     Error as CoreError, GetFileByPathError,

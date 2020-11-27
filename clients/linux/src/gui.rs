@@ -23,7 +23,7 @@ use gtk::{
     WindowPosition as GtkWindowPosition,
 };
 
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use lockbook_core::lockbook_models::file_metadata::{FileMetadata, FileType};
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
