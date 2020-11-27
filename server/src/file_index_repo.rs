@@ -247,7 +247,7 @@ pub async fn delete_file(
             old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
             UPDATE files new
             SET
-                deleted = (CASE old.id != old.parent
+                deleted = (CASE WHEN old.id != old.parent
                     THEN TRUE
                     ELSE old.deleted END),
                 metadata_version =
