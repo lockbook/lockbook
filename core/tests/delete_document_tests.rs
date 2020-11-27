@@ -42,7 +42,13 @@ mod delete_document_tests {
 
         // delete document that wasn't created
         let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
+        let result = DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id });
+        assert_matches!(
+            result,
+            Err(ApiError::<DeleteDocumentError>::Endpoint(
+                DeleteDocumentError::DocumentNotFound
+            ))
+        );
     }
 
     #[test]
