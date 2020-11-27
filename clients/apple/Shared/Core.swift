@@ -10,12 +10,12 @@ class Core: ObservableObject {
     @Published var account: Account?
     @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
-    @Published var grouped: [FileMetadataWithChildren] = []
+    @Published var root: FileMetadata?
     @Published var syncing: Bool = false
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
-    private var passthrough = PassthroughSubject<Void, Error>()
+    private var passthrough = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
 
     func load() {
@@ -51,6 +51,12 @@ class Core: ObservableObject {
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
             DispatchQueue.main.async {
                 self.account = nil
+                switch self.api.getState() {
+                case .success(let db):
+                    self.state = db
+                case .failure(let err):
+                    self.handleError(err)
+                }
             }
         }
     }
@@ -58,22 +64,12 @@ class Core: ObservableObject {
     func sync() {
         self.syncing = true
         serialQueue.async {
-            switch self.api.synchronize() {
-            case .success(_):
-                self.passthrough.send(())
-            case .failure(let err):
-                self.passthrough.send(completion: .failure(err))
-            }
+            self.passthrough.send(self.api.synchronize())
         }
     }
     
-    func handleError<E: Error>(_ error: E) {
-        switch error {
-        case let ffiError as AnyFfiError:
-            globalError = ffiError
-        default:
-            print("Received non-FFI error [\(String(describing: error.self))] \(error)") // This is basically an app crash
-        }
+    func handleError(_ error: AnyFfiError) {
+        globalError = error
     }
     
     private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
@@ -84,10 +80,10 @@ class Core: ObservableObject {
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
+                self.root = root
                 switch api.listFiles() {
                 case .success(let metas):
                     self.files = metas
-                    self.grouped = [buildTree(meta: root)]
                 case .failure(let err):
                     handleError(err)
                 }
@@ -105,18 +101,24 @@ class Core: ObservableObject {
         updateFiles()
 
         passthrough
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .removeDuplicates(by: {
+                switch ($0, $1) {
+                case (.failure(let e1), .failure(let e2)):
+                    return e1 == e2
+                default:
+                    return false
+                }
+            })
             .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { err in
+            .sink(receiveValue: { res in
                 self.syncing = false
-                switch err {
+                switch res {
+                case .success(_):
+                    self.updateFiles()
                 case .failure(let err):
                     self.handleError(err)
-                case .finished:
-                    print("Sync subscription finished!") // TODO: Does the application work at this point?
                 }
-            }, receiveValue: { _ in
-                self.updateFiles()
-                self.syncing = false
             })
             .store(in: &cancellableSet)
     }
@@ -128,7 +130,7 @@ class Core: ObservableObject {
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
-            self.grouped = [buildTree(meta: root)]
+            self.root = root
         }
     }
 }
