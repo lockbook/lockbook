@@ -941,11 +941,11 @@ pub enum GetLastSyncedError {
     Stub, // TODO: Enums should not be empty
 }
 
-pub fn get_last_synced(config: &Config) -> Result<u64, Error<GetLastSyncedError>> {
+pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
 
     match DefaultFileMetadataRepo::get_last_updated(&db) {
-        Ok(val) => Ok(val),
+        Ok(val) => Ok(val as i64),
         Err(err) => match err {
             DbError::SledError(_) | DbError::SerdeError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
