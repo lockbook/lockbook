@@ -334,10 +334,10 @@ fn verify_auth<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()
 fn serialize_response<TRequest>(
     response: Result<TRequest::Response, ErrorWrapper<TRequest::Error>>,
 ) -> Result<Bytes, serde_json::error::Error>
-    where
-        TRequest: Request,
-        TRequest::Response: Serialize,
-        TRequest::Error: Serialize,
+where
+    TRequest: Request,
+    TRequest::Response: Serialize,
+    TRequest::Error: Serialize,
 {
     Ok(Bytes::from(serde_json::to_vec(&response)?))
 }
