@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use qrcode_generator::QrCodeEcc;
 use uuid::Uuid;
 
 use lockbook_core::model::account::Account;
@@ -98,13 +101,27 @@ impl LbCore {
 
     pub fn export_account(&self) -> Result<String, String> {
         match export_account(&self.config) {
-            Ok(acct_str) => Ok(acct_str),
+            Ok(privkey) => Ok(privkey),
             Err(err) => match err {
                 CoreError::UiError(AccountExportError::NoAccount) => {
                     Err("Unable to load account".to_string())
                 }
                 CoreError::Unexpected(msg) => Err(msg),
             },
+        }
+    }
+
+    pub fn account_qrcode(&self, chan: &glib::Sender<Result<String, String>>) {
+        match self.export_account() {
+            Ok(privkey) => {
+                let path = format!("{}/account-qr.png", self.config.writeable_path);
+                if !Path::new(&path).exists() {
+                    let bytes = privkey.as_bytes();
+                    qrcode_generator::to_png_to_file(bytes, QrCodeEcc::Low, 400, &path).unwrap();
+                }
+                chan.send(Ok(path)).unwrap();
+            }
+            Err(err) => chan.send(Err(format!("{:?}", err))).unwrap(),
         }
     }
 
@@ -222,8 +239,8 @@ impl LbCore {
         }
     }
 
-    pub fn delete(&self, id: Uuid) -> Result<(), String> {
-        match delete_file(&self.config, id) {
+    pub fn delete(&self, id: &Uuid) -> Result<(), String> {
+        match delete_file(&self.config, *id) {
             Ok(_) => Ok(()),
             Err(err) => Err(format!("{:?}", err)),
         }

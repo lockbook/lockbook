@@ -30,6 +30,10 @@ object SharedPreferences {
     const val IS_THIS_AN_IMPORT_KEY = "import"
 
     const val BYTE_USAGE_KEY = "usage_amount"
+
+    const val FILE_LAYOUT_KEY = "file_layout"
+    const val GRID_LAYOUT = "grid_layout"
+    const val LINEAR_LAYOUT = "linear_layout"
 }
 
 object RequestResultCodes {

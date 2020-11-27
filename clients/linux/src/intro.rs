@@ -1,4 +1,3 @@
-use glib::clone;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -109,12 +108,13 @@ struct IntroInput {
 
 impl IntroInput {
     fn new(m: &Messenger, msg: fn(String) -> Msg, desc: &str) -> Self {
+        let m = m.clone();
         let entry = GtkEntry::new();
         entry.set_placeholder_text(Some(desc));
-        entry.connect_activate(clone!(@strong m => move |this| {
-            let value = this.get_buffer().get_text();
+        entry.connect_activate(move |entry| {
+            let value = entry.get_buffer().get_text();
             m.send(msg(value));
-        }));
+        });
 
         let error = GtkLabel::new(None);
         error.set_margin_top(16);
