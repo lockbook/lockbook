@@ -105,17 +105,23 @@ macro_rules! route_handler {
             <$TRequest>::METHOD,
             <$TRequest>::ROUTE
         );
-        pack::<$TRequest>(match unpack($hyper_request).await {
-            Ok((request, public_key)) => wrap_err::<$TRequest>(
-                $handler(&mut RequestContext {
-                    server_state: &mut $s,
-                    request,
-                    public_key,
-                })
-                .await,
-            ),
+
+        let result = match unpack($hyper_request).await {
+            Ok((request, public_key)) => {
+                debug!("Request: {:?}", request);
+                wrap_err::<$TRequest>(
+                    $handler(&mut RequestContext {
+                        server_state: &mut $s,
+                        request,
+                        public_key,
+                    })
+                    .await,
+                )
+            },
             Err(e) => Err(e),
-        })
+        };
+        debug!("Response: {:?}", result);
+        pack::<$TRequest>(result)
     }};
 }
 

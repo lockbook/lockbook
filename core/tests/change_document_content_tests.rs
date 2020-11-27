@@ -21,15 +21,17 @@ mod change_document_content_tests {
         DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // change document content
         DefaultClient::request(
