@@ -569,8 +569,9 @@ mod move_document_tests {
                 }
             ),
             Err(ApiError::<MoveFolderError>::Api(
-                MoveFolderError::CannotMoveRoot
+                MoveFolderError::CannotMoveIntoDescendant
             ))
         );
+        MoveFolderError::CannotMoveIntoDescendant
     }
 }
