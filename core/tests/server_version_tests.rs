@@ -21,9 +21,13 @@ mod server_version_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
-            DefaultClient::request(&account, GetPublicKeyRequest {})
-                .map(|r: GetPublicKeyResponse| r.key);
+        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> = DefaultClient::request(
+            &account,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .map(|r: GetPublicKeyResponse| r.key);
 
         assert_matches!(
             result,

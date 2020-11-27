@@ -14,9 +14,14 @@ mod get_public_key_tests {
         let (root, _) = generate_root_metadata(&account);
         DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = DefaultClient::request(&account, GetPublicKeyRequest {})
-            .unwrap()
-            .key;
+        let result = DefaultClient::request(
+            &account,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .unwrap()
+        .key;
         assert_eq!(result, account.private_key.to_public_key());
     }
 
@@ -24,7 +29,12 @@ mod get_public_key_tests {
     fn get_public_key_not_found() {
         let account = generate_account();
 
-        let result = DefaultClient::request(&account, GetPublicKeyRequest {});
+        let result = DefaultClient::request(
+            &account,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        );
         assert_matches!(
             result,
             Err(ApiError::<GetPublicKeyError>::Endpoint(

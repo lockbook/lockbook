@@ -14,6 +14,7 @@ pub enum ApiError<E> {
     InvalidAuth,
     ExpiredAuth,
     InternalError,
+    BadRequest,
     Sign(RSASignError),
     Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
@@ -29,6 +30,7 @@ impl<E> From<ErrorWrapper<E>> for ApiError<E> {
             ErrorWrapper::InvalidAuth => ApiError::InvalidAuth,
             ErrorWrapper::ExpiredAuth => ApiError::ExpiredAuth,
             ErrorWrapper::InternalError => ApiError::InternalError,
+            ErrorWrapper::BadRequest => ApiError::BadRequest,
         }
     }
 }
@@ -63,8 +65,8 @@ impl<Crypto: PubKeyCryptoService, Version: CodeVersion> Client for ClientImpl<Cr
         .map_err(ApiError::Serialize)?;
         let serialized_response = client
             .request(
-                T::method(),
-                format!("{}/{}", account.api_url, T::endpoint()).as_str(),
+                T::METHOD,
+                format!("{}{}", account.api_url, T::ROUTE).as_str(),
             )
             .body(serialized_request)
             .send()

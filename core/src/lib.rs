@@ -172,6 +172,7 @@ pub fn create_account(
                 | ApiError::Deserialize(_)
                 | ApiError::Sign(_)
                 | ApiError::InternalError
+                | ApiError::BadRequest
                 | ApiError::InvalidAuth
                 | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", network))),
             },
@@ -232,6 +233,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error
                 | ApiError::Deserialize(_)
                 | ApiError::Sign(_)
                 | ApiError::InternalError
+                | ApiError::BadRequest
                 | ApiError::InvalidAuth
                 | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", client_err))),
             },
@@ -801,6 +803,7 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                     | ApiError::Deserialize(_)
                     | ApiError::Sign(_)
                     | ApiError::InternalError
+                    | ApiError::BadRequest
                     | ApiError::InvalidAuth
                     | ApiError::ExpiredAuth
                     | ApiError::Endpoint(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
@@ -848,6 +851,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
                 | ApiError::Deserialize(_)
                 | ApiError::Sign(_)
                 | ApiError::InternalError
+                | ApiError::BadRequest
                 | ApiError::InvalidAuth
                 | ApiError::ExpiredAuth
                 | ApiError::Endpoint(_) => Err(Error::Unexpected(format!("{:#?}", api_err))),
@@ -897,6 +901,7 @@ pub fn execute_work(
             | WorkExecutionError::InvalidAuth
             | WorkExecutionError::ExpiredAuth
             | WorkExecutionError::InternalError
+            | WorkExecutionError::BadRequest
             | WorkExecutionError::Sign(_)
             | WorkExecutionError::Serialize(_)
             | WorkExecutionError::ReceiveFailed(_)
@@ -971,6 +976,7 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
             | ApiError::InvalidAuth
             | ApiError::ExpiredAuth
             | ApiError::InternalError
+            | ApiError::BadRequest
             | ApiError::Sign(_)
             | ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)

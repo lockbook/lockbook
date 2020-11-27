@@ -197,13 +197,13 @@ pub async fn create_file(
     parent: Uuid,
     file_type: FileType,
     name: &str,
-    owner: &str,
+    public_key: &RSAPublicKey,
     access_key: &FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction
         .query_one(
             "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
+            VALUES ($1, $2, $3, $4, $5, (SELECT name FROM accounts WHERE public_key = $6), $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
             RETURNING metadata_version;",
             &[
                 &serde_json::to_string(&id).map_err(FileError::Serialize)?,
@@ -212,7 +212,7 @@ pub async fn create_file(
                     .map_err(FileError::Serialize)?,
                 &(file_type == FileType::Folder),
                 &name,
-                &owner,
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?,
                 &serde_json::to_string("signature goes here").map_err(FileError::Serialize)?, // TODO: sign
             ],
         )
@@ -628,7 +628,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
 
 pub async fn get_updates(
     transaction: &Transaction<'_>,
-    username: &str,
+    public_key: &RSAPublicKey,
     metadata_version: u64,
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
@@ -636,9 +636,12 @@ pub async fn get_updates(
             "SELECT * FROM files fi
             LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
             LEFT JOIN accounts a ON fi.owner = a.name
-            WHERE owner = $1
+            WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
             AND metadata_version > $2;",
-            &[&username, &(metadata_version as i64)],
+            &[
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?,
+                &(metadata_version as i64),
+            ],
         )
         .await
         .map_err(FileError::Postgres)?

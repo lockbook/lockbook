@@ -163,9 +163,14 @@ impl<
             "Checking this username, public_key pair exists at {}",
             account.api_url
         );
-        let server_public_key = ApiClient::request(&account, GetPublicKeyRequest {})
-            .map_err(FailedToVerifyAccountServerSide)?
-            .key;
+        let server_public_key = ApiClient::request(
+            &account,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .map_err(FailedToVerifyAccountServerSide)?
+        .key;
         if account.private_key.to_public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }
