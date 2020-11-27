@@ -620,7 +620,7 @@ impl FileDeleteResponses {
             r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
         }) {
             Err(FileError::WrongFileType)
-        } else if !self.responses.iter().any(|r| r.parent_id == r.id) {
+        } else if self.responses.iter().any(|r| r.parent_id == r.id) {
             Err(FileError::IllegalRootChange)
         } else if !self
             .responses
