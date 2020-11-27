@@ -57,6 +57,11 @@
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
+            key = "LOCKBOOK_LOCATION"
+            value = "/tmp/lockbook_ios"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
             key = "LOCKBOOK_DEBUG"
             value = "1"
             isEnabled = "YES">
