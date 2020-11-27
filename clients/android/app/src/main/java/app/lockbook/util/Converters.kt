@@ -574,6 +574,7 @@ val deleteFileConverter = object : Converter {
                     Err(
                         when (error) {
                             FileDeleteError.FileDoesNotExist::class.simpleName -> FileDeleteError.FileDoesNotExist
+                            FileDeleteError.CannotDeleteRoot::class.simpleName -> FileDeleteError.CannotDeleteRoot
                             else -> FileDeleteError.Unexpected("deleteFileConverter $unmatchedUiError $error")
                         }
                     )
@@ -695,6 +696,7 @@ val moveFileConverter = object : Converter {
                             MoveFileError.TargetParentDoesNotExist::class.simpleName -> MoveFileError.TargetParentDoesNotExist
                             MoveFileError.TargetParentHasChildNamedThat::class.simpleName -> MoveFileError.TargetParentHasChildNamedThat
                             MoveFileError.CannotMoveRoot::class.simpleName -> MoveFileError.CannotMoveRoot
+                            MoveFileError.FolderMovedIntoItself::class.simpleName -> MoveFileError.FolderMovedIntoItself
                             else -> MoveFileError.Unexpected("moveFileConverter $unmatchedUiError $error")
                         }
                     )

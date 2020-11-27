@@ -433,7 +433,7 @@ impl<
                                 FileMetadataDb::get_and_get_children_recursively(&db, id)
                                     .map_err(FileMoveError::FindingChildrenFailed)?;
                             for child in children {
-                                if child.parent == new_parent {
+                                if child.id == new_parent {
                                     return Err(FileMoveError::FolderMovedIntoItself);
                                 }
                             }

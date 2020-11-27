@@ -92,8 +92,9 @@ class MoveFileViewModel(path: String) :
                     MoveFileError.TargetParentDoesNotExist -> _errorHasOccurred.postValue("Error! The parent file does not exist!")
                     MoveFileError.TargetParentHasChildNamedThat -> _errorHasOccurred.postValue("Error! The parent file has a child named $fileName already!")
                     MoveFileError.CannotMoveRoot -> _errorHasOccurred.postValue("Error! You cannot move root!")
+                    MoveFileError.FolderMovedIntoItself -> _errorHasOccurred.postValue("Error! Cannot move folder into itself!")
                     is MoveFileError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-                }
+                }.exhaustive
                 false
             }
         }.exhaustive
