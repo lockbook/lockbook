@@ -8,6 +8,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
+import app.lockbook.util.SharedPreferences.GRID_LAYOUT
+import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
 import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
@@ -36,7 +39,7 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_list_files, menu)
         this.menu = menu
-        matchToDefaultSortOption()
+        setSelectedMenuOptions()
 
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
@@ -51,9 +54,11 @@ class ListFilesActivity : AppCompatActivity() {
         return true
     }
 
-    private fun matchToDefaultSortOption() {
+    private fun setSelectedMenuOptions() {
+        val preference = PreferenceManager.getDefaultSharedPreferences(application)
+
         when (
-            val optionValue = PreferenceManager.getDefaultSharedPreferences(application).getString(
+            val optionValue = preference.getString(
                 SORT_FILES_KEY,
                 SORT_FILES_A_Z
             )
@@ -76,6 +81,19 @@ class ListFilesActivity : AppCompatActivity() {
                 ).show()
             }
         }.exhaustive
+
+        when (val optionValue = preference.getString(FILE_LAYOUT_KEY, LINEAR_LAYOUT)) {
+            LINEAR_LAYOUT -> menu?.findItem(R.id.menu_list_files_linear_view)?.isChecked = true
+            GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
+            else -> {
+                Timber.e("File layout shared preference does not match every supposed option: $optionValue")
+                Snackbar.make(
+                    list_files_activity_layout,
+                    UNEXPECTED_CLIENT_ERROR,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -88,7 +106,9 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_sort_a_z,
             R.id.menu_list_files_sort_z_a,
             R.id.menu_list_files_sort_first_changed,
-            R.id.menu_list_files_sort_type -> {
+            R.id.menu_list_files_sort_type,
+            R.id.menu_list_files_grid_view,
+            R.id.menu_list_files_linear_view -> {
                 menu?.findItem(item.itemId)?.isChecked = true
                 val fragment = getFragment().component1()
                 if (fragment is ListFilesFragment) {
@@ -120,6 +140,7 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
                 if (fragment.listFilesViewModel.selectedFiles.filter { selectedFile -> selectedFile }.size == 1) {
                     menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                     menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
@@ -132,6 +153,7 @@ class ListFilesActivity : AppCompatActivity() {
                 menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
                 menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
                 menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
             }
         } else {
@@ -144,6 +166,7 @@ class ListFilesActivity : AppCompatActivity() {
         menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
         menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
         if (selected.filter { selectedFile -> selectedFile }.size == 1) {
             menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
             menu?.findItem(R.id.menu_list_files_info)?.isVisible = true

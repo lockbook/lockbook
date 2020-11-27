@@ -2,7 +2,6 @@ package app.lockbook.model
 
 import android.app.Activity.RESULT_CANCELED
 import android.app.Application
-import android.content.Intent
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -18,7 +17,10 @@ import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
+import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
+import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
+import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
 import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
 import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
@@ -51,6 +53,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
+    private val _switchFileLayout = SingleMutableLiveData<Unit>()
     private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _showCreateFileDialog = SingleMutableLiveData<CreateFileInfo>()
@@ -88,6 +91,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val navigateToHandwritingEditor: LiveData<EditableFile>
         get() = _navigateToHandwritingEditor
+
+    val switchFileLayout: LiveData<Unit>
+        get() = _switchFileLayout
 
     val switchMenu: LiveData<Unit>
         get() = _switchMenu
@@ -166,7 +172,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
                     Unit
                 }
-                SYNC_AUTOMATICALLY_KEY, SORT_FILES_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY -> Unit
+                SORT_FILES_KEY -> {
+                    fileModel.refreshFiles()
+                }
+                SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
                 else -> {
                     _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
@@ -190,13 +199,12 @@ class ListFilesViewModel(path: String, application: Application) :
         return true
     }
 
-    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    fun handleActivityResult(requestCode: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (requestCode) {
                     TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
-                    RESULT_CANCELED -> {
-                    }
+                    RESULT_CANCELED -> {}
                     else -> {
                         Timber.e("Unable to recognize match requestCode: $requestCode.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
@@ -287,6 +295,20 @@ class ListFilesViewModel(path: String, application: Application) :
                             SORT_FILES_TYPE
                         ).apply()
                         fileModel.refreshFiles()
+                    }
+                    R.id.menu_list_files_linear_view -> {
+                        pref.putString(
+                            FILE_LAYOUT_KEY,
+                            LINEAR_LAYOUT
+                        ).apply()
+                        _switchFileLayout.postValue(Unit)
+                    }
+                    R.id.menu_list_files_grid_view -> {
+                        pref.putString(
+                            FILE_LAYOUT_KEY,
+                            GRID_LAYOUT
+                        ).apply()
+                        _switchFileLayout.postValue(Unit)
                     }
                     R.id.menu_list_files_rename -> {
                         files.value?.let { files ->

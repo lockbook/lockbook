@@ -17,6 +17,7 @@ struct ImportAccountView: View {
             #endif
             TextField("Account String", text: self.$accountKey)
                 .disableAutocorrection(true)
+                .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
             NotificationButton(
                 action: handleImport,
@@ -29,7 +30,6 @@ struct ImportAccountView: View {
 
         #if os(iOS)
         return view
-            .autocapitalization(.none)
             .sheet(isPresented: self.$isScanning, content: {
                 CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
             })
