@@ -1,8 +1,8 @@
 use lockbook_core::model::api::FileUsage;
+use rsa::RSAPublicKey;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
-use rsa::RSAPublicKey;
 
 #[derive(Debug)]
 pub enum UsageTrackError {
@@ -134,8 +134,8 @@ mod usage_service_tests {
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
-    use uuid::Uuid;
     use rsa::RSAPublicKey;
+    use uuid::Uuid;
 
     #[test]
     fn compute_usage() {
@@ -156,9 +156,7 @@ mod usage_service_tests {
             let _ = transaction
                 .execute(
                     "INSERT INTO accounts (name, public_key) VALUES ('juicy', $1);",
-                    &[
-                        &serde_json::to_string(&public_key).unwrap(),
-                    ],
+                    &[&serde_json::to_string(&public_key).unwrap()],
                 )
                 .await
                 .unwrap();
