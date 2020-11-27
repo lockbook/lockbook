@@ -5,7 +5,7 @@ struct CreateAccountView: View {
     @State var username: String = ""
     
     var body: some View {
-        let view = VStack(spacing: 40) {
+        VStack(spacing: 40) {
             TextField("Username", text: self.$username)
                 .disableAutocorrection(true)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -14,13 +14,7 @@ struct CreateAccountView: View {
             })
         }
         .padding(.horizontal)
-
-        #if os(iOS)
-        return view
-            .autocapitalization(.none)
-        #else
-        return view
-        #endif
+        .autocapitalization(.none)
     }
     
     func handleCreate() {
