@@ -174,9 +174,7 @@ pub fn print_last_successful_sync() {
             .expect("Failed to retrieve content from FileMetadataRepo");
 
         let duration = if last_updated != 0 {
-            let duration = Duration::milliseconds(
-                (DefaultClock::get_time().unwrap() as u64 - last_updated) as i64,
-            );
+            let duration = Duration::milliseconds(DefaultClock::get_time() - last_updated);
             duration.format_human().to_string()
         } else {
             "never".to_string()
