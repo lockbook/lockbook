@@ -11,8 +11,11 @@ mod get_updates_test {
     fn get_updates() {
         // new account
         let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        let (mut root, _) = generate_root_metadata(&account);
+        root.metadata_version =
+            DefaultClient::request(&account, NewAccountRequest::new(&account, &root))
+                .unwrap()
+                .folder_metadata_version;
 
         // get updates at version 0
         let result = DefaultClient::request(

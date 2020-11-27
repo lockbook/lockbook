@@ -113,13 +113,19 @@ mod create_document_tests {
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = Uuid::new_v4();
-        DefaultClient::request(
+        let result = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
-        )
-        .unwrap();
+        );
+
+        assert_matches!(
+            result,
+            Err(ApiError::<CreateDocumentError>::Endpoint(
+                CreateDocumentError::ParentNotFound
+            ))
+        );
     }
 }
