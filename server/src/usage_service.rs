@@ -1,5 +1,5 @@
-use lockbook_core::model::api::FileUsage;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_models::api::FileUsage;
+use lockbook_models::crypto::EncryptedValueWithNonce;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
@@ -152,7 +152,7 @@ fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalcul
 mod usage_service_tests {
     use std::str::FromStr;
 
-    use lockbook_core::model::api::FileUsage;
+    use lockbook_models::api::FileUsage;
 
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;

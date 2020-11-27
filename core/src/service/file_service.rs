@@ -2,9 +2,6 @@ use sha2::{Digest, Sha256};
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::*;
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
@@ -34,6 +31,9 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::DefaultFileMetadataRepo;
+use lockbook_models::crypto::DecryptedValue;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -572,10 +572,6 @@ impl<
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::account::Account;
-    use crate::model::crypto::DecryptedValue;
-    use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::DocumentRepo;
@@ -592,6 +588,10 @@ mod unit_tests {
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, NewFileFromPathError,
     };
+    use lockbook_models::account::Account;
+    use lockbook_models::crypto::DecryptedValue;
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
+    use lockbook_models::state::dummy_config;
 
     type DefaultDbProvider = TempBackedDB;
 

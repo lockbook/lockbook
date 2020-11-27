@@ -1,5 +1,6 @@
 extern crate rand;
 extern crate rsa;
+extern crate uuid;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

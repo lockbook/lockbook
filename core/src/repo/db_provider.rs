@@ -3,8 +3,8 @@ use std::io;
 use sled::Db;
 use tempfile::tempdir;
 
-use crate::model::state::Config;
 use crate::DB_NAME;
+use lockbook_models::state::Config;
 
 #[derive(Debug)]
 pub enum Error {

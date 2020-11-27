@@ -3,11 +3,11 @@ use std::time::SystemTimeError;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::{Document, UserAccessInfo};
-use crate::model::file_metadata::FileType;
-use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 use crate::repo::local_changes_repo::DbError::TimeError;
 use crate::service::clock_service::Clock;
+use lockbook_models::crypto::{Document, UserAccessInfo};
+use lockbook_models::file_metadata::FileType;
+use lockbook_models::local_changes::{Edited, LocalChange, Moved, Renamed};
 
 #[derive(Debug)]
 pub enum DbError {
@@ -419,12 +419,12 @@ mod unit_tests {
 
     use uuid::Uuid;
 
-    use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::local_changes::{LocalChange, Moved, Renamed};
-    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
+    use lockbook_models::local_changes::LocalChange;
+    use lockbook_models::state::dummy_config;
 
     type DefaultDbProvider = TempBackedDB;
 

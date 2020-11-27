@@ -78,11 +78,9 @@ iOSInjectionProject/
 clients/apple/include/
 clients/apple/libs/
 
-core/target/
-clients/cli/target/
 core/lockbook_core.h
 
-server/target/
+**/target/
 server/**/*.rs.bk
 server/ca-certificate.crt
 server/qa-ca-certificate.crt

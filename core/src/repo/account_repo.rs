@@ -1,8 +1,8 @@
 use sled::Db;
 
-use crate::model::account::{Account, ApiUrl};
 use crate::repo::account_repo::AccountRepoError::NoAccount;
 use crate::repo::account_repo::DbError::{SerdeError, SledError};
+use lockbook_models::account::{Account, ApiUrl};
 
 #[derive(Debug)]
 pub enum DbError {
@@ -76,11 +76,11 @@ impl AccountRepo for AccountRepoImpl {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::account::Account;
-    use crate::model::state::dummy_config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::service::crypto_service::{PubKeyCryptoService, RsaImpl};
+    use lockbook_models::account::Account;
+    use lockbook_models::state::dummy_config;
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;

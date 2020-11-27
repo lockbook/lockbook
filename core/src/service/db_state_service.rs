@@ -92,12 +92,12 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
     use crate::{DefaultDbStateService, CORE_CODE_VERSION};
+    use lockbook_models::state::dummy_config;
 
     #[test]
     fn test_initial_state() {

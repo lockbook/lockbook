@@ -1,8 +1,8 @@
 use crate::config::IndexDbConfig;
-use lockbook_core::model::account::Username;
-use lockbook_core::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
-use lockbook_core::model::file_metadata::FileMetadata;
-use lockbook_core::model::file_metadata::FileType;
+use lockbook_models::account::Username;
+use lockbook_models::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
 use openssl::ssl::{SslConnector, SslMethod};
 use postgres_openssl::MakeTlsConnector;

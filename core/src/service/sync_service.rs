@@ -6,18 +6,6 @@ use sled::Db;
 use uuid::Uuid;
 
 use crate::client::Client;
-use crate::model::account::Account;
-use crate::model::api;
-use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
-    RenameFolderError,
-};
-use crate::model::crypto::{DecryptedValue, SignedValue};
-use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::work_unit::WorkUnit;
-use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -39,6 +27,18 @@ use crate::service::sync_service::WorkExecutionError::{
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
+use lockbook_models::account::Account;
+use lockbook_models::api;
+use lockbook_models::api::{
+    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
+    DeleteFolderError, GetDocumentError, MoveDocumentError, MoveFolderError, RenameDocumentError,
+    RenameFolderError,
+};
+use lockbook_models::crypto::{DecryptedValue, SignedValue};
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::work_unit::WorkUnit;
+use lockbook_models::work_unit::WorkUnit::{LocalChange, ServerChange};
 
 #[derive(Debug)]
 pub enum CalculateWorkError {

@@ -2,14 +2,14 @@ use std::num::ParseIntError;
 
 use rsa::RSAPublicKey;
 
-use crate::model::account::Account;
-use crate::model::crypto::*;
 use crate::service::auth_service::VerificationError::{
     AuthDeserializationError, CryptoVerificationError, InvalidAuthLayout, InvalidUsername,
     TimeStampOutOfBounds, TimeStampParseFailure,
 };
 use crate::service::clock_service::Clock;
 use crate::service::crypto_service::{PubKeyCryptoService, SignatureVerificationFailed};
+use lockbook_models::account::Account;
+use lockbook_models::crypto::*;
 
 #[derive(Debug)]
 pub enum VerificationError {
@@ -103,10 +103,10 @@ mod unit_tests {
     use rand::rngs::OsRng;
     use rsa::RSAPrivateKey;
 
-    use crate::model::account::Account;
     use crate::service::auth_service::{AuthService, AuthServiceImpl, VerificationError};
     use crate::service::clock_service::Clock;
     use crate::service::crypto_service::RsaImpl;
+    use lockbook_models::account::Account;
     use std::time::SystemTimeError;
 
     struct EarlyClock;

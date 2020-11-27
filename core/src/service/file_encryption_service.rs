@@ -2,15 +2,15 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::model::account::Account;
-use crate::model::crypto::*;
-use crate::model::file_metadata::FileType::Folder;
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::service::crypto_service::{
     AesDecryptionFailed, AesEncryptionFailed, DecryptionFailed, PubKeyCryptoService,
     SymmetricCryptoService,
 };
 use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
+use lockbook_models::account::Account;
+use lockbook_models::crypto::*;
+use lockbook_models::file_metadata::FileType::Folder;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 use std::collections::hash_map::RandomState;
 
 #[derive(Debug)]
@@ -317,12 +317,12 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 mod unit_tests {
     use std::collections::HashMap;
 
-    use crate::model::account::Account;
-    use crate::model::crypto::DecryptedValue;
-    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::{DefaultCrypto, DefaultFileEncryptionService};
+    use lockbook_models::account::Account;
+    use lockbook_models::crypto::DecryptedValue;
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     #[test]
     fn test_root_folder() {

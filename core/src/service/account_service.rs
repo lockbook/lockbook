@@ -2,9 +2,6 @@ use sled::Db;
 
 use crate::client;
 use crate::client::Client;
-use crate::model::account::Account;
-use crate::model::api::{GetPublicKeyError, NewAccountError};
-use crate::model::crypto::SignedValue;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -18,6 +15,9 @@ use crate::service::account_service::AccountImportError::{
 use crate::service::auth_service::{AuthGenError, AuthService};
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
+use lockbook_models::account::Account;
+use lockbook_models::api::{GetPublicKeyError, NewAccountError};
+use lockbook_models::crypto::SignedValue;
 
 #[derive(Debug)]
 pub enum AccountCreationError {

@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "atty",
  "chrono",
@@ -844,6 +844,7 @@ dependencies = [
  "diffy",
  "fern",
  "jni",
+ "lockbook_models",
  "log",
  "rand",
  "reqwest",
@@ -855,6 +856,17 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "lockbook_models"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "rsa",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 

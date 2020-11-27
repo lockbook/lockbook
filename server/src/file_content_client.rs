@@ -1,5 +1,5 @@
 use crate::config::FilesDbConfig;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_models::crypto::EncryptedValueWithNonce;
 use s3::bucket::Bucket as S3Client;
 use s3::creds::AwsCredsError;
 use s3::creds::Credentials;

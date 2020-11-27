@@ -7,12 +7,11 @@ use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
-use crate::model::crypto::*;
-
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
+use lockbook_models::crypto::*;
 
 #[derive(Debug)]
 pub enum DecryptionFailed {

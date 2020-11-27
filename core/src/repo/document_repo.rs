@@ -1,7 +1,7 @@
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::*;
+use lockbook_models::crypto::Document;
 
 #[derive(Debug)]
 pub enum Error {
@@ -70,10 +70,10 @@ impl DocumentRepo for DocumentRepoImpl {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::crypto::*;
-    use crate::model::state::dummy_config;
     use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+    use lockbook_models::crypto::{Document, EncryptedValueWithNonce};
+    use lockbook_models::state::dummy_config;
 
     type DefaultDbProvider = TempBackedDB;
 

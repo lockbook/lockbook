@@ -1,9 +1,23 @@
-use crate::model::api::*;
-use crate::model::crypto::*;
 use rsa::RSAPublicKey;
 
-use crate::model::file_metadata::FileMetadata;
 use crate::CORE_CODE_VERSION;
+use lockbook_models::api::{
+    ChangeDocumentContentError, ChangeDocumentContentRequest, ChangeDocumentContentResponse,
+    CreateDocumentError, CreateDocumentRequest, CreateDocumentResponse, CreateFolderError,
+    CreateFolderRequest, CreateFolderResponse, DeleteDocumentError, DeleteDocumentRequest,
+    DeleteDocumentResponse, DeleteFolderError, DeleteFolderRequest, DeleteFolderResponse,
+    GetDocumentError, GetDocumentRequest, GetDocumentResponse, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUpdatesError, GetUpdatesRequest,
+    GetUpdatesResponse, GetUsageError, GetUsageRequest, GetUsageResponse, MoveDocumentError,
+    MoveDocumentRequest, MoveDocumentResponse, MoveFolderError, MoveFolderRequest,
+    MoveFolderResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+    RenameDocumentError, RenameDocumentRequest, RenameDocumentResponse, RenameFolderError,
+    RenameFolderRequest, RenameFolderResponse,
+};
+use lockbook_models::crypto::{
+    Document, EncryptedValue, EncryptedValueWithNonce, FolderAccessInfo, SignedValue,
+};
+use lockbook_models::file_metadata::FileMetadata;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use reqwest::Method;

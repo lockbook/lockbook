@@ -3,8 +3,8 @@ use crate::file_index_repo;
 use crate::usage_service;
 use crate::utils::{username_is_valid, version_is_supported};
 use crate::ServerState;
-use lockbook_core::model::api::*;
-use lockbook_core::model::file_metadata::FileType;
+use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileType;
 
 pub async fn change_document_content(
     server_state: &mut ServerState,

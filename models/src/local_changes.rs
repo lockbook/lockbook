@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::model::crypto::{Document, UserAccessInfo};
+use crate::crypto::{Document, UserAccessInfo};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalChange {

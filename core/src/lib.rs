@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
 
+extern crate lockbook_models;
 #[macro_use]
 extern crate log;
 extern crate reqwest;
@@ -17,17 +18,6 @@ use strum_macros::EnumIter;
 use uuid::Uuid;
 
 use crate::client::{ApiError, Client, ClientImpl};
-use crate::model::account::Account;
-use crate::model::api;
-use crate::model::api::{
-    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
-    DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
-    MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
-};
-use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::{FileMetadata, FileType};
-use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_provider::{DbProvider, DiskBackedDB};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
@@ -57,6 +47,17 @@ use crate::service::sync_service::{
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
 use crate::service::{db_state_service, file_service};
+use lockbook_models::account::Account;
+use lockbook_models::api;
+use lockbook_models::api::{
+    ChangeDocumentContentError, CreateDocumentError, CreateFolderError, DeleteDocumentError,
+    DeleteFolderError, FileUsage, GetDocumentError, GetPublicKeyError, GetUpdatesError,
+    MoveDocumentError, MoveFolderError, NewAccountError, RenameDocumentError, RenameFolderError,
+};
+use lockbook_models::crypto::DecryptedValue;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::state::Config;
+use lockbook_models::work_unit::WorkUnit;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -1241,7 +1242,6 @@ pub mod client;
 pub mod java_interface;
 mod json_interface;
 pub mod loggers;
-pub mod model;
 pub mod repo;
 pub mod service;
 

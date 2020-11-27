@@ -1,7 +1,7 @@
 extern crate base64;
 extern crate chrono;
 extern crate hyper;
-extern crate lockbook_core;
+extern crate lockbook_models;
 extern crate tokio;
 
 #[macro_use]
@@ -18,10 +18,10 @@ pub mod utils;
 use crate::config::config;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Method, Request, Response, StatusCode};
-use lockbook_core::loggers;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
+use std::fs;
 use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
@@ -38,16 +38,27 @@ pub struct ServerState {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = config();
-    loggers::init(
-        Path::new(&config.server.log_path),
-        LOG_FILE.to_string(),
-        true,
-    )
-    .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
-    .level(log::LevelFilter::Info)
-    .level_for("lockbook_server", log::LevelFilter::Debug)
-    .apply()
-    .expect("Failed setting logger!");
+
+    let log_path = Path::new(&config.server.log_path);
+    let _ = fs::create_dir_all(log_path)?;
+    let log_file = fern::log_file(log_path.join(LOG_FILE))?;
+
+    fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
+                timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                target = record.target(),
+                level = record.level(),
+                message = message.clone(),
+            ))
+        })
+        .chain(std::io::stdout())
+        .chain(log_file)
+        .level(log::LevelFilter::Info)
+        .level_for("lockbook_server", log::LevelFilter::Debug)
+        .apply()
+        .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str());
 
     info!("Connecting to index_db...");
     let index_db_client = file_index_repo::connect(&config.index_db)

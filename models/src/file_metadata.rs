@@ -1,5 +1,5 @@
-use crate::model::account::Username;
-use crate::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use crate::account::Username;
+use crate::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;

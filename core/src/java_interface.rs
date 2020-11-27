@@ -9,17 +9,17 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::json_interface::translate;
-use crate::model::account::Account;
-use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::{FileMetadata, FileType};
-use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
     get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id, get_root,
     get_usage, import_account, init_logger, insert_file, migrate_db, move_file, read_document,
     rename_file, set_last_synced, sync_all, write_document, Error,
 };
+use lockbook_models::account::Account;
+use lockbook_models::crypto::DecryptedValue;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::state::Config;
+use lockbook_models::work_unit::WorkUnit;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =

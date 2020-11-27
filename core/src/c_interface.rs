@@ -6,12 +6,12 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::json_interface::translate;
-use crate::model::crypto::DecryptedValue;
-use crate::model::file_metadata::FileType;
-use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
 use crate::{get_all_error_variants, Error, ExecuteWorkError};
+use lockbook_models::crypto::DecryptedValue;
+use lockbook_models::file_metadata::FileType;
+use lockbook_models::state::Config;
+use lockbook_models::work_unit::WorkUnit;
 use serde::Serialize;
 
 fn c_string(value: String) -> *const c_char {
