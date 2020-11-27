@@ -572,6 +572,5 @@ mod move_document_tests {
                 MoveFolderError::CannotMoveIntoDescendant
             ))
         );
-        MoveFolderError::CannotMoveIntoDescendant
     }
 }
