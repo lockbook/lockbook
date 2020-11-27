@@ -74,18 +74,18 @@ class DeleteFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<DeleteFileError.FileDoesNotExist>(
+        assertType<FileDeleteError.FileDoesNotExist>(
             CoreModel.deleteFile(config, generateId()).component2()
         )
     }
 
     @Test
     fun deleteFileUnexpectedError() {
-        val deleteFile: Result<Unit, DeleteFileError>? =
+        val fileDelete: Result<Unit, FileDeleteError>? =
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
 
-        assertType<DeleteFileError.Unexpected>(
-            deleteFile?.component2()
+        assertType<FileDeleteError.Unexpected>(
+            fileDelete?.component2()
         )
     }
 }
