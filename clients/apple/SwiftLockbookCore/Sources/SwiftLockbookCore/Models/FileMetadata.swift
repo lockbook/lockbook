@@ -9,9 +9,8 @@ public struct FileMetadata: Codable, Identifiable {
     public var contentVersion: UInt64
     public var metadataVersion: UInt64
     public var deleted: Bool
-    public var signature: SignedValue = SignedValue(content: "", signature: "")
     public var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
-    public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(garbage: "", nonce: ""))
+    public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(value: [], nonce: []))
 }
 
 public enum FileType: String, Codable {
@@ -36,12 +35,12 @@ public struct SignedValue: Codable {
 }
 
 public struct EncryptedValueWithNonce: Codable {
-    var garbage: String
-    var nonce: String
+    var value: [UInt]
+    var nonce: [UInt]
 }
 
 public struct EncryptedValue: Codable {
-    var garbage: String
+    var value: [UInt]
 }
 
 public struct RSAPublicKey: Codable {
