@@ -7,6 +7,7 @@ WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
+COPY models ../models
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .

@@ -6,7 +6,7 @@ RUN rustup component add clippy --toolchain stable
 WORKDIR server
 
 # Server depends on core via a relative import
-COPY core ../core
+COPY models ../models
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/

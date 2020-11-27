@@ -25,6 +25,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy code
+COPY models models
 COPY core core
 COPY clients/windows ../clients/windows
 

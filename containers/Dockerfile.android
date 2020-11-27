@@ -26,6 +26,7 @@ RUN yes | sdkmanager --licenses
 # Copy android and core in
 COPY clients/android clients/android
 COPY core core
+COPY models models
 
 # Build Core
 WORKDIR core

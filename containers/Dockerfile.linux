@@ -13,6 +13,7 @@ RUN rustup component add clippy --toolchain stable
 WORKDIR linux
 
 # CLI depends on core via a relative import
+COPY models ../models
 COPY core ../core
 
 # Required to get cargo to get and compile deps but not our source

@@ -9,6 +9,7 @@ RUN cargo install cargo-lipo
 RUN rustup target add aarch64-apple-ios x86_64-apple-ios
 
 # Build corelib for iOS
+COPY models models
 COPY core core
 WORKDIR core
 # This will cause problems for you during tests

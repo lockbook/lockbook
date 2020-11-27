@@ -16,6 +16,7 @@ RUN ldconfig
 RUN apt update && apt install -y graphviz
 
 # Cargo caching
+COPY models ../models
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
