@@ -1,3 +1,4 @@
+use crate::utils::username_is_valid;
 use crate::{file_index_repo, usage_service, RequestContext};
 use chrono::FixedOffset;
 use lockbook_core::model::api::{
@@ -6,7 +7,6 @@ use lockbook_core::model::api::{
 };
 use lockbook_core::model::file_metadata::FileType;
 use std::ops::Add;
-use crate::utils::username_is_valid;
 
 pub async fn new_account(
     context: &mut RequestContext<'_, NewAccountRequest>,
