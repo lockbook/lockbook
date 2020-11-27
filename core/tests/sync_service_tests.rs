@@ -517,11 +517,6 @@ mod sync_tests {
             })
             .for_each(|work| DefaultSyncService::execute_work(&db1, &account, work).unwrap());
 
-        println!(
-            "{:#?}",
-            DefaultFileMetadataRepo::test_repo_integrity(&db1).unwrap()
-        );
-
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db1)
             .unwrap()
             .is_empty());
@@ -587,8 +582,6 @@ mod sync_tests {
         )
         .unwrap();
 
-        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
-
         DefaultSyncService::calculate_work(&db2)
             .unwrap()
             .work_units
@@ -598,8 +591,6 @@ mod sync_tests {
                 WorkUnit::ServerChange { .. } => true,
             })
             .for_each(|work| DefaultSyncService::execute_work(&db2, &account, work).unwrap());
-
-        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
 
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db2)
             .unwrap()
