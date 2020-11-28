@@ -22,7 +22,8 @@ mod account_tests {
 
     #[test]
     fn create_account_successfully() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db,
@@ -34,8 +35,10 @@ mod account_tests {
 
     #[test]
     fn username_taken_test() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db1,
@@ -64,7 +67,9 @@ mod account_tests {
 
     #[test]
     fn invalid_username_test() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
+
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for uname in &invalid_unames {
@@ -88,7 +93,8 @@ mod account_tests {
 
     #[test]
     fn import_sync() {
-        let db1 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -100,13 +106,11 @@ mod account_tests {
         let account_string = DefaultAccountService::export_account(&db1).unwrap();
         let home_folders1 = DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap();
 
-        let db2 = test_db();
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         assert!(DefaultAccountService::export_account(&db2).is_err());
         assert!(DefaultAccountService::import_account(&db2, &account_string).is_ok());
-        assert_eq!(
-            DefaultAccountRepo::get_account(&to_backend(&db2)).unwrap(),
-            account
-        );
+        assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
         assert_eq!(DefaultFileMetadataRepo::get_last_updated(&db2).unwrap(), 0);
 
         let work = DefaultSyncService::calculate_work(&db2).unwrap();
@@ -125,7 +129,8 @@ mod account_tests {
 
     #[test]
     fn test_new_account_when_one_exists() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let generated_account = generate_account();
 
         DefaultAccountService::create_account(
@@ -156,8 +161,10 @@ mod account_tests {
 
     #[test]
     fn test_import_invalid_private_key() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let account = Account {
             username: "Smail".to_string(),
@@ -173,7 +180,7 @@ mod account_tests {
             ),
         };
 
-        DefaultAccountRepo::insert_account(&to_backend(&db1), &account).unwrap();
+        DefaultAccountRepo::insert_account(&db1, &account).unwrap();
 
         let result = discriminant(
             &DefaultAccountService::import_account(
@@ -276,8 +283,10 @@ mod account_tests {
     #[test]
     fn test_account_public_key_mismatch_import() {
         let bad_account_string = {
-            let db1 = test_db();
-            let db2 = test_db();
+            let sled1 = &test_db();
+            let db1 = &to_backend(sled1);
+            let sled2 = &test_db();
+            let db2 = &to_backend(sled2);
             let generated_account1 = generate_account();
             let generated_account2 = generate_account();
             let account1 = DefaultAccountService::create_account(
@@ -293,7 +302,7 @@ mod account_tests {
             )
             .unwrap();
             account2.username = account1.username;
-            DefaultAccountRepo::insert_account(&to_backend(&db2), &account2).unwrap();
+            DefaultAccountRepo::insert_account(&db2, &account2).unwrap();
             DefaultAccountService::export_account(&db2).unwrap()
         };
 
