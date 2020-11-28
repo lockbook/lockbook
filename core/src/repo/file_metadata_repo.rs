@@ -529,20 +529,20 @@ mod unit_tests {
     use crate::model::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::file_metadata::{FileMetadata, FileType};
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl, Problem};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::{DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
     use crate::{
         DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
         DefaultFileService,
     };
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
 
     fn base_test_file_metadata() -> FileMetadata {
         FileMetadata {
@@ -594,7 +594,7 @@ mod unit_tests {
 
     #[test]
     fn insert_file_metadata() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "root_folder");
         let test_file = insert_test_metadata(&db, FileType::Document, root.id, "test.txt");
@@ -613,7 +613,7 @@ mod unit_tests {
 
     #[test]
     fn update_file_metadata() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
@@ -649,7 +649,7 @@ mod unit_tests {
 
     #[test]
     fn test_searches() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "root_folder1");
         let _ = insert_test_metadata(&db, FileType::Document, root.id, "test.txt");
@@ -670,7 +670,7 @@ mod unit_tests {
 
     #[test]
     fn test_integrity_no_problems() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let _ = insert_test_metadata_root(&db, "rootdir");
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
@@ -679,7 +679,7 @@ mod unit_tests {
 
     #[test]
     fn test_no_root() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&db).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::NoRootFolder);
@@ -687,7 +687,7 @@ mod unit_tests {
 
     #[test]
     fn test_orphaned_children() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let keys = DefaultCrypto::generate_key().unwrap();
 
@@ -725,7 +725,7 @@ mod unit_tests {
 
     #[test]
     fn test_files_invalid_names() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "rootdir");
         let has_slash = insert_test_metadata(&db, FileType::Document, root.id, "uh/oh");
@@ -739,7 +739,7 @@ mod unit_tests {
 
     #[test]
     fn test_cycle_detection() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let _ = insert_test_metadata_root(&db, "rootdir");
         let folder1 = Uuid::new_v4();
@@ -781,7 +781,7 @@ mod unit_tests {
 
     #[test]
     fn test_name_conflicts() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "uhoh");
         let doc1 = insert_test_metadata(&db, FileType::Document, root.id, "a");
@@ -796,7 +796,7 @@ mod unit_tests {
 
     #[test]
     fn test_document_treated_as_folder() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "uhoh");
         let doc = insert_test_metadata(&db, FileType::Document, root.id, "a");
@@ -809,7 +809,7 @@ mod unit_tests {
 
     #[test]
     fn test_get_children_handle_empty_root() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let root = insert_test_metadata_root(&db, "root");
         let children_of_root =
             DefaultFileMetadataRepo::get_and_get_children_recursively(&db, root.id).unwrap();
@@ -818,7 +818,7 @@ mod unit_tests {
 
     #[test]
     fn test_get_children() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let root = insert_test_metadata_root(&db, "root");
 

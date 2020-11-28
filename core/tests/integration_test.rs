@@ -12,7 +12,7 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
-use lockbook_core::storage::db_provider::{DbProvider, TempBackedDB};
+use lockbook_core::storage::db_provider::{DbProvider, DiskBackedDB};
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
@@ -36,10 +36,7 @@ macro_rules! assert_matches (
 );
 
 pub fn test_db() -> Db {
-    let config = Config {
-        writeable_path: "ignored".to_string(),
-    };
-    TempBackedDB::connect_to_db(&config).unwrap()
+    DiskBackedDB::connect_to_db(&test_config()).unwrap()
 }
 
 pub fn test_config() -> Config {

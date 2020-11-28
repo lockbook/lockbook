@@ -12,9 +12,9 @@ impl Config {
     }
 }
 
-pub fn dummy_config() -> Config {
+pub fn temp_config() -> Config {
     Config {
-        writeable_path: "ignored".to_string(),
+        writeable_path: String::from(tempfile::tempdir().unwrap().path().to_str().unwrap()),
     }
 }
 
