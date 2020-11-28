@@ -560,8 +560,8 @@ pub fn insert_file(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum FileDeleteError {
-    FileDoesNotExist,
     CannotDeleteRoot,
+    FileDoesNotExist,
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
@@ -718,13 +718,13 @@ pub fn rename_file(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum MoveFileError {
-    NoAccount,
-    FileDoesNotExist,
+    CannotMoveRoot,
     DocumentTreatedAsFolder,
+    FileDoesNotExist,
+    FolderMovedIntoItself,
+    NoAccount,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
-    FolderMovedIntoItself,
-    CannotMoveRoot,
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
