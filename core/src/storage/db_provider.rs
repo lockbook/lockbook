@@ -48,7 +48,7 @@ pub enum Backend<'a> {
 }
 
 impl Backend<'_> {
-    pub fn write<K, V>(&self, key: K, value: V) -> Result<IVec, BackendError>
+    pub fn write<K, V>(&self, key: K, value: V) -> Result<(), BackendError>
     where
         K: AsRef<[u8]>,
         V: Into<IVec>,
@@ -59,8 +59,8 @@ impl Backend<'_> {
                     .open_tree(b"documents")
                     .map_err(BackendError::SledError)?;
                 tree.insert(key, value)
-                    .map_err(BackendError::SledError)?
-                    .ok_or(BackendError::NotWritten)
+                    .map_err(BackendError::SledError)
+                    .map(|_| ())
             }
         }
     }
@@ -75,10 +75,9 @@ impl Backend<'_> {
                 let tree = db
                     .open_tree(b"documents")
                     .map_err(BackendError::SledError)?;
-                Ok(tree
-                    .get(key)
-                    .map_err(BackendError::SledError)?
-                    .map(|v| From::from(v)))
+                tree.get(key)
+                    .map_err(BackendError::SledError)
+                    .map(|v| v.map(From::from))
             }
         }
     }
