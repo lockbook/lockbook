@@ -21,26 +21,28 @@ mod move_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
-        let (folder, folder_key) =
+        let (mut folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        DefaultClient::request(
+        folder.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document
         doc.parent = folder.id;
@@ -90,14 +92,15 @@ mod move_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document to folder that was never created
         let (folder, _) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
@@ -209,43 +212,45 @@ mod move_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
-        let (folder, folder_key) =
+        let (mut folder, folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        DefaultClient::request(
+        folder.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &folder,
                 aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create document
         let (mut doc2, _) =
             generate_file_metadata(&account, &folder, &folder_key, FileType::Document);
         doc2.name = doc.name.clone();
-        DefaultClient::request(
+        doc2.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
-                &doc,
+                &doc2,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document
         doc.parent = folder.id;
-        doc.metadata_version -= 1;
         let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
             result,
