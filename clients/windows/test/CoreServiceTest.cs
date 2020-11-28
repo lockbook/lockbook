@@ -88,7 +88,7 @@ namespace test {
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var username2 = RandomUsername();
-            var createAccountResult2 = CoreService.CreateAccount(username2).WaitResult();
+            var createAccountResult2 = CoreService.CreateAccount(username2, apiUrl).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.AccountExistsAlready,
                 CastOrDie(createAccountResult2, out Core.CreateAccount.ExpectedError _).Error);
         }
