@@ -35,7 +35,6 @@ impl DocumentRepo for DocumentRepoImpl {
                 serde_json::to_vec(document).map_err(Error::SerdeError)?,
             )
             .map_err(Error::BackendError)
-            .map(|_| ())
     }
 
     fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
