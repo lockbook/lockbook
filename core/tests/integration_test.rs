@@ -12,7 +12,7 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
-use lockbook_core::storage::db_provider::{DbProvider, DiskBackedDB};
+use lockbook_core::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
@@ -173,8 +173,8 @@ pub fn assert_dbs_eq(db1: &Db, db2: &Db) {
     assert_eq!(value1, value2);
 
     assert_eq!(
-        DefaultAccountRepo::get_account(&db1).unwrap(),
-        DefaultAccountRepo::get_account(&db2).unwrap()
+        DefaultAccountRepo::get_account(&to_backend(&db1)).unwrap(),
+        DefaultAccountRepo::get_account(&to_backend(&db2)).unwrap()
     );
 
     assert_eq!(
