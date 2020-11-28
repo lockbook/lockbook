@@ -77,13 +77,13 @@ impl AccountRepo for AccountRepoImpl {
 #[cfg(test)]
 mod unit_tests {
     use crate::model::account::Account;
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
-    use crate::storage::db_provider::{DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;
 
     #[test]
@@ -94,7 +94,7 @@ mod unit_tests {
             private_key: RSAImpl::<ClockImpl>::generate_key().expect("Key generation failure"),
         };
 
-        let config = dummy_config();
+        let config = temp_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let res = DefaultAccountRepo::get_account(&db);
         assert!(res.is_err());

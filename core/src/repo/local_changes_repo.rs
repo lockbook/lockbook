@@ -418,12 +418,12 @@ mod unit_tests {
 
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::local_changes::{LocalChange, Moved, Renamed};
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
-    use crate::storage::db_provider::{DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
 
     pub struct TestClock;
 
@@ -448,7 +448,7 @@ mod unit_tests {
 
     #[test]
     fn set_and_unset_fields() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         assert_total_local_changes!(&db, 0);
 
         let id = Uuid::new_v4();
@@ -584,7 +584,7 @@ mod unit_tests {
 
     #[test]
     fn new_document_deleted() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let id = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(&db, id).unwrap();
 
@@ -610,7 +610,7 @@ mod unit_tests {
 
     #[test]
     fn new_folder_deleted() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let id = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(&db, id).unwrap();
 
@@ -644,7 +644,7 @@ mod unit_tests {
 
     #[test]
     fn track_changes_on_multiple_files() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let id1 = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(&db, id1).unwrap();
         assert_total_local_changes!(&db, 1);
@@ -675,7 +675,7 @@ mod unit_tests {
 
     #[test]
     fn unknown_id() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
             TestLocalChangesRepo::get_local_changes(&db, the_wrong_id).unwrap(),
@@ -691,7 +691,7 @@ mod unit_tests {
 
     #[test]
     fn rename_back_to_original() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let id = Uuid::new_v4();
 
         TestLocalChangesRepo::track_rename(&db, id, "old_file", "new_name").unwrap();
@@ -706,7 +706,7 @@ mod unit_tests {
 
     #[test]
     fn move_back_to_original() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();
 

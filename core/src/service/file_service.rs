@@ -564,7 +564,7 @@ mod unit_tests {
 
     use crate::model::account::Account;
     use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::document_repo::DocumentRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -575,14 +575,14 @@ mod unit_tests {
     use crate::service::file_service::{
         DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
-    use crate::storage::db_provider::{Backend, DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, NewFileFromPathError,
     };
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
@@ -624,7 +624,7 @@ mod unit_tests {
 
     #[test]
     fn file_service_runthrough() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -674,7 +674,7 @@ mod unit_tests {
 
     #[test]
     fn path_calculations_runthrough() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -728,7 +728,7 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -780,8 +780,8 @@ mod unit_tests {
 
     #[test]
     fn test_arbitrary_path_file_creation() {
-        init_logger(dummy_config().path()).expect("Logger failed to initialize in test!");
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        init_logger(temp_config().path()).expect("Logger failed to initialize in test!");
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -859,7 +859,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_path() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -875,7 +875,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_duplicate_files_via_create() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -891,7 +891,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children_via_path() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -907,7 +907,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_document_has_children() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -923,7 +923,7 @@ mod unit_tests {
 
     #[test]
     fn ensure_no_bad_names() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -937,7 +937,7 @@ mod unit_tests {
 
     #[test]
     fn rename_runthrough() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1020,7 +1020,7 @@ mod unit_tests {
 
     #[test]
     fn move_runthrough() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1082,7 +1082,7 @@ mod unit_tests {
 
     #[test]
     fn test_keeping_track_of_edits() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1120,7 +1120,7 @@ mod unit_tests {
 
     #[test]
     fn test_document_delete_new_documents_no_trace_when_deleted() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
@@ -1149,7 +1149,7 @@ mod unit_tests {
 
     #[test]
     fn test_document_delete_after_sync() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1181,7 +1181,7 @@ mod unit_tests {
 
     #[test]
     fn test_folders_are_created_in_order() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1218,7 +1218,7 @@ mod unit_tests {
 
     #[test]
     fn test_delete_folder() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
@@ -1259,7 +1259,7 @@ mod unit_tests {
 
     #[test]
     fn test_other_things_are_not_touched_during_delete() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
