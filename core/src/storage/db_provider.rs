@@ -1,6 +1,6 @@
 use std::io;
 
-use sled::{Db, IVec};
+use sled::Db;
 use tempfile::tempdir;
 
 use crate::model::state::Config;
@@ -52,12 +52,12 @@ impl Backend<'_> {
     where
         N: AsRef<[u8]>,
         K: AsRef<[u8]>,
-        V: Into<IVec>,
+        V: Into<Vec<u8>>,
     {
         match self {
             Backend::Sled(db) => {
                 let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
-                tree.insert(key, value)
+                tree.insert(key, value.into())
                     .map_err(BackendError::SledError)
                     .map(|_| ())
             }
@@ -68,14 +68,14 @@ impl Backend<'_> {
     where
         N: AsRef<[u8]>,
         K: AsRef<[u8]>,
-        V: From<IVec>,
+        V: From<Vec<u8>>,
     {
         match self {
             Backend::Sled(db) => {
                 let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
                 tree.get(key)
                     .map_err(BackendError::SledError)
-                    .map(|v| v.map(From::from))
+                    .map(|v| v.map(|d| From::from(d.to_vec())))
             }
         }
     }
