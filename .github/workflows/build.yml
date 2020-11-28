@@ -1,148 +1,35 @@
-name: Checks
+name: Build
 
 on:
   push:
     branches: [ master ]
     paths-ignore:
       - docs/**
-  pull_request:
-    branches: [ master ]
+  workflow_dispatch:
+    workflow_dispatch:
+      inputs:
+        git-ref:
+          description: Ref (Branch)
+          required: true
 
 jobs:
-  Clean:
-    runs-on: self-hosted
-    steps:
-    - name: Clean
-      run: make clean
-  Core:
-    runs-on: self-hosted
-    needs: Clean
+  Server:
+    runs-on: [self-hosted, builder]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      HASH: ${{ github.sha }}
     steps:
     - uses: actions/checkout@v2
-    - name: Build container
-      run: make core
-    - name: Compile and run tests
-      run: make core_test
-    - name: Check Formatting
-      run: make core_fmt
-    - name: Lint
-      run: make core_lint
-  Cli:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
+      if: github.event.inputs.git-ref == ''
     - uses: actions/checkout@v2
-    - name: Build container
-      run: make cli
-    - name: Compile and run tests
-      run: make cli_test
-    - name: Check Formatting
-      run: make cli_fmt
-    - name: Lint
-      run: make cli_lint
-  Linux:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: make linux
-    - name: Check Formatting
-      run: make linux_fmt
-    - name: Lint
-      run: make linux_lint
-    - name: Compile and run tests
-      run: make linux_test
-  Android:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build container
-        run: make android
-      - name: Check Formatting
-        run: make android_fmt
-      - name: Lint
-        run: make android_lint
-  Integration-Tests:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build server container
-      run: make server
-    - name: Build test container
-      run: make integration_tests
-    - name: Compile and run tests
-      run: make integration_tests_run
-  Server-Integration-Tests:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build server container
-        run: make server
-      - name: Build test container
-        run: make server_tests
-      - name: Compile and run tests
-        run: make server_tests_run
-  Kotlin-Interface-Tests:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build server container
-      run: make server
-    - name: Build test container
-      run: make kotlin_interface_tests
-    - name: Compile and run tests
-      run: make kotlin_interface_tests_run
-  Swift-Interface-Tests:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build server container
-        run: make server
-      - name: Build test container
-        run: make swift_interface_tests
-      - name: Compile and run tests
-        run: make swift_interface_tests_run
-  CSharp-Interface-Tests:
-    runs-on: self-hosted
-    needs: Core
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build server container
-        run: make server
-      - name: Build test container
-        run: make csharp_interface_tests
-      - name: Compile and run tests
-        run: make csharp_interface_tests_run
+      if: github.event.inputs.git-ref != ''
+      with:
+        ref: ${{ github.event.inputs.git-ref }}
+    - name: Build Server
+      working-directory: server
+      run: cargo build --release
+    - name: Archive Build
+      uses: actions/upload-artifact@v2
+      with:
+        name: lockbook-server-${{ github.sha }}
+        path: server/target/release/lockbook-server
