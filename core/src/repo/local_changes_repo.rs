@@ -419,9 +419,9 @@ mod unit_tests {
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::local_changes::{LocalChange, Moved, Renamed};
     use crate::model::state::dummy_config;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
+    use crate::storage::db_provider::{DbProvider, TempBackedDB};
 
     type DefaultDbProvider = TempBackedDB;
 
