@@ -12,6 +12,7 @@ namespace test {
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
         CoreService CoreService = new CoreService(lockbookDir);
+        string apiUrl = Environment.GetEnvironmentVariable("API_URL");
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
@@ -50,7 +51,7 @@ namespace test {
             CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
 
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var migrateDbResult = CoreService.MigrateDb().WaitResult();
@@ -65,7 +66,7 @@ namespace test {
         [TestMethod]
         public void AccountExistsTrue() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getAccountResult = CoreService.GetAccount().WaitResult();
@@ -76,14 +77,14 @@ namespace test {
         [TestMethod]
         public void CreateAccountSuccess() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
         }
 
         [TestMethod]
         public void CreateAccountAccountExistsAlready() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var username2 = RandomUsername();
@@ -95,7 +96,7 @@ namespace test {
         [TestMethod]
         public void CreateAccountUsernameTaken() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var syncResult = CoreService.SyncAll().WaitResult();
@@ -103,7 +104,7 @@ namespace test {
 
             Directory.Delete(lockbookDir, true);
 
-            var createAccountResult2 = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult2 = CoreService.CreateAccount(username, apiUrl).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.UsernameTaken,
                 CastOrDie(createAccountResult2, out Core.CreateAccount.ExpectedError _).Error);
         }
@@ -111,7 +112,7 @@ namespace test {
         [TestMethod]
         public void CreateAccountInvalidUsername() {
             var username = "not! a! valid! username!";
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
                 CastOrDie(createAccountResult, out Core.CreateAccount.ExpectedError _).Error);
         }
@@ -119,7 +120,7 @@ namespace test {
         [TestMethod]
         public void GetAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getAccountResult = CoreService.GetAccount().WaitResult();
@@ -136,7 +137,7 @@ namespace test {
         [TestMethod]
         public void ExportAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
@@ -153,7 +154,7 @@ namespace test {
         [TestMethod]
         public void ImportAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
@@ -168,7 +169,7 @@ namespace test {
         [TestMethod]
         public void ImportAccountAccountStringCorrupted() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var accountString = "#######!!@$@%";
@@ -183,7 +184,7 @@ namespace test {
         [TestMethod]
         public void ImportAccountAccountExistsAlready() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var exportAccountResult = CoreService.ExportAccount().WaitResult();
@@ -197,7 +198,7 @@ namespace test {
         [TestMethod]
         public void GetRoot() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -214,7 +215,7 @@ namespace test {
         [TestMethod]
         public void ListMetadatas() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var listFileMetadataResult = CoreService.ListMetadatas().WaitResult();
@@ -224,7 +225,7 @@ namespace test {
         [TestMethod]
         public void GetChildren() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -237,7 +238,7 @@ namespace test {
         [TestMethod]
         public void SyncAll() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var syncAllResult = CoreService.SyncAll().WaitResult();
@@ -254,7 +255,7 @@ namespace test {
         [TestMethod]
         public void CalculateWork() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var calculateWorkResult = CoreService.CalculateWork().WaitResult();
@@ -271,7 +272,7 @@ namespace test {
         [TestMethod]
         public void ExecuteWork() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -290,7 +291,7 @@ namespace test {
         [TestMethod]
         public void GetLastSynced() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getLastSyncedResult = CoreService.GetLastSynced().WaitResult();
@@ -300,7 +301,7 @@ namespace test {
         [TestMethod]
         public void SetLastSynced() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var setLastSyncedResult = CoreService.SetLastSynced(420).WaitResult();
@@ -310,7 +311,7 @@ namespace test {
         [TestMethod]
         public void GetUsage() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getUsageResult = CoreService.GetUsage().WaitResult();
@@ -327,7 +328,7 @@ namespace test {
         [TestMethod]
         public void CreateFile() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -347,7 +348,7 @@ namespace test {
         [TestMethod]
         public void CreateFileDocTreatedAsFolder() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -364,7 +365,7 @@ namespace test {
         [TestMethod]
         public void CreateFileCouldNotFindAParent() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var createFileResult = CoreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
@@ -375,7 +376,7 @@ namespace test {
         [TestMethod]
         public void CreateFileFileNameNotAvailable() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -392,7 +393,7 @@ namespace test {
         [TestMethod]
         public void CreateFileFileNameContainsSlash() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -406,7 +407,7 @@ namespace test {
         [TestMethod]
         public void CreateFileFileNameEmpty() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -420,7 +421,7 @@ namespace test {
         [TestMethod]
         public void WriteDoc() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -436,7 +437,7 @@ namespace test {
         [TestMethod]
         public void WriteDocNoAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -455,7 +456,7 @@ namespace test {
         [TestMethod]
         public void ReadDoc() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -472,7 +473,7 @@ namespace test {
         [TestMethod]
         public void ReadDocNoAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -491,7 +492,7 @@ namespace test {
         [TestMethod]
         public void ReadDocTreatedFolderAsDocument() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -509,7 +510,7 @@ namespace test {
         [TestMethod]
         public void ReadDocFileDoesNotExist() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var readDocResult = CoreService.ReadDocument(Guid.NewGuid().ToString()).WaitResult();
@@ -520,7 +521,7 @@ namespace test {
         [TestMethod]
         public void RenameFile() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -537,7 +538,7 @@ namespace test {
         [TestMethod]
         public void MoveFile() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -556,7 +557,7 @@ namespace test {
         [TestMethod]
         public void MoveFileNoAccount() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -577,7 +578,7 @@ namespace test {
         [TestMethod]
         public void MoveFileFileDoesNotExist() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -591,7 +592,7 @@ namespace test {
         [TestMethod]
         public void MoveFileDocumentTreatedAsFolder() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -611,7 +612,7 @@ namespace test {
         [TestMethod]
         public void MoveFileTargetParentHasChildNamedThat() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -634,7 +635,7 @@ namespace test {
         [TestMethod]
         public void MoveFileTargetParentDoesNotExist() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
@@ -651,7 +652,7 @@ namespace test {
         [TestMethod]
         public void MoveFileCannotMoveRoot() {
             var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username).WaitResult();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var getRootResult = CoreService.GetRoot().WaitResult();
