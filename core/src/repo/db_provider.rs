@@ -1,6 +1,6 @@
 use std::io;
 
-use sled::Db;
+use sled::{Db, IVec};
 use tempfile::tempdir;
 
 use crate::model::state::Config;
@@ -34,5 +34,68 @@ impl DbProvider for TempBackedDB {
         let dir_path = dir.path().join(DB_NAME);
         debug!("DB Location: {:?}", dir_path);
         Ok(sled::open(dir_path).map_err(Error::SledError)?)
+    }
+}
+
+#[derive(Debug)]
+pub enum BackendError {
+    SledError(sled::Error),
+    NotWritten,
+}
+
+pub enum Backend<'a> {
+    Sled(&'a Db),
+}
+
+impl Backend<'_> {
+    pub fn write<K, V>(&self, key: K, value: V) -> Result<IVec, BackendError>
+    where
+        K: AsRef<[u8]>,
+        V: Into<IVec>,
+    {
+        match self {
+            Backend::Sled(db) => {
+                let tree = db
+                    .open_tree(b"documents")
+                    .map_err(BackendError::SledError)?;
+                tree.insert(key, value)
+                    .map_err(BackendError::SledError)?
+                    .ok_or(BackendError::NotWritten)
+            }
+        }
+    }
+
+    pub fn read<K, V>(&self, key: K) -> Result<Option<V>, BackendError>
+    where
+        K: AsRef<[u8]>,
+        V: From<IVec>,
+    {
+        match self {
+            Backend::Sled(db) => {
+                let tree = db
+                    .open_tree(b"documents")
+                    .map_err(BackendError::SledError)?;
+                Ok(tree
+                    .get(key)
+                    .map_err(BackendError::SledError)?
+                    .map(|v| From::from(v)))
+            }
+        }
+    }
+
+    pub fn delete<K>(&self, key: K) -> Result<(), BackendError>
+    where
+        K: AsRef<[u8]>,
+    {
+        match self {
+            Backend::Sled(db) => {
+                let tree = db
+                    .open_tree(b"documents")
+                    .map_err(BackendError::SledError)?;
+                tree.remove(key)
+                    .map_err(BackendError::SledError)
+                    .map(|_| ())
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
+use crate::repo::db_provider::Backend;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo;
@@ -324,7 +325,9 @@ impl<
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
-        if let Some(old_encrypted) = FileDb::maybe_get(&db, id).map_err(FetchOldVersionError)? {
+        if let Some(old_encrypted) =
+            FileDb::maybe_get(Backend::Sled(db), id).map_err(FetchOldVersionError)?
+        {
             let decrypted = FileCrypto::read_document(
                 &account,
                 &old_encrypted,
@@ -347,7 +350,8 @@ impl<
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
 
-        FileDb::insert(&db, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
+        FileDb::insert(Backend::Sled(db), file_metadata.id, &new_file)
+            .map_err(DocumentWriteError)?;
 
         Ok(())
     }
@@ -462,7 +466,7 @@ impl<
             return Err(ReadDocumentError::TreatedFolderAsDocument);
         }
 
-        let document = FileDb::get(&db, id).map_err(DocumentReadError)?;
+        let document = FileDb::get(Backend::Sled(db), id).map_err(DocumentReadError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
@@ -499,7 +503,8 @@ impl<
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         }
 
-        FileDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
+        FileDb::delete(Backend::Sled(db), id)
+            .map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(&db, id, file_metadata.file_type)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
@@ -524,7 +529,8 @@ impl<
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
         for mut file in files_to_delete {
             if file.file_type == Document {
-                FileDb::delete(&db, file.id).map_err(DeleteFolderError::FailedToDeleteDocument)?;
+                FileDb::delete(Backend::Sled(db), file.id)
+                    .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
             let moved = if let Some(change) = ChangesDb::get_local_changes(&db, file.id)

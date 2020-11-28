@@ -21,6 +21,7 @@ use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
+use crate::repo::db_provider::Backend;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -355,7 +356,8 @@ impl<
                         .map_err(WorkExecutionError::from)?
                         .content;
 
-                        DocsDb::insert(&db, metadata.id, &document).map_err(SaveDocumentError)?;
+                        DocsDb::insert(Backend::Sled(db), metadata.id, &document)
+                            .map_err(SaveDocumentError)?;
                     }
                 } else {
                     debug!(
@@ -380,7 +382,8 @@ impl<
                                 ChangeDb::delete(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                                DocsDb::delete(Backend::Sled(db), metadata.id)
+                                    .map_err(SaveDocumentError)?
                             } else {
                                 // A deleted folder
                                 let delete_errors =
@@ -391,7 +394,7 @@ impl<
                                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                                     .into_iter()
                                     .map(|file_metadata| -> Option<String> {
-                                        match DocsDb::delete(&db, file_metadata.id) {
+                                        match DocsDb::delete(Backend::Sled(db), file_metadata.id) {
                                             Ok(_) => {
                                                 match FileMetadataDb::non_recursive_delete(
                                                     &db,
@@ -433,7 +436,7 @@ impl<
                                 .map_err(WorkExecutionError::from)?
                                 .content;
 
-                                DocsDb::insert(&db, metadata.id, &document)
+                                DocsDb::insert(Backend::Sled(db), metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
                             }
                         }
@@ -543,9 +546,9 @@ impl<
 
                                         // Copy the local copy over
                                         DocsDb::insert(
-                                            &db,
+                                            Backend::Sled(db),
                                             new_file.id,
-                                            &DocsDb::get(&db, local_changes.id)
+                                            &DocsDb::get(Backend::Sled(db), local_changes.id)
                                                 .map_err(SaveDocumentError)?,
                                         )
                                         .map_err(SaveDocumentError)?;
@@ -561,8 +564,12 @@ impl<
                                         .map_err(WorkExecutionError::from)?
                                         .content;
 
-                                        DocsDb::insert(&db, metadata.id, &new_content)
-                                            .map_err(SaveDocumentError)?;
+                                        DocsDb::insert(
+                                            Backend::Sled(db),
+                                            metadata.id,
+                                            &new_content,
+                                        )
+                                        .map_err(SaveDocumentError)?;
 
                                         // Mark content as synced
                                         ChangeDb::untrack_edit(&db, metadata.id)
@@ -582,7 +589,8 @@ impl<
                                 ChangeDb::delete(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-                                DocsDb::delete(&db, metadata.id).map_err(SaveDocumentError)?
+                                DocsDb::delete(Backend::Sled(db), metadata.id)
+                                    .map_err(SaveDocumentError)?
                             } else {
                                 // A deleted folder
                                 let delete_errors =
@@ -593,7 +601,7 @@ impl<
                                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                                     .into_iter()
                                     .map(|file_metadata| -> Option<String> {
-                                        match DocsDb::delete(&db, file_metadata.id) {
+                                        match DocsDb::delete(Backend::Sled(db), file_metadata.id) {
                                             Ok(_) => {
                                                 match FileMetadataDb::non_recursive_delete(
                                                     &db,
@@ -637,7 +645,7 @@ impl<
             Some(mut local_change) => { // TODO this needs to be mut because the untracks are not taking effect
                 if local_change.new {
                     if metadata.file_type == Document {
-                        let content = DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?;
+                        let content = DocsDb::get(Backend::Sled(db), metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::request(
             &account,
                             CreateDocumentRequest::new(&metadata, content),
@@ -708,7 +716,7 @@ impl<
                     let version = ApiClient::request(&account, ChangeDocumentContentRequest{
                         id: metadata.id,
                         old_metadata_version: metadata.metadata_version,
-                        new_content: DocsDb::get(&db, metadata.id).map_err(SaveDocumentError)?,
+                        new_content: DocsDb::get(Backend::Sled(db), metadata.id).map_err(SaveDocumentError)?,
                     }).map_err(WorkExecutionError::from)?.new_metadata_and_content_version;
 
                     metadata.content_version = version;

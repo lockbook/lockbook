@@ -1,68 +1,62 @@
-use sled::Db;
+use sled::{Db, IVec};
 use uuid::Uuid;
 
 use crate::model::crypto::*;
+use crate::repo::db_provider::{Backend, BackendError};
+use std::borrow::Borrow;
 
 #[derive(Debug)]
 pub enum Error {
-    SledError(sled::Error),
+    BackendError(BackendError),
     SerdeError(serde_json::Error),
     FileRowMissing(()), // TODO remove from insert
 }
 
 #[derive(Debug)]
 pub enum DbError {
-    SledError(sled::Error),
+    BackendError(BackendError),
     SerdeError(serde_json::Error),
 }
 
 pub trait DocumentRepo {
-    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error>;
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
+    fn insert(backend: Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
+    fn get(backend: Backend, id: Uuid) -> Result<EncryptedDocument, Error>;
+    fn maybe_get(backend: Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
+    fn delete(backend: Backend, id: Uuid) -> Result<(), Error>;
 }
 
 pub struct DocumentRepoImpl;
 
 impl DocumentRepo for DocumentRepoImpl {
-    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        tree.insert(
-            id.as_bytes(),
-            serde_json::to_vec(document).map_err(Error::SerdeError)?,
-        )
-        .map_err(Error::SledError)?;
-        Ok(())
+    fn insert(backend: Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
+        backend
+            .write(
+                id.as_bytes(),
+                serde_json::to_vec(document).map_err(Error::SerdeError)?,
+            )
+            .map_err(Error::BackendError)
+            .map(|_| ())
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
-        let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let document: EncryptedDocument =
-            serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
-
-        Ok(document)
-    }
-
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
-        let tree = db.open_tree(b"documents").map_err(DbError::SledError)?;
-        match tree.get(id.as_bytes()).map_err(DbError::SledError)? {
-            None => Ok(None),
-            Some(file) => {
-                let document: EncryptedDocument =
-                    serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
-
-                Ok(Some(document))
-            }
+    fn get(backend: Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
+        let maybe_data: Option<IVec> = backend.read(id.as_bytes()).map_err(Error::BackendError)?;
+        match maybe_data {
+            None => Err(Error::FileRowMissing(())),
+            Some(data) => serde_json::from_slice(data.borrow()).map_err(Error::SerdeError),
         }
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        tree.remove(id.as_bytes()).map_err(Error::SledError)?;
-        Ok(())
+    fn maybe_get(backend: Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
+        let maybe_data: Option<IVec> =
+            backend.read(id.as_bytes()).map_err(DbError::BackendError)?;
+        match maybe_data {
+            None => Ok(None),
+            Some(data) => serde_json::from_slice(data.borrow()).map_err(DbError::SerdeError),
+        }
+    }
+
+    fn delete(backend: Backend, id: Uuid) -> Result<(), Error> {
+        backend.delete(id.as_bytes()).map_err(Error::BackendError)
     }
 }
 
