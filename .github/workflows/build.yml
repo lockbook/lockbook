@@ -7,6 +7,12 @@ on:
       - docs/**
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+    workflow_dispatch:
+      inputs:
+        git-ref:
+          description: Ref (Branch)
+          required: true
 
 jobs:
   Server:
@@ -16,6 +22,11 @@ jobs:
       HASH: ${{ github.sha }}
     steps:
     - uses: actions/checkout@v2
+      if: github.event.inputs.git-ref == ''
+    - uses: actions/checkout@v2
+      if: github.event.inputs.git-ref != ''
+      with:
+        ref: ${{ github.event.inputs.git-ref }}
     - name: Build Server
       working-directory: server
       run: cargo build --release
