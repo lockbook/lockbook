@@ -21,7 +21,6 @@ use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::work_unit::WorkUnit;
 use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::db_provider::Backend;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -39,6 +38,7 @@ use crate::service::sync_service::WorkExecutionError::{
     WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
+use crate::storage::db_provider::Backend;
 use crate::{client, DefaultFileService};
 
 #[derive(Debug)]
@@ -316,6 +316,7 @@ impl<
         account: &Account,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
+        let sled = &Backend::Sled(db);
         // Make sure no naming conflicts occur as a result of this metadata
         let conflicting_files = FileMetadataDb::get_children_non_recursively(&db, metadata.parent)
             .map_err(WorkExecutionError::MetadataRepoError)?
@@ -356,8 +357,7 @@ impl<
                         .map_err(WorkExecutionError::from)?
                         .content;
 
-                        DocsDb::insert(Backend::Sled(db), metadata.id, &document)
-                            .map_err(SaveDocumentError)?;
+                        DocsDb::insert(sled, metadata.id, &document).map_err(SaveDocumentError)?;
                     }
                 } else {
                     debug!(
@@ -382,8 +382,7 @@ impl<
                                 ChangeDb::delete(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-                                DocsDb::delete(Backend::Sled(db), metadata.id)
-                                    .map_err(SaveDocumentError)?
+                                DocsDb::delete(sled, metadata.id).map_err(SaveDocumentError)?
                             } else {
                                 // A deleted folder
                                 let delete_errors =
@@ -394,7 +393,7 @@ impl<
                                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                                     .into_iter()
                                     .map(|file_metadata| -> Option<String> {
-                                        match DocsDb::delete(Backend::Sled(db), file_metadata.id) {
+                                        match DocsDb::delete(sled, file_metadata.id) {
                                             Ok(_) => {
                                                 match FileMetadataDb::non_recursive_delete(
                                                     &db,
@@ -436,7 +435,7 @@ impl<
                                 .map_err(WorkExecutionError::from)?
                                 .content;
 
-                                DocsDb::insert(Backend::Sled(db), metadata.id, &document)
+                                DocsDb::insert(sled, metadata.id, &document)
                                     .map_err(SaveDocumentError)?;
                             }
                         }
@@ -546,9 +545,9 @@ impl<
 
                                         // Copy the local copy over
                                         DocsDb::insert(
-                                            Backend::Sled(db),
+                                            sled,
                                             new_file.id,
-                                            &DocsDb::get(Backend::Sled(db), local_changes.id)
+                                            &DocsDb::get(sled, local_changes.id)
                                                 .map_err(SaveDocumentError)?,
                                         )
                                         .map_err(SaveDocumentError)?;
@@ -564,12 +563,8 @@ impl<
                                         .map_err(WorkExecutionError::from)?
                                         .content;
 
-                                        DocsDb::insert(
-                                            Backend::Sled(db),
-                                            metadata.id,
-                                            &new_content,
-                                        )
-                                        .map_err(SaveDocumentError)?;
+                                        DocsDb::insert(sled, metadata.id, &new_content)
+                                            .map_err(SaveDocumentError)?;
 
                                         // Mark content as synced
                                         ChangeDb::untrack_edit(&db, metadata.id)
@@ -589,8 +584,7 @@ impl<
                                 ChangeDb::delete(&db, metadata.id)
                                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-                                DocsDb::delete(Backend::Sled(db), metadata.id)
-                                    .map_err(SaveDocumentError)?
+                                DocsDb::delete(sled, metadata.id).map_err(SaveDocumentError)?
                             } else {
                                 // A deleted folder
                                 let delete_errors =
@@ -601,7 +595,7 @@ impl<
                                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                                     .into_iter()
                                     .map(|file_metadata| -> Option<String> {
-                                        match DocsDb::delete(Backend::Sled(db), file_metadata.id) {
+                                        match DocsDb::delete(sled, file_metadata.id) {
                                             Ok(_) => {
                                                 match FileMetadataDb::non_recursive_delete(
                                                     &db,
@@ -640,12 +634,13 @@ impl<
         account: &Account,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
+        let sled = &Backend::Sled(db);
         match ChangeDb::get_local_changes(&db, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
             None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
             Some(mut local_change) => { // TODO this needs to be mut because the untracks are not taking effect
                 if local_change.new {
                     if metadata.file_type == Document {
-                        let content = DocsDb::get(Backend::Sled(db), metadata.id).map_err(SaveDocumentError)?;
+                        let content = DocsDb::get(sled, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::request(
             &account,
                             CreateDocumentRequest::new(&metadata, content),
@@ -716,7 +711,7 @@ impl<
                     let version = ApiClient::request(&account, ChangeDocumentContentRequest{
                         id: metadata.id,
                         old_metadata_version: metadata.metadata_version,
-                        new_content: DocsDb::get(Backend::Sled(db), metadata.id).map_err(SaveDocumentError)?,
+                        new_content: DocsDb::get(sled, metadata.id).map_err(SaveDocumentError)?,
                     }).map_err(WorkExecutionError::from)?.new_metadata_and_content_version;
 
                     metadata.content_version = version;

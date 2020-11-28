@@ -43,8 +43,8 @@ impl DbVersionRepo for DbVersionRepoImpl {
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::dummy_config;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
+    use crate::storage::db_provider::{DbProvider, TempBackedDB};
 
     #[test]
     fn db_version_sanity_check() {
