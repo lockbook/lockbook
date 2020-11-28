@@ -88,7 +88,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     info!("Serving on port {}", port);
-    hyper::Server::bind(&addr).serve(make_service).await?;
+    hyper::Server::bind(&addr)
+        .http1_keepalive(false)
+        .http2_keep_alive_interval(None)
+        .serve(make_service)
+        .await?;
     Ok(())
 }
 
