@@ -19,6 +19,7 @@ pub enum DbError {
 }
 
 pub trait DocumentRepo {
+    const NAMESPACE: &'static [u8] = b"documents";
     fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
     fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error>;
     fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
@@ -31,7 +32,7 @@ impl DocumentRepo for DocumentRepoImpl {
     fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
         backend
             .write(
-                b"documents",
+                Self::NAMESPACE,
                 id.as_bytes(),
                 serde_json::to_vec(document).map_err(Error::SerdeError)?,
             )
@@ -40,7 +41,7 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
         let maybe_data: Option<IVec> = backend
-            .read(b"documents", id.as_bytes())
+            .read(Self::NAMESPACE, id.as_bytes())
             .map_err(Error::BackendError)?;
         match maybe_data {
             None => Err(Error::FileRowMissing(())),
@@ -50,7 +51,7 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
         let maybe_data: Option<IVec> = backend
-            .read(b"documents", id.as_bytes())
+            .read(Self::NAMESPACE, id.as_bytes())
             .map_err(DbError::BackendError)?;
         match maybe_data {
             None => Ok(None),
@@ -60,7 +61,7 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn delete(backend: &Backend, id: Uuid) -> Result<(), Error> {
         backend
-            .delete(b"documents", id.as_bytes())
+            .delete(Self::NAMESPACE, id.as_bytes())
             .map_err(Error::BackendError)
     }
 }
