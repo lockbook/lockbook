@@ -79,9 +79,9 @@ mod unit_tests {
     use crate::model::account::Account;
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use crate::storage::db_provider::{DbProvider, TempBackedDB};
 
     type DefaultDbProvider = TempBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;
