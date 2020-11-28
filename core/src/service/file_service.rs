@@ -428,6 +428,14 @@ impl<
                             FileMetadataDb::get_children_non_recursively(&db, parent_metadata.id)
                                 .map_err(FileMoveError::DbError)?;
 
+                        // Check that this file name is available
+                        for child in siblings {
+                            if child.name == file.name {
+                                return Err(FileMoveError::TargetParentHasChildNamedThat);
+                            }
+                        }
+
+                        // Checking if a folder is being moved into itself or its children
                         if file.file_type == FileType::Folder {
                             let children =
                                 FileMetadataDb::get_and_get_children_recursively(&db, id)
@@ -436,13 +444,6 @@ impl<
                                 if child.id == new_parent {
                                     return Err(FileMoveError::FolderMovedIntoItself);
                                 }
-                            }
-                        }
-
-                        // Check that this file name is available
-                        for child in siblings {
-                            if child.name == file.name {
-                                return Err(FileMoveError::TargetParentHasChildNamedThat);
                             }
                         }
 
