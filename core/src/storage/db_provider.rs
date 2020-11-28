@@ -48,16 +48,15 @@ pub enum Backend<'a> {
 }
 
 impl Backend<'_> {
-    pub fn write<K, V>(&self, key: K, value: V) -> Result<(), BackendError>
+    pub fn write<N, K, V>(&self, namespace: N, key: K, value: V) -> Result<(), BackendError>
     where
+        N: AsRef<[u8]>,
         K: AsRef<[u8]>,
         V: Into<IVec>,
     {
         match self {
             Backend::Sled(db) => {
-                let tree = db
-                    .open_tree(b"documents")
-                    .map_err(BackendError::SledError)?;
+                let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
                 tree.insert(key, value)
                     .map_err(BackendError::SledError)
                     .map(|_| ())
@@ -65,16 +64,15 @@ impl Backend<'_> {
         }
     }
 
-    pub fn read<K, V>(&self, key: K) -> Result<Option<V>, BackendError>
+    pub fn read<N, K, V>(&self, namespace: N, key: K) -> Result<Option<V>, BackendError>
     where
+        N: AsRef<[u8]>,
         K: AsRef<[u8]>,
         V: From<IVec>,
     {
         match self {
             Backend::Sled(db) => {
-                let tree = db
-                    .open_tree(b"documents")
-                    .map_err(BackendError::SledError)?;
+                let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
                 tree.get(key)
                     .map_err(BackendError::SledError)
                     .map(|v| v.map(From::from))
@@ -82,15 +80,14 @@ impl Backend<'_> {
         }
     }
 
-    pub fn delete<K>(&self, key: K) -> Result<(), BackendError>
+    pub fn delete<N, K>(&self, namespace: N, key: K) -> Result<(), BackendError>
     where
+        N: AsRef<[u8]>,
         K: AsRef<[u8]>,
     {
         match self {
             Backend::Sled(db) => {
-                let tree = db
-                    .open_tree(b"documents")
-                    .map_err(BackendError::SledError)?;
+                let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
                 tree.remove(key)
                     .map_err(BackendError::SledError)
                     .map(|_| ())
