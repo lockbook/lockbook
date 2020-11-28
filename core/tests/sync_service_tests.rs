@@ -10,7 +10,7 @@ mod sync_tests {
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::Backend;
+    use lockbook_core::storage::db_provider::to_backend;
     use lockbook_core::{
         DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, DefaultSyncService,
@@ -19,7 +19,8 @@ mod sync_tests {
     #[test]
     fn test_create_files_and_folders_sync() {
         let generated_account = generate_account();
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let account = DefaultAccountService::create_account(
             &db,
             &generated_account.username,
@@ -51,7 +52,8 @@ mod sync_tests {
 
         assert!(DefaultSyncService::sync(&db).is_ok());
 
-        let db2 = test_db();
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         DefaultAccountService::import_account(
             &db2,
             &DefaultAccountService::export_account(&db).unwrap(),
@@ -84,7 +86,8 @@ mod sync_tests {
     #[test]
     fn test_edit_document_sync() {
         let generated_account = generate_account();
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let account = DefaultAccountService::create_account(
             &db,
             &generated_account.username,
@@ -110,7 +113,8 @@ mod sync_tests {
         assert!(DefaultSyncService::sync(&db).is_ok());
         println!("1st sync done");
 
-        let db2 = test_db();
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         DefaultAccountService::import_account(
             &db2,
             &DefaultAccountService::export_account(&db).unwrap(),
@@ -202,8 +206,10 @@ mod sync_tests {
 
     #[test]
     fn test_move_document_sync() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -285,8 +291,10 @@ mod sync_tests {
 
     #[test]
     fn test_move_reject() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -342,8 +350,10 @@ mod sync_tests {
 
     #[test]
     fn test_rename_sync() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -395,8 +405,10 @@ mod sync_tests {
 
     #[test]
     fn test_rename_reject_sync() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -450,7 +462,8 @@ mod sync_tests {
 
     #[test]
     fn move_then_edit() {
-        let db1 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -477,8 +490,10 @@ mod sync_tests {
 
     #[test]
     fn sync_fs_invalid_state_via_rename() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -543,8 +558,10 @@ mod sync_tests {
 
     #[test]
     fn sync_fs_invalid_state_via_move() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -626,8 +643,10 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_unmergable() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -682,8 +701,10 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_mergable() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -734,8 +755,10 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_local_move_before_mergable() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -790,8 +813,10 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_local_after_before_mergable() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -846,8 +871,10 @@ mod sync_tests {
 
     #[test]
     fn test_content_conflict_server_after_before_mergable() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
 
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
@@ -902,7 +929,8 @@ mod sync_tests {
 
     #[test]
     fn test_not_really_editing_should_not_cause_work() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db,
@@ -937,7 +965,8 @@ mod sync_tests {
 
     #[test]
     fn test_not_really_renaming_should_not_cause_work() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db,
@@ -967,7 +996,8 @@ mod sync_tests {
 
     #[test]
     fn test_not_really_moving_should_not_cause_work() {
-        let db = test_db();
+        let sled = &test_db();
+        let db = &to_backend(sled);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db,
@@ -993,8 +1023,10 @@ mod sync_tests {
     #[test]
     // Test that documents are deleted when a fresh sync happens
     fn delete_document_test_sync() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1033,7 +1065,8 @@ mod sync_tests {
 
     #[test]
     fn delete_new_document_never_synced() {
-        let db1 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1057,19 +1090,19 @@ mod sync_tests {
         assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(
-            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db1), file.id)
-                .unwrap()
-                .is_none()
-        );
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
         assert!(DefaultFileService::read_document(&db1, file.id).is_err());
     }
 
     #[test]
     // Test that documents are deleted after a sync
     fn delete_document_test_after_sync() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1102,16 +1135,12 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        assert!(
-            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db1), file.id)
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db2), file.id)
-                .unwrap()
-                .is_none()
-        );
+        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(DefaultDocumentRepo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
 
         assert!(DefaultLocalChangesRepo::get_local_changes(&db1, file.id)
             .unwrap()
@@ -1133,8 +1162,10 @@ mod sync_tests {
         // Make sure all the contents for those 4 files are gone from both dbs
         // Make sure all the contents for the stay files are there in both dbs
 
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1291,8 +1322,10 @@ mod sync_tests {
         // Make sure all the contents for those 4 files are gone from both dbs
         // Make sure all the contents for the stay files are there in both dbs
 
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1445,8 +1478,10 @@ mod sync_tests {
 
     #[test]
     fn create_new_folder_and_move_old_files_into_it_then_delete_that_folder() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
+        let sled2 = &test_db();
+        let db2 = &to_backend(sled2);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1534,7 +1569,8 @@ mod sync_tests {
 
     #[test]
     fn create_document_sync_delete_document_sync() {
-        let db1 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -1557,7 +1593,8 @@ mod sync_tests {
 
     #[test]
     fn deleted_path_is_released() {
-        let db1 = test_db();
+        let sled1 = &test_db();
+        let db1 = &to_backend(sled1);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,

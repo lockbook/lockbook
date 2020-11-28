@@ -83,4 +83,22 @@ impl Backend<'_> {
             }
         }
     }
+
+    pub fn dump<N, V>(&self, namespace: N) -> Result<Vec<V>, BackendError>
+    where
+        N: AsRef<[u8]>,
+        V: From<Vec<u8>>,
+    {
+        match self {
+            Backend::Sled(db) => {
+                let tree = db.open_tree(namespace).map_err(BackendError::SledError)?;
+                tree.iter()
+                    .map(|s| {
+                        s.map(|v| From::from(v.1.to_vec()))
+                            .map_err(BackendError::SledError)
+                    })
+                    .collect()
+            }
+        }
+    }
 }

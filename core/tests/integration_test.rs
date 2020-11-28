@@ -12,7 +12,7 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
-use lockbook_core::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
+use lockbook_core::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
@@ -158,23 +158,24 @@ pub fn rsa_decrypt<T: Serialize + DeserializeOwned>(
     RSAImpl::<ClockImpl>::decrypt(key, to_decrypt).unwrap()
 }
 
-pub fn assert_dbs_eq(db1: &Db, db2: &Db) {
-    let tree1 = db1.open_tree(FILE_METADATA).unwrap();
-    let value1: Vec<FileMetadata> = tree1
+pub fn assert_dbs_eq(db1: &Backend, db2: &Backend) {
+    let value1: Vec<FileMetadata> = db1
+        .dump::<_, Vec<u8>>(FILE_METADATA)
+        .unwrap()
         .iter()
-        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
-    let tree2 = db2.open_tree(FILE_METADATA).unwrap();
-    let value2: Vec<FileMetadata> = tree2
+    let value2: Vec<FileMetadata> = db2
+        .dump::<_, Vec<u8>>(FILE_METADATA)
+        .unwrap()
         .iter()
-        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
-
     assert_eq!(value1, value2);
 
     assert_eq!(
-        DefaultAccountRepo::get_account(&to_backend(&db1)).unwrap(),
-        DefaultAccountRepo::get_account(&to_backend(&db2)).unwrap()
+        DefaultAccountRepo::get_account(&db1).unwrap(),
+        DefaultAccountRepo::get_account(&db2).unwrap()
     );
 
     assert_eq!(
@@ -192,15 +193,17 @@ pub fn assert_dbs_eq(db1: &Db, db2: &Db) {
         DefaultFileMetadataRepo::get_last_updated(&db2).unwrap()
     );
 
-    let tree1 = db1.open_tree(b"documents").unwrap();
-    let value1: Vec<EncryptedDocument> = tree1
+    let value1: Vec<FileMetadata> = db1
+        .dump::<_, Vec<u8>>(FILE_METADATA)
+        .unwrap()
         .iter()
-        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
-    let tree2 = db2.open_tree(b"documents").unwrap();
-    let value2: Vec<EncryptedDocument> = tree2
+    let value2: Vec<FileMetadata> = db2
+        .dump::<_, Vec<u8>>(FILE_METADATA)
+        .unwrap()
         .iter()
-        .map(|s| serde_json::from_slice(s.unwrap().1.as_ref()).unwrap())
+        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
     assert_eq!(value1, value2);
 }
