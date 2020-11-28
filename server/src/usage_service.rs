@@ -134,9 +134,8 @@ mod usage_service_tests {
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
-    use rsa::RSAPublicKey;
     use uuid::Uuid;
-    use lockbook_core::service::crypto_service::RSAImpl;
+    use lockbook_core::service::crypto_service::{RSAImpl, PubKeyCryptoService};
     use lockbook_core::service::clock_service::ClockImpl;
 
     #[test]
