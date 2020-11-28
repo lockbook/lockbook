@@ -1,4 +1,3 @@
-use sled::IVec;
 use uuid::Uuid;
 
 use crate::model::crypto::*;
@@ -40,7 +39,7 @@ impl DocumentRepo for DocumentRepoImpl {
     }
 
     fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
-        let maybe_data: Option<IVec> = backend
+        let maybe_data: Option<Vec<u8>> = backend
             .read(Self::NAMESPACE, id.as_bytes())
             .map_err(Error::BackendError)?;
         match maybe_data {
@@ -50,7 +49,7 @@ impl DocumentRepo for DocumentRepoImpl {
     }
 
     fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
-        let maybe_data: Option<IVec> = backend
+        let maybe_data: Option<Vec<u8>> = backend
             .read(Self::NAMESPACE, id.as_bytes())
             .map_err(DbError::BackendError)?;
         match maybe_data {
