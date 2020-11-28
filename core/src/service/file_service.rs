@@ -33,7 +33,7 @@ use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
-use crate::storage::db_provider::Backend;
+use crate::storage::db_provider::{to_backend, Backend};
 use crate::DefaultFileMetadataRepo;
 
 #[derive(Debug)]
@@ -196,7 +196,8 @@ impl<
             return Err(FileNameContainsSlash);
         }
 
-        let account = AccountDb::get_account(&db).map_err(NewFileError::AccountRetrievalError)?;
+        let account =
+            AccountDb::get_account(&to_backend(db)).map_err(NewFileError::AccountRetrievalError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, parent)
             .map_err(NewFileError::CouldNotFindParents)?;
@@ -305,8 +306,8 @@ impl<
     }
 
     fn write_document(db: &Db, id: Uuid, content: &[u8]) -> Result<(), DocumentUpdateError> {
-        let account =
-            AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
+        let account = AccountDb::get_account(&to_backend(db))
+            .map_err(DocumentUpdateError::AccountRetrievalError)?;
 
         let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(DbError)?
@@ -394,7 +395,8 @@ impl<
     }
 
     fn move_file(db: &Db, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
-        let account = AccountDb::get_account(&db).map_err(FileMoveError::AccountRetrievalError)?;
+        let account = AccountDb::get_account(&to_backend(db))
+            .map_err(FileMoveError::AccountRetrievalError)?;
 
         match FileMetadataDb::maybe_get(&db, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
@@ -455,8 +457,8 @@ impl<
     }
 
     fn read_document(db: &Db, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError> {
-        let account =
-            AccountDb::get_account(&db).map_err(ReadDocumentError::AccountRetrievalError)?;
+        let account = AccountDb::get_account(&to_backend(db))
+            .map_err(ReadDocumentError::AccountRetrievalError)?;
 
         let file_metadata = FileMetadataDb::maybe_get(&db, id)
             .map_err(ReadDocumentError::DbError)?
@@ -575,7 +577,7 @@ mod unit_tests {
     use crate::service::file_service::{
         DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
-    use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::{to_backend, Backend, DbProvider, DiskBackedDB};
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
@@ -627,7 +629,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         assert!(DefaultFileMetadataRepo::get_root(&db).unwrap().is_none());
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
@@ -677,7 +679,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         assert_total_filtered_paths!(&db, None, 0);
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
@@ -731,7 +733,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -784,7 +786,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -862,7 +864,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -878,7 +880,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -894,7 +896,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -910,7 +912,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -926,7 +928,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -940,7 +942,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -1023,7 +1025,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -1085,7 +1087,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
@@ -1124,7 +1126,7 @@ mod unit_tests {
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -1152,7 +1154,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -1184,7 +1186,7 @@ mod unit_tests {
         let db = DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -1222,7 +1224,7 @@ mod unit_tests {
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
@@ -1263,7 +1265,7 @@ mod unit_tests {
         let sled = &Backend::Sled(&db);
 
         let account = test_account();
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 

@@ -12,7 +12,7 @@ mod account_tests {
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::DbProvider;
+    use lockbook_core::storage::db_provider::{to_backend, DbProvider};
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
         DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
@@ -103,7 +103,10 @@ mod account_tests {
         let db2 = test_db();
         assert!(DefaultAccountService::export_account(&db2).is_err());
         assert!(DefaultAccountService::import_account(&db2, &account_string).is_ok());
-        assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
+        assert_eq!(
+            DefaultAccountRepo::get_account(&to_backend(&db2)).unwrap(),
+            account
+        );
         assert_eq!(DefaultFileMetadataRepo::get_last_updated(&db2).unwrap(), 0);
 
         let work = DefaultSyncService::calculate_work(&db2).unwrap();
@@ -140,7 +143,6 @@ mod account_tests {
             Err(err) => match err {
                 AccountCreationError::KeyGenerationError(_)
                 | AccountCreationError::AccountRepoError(_)
-                | AccountCreationError::AccountRepoDbError(_)
                 | AccountCreationError::FolderError(_)
                 | AccountCreationError::MetadataRepoError(_)
                 | AccountCreationError::ApiError(_)
@@ -171,7 +173,7 @@ mod account_tests {
             ),
         };
 
-        DefaultAccountRepo::insert_account(&db1, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db1), &account).unwrap();
 
         let result = discriminant(
             &DefaultAccountService::import_account(
@@ -248,9 +250,9 @@ mod account_tests {
 
         {
             let db = DefaultDbProvider::connect_to_db(&cfg1).unwrap();
-            let mut account = DefaultAccountRepo::get_account(&db).unwrap();
+            let mut account = DefaultAccountRepo::get_account(&to_backend(&db)).unwrap();
             account.username = random_username();
-            DefaultAccountRepo::insert_account(&db, &account).unwrap();
+            DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         } // release lock on db
 
         let account_string = export_account(&cfg1).unwrap();
@@ -291,7 +293,7 @@ mod account_tests {
             )
             .unwrap();
             account2.username = account1.username;
-            DefaultAccountRepo::insert_account(&db2, &account2).unwrap();
+            DefaultAccountRepo::insert_account(&to_backend(&db2), &account2).unwrap();
             DefaultAccountService::export_account(&db2).unwrap()
         };
 
