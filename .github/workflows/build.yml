@@ -23,4 +23,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: lockbook-server-$HASH
-        path: server/target/debug/lockbook-server
+        path: server/target/release/lockbook-server
