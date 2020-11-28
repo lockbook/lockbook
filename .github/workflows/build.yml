@@ -22,5 +22,5 @@ jobs:
     - name: Archive Build
       uses: actions/upload-artifact@v2
       with:
-        name: lockbook-server-$HASH
+        name: lockbook-server-${{ github.sha }}
         path: server/target/release/lockbook-server
