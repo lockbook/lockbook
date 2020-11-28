@@ -97,18 +97,18 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbS
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::storage::db_provider::{DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
     use crate::DefaultDbStateService;
 
     #[test]
     fn test_initial_state() {
-        let config = dummy_config();
-        let db = TempBackedDB::connect_to_db(&config).unwrap();
+        let config = temp_config();
+        let db = DiskBackedDB::connect_to_db(&config).unwrap();
 
         assert!(DbVersionRepoImpl::get(&db).unwrap().is_none());
         assert_eq!(DefaultDbStateService::get_state(&db).unwrap(), Empty);
