@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - docs/**
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  Server:
+    runs-on: [self-hosted, builder]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HASH: ${{ github.sha }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Server
+      working-directory: server
+      run: cargo build --release
+    - name: Archive Build
+      uses: actions/upload-artifact@v2
+      with:
+        name: lockbook-server-$HASH
+        path: server/target/debug/lockbook-server
