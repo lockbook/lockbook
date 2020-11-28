@@ -70,17 +70,17 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::crypto::*;
-    use crate::model::state::dummy_config;
+    use crate::model::state::temp_config;
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
-    use crate::storage::db_provider::{Backend, DbProvider, TempBackedDB};
+    use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
 
     #[test]
     fn update_document() {
         let test_document = EncryptedDocument::new("something", "nonce1");
 
-        let config = dummy_config();
+        let config = temp_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
         let sled = Backend::Sled(&db);
         let document_id = Uuid::new_v4();
