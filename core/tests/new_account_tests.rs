@@ -33,8 +33,12 @@ mod new_account_tests {
     #[test]
     fn new_account_invalid_username() {
         let mut account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
+        let (mut root, _) = generate_root_metadata(&account);
+        let access_key = root.user_access_keys[&account.username].clone();
+        root.user_access_keys.remove(&account.username);
         account.username += " ";
+        root.user_access_keys
+            .insert(account.username.clone(), access_key);
 
         let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(

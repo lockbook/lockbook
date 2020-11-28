@@ -457,6 +457,13 @@ pub async fn delete_folder(
                 );
                 return Err(None);
             };
+
+            usage_service::track_content_change(&transaction, &r.id, &context.public_key, 0)
+                .await
+                .map_err(|err| {
+                    error!("Usage tracking error: {:?}", err);
+                    None
+                })?;
         }
     }
 

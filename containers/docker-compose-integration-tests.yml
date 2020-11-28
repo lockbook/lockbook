@@ -66,5 +66,5 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        LOCKBOOK_DEBUG=1 cargo test --no-fail-fast -- --nocapture \
+        LOCKBOOK_DEBUG=1 cargo test --release --no-fail-fast -- --nocapture \
       '

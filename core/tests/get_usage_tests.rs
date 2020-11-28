@@ -43,7 +43,7 @@ mod get_usage_tests {
         assert_eq!(get_usage(config).unwrap().len(), 1);
         assert_eq!(
             get_usage(config).unwrap()[0].byte_secs,
-            serde_json::to_vec(&local_encrypted).unwrap().len() as u64
+            local_encrypted.len() as u64
         )
     }
 
@@ -108,9 +108,6 @@ mod get_usage_tests {
         }
 
         assert_eq!(get_usage(config).unwrap().len(), 3);
-        assert_eq!(
-            total_usage,
-            serde_json::to_vec(&local_encrypted).unwrap().len() as u64
-        )
+        assert_eq!(total_usage, local_encrypted.len() as u64)
     }
 }

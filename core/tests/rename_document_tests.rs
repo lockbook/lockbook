@@ -21,14 +21,15 @@ mod rename_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // rename document
         doc.name = String::from("new name");
@@ -128,21 +129,22 @@ mod rename_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create document in same folder
         let (doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
-                &doc,
+                &doc2,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
