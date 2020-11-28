@@ -16,8 +16,7 @@ use crate::service::account_service::AccountImportError::{
 };
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::storage::db_provider::to_backend;
-use sled::Db;
+use crate::storage::db_provider::Backend;
 
 #[derive(Debug)]
 pub enum AccountCreationError {
@@ -50,12 +49,15 @@ pub enum AccountExportError {
 
 pub trait AccountService {
     fn create_account(
-        db: &Db,
+        backend: &Backend,
         username: &str,
         api_url: &str,
     ) -> Result<Account, AccountCreationError>;
-    fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError>;
-    fn export_account(db: &Db) -> Result<String, AccountExportError>;
+    fn import_account(
+        backend: &Backend,
+        account_string: &str,
+    ) -> Result<Account, AccountImportError>;
+    fn export_account(backend: &Backend) -> Result<String, AccountExportError>;
 }
 
 pub struct AccountServiceImpl<
@@ -82,12 +84,12 @@ impl<
     for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata>
 {
     fn create_account(
-        db: &Db,
+        backend: &Backend,
         username: &str,
         api_url: &str,
     ) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(&to_backend(db))
+        if AccountDb::maybe_get_account(backend)
             .map_err(AccountRepoError)?
             .is_some()
         {
@@ -119,7 +121,7 @@ impl<
         file_metadata.metadata_version = version;
         file_metadata.content_version = version;
 
-        FileMetadata::insert(&db, &file_metadata)
+        FileMetadata::insert(backend, &file_metadata)
             .map_err(AccountCreationError::MetadataRepoError)?;
 
         debug!(
@@ -128,15 +130,18 @@ impl<
         );
 
         info!("Saving account locally");
-        AccountDb::insert_account(&to_backend(db), &account)
+        AccountDb::insert_account(backend, &account)
             .map_err(AccountCreationError::AccountRepoError)?;
 
         Ok(account)
     }
 
-    fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError> {
+    fn import_account(
+        backend: &Backend,
+        account_string: &str,
+    ) -> Result<Account, AccountImportError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(&to_backend(db))
+        if AccountDb::maybe_get_account(backend)
             .map_err(AccountImportError::AccountRepoError)?
             .is_some()
         {
@@ -176,16 +181,16 @@ impl<
         }
 
         info!("Account String seems valid, saving now");
-        AccountDb::insert_account(&to_backend(db), &account)
+        AccountDb::insert_account(backend, &account)
             .map_err(AccountImportError::PersistenceError)?;
 
         info!("Account imported successfully");
         Ok(account)
     }
 
-    fn export_account(db: &Db) -> Result<String, AccountExportError> {
-        let account = &AccountDb::get_account(&to_backend(db))
-            .map_err(AccountExportError::AccountRetrievalError)?;
+    fn export_account(backend: &Backend) -> Result<String, AccountExportError> {
+        let account =
+            &AccountDb::get_account(backend).map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))
