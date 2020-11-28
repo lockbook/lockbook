@@ -52,7 +52,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use crate::storage::db_provider::{DbProvider, DiskBackedDB};
+use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -138,7 +138,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<(), Error<CreateAccountError>> {
-    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+    let db = &connect_to_db(&config).map_err(Error::Unexpected)?;
 
     match DefaultAccountService::create_account(&db, username, api_url) {
         Ok(_) => Ok(()),
@@ -179,8 +179,7 @@ pub fn create_account(
             | AccountCreationError::AccountRepoError(_)
             | AccountCreationError::FolderError(_)
             | AccountCreationError::MetadataRepoError(_)
-            | AccountCreationError::KeySerializationError(_)
-            | AccountCreationError::AccountRepoDbError(_) => {
+            | AccountCreationError::KeySerializationError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
@@ -198,7 +197,7 @@ pub enum ImportError {
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error<ImportError>> {
-    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+    let db = &connect_to_db(&config).map_err(Error::Unexpected)?;
 
     match DefaultAccountService::import_account(&db, account_string) {
         Ok(_) => Ok(()),
@@ -236,7 +235,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error
                 | ApiError::InvalidAuth
                 | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", client_err))),
             },
-            AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoDbError(_) => {
+            AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
@@ -249,14 +248,14 @@ pub enum AccountExportError {
 }
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+    let db = &connect_to_db(&config).map_err(Error::Unexpected)?;
 
     match DefaultAccountService::export_account(&db) {
         Ok(account_string) => Ok(account_string),
         Err(err) => match err {
             ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
                 AccountRepoError::NoAccount => Err(Error::UiError(AccountExportError::NoAccount)),
-                AccountRepoError::SerdeError(_) | AccountRepoError::SledError(_) => {
+                AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", db_err)))
                 }
             },
@@ -274,12 +273,13 @@ pub enum GetAccountError {
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+    let backend = to_backend(&db);
 
-    match DefaultAccountRepo::get_account(&db) {
+    match DefaultAccountRepo::get_account(&backend) {
         Ok(account) => Ok(account),
         Err(err) => match err {
             AccountRepoError::NoAccount => Err(Error::UiError(GetAccountError::NoAccount)),
-            AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+            AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
@@ -320,7 +320,7 @@ pub fn create_file_at_path(
                     AccountRepoError::NoAccount => {
                         Err(Error::UiError(CreateFileAtPathError::NoAccount))
                     }
-                    AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                         Err(Error::Unexpected(format!("{:#?}", account_error)))
                     }
                 },
@@ -365,7 +365,7 @@ pub fn write_document(
         Ok(_) => Ok(()),
         Err(err) => match err {
             DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", account_err)))
                 }
                 AccountRepoError::NoAccount => Err(Error::UiError(WriteToDocumentError::NoAccount)),
@@ -625,7 +625,7 @@ pub fn read_document(
 
             FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
                 AccountRepoError::NoAccount => Err(Error::UiError(ReadDocumentError::NoAccount)),
-                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", account_error)))
                 }
             },
@@ -735,7 +735,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
             }
             FileMoveError::AccountRetrievalError(account_err) => match account_err {
                 AccountRepoError::NoAccount => Err(Error::UiError(MoveFileError::NoAccount)),
-                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", account_err)))
                 }
             },
@@ -773,7 +773,7 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
         Ok(_) => Ok(()),
         Err(err) => match err {
             SyncError::AccountRetrievalError(err) => match err {
-                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", err)))
                 }
                 AccountRepoError::NoAccount => Err(Error::UiError(SyncAllError::NoAccount)),
@@ -786,7 +786,7 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                 }
                 SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
                     AccountRepoError::NoAccount => Err(Error::UiError(SyncAllError::NoAccount)),
-                    AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                         Err(Error::Unexpected(format!("{:#?}", account_err)))
                     }
                 },
@@ -834,7 +834,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
             }
             SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
                 AccountRepoError::NoAccount => Err(Error::UiError(CalculateWorkError::NoAccount)),
-                AccountRepoError::SledError(_) | AccountRepoError::SerdeError(_) => {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Err(Error::Unexpected(format!("{:#?}", account_err)))
                 }
             },
@@ -962,8 +962,9 @@ pub enum GetUsageError {
 
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
     let db = connect_to_db(&config).map_err(Error::Unexpected)?;
+    let backend = to_backend(&db);
 
-    let acc = DefaultAccountRepo::get_account(&db)
+    let acc = DefaultAccountRepo::get_account(&backend)
         .map_err(|_| Error::UiError(GetUsageError::NoAccount))?;
 
     DefaultClient::request(&acc, GetUsageRequest {})

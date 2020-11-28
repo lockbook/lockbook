@@ -4,10 +4,10 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::code_version_service::CodeVersion;
-use crate::service::db_state_service::GetStateError::{AccountDbError, RepoError};
 use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
+use crate::storage::db_provider::to_backend;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -20,7 +20,7 @@ pub enum State {
 
 #[derive(Debug)]
 pub enum GetStateError {
-    AccountDbError(account_repo::DbError),
+    AccountRepoError(account_repo::AccountRepoError),
     RepoError(db_version_repo::Error),
 }
 
@@ -49,15 +49,15 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbS
     for DbStateServiceImpl<AccountDb, VersionDb, Version>
 {
     fn get_state(db: &Db) -> Result<State, GetStateError> {
-        if AccountDb::maybe_get_account(&db)
-            .map_err(AccountDbError)?
+        if AccountDb::maybe_get_account(&to_backend(db))
+            .map_err(GetStateError::AccountRepoError)?
             .is_none()
         {
-            VersionDb::set(&db, Version::get_code_version()).map_err(RepoError)?;
+            VersionDb::set(&db, Version::get_code_version()).map_err(GetStateError::RepoError)?;
             return Ok(Empty);
         }
 
-        match VersionDb::get(&db).map_err(RepoError)? {
+        match VersionDb::get(&db).map_err(GetStateError::RepoError)? {
             None => Ok(StateRequiresClearing),
             Some(state_version) => {
                 if state_version == Version::get_code_version() {

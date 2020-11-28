@@ -38,7 +38,7 @@ use crate::service::sync_service::WorkExecutionError::{
     WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
-use crate::storage::db_provider::Backend;
+use crate::storage::db_provider::{to_backend, Backend};
 use crate::{client, DefaultFileService};
 
 #[derive(Debug)]
@@ -250,7 +250,7 @@ impl<
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
 
-        let account = AccountDb::get_account(&db).map_err(AccountRetrievalError)?;
+        let account = AccountDb::get_account(&to_backend(db)).map_err(AccountRetrievalError)?;
         let last_sync = FileMetadataDb::get_last_updated(&db).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::request(
@@ -742,7 +742,8 @@ impl<
     }
 
     fn sync(db: &Db) -> Result<(), SyncError> {
-        let account = AccountDb::get_account(&db).map_err(SyncError::AccountRetrievalError)?;
+        let account =
+            AccountDb::get_account(&to_backend(db)).map_err(SyncError::AccountRetrievalError)?;
 
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 

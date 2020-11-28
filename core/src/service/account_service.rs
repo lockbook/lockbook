@@ -1,5 +1,3 @@
-use sled::Db;
-
 use crate::client;
 use crate::client::Client;
 use crate::model::account::Account;
@@ -11,19 +9,20 @@ use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::account_service::AccountCreationError::{
-    AccountExistsAlready, AccountRepoDbError,
+    AccountExistsAlready, AccountRepoError,
 };
 use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
+use crate::storage::db_provider::to_backend;
+use sled::Db;
 
 #[derive(Debug)]
 pub enum AccountCreationError {
     KeyGenerationError(rsa::errors::Error),
     AccountRepoError(account_repo::AccountRepoError),
-    AccountRepoDbError(account_repo::DbError),
     FolderError(RootFolderCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
     ApiError(client::ApiError<NewAccountError>),
@@ -37,7 +36,7 @@ pub enum AccountImportError {
     AccountStringFailedToDeserialize(bincode::Error),
     PersistenceError(account_repo::AccountRepoError),
     InvalidPrivateKey(rsa::errors::Error),
-    AccountRepoDbError(account_repo::DbError),
+    AccountRepoError(account_repo::AccountRepoError),
     FailedToVerifyAccountServerSide(client::ApiError<GetPublicKeyError>),
     PublicKeyMismatch,
     AccountExistsAlready,
@@ -88,8 +87,8 @@ impl<
         api_url: &str,
     ) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(&db)
-            .map_err(AccountRepoDbError)?
+        if AccountDb::maybe_get_account(&to_backend(db))
+            .map_err(AccountRepoError)?
             .is_some()
         {
             return Err(AccountExistsAlready);
@@ -129,15 +128,16 @@ impl<
         );
 
         info!("Saving account locally");
-        AccountDb::insert_account(db, &account).map_err(AccountCreationError::AccountRepoError)?;
+        AccountDb::insert_account(&to_backend(db), &account)
+            .map_err(AccountCreationError::AccountRepoError)?;
 
         Ok(account)
     }
 
     fn import_account(db: &Db, account_string: &str) -> Result<Account, AccountImportError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(&db)
-            .map_err(AccountImportError::AccountRepoDbError)?
+        if AccountDb::maybe_get_account(&to_backend(db))
+            .map_err(AccountImportError::AccountRepoError)?
             .is_some()
         {
             return Err(AccountImportError::AccountExistsAlready);
@@ -176,15 +176,16 @@ impl<
         }
 
         info!("Account String seems valid, saving now");
-        AccountDb::insert_account(db, &account).map_err(AccountImportError::PersistenceError)?;
+        AccountDb::insert_account(&to_backend(db), &account)
+            .map_err(AccountImportError::PersistenceError)?;
 
         info!("Account imported successfully");
         Ok(account)
     }
 
     fn export_account(db: &Db) -> Result<String, AccountExportError> {
-        let account =
-            &AccountDb::get_account(&db).map_err(AccountExportError::AccountRetrievalError)?;
+        let account = &AccountDb::get_account(&to_backend(db))
+            .map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))

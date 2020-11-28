@@ -536,7 +536,7 @@ mod unit_tests {
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
     use crate::{
         DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
         DefaultFileService,
@@ -697,7 +697,7 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 

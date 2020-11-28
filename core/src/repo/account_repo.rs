@@ -1,27 +1,20 @@
-use sled::Db;
-
 use crate::model::account::{Account, ApiUrl};
 use crate::repo::account_repo::AccountRepoError::NoAccount;
-use crate::repo::account_repo::DbError::{SerdeError, SledError};
-
-#[derive(Debug)]
-pub enum DbError {
-    SledError(sled::Error),
-    SerdeError(serde_json::Error),
-}
+use crate::storage::db_provider;
+use crate::storage::db_provider::Backend;
 
 #[derive(Debug)]
 pub enum AccountRepoError {
-    SledError(sled::Error),
+    BackendError(db_provider::BackendError),
     SerdeError(serde_json::Error),
     NoAccount,
 }
 
 pub trait AccountRepo {
-    fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError>;
-    fn maybe_get_account(db: &Db) -> Result<Option<Account>, DbError>;
-    fn get_account(db: &Db) -> Result<Account, AccountRepoError>;
-    fn get_api_url(db: &Db) -> Result<ApiUrl, AccountRepoError>;
+    fn insert_account(backend: &Backend, account: &Account) -> Result<(), AccountRepoError>;
+    fn maybe_get_account(backend: &Backend) -> Result<Option<Account>, AccountRepoError>;
+    fn get_account(backend: &Backend) -> Result<Account, AccountRepoError>;
+    fn get_api_url(backend: &Backend) -> Result<ApiUrl, AccountRepoError>;
 }
 
 pub struct AccountRepoImpl;
@@ -30,30 +23,30 @@ static ACCOUNT: &str = "account";
 static YOU: &str = "you";
 
 impl AccountRepo for AccountRepoImpl {
-    fn insert_account(db: &Db, account: &Account) -> Result<(), AccountRepoError> {
-        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
-        tree.insert(
-            YOU,
-            serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
-        )
-        .map_err(AccountRepoError::SledError)?;
-        Ok(())
+    fn insert_account(backend: &Backend, account: &Account) -> Result<(), AccountRepoError> {
+        backend
+            .write(
+                ACCOUNT,
+                YOU,
+                serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
+            )
+            .map_err(AccountRepoError::BackendError)
     }
 
-    fn maybe_get_account(db: &Db) -> Result<Option<Account>, DbError> {
-        match Self::get_account(&db) {
+    fn maybe_get_account(backend: &Backend) -> Result<Option<Account>, AccountRepoError> {
+        match Self::get_account(backend) {
             Ok(account) => Ok(Some(account)),
             Err(err) => match err {
                 AccountRepoError::NoAccount => Ok(None),
-                AccountRepoError::SledError(sled) => Err(SledError(sled)),
-                AccountRepoError::SerdeError(serde) => Err(SerdeError(serde)),
+                other => Err(other),
             },
         }
     }
 
-    fn get_account(db: &Db) -> Result<Account, AccountRepoError> {
-        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
-        let maybe_value = tree.get(YOU).map_err(AccountRepoError::SledError)?;
+    fn get_account(backend: &Backend) -> Result<Account, AccountRepoError> {
+        let maybe_value: Option<Vec<u8>> = backend
+            .read(ACCOUNT, YOU)
+            .map_err(AccountRepoError::BackendError)?;
         match maybe_value {
             None => Err(NoAccount),
             Some(account) => {
@@ -63,14 +56,8 @@ impl AccountRepo for AccountRepoImpl {
         }
     }
 
-    fn get_api_url(db: &Db) -> Result<ApiUrl, AccountRepoError> {
-        let tree = db.open_tree(ACCOUNT).map_err(AccountRepoError::SledError)?;
-        tree.get(YOU)
-            .map_err(AccountRepoError::SledError)?
-            .ok_or(AccountRepoError::NoAccount)
-            .and_then(|data| {
-                serde_json::from_slice(data.as_ref()).map_err(AccountRepoError::SerdeError)
-            })
+    fn get_api_url(backend: &Backend) -> Result<ApiUrl, AccountRepoError> {
+        Self::get_account(backend).map(|account| account.api_url)
     }
 }
 
@@ -81,7 +68,7 @@ mod unit_tests {
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
-    use crate::storage::db_provider::{DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
 
     type DefaultDbProvider = DiskBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;
@@ -95,13 +82,14 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
-        let res = DefaultAccountRepo::get_account(&db);
+        let db = &DefaultDbProvider::connect_to_db(&config).unwrap();
+        let backend = &to_backend(db);
+        let res = DefaultAccountRepo::get_account(backend);
         assert!(res.is_err());
 
-        DefaultAccountRepo::insert_account(&db, &test_account).unwrap();
+        DefaultAccountRepo::insert_account(&backend, &test_account).unwrap();
 
-        let db_account = DefaultAccountRepo::get_account(&db).unwrap();
+        let db_account = DefaultAccountRepo::get_account(backend).unwrap();
         assert_eq!(test_account, db_account);
     }
 }
