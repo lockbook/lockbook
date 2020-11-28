@@ -302,7 +302,7 @@ impl LbCore {
         set_last_synced(&self.config, last_sync)
     }
 
-    pub fn get_last_synced(&self) -> Result<u64, String> {
+    pub fn get_last_synced(&self) -> Result<i64, String> {
         match get_last_synced(&self.config) {
             Ok(last) => Ok(last),
             Err(err) => Err(format!("{:?}", err)),
