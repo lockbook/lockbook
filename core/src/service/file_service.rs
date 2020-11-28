@@ -6,7 +6,6 @@ use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
-use crate::repo::db_provider::Backend;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo;
@@ -34,6 +33,7 @@ use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
+use crate::storage::db_provider::Backend;
 use crate::DefaultFileMetadataRepo;
 
 #[derive(Debug)]
@@ -326,7 +326,7 @@ impl<
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
         if let Some(old_encrypted) =
-            FileDb::maybe_get(Backend::Sled(db), id).map_err(FetchOldVersionError)?
+            FileDb::maybe_get(&Backend::Sled(db), id).map_err(FetchOldVersionError)?
         {
             let decrypted = FileCrypto::read_document(
                 &account,
@@ -350,7 +350,7 @@ impl<
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
 
-        FileDb::insert(Backend::Sled(db), file_metadata.id, &new_file)
+        FileDb::insert(&Backend::Sled(db), file_metadata.id, &new_file)
             .map_err(DocumentWriteError)?;
 
         Ok(())
@@ -466,7 +466,7 @@ impl<
             return Err(ReadDocumentError::TreatedFolderAsDocument);
         }
 
-        let document = FileDb::get(Backend::Sled(db), id).map_err(DocumentReadError)?;
+        let document = FileDb::get(&Backend::Sled(db), id).map_err(DocumentReadError)?;
 
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
@@ -503,7 +503,7 @@ impl<
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         }
 
-        FileDb::delete(Backend::Sled(db), id)
+        FileDb::delete(&Backend::Sled(db), id)
             .map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(&db, id, file_metadata.file_type)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
@@ -529,7 +529,7 @@ impl<
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
         for mut file in files_to_delete {
             if file.file_type == Document {
-                FileDb::delete(Backend::Sled(db), file.id)
+                FileDb::delete(&Backend::Sled(db), file.id)
                     .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
@@ -566,7 +566,6 @@ mod unit_tests {
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::document_repo::DocumentRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
@@ -576,6 +575,7 @@ mod unit_tests {
     use crate::service::file_service::{
         DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
+    use crate::storage::db_provider::{Backend, DbProvider, TempBackedDB};
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
@@ -1121,6 +1121,7 @@ mod unit_tests {
     #[test]
     fn test_document_delete_new_documents_no_trace_when_deleted() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let sled = &Backend::Sled(&db);
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1141,7 +1142,7 @@ mod unit_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(&db, doc1.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, doc1.id)
             .unwrap()
             .is_none());
     }
@@ -1218,6 +1219,7 @@ mod unit_tests {
     #[test]
     fn test_delete_folder() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let sled = &Backend::Sled(&db);
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1244,13 +1246,13 @@ mod unit_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(&db, document1.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document1.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db, document2.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document2.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db, document3.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document3.id)
             .unwrap()
             .is_none());
     }
@@ -1258,6 +1260,7 @@ mod unit_tests {
     #[test]
     fn test_other_things_are_not_touched_during_delete() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let sled = &Backend::Sled(&db);
 
         let account = test_account();
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
@@ -1289,13 +1292,13 @@ mod unit_tests {
             .unwrap()
             .is_some());
 
-        assert!(DefaultDocumentRepo::maybe_get(&db, document4.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document4.id)
             .unwrap()
             .is_some());
-        assert!(DefaultDocumentRepo::maybe_get(&db, document5.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document5.id)
             .unwrap()
             .is_some());
-        assert!(DefaultDocumentRepo::maybe_get(&db, document6.id)
+        assert!(DefaultDocumentRepo::maybe_get(sled, document6.id)
             .unwrap()
             .is_some());
     }

@@ -98,11 +98,11 @@ impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbS
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::dummy_config;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
+    use crate::storage::db_provider::{DbProvider, TempBackedDB};
     use crate::DefaultDbStateService;
 
     #[test]

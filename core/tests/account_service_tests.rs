@@ -7,12 +7,12 @@ mod account_tests {
     use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
-    use lockbook_core::repo::db_provider::DbProvider;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::{
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_core::storage::db_provider::DbProvider;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
         DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,

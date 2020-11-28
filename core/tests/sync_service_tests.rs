@@ -10,6 +10,7 @@ mod sync_tests {
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
         DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, DefaultSyncService,
@@ -1056,9 +1057,11 @@ mod sync_tests {
         assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
-            .unwrap()
-            .is_none());
+        assert!(
+            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db1), file.id)
+                .unwrap()
+                .is_none()
+        );
         assert!(DefaultFileService::read_document(&db1, file.id).is_err());
     }
 
@@ -1099,12 +1102,16 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
-            .unwrap()
-            .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db2, file.id)
-            .unwrap()
-            .is_none());
+        assert!(
+            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db1), file.id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            DefaultDocumentRepo::maybe_get(&Backend::Sled(&db2), file.id)
+                .unwrap()
+                .is_none()
+        );
 
         assert!(DefaultLocalChangesRepo::get_local_changes(&db1, file.id)
             .unwrap()

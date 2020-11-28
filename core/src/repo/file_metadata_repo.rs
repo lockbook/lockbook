@@ -531,12 +531,12 @@ mod unit_tests {
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl, Problem};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
+    use crate::storage::db_provider::{DbProvider, TempBackedDB};
     use crate::{
         DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
         DefaultFileService,

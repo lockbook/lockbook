@@ -5,7 +5,6 @@ use lockbook_core::model::crypto::*;
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::AccountRepo;
-use lockbook_core::repo::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
 use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
@@ -13,6 +12,7 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
+use lockbook_core::storage::db_provider::{DbProvider, TempBackedDB};
 use lockbook_core::{
     Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
