@@ -2,6 +2,9 @@ use sled::Db;
 
 use crate::model::state::Config;
 use crate::DB_NAME;
+use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
+use std::io::{ErrorKind, Read, Write};
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum Error {
@@ -29,11 +32,13 @@ impl DbProvider for DiskBackedDB {
 #[derive(Debug)]
 pub enum BackendError {
     SledError(sled::Error),
+    FileError(std::io::Error),
     NotWritten,
 }
 
 pub enum Backend<'a> {
     Sled(&'a Db),
+    File(&'a Config),
 }
 
 impl Backend<'_> {
@@ -49,6 +54,20 @@ impl Backend<'_> {
                 tree.insert(key, value.into())
                     .map_err(BackendError::SledError)
                     .map(|_| ())
+            }
+            Backend::File(config) => {
+                let n = String::from_utf8_lossy(namespace.as_ref()).to_string();
+                let k = String::from_utf8_lossy(key.as_ref()).to_string();
+                let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
+                let path = Path::new(&path_str);
+                create_dir_all(path.parent().unwrap()).map_err(BackendError::FileError)?;
+                let mut f = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open(path)
+                    .map_err(BackendError::FileError)?;
+                f.write_all(value.into().as_ref())
+                    .map_err(BackendError::FileError)
             }
         }
     }
@@ -66,6 +85,24 @@ impl Backend<'_> {
                     .map_err(BackendError::SledError)
                     .map(|v| v.map(|d| From::from(d.to_vec())))
             }
+            Backend::File(config) => {
+                let n = String::from_utf8_lossy(namespace.as_ref()).to_string();
+                let k = String::from_utf8_lossy(key.as_ref()).to_string();
+                let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
+                let path = Path::new(&path_str);
+                match File::open(path) {
+                    Ok(mut f) => {
+                        let mut buffer: Vec<u8> = Vec::new();
+                        f.read_to_end(&mut buffer)
+                            .map_err(BackendError::FileError)?;
+                        Ok(Some(From::from(buffer)))
+                    }
+                    Err(err) => match err.kind() {
+                        ErrorKind::NotFound => Ok(None),
+                        _ => Err(BackendError::FileError(err)),
+                    },
+                }
+            }
         }
     }
 
@@ -80,6 +117,13 @@ impl Backend<'_> {
                 tree.remove(key)
                     .map_err(BackendError::SledError)
                     .map(|_| ())
+            }
+            Backend::File(config) => {
+                let n = String::from_utf8_lossy(namespace.as_ref()).to_string();
+                let k = String::from_utf8_lossy(key.as_ref()).to_string();
+                let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
+                let path = Path::new(&path_str);
+                remove_file(path).map_err(BackendError::FileError)
             }
         }
     }
@@ -98,6 +142,23 @@ impl Backend<'_> {
                             .map_err(BackendError::SledError)
                     })
                     .collect()
+            }
+            Backend::File(config) => {
+                let n = String::from_utf8_lossy(&namespace.as_ref()).to_string();
+                let path_str = format!("{}/{}", config.writeable_path, n);
+                let path = Path::new(&path_str);
+                read_dir(path)
+                    .map_err(BackendError::FileError)
+                    .and_then(|rd| {
+                        rd.into_iter()
+                            .map(|e| {
+                                e.map_err(BackendError::FileError).and_then(|de| {
+                                    self.read(&namespace, de.file_name().into_string().unwrap())
+                                        .map(|r| r.unwrap())
+                                })
+                            })
+                            .collect::<Result<Vec<V>, BackendError>>()
+                    })
             }
         }
     }
