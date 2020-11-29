@@ -12,8 +12,8 @@ pub fn import_private_key() {
     if atty::is(atty::Stream::Stdin) {
         exit_with(
             "To import an existing Lockbook, pipe your account string into this command, \
-    eg. pbpaste | lockbook import \
-    or xclip -selection clipboard -o | lockbook import",
+    eg. pbpaste | lockbook import-private-key \
+    or xclip -selection clipboard -o | lockbook import-private-key",
             EXPECTED_STDIN,
         );
     } else {
