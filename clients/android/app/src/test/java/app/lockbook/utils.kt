@@ -51,8 +51,6 @@ val checkIfAllErrorsPresentConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         val jsonObject = jv.obj!!
 
-        print(jsonObject.toJsonString(prettyPrint = true))
-
         var accountExportErrors = AccountExportError::class.nestedClasses.filter { kClass -> kClass != AccountExportError.Unexpected::class }
         jsonObject.array<String>("AccountExportError")!!.forEach { error ->
             val sizeBefore = accountExportErrors.size
