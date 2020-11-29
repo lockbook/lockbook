@@ -134,9 +134,9 @@ mod usage_service_tests {
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
-    use uuid::Uuid;
-    use lockbook_core::service::crypto_service::{RSAImpl, PubKeyCryptoService};
     use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use uuid::Uuid;
 
     #[test]
     fn compute_usage() {
@@ -153,7 +153,9 @@ mod usage_service_tests {
             let date_start = chrono::NaiveDateTime::from_str("2000-10-01T00:00:00.000").unwrap();
             let date_end = chrono::NaiveDateTime::from_str("2000-10-31T00:00:00.000").unwrap();
 
-            let public_key = RSAImpl::<ClockImpl>::generate_key().unwrap().to_public_key();
+            let public_key = RSAImpl::<ClockImpl>::generate_key()
+                .unwrap()
+                .to_public_key();
 
             let _ = transaction
                 .execute(
