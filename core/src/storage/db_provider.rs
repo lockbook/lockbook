@@ -2,7 +2,7 @@ use sled::Db;
 
 use crate::model::state::Config;
 use crate::DB_NAME;
-use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
+use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions, ReadDir};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 
@@ -60,14 +60,16 @@ impl Backend<'_> {
                 let k = String::from_utf8_lossy(key.as_ref()).to_string();
                 let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
                 let path = Path::new(&path_str);
+                let data = &value.into().clone();
+                info!("write\t{} {:?} bytes", &path_str, data.len());
                 create_dir_all(path.parent().unwrap()).map_err(BackendError::FileError)?;
                 let mut f = OpenOptions::new()
                     .write(true)
                     .create(true)
+                    .truncate(true)
                     .open(path)
                     .map_err(BackendError::FileError)?;
-                f.write_all(value.into().as_ref())
-                    .map_err(BackendError::FileError)
+                f.write_all(data).map_err(BackendError::FileError)
             }
         }
     }
@@ -90,6 +92,7 @@ impl Backend<'_> {
                 let k = String::from_utf8_lossy(key.as_ref()).to_string();
                 let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
                 let path = Path::new(&path_str);
+                info!("read\t{}", &path_str);
                 match File::open(path) {
                     Ok(mut f) => {
                         let mut buffer: Vec<u8> = Vec::new();
@@ -123,6 +126,7 @@ impl Backend<'_> {
                 let k = String::from_utf8_lossy(key.as_ref()).to_string();
                 let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
                 let path = Path::new(&path_str);
+                info!("delete\t{}", &path_str);
                 remove_file(path).map_err(BackendError::FileError)
             }
         }
@@ -147,18 +151,19 @@ impl Backend<'_> {
                 let n = String::from_utf8_lossy(&namespace.as_ref()).to_string();
                 let path_str = format!("{}/{}", config.writeable_path, n);
                 let path = Path::new(&path_str);
-                read_dir(path)
-                    .map_err(BackendError::FileError)
-                    .and_then(|rd| {
-                        rd.into_iter()
-                            .map(|e| {
-                                e.map_err(BackendError::FileError).and_then(|de| {
-                                    self.read(&namespace, de.file_name().into_string().unwrap())
-                                        .map(|r| r.unwrap())
-                                })
+                info!("dump\t{}", &path_str);
+                match read_dir(path) {
+                    Ok(rd) => rd
+                        .into_iter()
+                        .map(|e| {
+                            e.map_err(BackendError::FileError).and_then(|de| {
+                                self.read(&namespace, de.file_name().into_string().unwrap())
+                                    .map(|r| r.unwrap())
                             })
-                            .collect::<Result<Vec<V>, BackendError>>()
-                    })
+                        })
+                        .collect::<Result<Vec<V>, BackendError>>(),
+                    Err(_) => Ok(Vec::new()),
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ use crate::repo::file_metadata_repo::Problem::{
 };
 use crate::storage::db_provider;
 use crate::storage::db_provider::Backend;
+use serde_json::Error;
 
 #[derive(Debug)]
 pub enum DbError {
@@ -110,18 +111,14 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         backend
             .write(
                 FILE_METADATA,
-                &file.id.as_bytes(),
+                file.id.to_string().as_str(),
                 serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
             )
             .map_err(DbError::BackendError)?;
         if file.id == file.parent {
             debug!("saving root folder: {:?}", &file.id);
             backend
-                .write(
-                    ROOT,
-                    ROOT,
-                    serde_json::to_vec(&file.id).map_err(DbError::SerdeError)?,
-                )
+                .write(ROOT, ROOT, file.id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         }
         Ok(())
@@ -132,17 +129,25 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
             backend.read(ROOT, ROOT).map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
-            Some(value) => {
-                let id: Uuid =
-                    serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
-                Self::maybe_get(&backend, id)
-            }
+            Some(value) => match String::from_utf8(value.clone()) {
+                Ok(id) => match Uuid::parse_str(&id) {
+                    Ok(uuid) => Self::maybe_get(&backend, uuid),
+                    Err(err) => {
+                        error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
+                        Ok(None)
+                    }
+                },
+                Err(err) => {
+                    error!("Failed parsing {:?} into a UUID", &value);
+                    Ok(None)
+                }
+            },
         }
     }
 
     fn get(backend: &Backend, id: Uuid) -> Result<FileMetadata, GetError> {
         let maybe_value: Option<Vec<u8>> = backend
-            .read(FILE_METADATA, id.as_bytes())
+            .read(FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)
             .map_err(GetError::DbError)?;
         let value = maybe_value.ok_or(GetError::FileRowMissing)?;
@@ -154,7 +159,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
         let maybe_value: Option<Vec<u8>> = backend
-            .read(FILE_METADATA, id.as_bytes())
+            .read(FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)?;
         Ok(maybe_value.and_then(|value| {
             serde_json::from_slice(value.as_ref())
@@ -351,7 +356,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn non_recursive_delete(backend: &Backend, id: Uuid) -> Result<(), DbError> {
         backend
-            .delete(FILE_METADATA, id.as_bytes())
+            .delete(FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)
     }
 

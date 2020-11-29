@@ -32,7 +32,7 @@ impl DocumentRepo for DocumentRepoImpl {
         backend
             .write(
                 Self::NAMESPACE,
-                id.as_bytes(),
+                id.to_string().as_str(),
                 serde_json::to_vec(document).map_err(Error::SerdeError)?,
             )
             .map_err(Error::BackendError)
@@ -40,27 +40,29 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
         let maybe_data: Option<Vec<u8>> = backend
-            .read(Self::NAMESPACE, id.as_bytes())
+            .read(Self::NAMESPACE, id.to_string().as_str())
             .map_err(Error::BackendError)?;
         match maybe_data {
             None => Err(Error::FileRowMissing(())),
-            Some(data) => serde_json::from_slice(data.borrow()).map_err(Error::SerdeError),
+            Some(data) => serde_json::from_slice(&data).map_err(Error::SerdeError),
         }
     }
 
     fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
         let maybe_data: Option<Vec<u8>> = backend
-            .read(Self::NAMESPACE, id.as_bytes())
+            .read(Self::NAMESPACE, id.to_string().as_str())
             .map_err(DbError::BackendError)?;
         match maybe_data {
             None => Ok(None),
-            Some(data) => serde_json::from_slice(data.borrow()).map_err(DbError::SerdeError),
+            Some(data) => serde_json::from_slice(&data)
+                .map(Some)
+                .map_err(DbError::SerdeError),
         }
     }
 
     fn delete(backend: &Backend, id: Uuid) -> Result<(), Error> {
         backend
-            .delete(Self::NAMESPACE, id.as_bytes())
+            .delete(Self::NAMESPACE, id.to_string().as_str())
             .map_err(Error::BackendError)
     }
 }

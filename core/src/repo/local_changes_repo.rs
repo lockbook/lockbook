@@ -70,7 +70,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
 
     fn get_local_changes(backend: &Backend, id: Uuid) -> Result<Option<LocalChange>, DbError> {
         let maybe_value: Option<Vec<u8>> = backend
-            .read(LOCAL_CHANGES, id.as_bytes())
+            .read(LOCAL_CHANGES, id.to_string().as_str())
             .map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
@@ -96,7 +96,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         backend
             .write(
                 LOCAL_CHANGES,
-                id.as_bytes(),
+                id.to_string().as_str(),
                 serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
             )
             .map_err(DbError::BackendError)?;
@@ -128,7 +128,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 backend
                     .write(
                         LOCAL_CHANGES,
-                        id.as_bytes(),
+                        id.to_string().as_str(),
                         serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::BackendError)?;
@@ -140,7 +140,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -182,7 +182,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 backend
                     .write(
                         LOCAL_CHANGES,
-                        id.as_bytes(),
+                        id.to_string().as_str(),
                         serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::BackendError)?;
@@ -194,7 +194,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -241,7 +241,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 backend
                     .write(
                         LOCAL_CHANGES,
-                        id.as_bytes(),
+                        id.to_string().as_str(),
                         serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::BackendError)?;
@@ -257,7 +257,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -289,7 +289,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 backend
                     .write(
                         LOCAL_CHANGES,
-                        id.as_bytes(),
+                        id.to_string().as_str(),
                         serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::BackendError)?;
@@ -316,7 +316,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                         backend
                             .write(
                                 LOCAL_CHANGES,
-                                id.as_bytes(),
+                                id.to_string().as_str(),
                                 serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
                             )
                             .map_err(DbError::BackendError)?;
@@ -327,7 +327,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -349,7 +349,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -372,7 +372,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -394,7 +394,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -417,7 +417,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     backend
                         .write(
                             LOCAL_CHANGES,
-                            id.as_bytes(),
+                            id.to_string().as_str(),
                             serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
                         )
                         .map_err(DbError::BackendError)?;
@@ -433,7 +433,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
             None => Ok(()),
             Some(_) => {
                 backend
-                    .delete(LOCAL_CHANGES, id.as_bytes())
+                    .delete(LOCAL_CHANGES, id.to_string().as_str())
                     .map_err(DbError::BackendError)?;
                 Ok(())
             }
