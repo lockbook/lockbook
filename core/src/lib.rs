@@ -41,6 +41,7 @@ use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
+use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service;
 use crate::service::file_service::{
@@ -378,6 +379,8 @@ pub fn write_document(
             )),
             DocumentUpdateError::CouldNotFindParents(_)
             | DocumentUpdateError::FileCryptoError(_)
+            | DocumentUpdateError::FileCompressionError(_)
+            | DocumentUpdateError::FileDecompressionError(_)
             | DocumentUpdateError::DocumentWriteError(_)
             | DocumentUpdateError::DbError(_)
             | DocumentUpdateError::FetchOldVersionError(_)
@@ -635,7 +638,8 @@ pub fn read_document(
             FSReadDocumentError::DbError(_)
             | FSReadDocumentError::DocumentReadError(_)
             | FSReadDocumentError::CouldNotFindParents(_)
-            | FSReadDocumentError::FileCryptoError(_) => {
+            | FSReadDocumentError::FileCryptoError(_)
+            | FSReadDocumentError::FileDecompressionError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
@@ -888,6 +892,7 @@ pub fn execute_work(
             | WorkExecutionError::AutoRenameError(_)
             | WorkExecutionError::ResolveConflictByCreatingNewFileError(_)
             | WorkExecutionError::DecryptingOldVersionForMergeError(_)
+            | WorkExecutionError::DecompressingForMergeError(_)
             | WorkExecutionError::ReadingCurrentVersionError(_)
             | WorkExecutionError::WritingMergedFileError(_)
             | WorkExecutionError::ErrorCreatingRecoveryFile(_)
@@ -1062,6 +1067,7 @@ pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
+pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
     DefaultLocalChangesRepo,
@@ -1070,6 +1076,7 @@ pub type DefaultSyncService = FileSyncService<
     DefaultClient,
     DefaultFileService,
     DefaultFileEncryptionService,
+    DefaultFileCompressionService,
 >;
 pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
@@ -1077,4 +1084,5 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultLocalChangesRepo,
     DefaultAccountRepo,
     DefaultFileEncryptionService,
+    DefaultFileCompressionService,
 >;
