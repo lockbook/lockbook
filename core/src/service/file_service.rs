@@ -603,9 +603,7 @@ mod unit_tests {
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
-    use crate::service::file_service::{
-        DocumentRenameError, FileMoveError, FileService, NewFileError,
-    };
+    use crate::service::file_service::{DocumentRenameError, FileMoveError, FileService, NewFileError, DeleteFolderError};
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
@@ -1125,6 +1123,35 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_move_folder_into_itself() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+        assert_no_metadata_problems!(&db);
+
+        let folder1 = DefaultFileService::create_at_path(&db, "username/folder1/").unwrap();
+        let folder2 = DefaultFileService::create_at_path(&db, "username/folder1/folder2/").unwrap();
+
+        assert_total_local_changes!(&db, 2);
+
+        assert!(
+            matches!(
+            DefaultFileService::move_file(&db, folder1.id, folder1.id).unwrap_err(),
+            FileMoveError::FolderMovedIntoItself
+        ));
+
+        assert!(
+            matches!(
+            DefaultFileService::move_file(&db, folder1.id, folder2.id).unwrap_err(),
+            FileMoveError::FolderMovedIntoItself
+        ));
+    }
+
+    #[test]
     fn test_keeping_track_of_edits() {
         let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
 
@@ -1343,5 +1370,23 @@ mod unit_tests {
         assert!(DefaultDocumentRepo::maybe_get(&db, document6.id)
             .unwrap()
             .is_some());
+    }
+
+    #[test]
+    fn test_cannot_delete_root() {
+        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+
+        let account = test_account();
+        DefaultAccountRepo::insert_account(&db, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(&db, &root).unwrap();
+
+        assert!(
+            matches!(
+            DefaultFileService::delete_folder(&db, root.id).unwrap_err(),
+            DeleteFolderError::CannotDeleteRoot
+        ));
+
+        assert_total_local_changes!(&db, 0);
     }
 }
