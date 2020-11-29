@@ -603,7 +603,9 @@ mod unit_tests {
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
-    use crate::service::file_service::{DocumentRenameError, FileMoveError, FileService, NewFileError, DeleteFolderError};
+    use crate::service::file_service::{
+        DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
+    };
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
@@ -1138,14 +1140,12 @@ mod unit_tests {
 
         assert_total_local_changes!(&db, 2);
 
-        assert!(
-            matches!(
+        assert!(matches!(
             DefaultFileService::move_file(&db, folder1.id, folder1.id).unwrap_err(),
             FileMoveError::FolderMovedIntoItself
         ));
 
-        assert!(
-            matches!(
+        assert!(matches!(
             DefaultFileService::move_file(&db, folder1.id, folder2.id).unwrap_err(),
             FileMoveError::FolderMovedIntoItself
         ));
@@ -1381,8 +1381,7 @@ mod unit_tests {
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
-        assert!(
-            matches!(
+        assert!(matches!(
             DefaultFileService::delete_folder(&db, root.id).unwrap_err(),
             DeleteFolderError::CannotDeleteRoot
         ));
