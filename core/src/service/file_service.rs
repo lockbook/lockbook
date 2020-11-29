@@ -12,6 +12,7 @@ use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
+use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
@@ -67,6 +68,8 @@ pub enum DocumentUpdateError {
     CouldNotFindParents(FindingParentsFailed),
     FolderTreatedAsDocument,
     FileCryptoError(file_encryption_service::FileWriteError),
+    FileCompressionError(std::io::Error),
+    FileDecompressionError(std::io::Error),
     DocumentWriteError(document_repo::Error),
     FetchOldVersionError(document_repo::DbError),
     DecryptOldVersionError(file_encryption_service::UnableToReadFile),
@@ -84,6 +87,7 @@ pub enum ReadDocumentError {
     DocumentReadError(document_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::UnableToReadFile),
+    FileDecompressionError(std::io::Error),
 }
 
 #[derive(Debug)]
@@ -165,12 +169,14 @@ pub struct FileServiceImpl<
     ChangesDb: LocalChangesRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
+    FileCompression: FileCompressionService,
 > {
     _metadatas: FileMetadataDb,
     _files: FileDb,
     _changes_db: ChangesDb,
     _account: AccountDb,
     _file_crypto: FileCrypto,
+    _file_compression: FileCompression,
 }
 
 impl<
@@ -179,7 +185,9 @@ impl<
         ChangesDb: LocalChangesRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto>
+        FileCompression: FileCompressionService,
+    > FileService
+    for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto, FileCompression>
 {
     fn create(
         db: &Db,
@@ -318,9 +326,16 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
-        let new_file =
-            FileCrypto::write_to_document(&account, &content, &file_metadata, parents.clone())
-                .map_err(DocumentUpdateError::FileCryptoError)?;
+        let compressed_content = FileCompression::compress(content)
+            .map_err(DocumentUpdateError::FileCompressionError)?;
+
+        let new_file = FileCrypto::write_to_document(
+            &account,
+            &compressed_content,
+            &file_metadata,
+            parents.clone(),
+        )
+        .map_err(DocumentUpdateError::FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
@@ -332,6 +347,8 @@ impl<
                 parents.clone(),
             )
             .map_err(DocumentUpdateError::DecryptOldVersionError)?;
+            let decompressed = FileCompression::decompress(&decrypted)
+                .map_err(DocumentUpdateError::FileDecompressionError)?;
 
             let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
                 .map_err(AccessInfoCreationError)?;
@@ -341,7 +358,7 @@ impl<
                 file_metadata.id,
                 &old_encrypted,
                 &permanent_access_info,
-                Sha256::digest(&decrypted).to_vec(),
+                Sha256::digest(&decompressed).to_vec(),
                 Sha256::digest(&content).to_vec(),
             )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
@@ -467,10 +484,14 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
 
-        let contents = FileCrypto::read_document(&account, &document, &file_metadata, parents)
-            .map_err(ReadDocumentError::FileCryptoError)?;
+        let compressed_content =
+            FileCrypto::read_document(&account, &document, &file_metadata, parents)
+                .map_err(ReadDocumentError::FileCryptoError)?;
 
-        Ok(contents)
+        let content = FileCompression::decompress(&compressed_content)
+            .map_err(ReadDocumentError::FileDecompressionError)?;
+
+        Ok(content)
     }
 
     fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError> {

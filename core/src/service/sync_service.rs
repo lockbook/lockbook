@@ -26,6 +26,7 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::crypto_service::RSASignError;
+use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
@@ -33,9 +34,9 @@ use crate::service::sync_service::CalculateWorkError::{
     MetadataRepoError,
 };
 use crate::service::sync_service::WorkExecutionError::{
-    AutoRenameError, DecryptingOldVersionForMergeError, ReadingCurrentVersionError,
-    RecursiveDeleteError, ResolveConflictByCreatingNewFileError, SaveDocumentError,
-    WritingMergedFileError,
+    AutoRenameError, DecompressingForMergeError, DecryptingOldVersionForMergeError,
+    ReadingCurrentVersionError, RecursiveDeleteError, ResolveConflictByCreatingNewFileError,
+    SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::{client, DefaultFileService};
@@ -74,6 +75,7 @@ pub enum WorkExecutionError {
     AutoRenameError(file_service::DocumentRenameError),
     ResolveConflictByCreatingNewFileError(file_service::NewFileError),
     DecryptingOldVersionForMergeError(file_encryption_service::UnableToReadFileAsUser),
+    DecompressingForMergeError(std::io::Error),
     ReadingCurrentVersionError(file_service::ReadDocumentError),
     WritingMergedFileError(file_service::DocumentUpdateError),
     FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
@@ -224,6 +226,7 @@ pub struct FileSyncService<
     ApiClient: Client,
     Files: FileService,
     FileCrypto: FileEncryptionService,
+    FileCompression: FileCompressionService,
 > {
     _metadatas: FileMetadataDb,
     _changes: ChangeDb,
@@ -232,6 +235,7 @@ pub struct FileSyncService<
     _client: ApiClient,
     _file: Files,
     _file_crypto: FileCrypto,
+    _file_compression: FileCompression,
 }
 
 impl<
@@ -242,8 +246,18 @@ impl<
         ApiClient: Client,
         Files: FileService,
         FileCrypto: FileEncryptionService,
+        FileCompression: FileCompressionService,
     > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, ApiClient, Files, FileCrypto>
+    for FileSyncService<
+        FileMetadataDb,
+        ChangeDb,
+        DocsDb,
+        AccountDb,
+        ApiClient,
+        Files,
+        FileCrypto,
+        FileCompression,
+    >
 {
     fn calculate_work(db: &Db) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -486,12 +500,18 @@ impl<
                                     if metadata.name.ends_with(".md")
                                         || metadata.name.ends_with(".txt")
                                     {
-                                        let common_ancestor = FileCrypto::user_read_document(
-                                            &account,
-                                            &edited_locally.old_value,
-                                            &edited_locally.access_info,
-                                        )
-                                        .map_err(DecryptingOldVersionForMergeError)?;
+                                        let common_ancestor = {
+                                            let compressed_common_ancestor =
+                                                FileCrypto::user_read_document(
+                                                    &account,
+                                                    &edited_locally.old_value,
+                                                    &edited_locally.access_info,
+                                                )
+                                                .map_err(DecryptingOldVersionForMergeError)?;
+
+                                            FileCompression::decompress(&compressed_common_ancestor)
+                                                .map_err(DecompressingForMergeError)?
+                                        };
 
                                         let current_version =
                                             Files::read_document(&db, metadata.id)
@@ -508,13 +528,17 @@ impl<
                                             .map_err(WorkExecutionError::from)?
                                             .content;
 
-                                            FileCrypto::user_read_document(
-                                                &account,
-                                                &server_document,
-                                                &edited_locally.access_info,
-                                            )
-                                            .map_err(DecryptingOldVersionForMergeError)?
+                                            let compressed_server_version =
+                                                FileCrypto::user_read_document(
+                                                    &account,
+                                                    &server_document,
+                                                    &edited_locally.access_info,
+                                                )
+                                                .map_err(DecryptingOldVersionForMergeError)?;
                                             // This assumes that a file is never re-keyed.
+
+                                            FileCompression::decompress(&compressed_server_version)
+                                                .map_err(DecompressingForMergeError)?
                                         };
 
                                         let result = match diffy::merge_bytes(
