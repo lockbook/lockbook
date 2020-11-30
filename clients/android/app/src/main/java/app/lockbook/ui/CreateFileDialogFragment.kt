@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
@@ -79,6 +80,14 @@ class CreateFileDialogFragment : DialogFragment() {
 
         create_file_create.setOnClickListener {
             handleCreateFileRequest(create_file_text.text.toString())
+        }
+
+        create_file_text.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                handleCreateFileRequest(create_file_text.text.toString())
+            }
+
+            true
         }
     }
 
