@@ -186,7 +186,7 @@ class FileModel(path: String) {
         )
     }
 
-    fun matchToDefaultSortOption(files: List<FileMetadata>) {
+    private fun matchToDefaultSortOption(files: List<FileMetadata>) {
         when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
