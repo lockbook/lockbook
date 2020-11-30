@@ -8,7 +8,9 @@ import com.github.michaelbull.result.Result
 
 object CoreModel {
 
-    const val API_URL = "http://qa.lockbook.app:8000"
+    private const val QA_API_URL = "http://qa.lockbook.app:8000"
+    private const val PROD_API_URL = "http://api.lockbook.app:8000"
+    private fun getAPIURL(): String = System.getenv("API_URL") ?: QA_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
@@ -61,7 +63,7 @@ object CoreModel {
     fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
         val createAccountResult: Result<Unit, CreateAccountError>? =
             Klaxon().converter(createAccountConverter)
-                .parse(createAccount(Klaxon().toJsonString(config), account, API_URL))
+                .parse(createAccount(Klaxon().toJsonString(config), account, getAPIURL()))
 
         if (createAccountResult != null) {
             return createAccountResult
