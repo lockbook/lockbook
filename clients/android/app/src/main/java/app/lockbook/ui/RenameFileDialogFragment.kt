@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
@@ -16,8 +17,10 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.android.synthetic.main.dialog_move_file.*
 import kotlinx.android.synthetic.main.dialog_rename_file.*
+import kotlinx.android.synthetic.main.dialog_rename_file.rename_file
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -81,6 +84,14 @@ class RenameFileDialogFragment : DialogFragment() {
 
         rename_file_rename.setOnClickListener {
             handleRenameRequest(rename_file.text.toString())
+        }
+
+        rename_file.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                handleRenameRequest(rename_file.text.toString())
+            }
+
+            true
         }
 
         rename_file.setText(name)
