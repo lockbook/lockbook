@@ -29,7 +29,8 @@
         android:hint="@string/dialog_file_name"
         style="@style/Text.Small"
         android:inputType="text"
-        android:importantForAutofill="no" />
+        android:importantForAutofill="no"
+        android:imeOptions="actionDone" />
 
     <LinearLayout
         android:layout_width="match_parent"
