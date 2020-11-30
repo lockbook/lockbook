@@ -31,7 +31,7 @@ pub fn move_file(path1: &str, path2: &str) {
                         }
                         Error::UiError(MoveFileError::FolderMovedIntoItself) => {
                             exit_with(
-                                &format!("Cannot move file into its self or children."),
+                                "Cannot move file into its self or children.",
                                 COULD_NOT_MOVE_FOLDER_INTO_ITSELF,
                             );
                         }
