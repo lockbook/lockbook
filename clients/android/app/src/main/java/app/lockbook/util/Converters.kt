@@ -603,9 +603,9 @@ val readDocumentConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
         okTag -> {
-            val ok = jv.obj?.obj("content")
+            val ok = jv.obj?.string("content")
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonObject<DecryptedValue>(ok))
+                Ok(ok)
             } else {
                 Err(ReadDocumentError.Unexpected("readDocumentConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }

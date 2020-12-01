@@ -2,7 +2,7 @@ use sha2::{Digest, Sha256};
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::*;
+use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::FileType::{Document, Folder};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
@@ -12,6 +12,7 @@ use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
+use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
@@ -67,6 +68,8 @@ pub enum DocumentUpdateError {
     CouldNotFindParents(FindingParentsFailed),
     FolderTreatedAsDocument,
     FileCryptoError(file_encryption_service::FileWriteError),
+    FileCompressionError(std::io::Error),
+    FileDecompressionError(std::io::Error),
     DocumentWriteError(document_repo::Error),
     FetchOldVersionError(document_repo::DbError),
     DecryptOldVersionError(file_encryption_service::UnableToReadFile),
@@ -84,6 +87,7 @@ pub enum ReadDocumentError {
     DocumentReadError(document_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
     FileCryptoError(file_encryption_service::UnableToReadFile),
+    FileDecompressionError(std::io::Error),
 }
 
 #[derive(Debug)]
@@ -149,17 +153,13 @@ pub trait FileService {
 
     fn create_at_path(db: &Db, path_and_name: &str) -> Result<FileMetadata, NewFileFromPathError>;
 
-    fn write_document(
-        db: &Db,
-        id: Uuid,
-        content: &DecryptedValue,
-    ) -> Result<(), DocumentUpdateError>;
+    fn write_document(db: &Db, id: Uuid, content: &[u8]) -> Result<(), DocumentUpdateError>;
 
     fn rename_file(db: &Db, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
 
     fn move_file(db: &Db, file_metadata: Uuid, new_parent: Uuid) -> Result<(), FileMoveError>;
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError>;
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError>;
 
     fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError>;
 
@@ -172,12 +172,14 @@ pub struct FileServiceImpl<
     ChangesDb: LocalChangesRepo,
     AccountDb: AccountRepo,
     FileCrypto: FileEncryptionService,
+    FileCompression: FileCompressionService,
 > {
     _metadatas: FileMetadataDb,
     _files: FileDb,
     _changes_db: ChangesDb,
     _account: AccountDb,
     _file_crypto: FileCrypto,
+    _file_compression: FileCompression,
 }
 
 impl<
@@ -186,7 +188,9 @@ impl<
         ChangesDb: LocalChangesRepo,
         AccountDb: AccountRepo,
         FileCrypto: FileEncryptionService,
-    > FileService for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto>
+        FileCompression: FileCompressionService,
+    > FileService
+    for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto, FileCompression>
 {
     fn create(
         db: &Db,
@@ -232,14 +236,7 @@ impl<
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
-            Self::write_document(
-                &db,
-                new_metadata.id,
-                &DecryptedValue {
-                    secret: "".to_string(),
-                },
-            )
-            .map_err(FailedToWriteFileContent)?;
+            Self::write_document(&db, new_metadata.id, &[]).map_err(FailedToWriteFileContent)?;
         }
         Ok(new_metadata)
     }
@@ -317,11 +314,7 @@ impl<
         Ok(current)
     }
 
-    fn write_document(
-        db: &Db,
-        id: Uuid,
-        content: &DecryptedValue,
-    ) -> Result<(), DocumentUpdateError> {
+    fn write_document(db: &Db, id: Uuid, content: &[u8]) -> Result<(), DocumentUpdateError> {
         let account =
             AccountDb::get_account(&db).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
@@ -336,9 +329,16 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
-        let new_file =
-            FileCrypto::write_to_document(&account, &content, &file_metadata, parents.clone())
-                .map_err(DocumentUpdateError::FileCryptoError)?;
+        let compressed_content = FileCompression::compress(content)
+            .map_err(DocumentUpdateError::FileCompressionError)?;
+
+        let new_file = FileCrypto::write_to_document(
+            &account,
+            &compressed_content,
+            &file_metadata,
+            parents.clone(),
+        )
+        .map_err(DocumentUpdateError::FileCryptoError)?;
 
         FileMetadataDb::insert(&db, &file_metadata).map_err(DbError)?;
 
@@ -350,6 +350,8 @@ impl<
                 parents.clone(),
             )
             .map_err(DocumentUpdateError::DecryptOldVersionError)?;
+            let decompressed = FileCompression::decompress(&decrypted)
+                .map_err(DocumentUpdateError::FileDecompressionError)?;
 
             let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
                 .map_err(AccessInfoCreationError)?;
@@ -359,8 +361,8 @@ impl<
                 file_metadata.id,
                 &old_encrypted,
                 &permanent_access_info,
-                Sha256::digest(decrypted.secret.as_bytes()).to_vec(),
-                Sha256::digest(content.secret.as_bytes()).to_vec(),
+                Sha256::digest(&decompressed).to_vec(),
+                Sha256::digest(&content).to_vec(),
             )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
@@ -480,7 +482,7 @@ impl<
         }
     }
 
-    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedValue, ReadDocumentError> {
+    fn read_document(db: &Db, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError> {
         let account =
             AccountDb::get_account(&db).map_err(ReadDocumentError::AccountRetrievalError)?;
 
@@ -497,10 +499,14 @@ impl<
         let parents = FileMetadataDb::get_with_all_parents(&db, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
 
-        let contents = FileCrypto::read_document(&account, &document, &file_metadata, parents)
-            .map_err(ReadDocumentError::FileCryptoError)?;
+        let compressed_content =
+            FileCrypto::read_document(&account, &document, &file_metadata, parents)
+                .map_err(ReadDocumentError::FileCryptoError)?;
 
-        Ok(contents)
+        let content = FileCompression::decompress(&compressed_content)
+            .map_err(ReadDocumentError::FileDecompressionError)?;
+
+        Ok(content)
     }
 
     fn delete_document(db: &Db, id: Uuid) -> Result<(), DeleteDocumentError> {
@@ -525,11 +531,11 @@ impl<
             FileMetadataDb::insert(&db, &file_metadata)
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         } else {
-            FileMetadataDb::non_recursive_delete_if_exists(&db, id)
+            FileMetadataDb::non_recursive_delete(&db, id)
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         }
 
-        FileDb::delete_if_exists(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
+        FileDb::delete(&db, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(&db, id, file_metadata.file_type)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
@@ -558,8 +564,7 @@ impl<
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
         for mut file in files_to_delete {
             if file.file_type == Document {
-                FileDb::delete_if_exists(&db, file.id)
-                    .map_err(DeleteFolderError::FailedToDeleteDocument)?;
+                FileDb::delete(&db, file.id).map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
             let moved = if let Some(change) = ChangesDb::get_local_changes(&db, file.id)
@@ -571,10 +576,10 @@ impl<
             };
 
             if file.id != id && !moved {
-                FileMetadataDb::non_recursive_delete_if_exists(&db, file.id)
+                FileMetadataDb::non_recursive_delete(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
 
-                ChangesDb::delete_if_exists(&db, file.id)
+                ChangesDb::delete(&db, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
             } else {
                 file.deleted = true;
@@ -592,7 +597,6 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::account::Account;
-    use crate::model::crypto::DecryptedValue;
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::dummy_config;
     use crate::repo::account_repo::AccountRepo;
@@ -648,7 +652,7 @@ mod unit_tests {
         Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            keys: DefaultCrypto::generate_key().unwrap(),
+            private_key: DefaultCrypto::generate_key().unwrap(),
         }
     }
 
@@ -692,20 +696,11 @@ mod unit_tests {
         assert_total_filtered_paths!(&db, Some(LeafNodesOnly), 1);
         assert_total_filtered_paths!(&db, Some(DocumentsOnly), 1);
 
-        DefaultFileService::write_document(
-            &db,
-            file.id,
-            &DecryptedValue {
-                secret: "5 folders deep".to_string(),
-            },
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db, file.id, "5 folders deep".as_bytes()).unwrap();
 
         assert_eq!(
-            DefaultFileService::read_document(&db, file.id)
-                .unwrap()
-                .secret,
-            "5 folders deep".to_string()
+            DefaultFileService::read_document(&db, file.id).unwrap(),
+            "5 folders deep".as_bytes()
         );
         assert!(DefaultFileService::read_document(&db, folder4.id).is_err());
         assert_no_metadata_problems!(&db);
@@ -1076,17 +1071,14 @@ mod unit_tests {
         let file1 = DefaultFileService::create_at_path(&db, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
         let folder1 = DefaultFileService::create_at_path(&db, "username/folder2/").unwrap();
-        assert!(DefaultFileService::write_document(
-            &db,
-            folder1.id,
-            &DecryptedValue::from("should fail"),
-        )
-        .is_err());
+        assert!(
+            DefaultFileService::write_document(&db, folder1.id, &"should fail".as_bytes(),)
+                .is_err()
+        );
 
         assert_no_metadata_problems!(&db);
 
-        DefaultFileService::write_document(&db, file1.id, &DecryptedValue::from("nice doc ;)"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file1.id, "nice doc ;)".as_bytes()).unwrap();
 
         assert_total_local_changes!(&db, 3);
         assert_no_metadata_problems!(&db);
@@ -1099,10 +1091,8 @@ mod unit_tests {
         DefaultFileService::move_file(&db, file1.id, folder1.id).unwrap();
 
         assert_eq!(
-            DefaultFileService::read_document(&db, file1.id)
-                .unwrap()
-                .secret,
-            "nice doc ;)"
+            DefaultFileService::read_document(&db, file1.id).unwrap(),
+            "nice doc ;)".as_bytes()
         );
 
         assert_no_metadata_problems!(&db);
@@ -1162,8 +1152,7 @@ mod unit_tests {
         DefaultFileMetadataRepo::insert(&db, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(&db, "username/file1.md").unwrap();
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes()).unwrap();
 
         assert!(
             DefaultLocalChangesRepo::get_local_changes(&db, file.id)
@@ -1178,15 +1167,13 @@ mod unit_tests {
             .is_none());
         assert_total_local_changes!(&db, 0);
 
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content2"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content2".as_bytes()).unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .unwrap()
             .content_edited
             .is_some());
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("fresh content"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "fresh content".as_bytes()).unwrap();
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, file.id)
             .unwrap()
             .is_none());
@@ -1203,7 +1190,8 @@ mod unit_tests {
 
         let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
 
-        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
+        DefaultFileService::write_document(&db, doc1.id, &String::from("content").into_bytes())
+            .unwrap();
         DefaultFileService::delete_document(&db, doc1.id).unwrap();
         assert_total_local_changes!(&db, 0);
         assert!(DefaultLocalChangesRepo::get_local_changes(&db, doc1.id)
@@ -1230,8 +1218,9 @@ mod unit_tests {
 
         let doc1 = DefaultFileService::create(&db, "test1.md", root.id, Document).unwrap();
 
-        DefaultFileService::write_document(&db, doc1.id, &DecryptedValue::from("content")).unwrap();
-        DefaultLocalChangesRepo::delete_if_exists(&db, doc1.id).unwrap();
+        DefaultFileService::write_document(&db, doc1.id, &String::from("content").into_bytes())
+            .unwrap();
+        DefaultLocalChangesRepo::delete(&db, doc1.id).unwrap();
 
         DefaultFileService::delete_document(&db, doc1.id).unwrap();
         assert_total_local_changes!(&db, 1);

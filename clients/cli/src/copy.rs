@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 
-use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::{
     create_file_at_path, get_file_by_path, write_document, CreateFileAtPathError,
     Error as CoreError, GetFileByPathError,
@@ -82,7 +81,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         match write_document(
             &get_config(),
             file_metadata.id,
-            &DecryptedValue::from(content_to_import),
+            content_to_import.as_bytes(),
         ) {
             Ok(_) => exit_with(
                 &format!("imported to {}", import_dest_with_filename),

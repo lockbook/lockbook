@@ -2,106 +2,54 @@ mod integration_test;
 
 #[cfg(test)]
 mod rename_document_tests {
-    use crate::integration_test::{
-        aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
-    };
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
-    use uuid::Uuid;
-
     use crate::assert_matches;
+    use crate::integration_test::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
+    use lockbook_core::client::{ApiError, Client};
+    use lockbook_core::model::api::*;
+    use lockbook_core::model::file_metadata::FileType;
+    use lockbook_core::DefaultClient;
 
     #[test]
     fn rename_document() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // rename document
-        assert_matches!(
-            ClientImpl::rename_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                &random_filename(),
-            ),
-            Ok(_)
-        );
+        doc.name = String::from("new name");
+        DefaultClient::request(&account, RenameDocumentRequest::new(&doc)).unwrap();
     }
 
     #[test]
     fn rename_document_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // rename document that wasn't created
+        let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.name = String::from("new name");
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::rename_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                Uuid::new_v4(),
-                0,
-                &random_filename(),
-            ),
-            Err(ApiError::<RenameDocumentError>::Api(
+            result,
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentNotFound
             ))
         );
@@ -111,65 +59,30 @@ mod rename_document_tests {
     fn rename_document_deleted() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
         .unwrap();
 
         // delete document
-        assert_matches!(
-            ClientImpl::delete_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-            ),
-            Ok(_)
-        );
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
-        // rename deleted document
+        // rename document
+        doc.name = String::from("new name");
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::rename_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                &random_filename(),
-            ),
-            Err(ApiError::<RenameDocumentError>::Api(
+            result,
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentDeleted
             ))
         );
@@ -179,54 +92,28 @@ mod rename_document_tests {
     fn rename_document_conflict() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
         .unwrap();
 
         // rename document
+        doc.name = String::from("new name");
+        doc.metadata_version -= 1;
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::rename_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version - 1,
-                &random_filename(),
-            ),
-            Err(ApiError::<RenameDocumentError>::Api(
+            result,
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::EditConflict
             ))
         );
@@ -236,75 +123,39 @@ mod rename_document_tests {
     fn rename_document_path_taken() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
+
+        // create document in same folder
+        let (doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc2,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
         .unwrap();
 
-        // create document in same folder
-        let doc_id2 = Uuid::new_v4();
-        let doc_key2 = AesImpl::generate_key();
-        let doc_name2 = random_filename();
+        // rename first document to same name as second
+        doc.name = doc2.name;
+        let result = DefaultClient::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::create_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id2,
-                &doc_name2,
-                folder_id,
-                aes_str(&doc_key2, "doc content"),
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &doc_key2),
-                },
-            ),
-            Ok(_)
-        );
-
-        // rename document
-        assert_matches!(
-            ClientImpl::rename_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                &doc_name2,
-            ),
-            Err(ApiError::<RenameDocumentError>::Api(
+            result,
+            Err(ApiError::<RenameDocumentError>::Endpoint(
                 RenameDocumentError::DocumentPathTaken
             ))
         );

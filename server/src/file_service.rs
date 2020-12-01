@@ -1,28 +1,20 @@
-use crate::file_content_client;
 use crate::file_index_repo;
 use crate::file_index_repo::FileError;
 use crate::usage_service;
-use crate::utils::{username_is_valid, version_is_supported};
-use crate::ServerState;
+use crate::{file_content_client, RequestContext};
 use lockbook_core::model::api::*;
 use lockbook_core::model::file_metadata::FileType;
 
 pub async fn change_document_content(
-    server_state: &mut ServerState,
-    request: ChangeDocumentContentRequest,
-) -> Result<ChangeDocumentContentResponse, ChangeDocumentContentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(ChangeDocumentContentError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(ChangeDocumentContentError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, ChangeDocumentContentRequest>,
+) -> Result<ChangeDocumentContentResponse, Option<ChangeDocumentContentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(ChangeDocumentContentError::InternalError);
+            return Err(None);
         }
     };
 
@@ -34,9 +26,9 @@ pub async fn change_document_content(
     .await;
 
     let (old_content_version, new_version) = result.map_err(|e| match e {
-        FileError::DoesNotExist => ChangeDocumentContentError::DocumentNotFound,
-        FileError::IncorrectOldVersion => ChangeDocumentContentError::EditConflict,
-        FileError::Deleted => ChangeDocumentContentError::DocumentDeleted,
+        FileError::DoesNotExist => Some(ChangeDocumentContentError::DocumentNotFound),
+        FileError::IncorrectOldVersion => Some(ChangeDocumentContentError::EditConflict),
+        FileError::Deleted => Some(ChangeDocumentContentError::DocumentDeleted),
         FileError::FolderMovedIntoDescendants
         | FileError::Deserialize(_)
         | FileError::IdTaken
@@ -53,7 +45,7 @@ pub async fn change_document_content(
                 "Internal server error! Cannot change document content version in Postgres: {:?}",
                 e
             );
-            ChangeDocumentContentError::InternalError
+            None
         }
     })?;
 
@@ -69,7 +61,7 @@ pub async fn change_document_content(
             "Internal server error! Cannot create file in S3: {:?}",
             create_result
         );
-        return Err(ChangeDocumentContentError::InternalError);
+        return Err(None);
     };
 
     let delete_result = file_content_client::delete(
@@ -83,19 +75,19 @@ pub async fn change_document_content(
             "Internal server error! Cannot delete file in S3: {:?}",
             delete_result
         );
-        return Err(ChangeDocumentContentError::InternalError);
+        return Err(None);
     };
 
     usage_service::track_content_change(
         &transaction,
         &request.id,
-        &request.username,
-        &request.new_content,
+        &context.public_key,
+        request.new_content.value.len() as i64,
     )
     .await
     .map_err(|err| {
         error!("Usage tracking error: {:?}", err);
-        ChangeDocumentContentError::InternalError
+        None
     })?;
 
     match transaction.commit().await {
@@ -104,27 +96,21 @@ pub async fn change_document_content(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(ChangeDocumentContentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn create_document(
-    server_state: &mut ServerState,
-    request: CreateDocumentRequest,
-) -> Result<CreateDocumentResponse, CreateDocumentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(CreateDocumentError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(CreateDocumentError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, CreateDocumentRequest>,
+) -> Result<CreateDocumentResponse, Option<CreateDocumentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(CreateDocumentError::InternalError);
+            return Err(None);
         }
     };
 
@@ -134,16 +120,15 @@ pub async fn create_document(
         request.parent,
         FileType::Document,
         &request.name,
-        &request.username,
-        &request.signature,
+        &context.public_key,
         &request.parent_access_key,
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
-        FileError::IdTaken => CreateDocumentError::FileIdTaken,
-        FileError::PathTaken => CreateDocumentError::DocumentPathTaken,
-        FileError::OwnerDoesNotExist => CreateDocumentError::UserNotFound,
-        FileError::ParentDoesNotExist => CreateDocumentError::ParentNotFound,
+        FileError::IdTaken => Some(CreateDocumentError::FileIdTaken),
+        FileError::PathTaken => Some(CreateDocumentError::DocumentPathTaken),
+        FileError::OwnerDoesNotExist => Some(CreateDocumentError::UserNotFound),
+        FileError::ParentDoesNotExist => Some(CreateDocumentError::ParentNotFound),
         FileError::Deleted
         | FileError::Deserialize(_)
         | FileError::DoesNotExist
@@ -159,20 +144,20 @@ pub async fn create_document(
                 "Internal server error! Cannot create document in Postgres: {:?}",
                 e
             );
-            CreateDocumentError::InternalError
+            None
         }
     })?;
 
     usage_service::track_content_change(
         &transaction,
         &request.id,
-        &request.username,
-        &request.content,
+        &context.public_key,
+        request.content.value.len() as i64,
     )
     .await
     .map_err(|err| {
         error!("Usage tracking error: {:?}", err);
-        CreateDocumentError::InternalError
+        None
     })?;
 
     let files_result = file_content_client::create(
@@ -188,7 +173,7 @@ pub async fn create_document(
             "Internal server error! Cannot create file in S3: {:?}",
             files_result
         );
-        return Err(CreateDocumentError::InternalError);
+        return Err(None);
     };
 
     match transaction.commit().await {
@@ -197,36 +182,30 @@ pub async fn create_document(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(CreateDocumentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn delete_document(
-    server_state: &mut ServerState,
-    request: DeleteDocumentRequest,
-) -> Result<DeleteDocumentResponse, DeleteDocumentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(DeleteDocumentError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(DeleteDocumentError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, DeleteDocumentRequest>,
+) -> Result<DeleteDocumentResponse, Option<DeleteDocumentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(DeleteDocumentError::InternalError);
+            return Err(None);
         }
     };
 
     let index_result =
         file_index_repo::delete_file(&transaction, request.id, FileType::Document).await;
     let index_responses = index_result.map_err(|e| match e {
-        FileError::DoesNotExist => DeleteDocumentError::DocumentNotFound,
-        FileError::IncorrectOldVersion => DeleteDocumentError::EditConflict,
-        FileError::Deleted => DeleteDocumentError::DocumentDeleted,
+        FileError::DoesNotExist => Some(DeleteDocumentError::DocumentNotFound),
+        FileError::IncorrectOldVersion => Some(DeleteDocumentError::EditConflict),
+        FileError::Deleted => Some(DeleteDocumentError::DocumentDeleted),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -243,7 +222,7 @@ pub async fn delete_document(
                 "Internal server error! Cannot delete document in Postgres: {:?}",
                 e
             );
-            DeleteDocumentError::InternalError
+            None
         }
     })?;
 
@@ -251,7 +230,7 @@ pub async fn delete_document(
         result
     } else {
         error!("Internal server error! Unexpected zero or multiple postgres rows");
-        return Err(DeleteDocumentError::InternalError);
+        return Err(None);
     };
 
     let files_result = file_content_client::delete(
@@ -265,14 +244,14 @@ pub async fn delete_document(
             "Internal server error! Cannot delete file in S3: {:?}",
             files_result
         );
-        return Err(DeleteDocumentError::InternalError);
+        return Err(None);
     };
 
-    usage_service::track_deletion(&transaction, &request.id, &request.username)
+    usage_service::track_content_change(&transaction, &request.id, &context.public_key, 0)
         .await
         .map_err(|err| {
             error!("Usage tracking error: {:?}", err);
-            DeleteDocumentError::InternalError
+            None
         })?;
 
     match transaction.commit().await {
@@ -281,32 +260,21 @@ pub async fn delete_document(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(DeleteDocumentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn move_document(
-    server_state: &mut ServerState,
-    request: MoveDocumentRequest,
-) -> Result<MoveDocumentResponse, MoveDocumentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(MoveDocumentError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(MoveDocumentError::InvalidUsername);
-    }
-
-    if request.id == request.new_parent {
-        return Err(MoveDocumentError::FolderMovedIntoItself);
-    }
-
+    context: &mut RequestContext<'_, MoveDocumentRequest>,
+) -> Result<MoveDocumentResponse, Option<MoveDocumentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(MoveDocumentError::InternalError);
+            return Err(None);
         }
     };
 
@@ -316,16 +284,16 @@ pub async fn move_document(
         request.old_metadata_version,
         FileType::Document,
         request.new_parent,
-        request.new_folder_access,
+        request.new_folder_access.clone(),
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        FileError::DoesNotExist => MoveDocumentError::DocumentNotFound,
-        FileError::IncorrectOldVersion => MoveDocumentError::EditConflict,
-        FileError::Deleted => MoveDocumentError::DocumentDeleted,
-        FileError::PathTaken => MoveDocumentError::DocumentPathTaken,
-        FileError::ParentDoesNotExist => MoveDocumentError::ParentNotFound,
-        FileError::ParentDeleted => MoveDocumentError::ParentDeleted,
+        FileError::DoesNotExist => Some(MoveDocumentError::DocumentNotFound),
+        FileError::IncorrectOldVersion => Some(MoveDocumentError::EditConflict),
+        FileError::Deleted => Some(MoveDocumentError::DocumentDeleted),
+        FileError::PathTaken => Some(MoveDocumentError::DocumentPathTaken),
+        FileError::ParentDoesNotExist => Some(MoveDocumentError::ParentNotFound),
+        FileError::ParentDeleted => Some(MoveDocumentError::ParentDeleted),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -339,7 +307,7 @@ pub async fn move_document(
                 "Internal server error! Cannot move document in Postgres: {:?}",
                 e
             );
-            MoveDocumentError::InternalError
+            None
         }
     })?;
 
@@ -349,27 +317,21 @@ pub async fn move_document(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(MoveDocumentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn rename_document(
-    server_state: &mut ServerState,
-    request: RenameDocumentRequest,
-) -> Result<RenameDocumentResponse, RenameDocumentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(RenameDocumentError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(RenameDocumentError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, RenameDocumentRequest>,
+) -> Result<RenameDocumentResponse, Option<RenameDocumentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(RenameDocumentError::InternalError);
+            return Err(None);
         }
     };
 
@@ -382,10 +344,10 @@ pub async fn rename_document(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        FileError::DoesNotExist => RenameDocumentError::DocumentNotFound,
-        FileError::IncorrectOldVersion => RenameDocumentError::EditConflict,
-        FileError::Deleted => RenameDocumentError::DocumentDeleted,
-        FileError::PathTaken => RenameDocumentError::DocumentPathTaken,
+        FileError::DoesNotExist => Some(RenameDocumentError::DocumentNotFound),
+        FileError::IncorrectOldVersion => Some(RenameDocumentError::EditConflict),
+        FileError::Deleted => Some(RenameDocumentError::DocumentDeleted),
+        FileError::PathTaken => Some(RenameDocumentError::DocumentPathTaken),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -401,7 +363,7 @@ pub async fn rename_document(
                 "Internal server error! Cannot rename document in Postgres: {:?}",
                 e
             );
-            RenameDocumentError::InternalError
+            None
         }
     })?;
 
@@ -411,19 +373,16 @@ pub async fn rename_document(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(RenameDocumentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn get_document(
-    server_state: &mut ServerState,
-    request: GetDocumentRequest,
-) -> Result<GetDocumentResponse, GetDocumentError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(GetDocumentError::ClientUpdateRequired);
-    }
-
+    context: &mut RequestContext<'_, GetDocumentRequest>,
+) -> Result<GetDocumentResponse, Option<GetDocumentError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let files_result = file_content_client::get(
         &server_state.files_db_client,
         request.id,
@@ -432,30 +391,26 @@ pub async fn get_document(
     .await;
     match files_result {
         Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(file_content_client::Error::NoSuchKey(_)) => Err(GetDocumentError::DocumentNotFound),
+        Err(file_content_client::Error::NoSuchKey(_)) => {
+            Err(Some(GetDocumentError::DocumentNotFound))
+        }
         Err(e) => {
             error!("Internal server error! Cannot get file from S3: {:?}", e);
-            Err(GetDocumentError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn create_folder(
-    server_state: &mut ServerState,
-    request: CreateFolderRequest,
-) -> Result<CreateFolderResponse, CreateFolderError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(CreateFolderError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(CreateFolderError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, CreateFolderRequest>,
+) -> Result<CreateFolderResponse, Option<CreateFolderError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(CreateFolderError::InternalError);
+            return Err(None);
         }
     };
 
@@ -465,16 +420,15 @@ pub async fn create_folder(
         request.parent,
         FileType::Folder,
         &request.name,
-        &request.username,
-        &request.signature,
+        &context.public_key,
         &request.parent_access_key,
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        FileError::IdTaken => CreateFolderError::FileIdTaken,
-        FileError::PathTaken => CreateFolderError::FolderPathTaken,
-        FileError::OwnerDoesNotExist => CreateFolderError::UserNotFound,
-        FileError::ParentDoesNotExist => CreateFolderError::ParentNotFound,
+        FileError::IdTaken => Some(CreateFolderError::FileIdTaken),
+        FileError::PathTaken => Some(CreateFolderError::FolderPathTaken),
+        FileError::OwnerDoesNotExist => Some(CreateFolderError::UserNotFound),
+        FileError::ParentDoesNotExist => Some(CreateFolderError::ParentNotFound),
         FileError::Deleted
         | FileError::Deserialize(_)
         | FileError::DoesNotExist
@@ -490,7 +444,7 @@ pub async fn create_folder(
                 "Internal server error! Cannot create folder in Postgres: {:?}",
                 e
             );
-            CreateFolderError::InternalError
+            None
         }
     })?;
 
@@ -500,38 +454,31 @@ pub async fn create_folder(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(CreateFolderError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn delete_folder(
-    server_state: &mut ServerState,
-    request: DeleteFolderRequest,
-) -> Result<DeleteFolderResponse, DeleteFolderError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(DeleteFolderError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(DeleteFolderError::InvalidUsername);
-    }
-
+    context: &mut RequestContext<'_, DeleteFolderRequest>,
+) -> Result<DeleteFolderResponse, Option<DeleteFolderError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(DeleteFolderError::InternalError);
+            return Err(None);
         }
     };
 
     let index_result =
         file_index_repo::delete_file(&transaction, request.id, FileType::Folder).await;
     let index_responses = index_result.map_err(|e| match e {
-        FileError::DoesNotExist => DeleteFolderError::FolderNotFound,
-        FileError::IncorrectOldVersion => DeleteFolderError::EditConflict,
-        FileError::Deleted => DeleteFolderError::FolderDeleted,
-        FileError::IllegalRootChange => DeleteFolderError::CannotDeleteRoot,
+        FileError::DoesNotExist => Some(DeleteFolderError::FolderNotFound),
+        FileError::IncorrectOldVersion => Some(DeleteFolderError::EditConflict),
+        FileError::Deleted => Some(DeleteFolderError::FolderDeleted),
+        FileError::IllegalRootChange => Some(DeleteFolderError::CannotDeleteRoot),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -547,7 +494,7 @@ pub async fn delete_folder(
                 "Internal server error! Cannot delete folder in Postgres: {:?}",
                 e
             );
-            DeleteFolderError::InternalError
+            None
         }
     })?;
 
@@ -560,7 +507,7 @@ pub async fn delete_folder(
         result
     } else {
         error!("Internal server error! Unexpected zero or multiple postgres rows for delete folder root");
-        return Err(DeleteFolderError::InternalError);
+        return Err(None);
     };
 
     for r in index_responses.responses.iter() {
@@ -576,14 +523,14 @@ pub async fn delete_folder(
                     "Internal server error! Cannot delete file in S3: {:?}",
                     files_result
                 );
-                return Err(DeleteFolderError::InternalError);
+                return Err(None);
             };
 
-            usage_service::track_deletion(&transaction, &r.id, &request.username)
+            usage_service::track_content_change(&transaction, &r.id, &context.public_key, 0)
                 .await
                 .map_err(|err| {
                     error!("Usage tracking error: {:?}", err);
-                    DeleteFolderError::InternalError
+                    None
                 })?;
         }
     }
@@ -594,27 +541,21 @@ pub async fn delete_folder(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(DeleteFolderError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn move_folder(
-    server_state: &mut ServerState,
-    request: MoveFolderRequest,
-) -> Result<MoveFolderResponse, MoveFolderError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(MoveFolderError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(MoveFolderError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, MoveFolderRequest>,
+) -> Result<MoveFolderResponse, Option<MoveFolderError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(MoveFolderError::InternalError);
+            return Err(None);
         }
     };
 
@@ -624,20 +565,20 @@ pub async fn move_folder(
         request.old_metadata_version,
         FileType::Folder,
         request.new_parent,
-        request.new_folder_access,
+        request.new_folder_access.clone(),
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        file_index_repo::FileError::DoesNotExist => MoveFolderError::FolderNotFound,
-        file_index_repo::FileError::IncorrectOldVersion => MoveFolderError::EditConflict,
-        file_index_repo::FileError::Deleted => MoveFolderError::FolderDeleted,
-        file_index_repo::FileError::PathTaken => MoveFolderError::FolderPathTaken,
-        file_index_repo::FileError::ParentDoesNotExist => MoveFolderError::ParentNotFound,
-        file_index_repo::FileError::IllegalRootChange => MoveFolderError::CannotMoveRoot,
+        file_index_repo::FileError::DoesNotExist => Some(MoveFolderError::FolderNotFound),
+        file_index_repo::FileError::IncorrectOldVersion => Some(MoveFolderError::EditConflict),
+        file_index_repo::FileError::Deleted => Some(MoveFolderError::FolderDeleted),
+        file_index_repo::FileError::PathTaken => Some(MoveFolderError::FolderPathTaken),
+        file_index_repo::FileError::ParentDoesNotExist => Some(MoveFolderError::ParentNotFound),
+        file_index_repo::FileError::IllegalRootChange => Some(MoveFolderError::CannotMoveRoot),
         file_index_repo::FileError::FolderMovedIntoDescendants => {
             MoveFolderError::CannotMoveIntoDescendant
         }
-        file_index_repo::FileError::ParentDeleted => MoveFolderError::ParentDeleted,
+        file_index_repo::FileError::ParentDeleted => Some(MoveFolderError::ParentDeleted),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -649,7 +590,7 @@ pub async fn move_folder(
                 "Internal server error! Cannot move folder in Postgres: {:?}",
                 e
             );
-            MoveFolderError::InternalError
+            None
         }
     })?;
 
@@ -659,27 +600,21 @@ pub async fn move_folder(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(MoveFolderError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn rename_folder(
-    server_state: &mut ServerState,
-    request: RenameFolderRequest,
-) -> Result<RenameFolderResponse, RenameFolderError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(RenameFolderError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(RenameFolderError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, RenameFolderRequest>,
+) -> Result<RenameFolderResponse, Option<RenameFolderError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(RenameFolderError::InternalError);
+            return Err(None);
         }
     };
 
@@ -692,11 +627,11 @@ pub async fn rename_folder(
     )
     .await;
     let new_version = result.map_err(|e| match e {
-        FileError::DoesNotExist => RenameFolderError::FolderNotFound,
-        FileError::IncorrectOldVersion => RenameFolderError::EditConflict,
-        FileError::IllegalRootChange => RenameFolderError::CannotRenameRoot,
-        FileError::Deleted => RenameFolderError::FolderDeleted,
-        FileError::PathTaken => RenameFolderError::FolderPathTaken,
+        FileError::DoesNotExist => Some(RenameFolderError::FolderNotFound),
+        FileError::IncorrectOldVersion => Some(RenameFolderError::EditConflict),
+        FileError::IllegalRootChange => Some(RenameFolderError::CannotRenameRoot),
+        FileError::Deleted => Some(RenameFolderError::FolderDeleted),
+        FileError::PathTaken => Some(RenameFolderError::FolderPathTaken),
         FileError::Deserialize(_)
         | FileError::IdTaken
         | FileError::OwnerDoesNotExist
@@ -711,7 +646,7 @@ pub async fn rename_folder(
                 "Internal server error! Cannot rename folder in Postgres: {:?}",
                 e
             );
-            RenameFolderError::InternalError
+            None
         }
     })?;
 
@@ -721,32 +656,26 @@ pub async fn rename_folder(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(RenameFolderError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn get_updates(
-    server_state: &mut ServerState,
-    request: GetUpdatesRequest,
-) -> Result<GetUpdatesResponse, GetUpdatesError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(GetUpdatesError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(GetUpdatesError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, GetUpdatesRequest>,
+) -> Result<GetUpdatesResponse, Option<GetUpdatesError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(GetUpdatesError::InternalError);
+            return Err(None);
         }
     };
     let result = file_index_repo::get_updates(
         &transaction,
-        &request.username,
+        &context.public_key,
         request.since_metadata_version,
     )
     .await;
@@ -755,7 +684,7 @@ pub async fn get_updates(
             "Internal server error! Cannot get updates from Postgres: {:?}",
             e
         );
-        GetUpdatesError::InternalError
+        None
     })?;
 
     match transaction.commit().await {
@@ -764,7 +693,7 @@ pub async fn get_updates(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(GetUpdatesError::InternalError)
+            Err(None)
         }
     }
 }

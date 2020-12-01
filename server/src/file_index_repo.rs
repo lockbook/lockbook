@@ -1,6 +1,6 @@
 use crate::config::IndexDbConfig;
 use lockbook_core::model::account::Username;
-use lockbook_core::model::crypto::{FolderAccessInfo, SignedValue, UserAccessInfo};
+use lockbook_core::model::crypto::{FolderAccessInfo, UserAccessInfo};
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::file_metadata::FileType;
 use openssl::error::ErrorStack as OpenSslError;
@@ -203,14 +203,13 @@ pub async fn create_file(
     parent: Uuid,
     file_type: FileType,
     name: &str,
-    owner: &str,
-    signature: &SignedValue,
+    public_key: &RSAPublicKey,
     access_key: &FolderAccessInfo,
 ) -> Result<u64, FileError> {
     let row = transaction
         .query_one(
             "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
+            VALUES ($1, $2, $3, $4, $5, (SELECT name FROM accounts WHERE public_key = $6), $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
             RETURNING metadata_version;",
             &[
                 &serde_json::to_string(&id).map_err(FileError::Serialize)?,
@@ -219,8 +218,8 @@ pub async fn create_file(
                     .map_err(FileError::Serialize)?,
                 &(file_type == FileType::Folder),
                 &name,
-                &owner,
-                &serde_json::to_string(&signature).map_err(FileError::Serialize)?,
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?,
+                &serde_json::to_string("signature goes here").map_err(FileError::Serialize)?, // TODO: sign
             ],
         )
         .await?;
@@ -658,11 +657,12 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
         .map_err(FileError::Deserialize)?,
         name: row.try_get("name").map_err(FileError::Postgres)?,
         owner: row.try_get("owner").map_err(FileError::Postgres)?,
-        signature: serde_json::from_str(
-            row.try_get::<&str, &str>("signature")
-                .map_err(FileError::Postgres)?,
-        )
-        .map_err(FileError::Deserialize)?,
+        // TODO
+        // signature: serde_json::from_str(
+        //     row.try_get::<&str, &str>("signature")
+        //         .map_err(FileError::Postgres)?,
+        // )
+        // .map_err(FileError::Deserialize)?,
         metadata_version: row
             .try_get::<&str, i64>("metadata_version")
             .map_err(FileError::Postgres)? as u64,
@@ -701,7 +701,7 @@ fn row_to_file_metadata(row: &tokio_postgres::row::Row) -> Result<FileMetadata, 
 
 pub async fn get_updates(
     transaction: &Transaction<'_>,
-    username: &str,
+    public_key: &RSAPublicKey,
     metadata_version: u64,
 ) -> Result<Vec<FileMetadata>, FileError> {
     transaction
@@ -709,9 +709,12 @@ pub async fn get_updates(
             "SELECT * FROM files fi
             LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
             LEFT JOIN accounts a ON fi.owner = a.name
-            WHERE owner = $1
+            WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
             AND metadata_version > $2;",
-            &[&username, &(metadata_version as i64)],
+            &[
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?,
+                &(metadata_version as i64),
+            ],
         )
         .await
         .map_err(FileError::Postgres)?
