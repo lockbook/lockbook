@@ -1,5 +1,5 @@
 use lockbook_core::model::api::FileUsage;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use rsa::RSAPublicKey;
 use tokio_postgres::error::Error as PostgresError;
 use tokio_postgres::Transaction;
 use uuid::Uuid;
@@ -13,40 +13,17 @@ pub enum UsageTrackError {
 pub async fn track_content_change(
     transaction: &Transaction<'_>,
     file_id: &Uuid,
-    username: &String,
-    file_content: &EncryptedValueWithNonce,
+    public_key: &RSAPublicKey,
+    file_content_len: i64,
 ) -> Result<(), UsageTrackError> {
     let _ = transaction
         .execute(
             "INSERT INTO usage_ledger (file_id, owner, bytes, timestamp)
-            VALUES ($1, $2, $3, now());",
+            VALUES ($1, (SELECT name FROM accounts WHERE public_key = $2), $3, now());",
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
-                username,
-                &(serde_json::to_vec(file_content)
-                    .map_err(UsageTrackError::Serialize)?
-                    .len() as i64),
-            ],
-        )
-        .await
-        .map_err(UsageTrackError::Postgres)?;
-
-    Ok(())
-}
-
-pub async fn track_deletion(
-    transaction: &Transaction<'_>,
-    file_id: &Uuid,
-    username: &String,
-) -> Result<(), UsageTrackError> {
-    let _ = transaction
-        .execute(
-            "INSERT INTO usage_ledger (file_id, owner, bytes, timestamp)
-            VALUES ($1, $2, $3, now());",
-            &[
-                &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
-                username,
-                &(0 as i64),
+                &serde_json::to_string(public_key).map_err(UsageTrackError::Serialize)?,
+                &file_content_len,
             ],
         )
         .await
@@ -63,7 +40,7 @@ pub enum UsageCalculateError {
 
 pub async fn calculate(
     transaction: &Transaction<'_>,
-    username: &String,
+    public_key: &RSAPublicKey,
     start_date: chrono::NaiveDateTime,
     end_date: chrono::NaiveDateTime,
 ) -> Result<Vec<FileUsage>, UsageCalculateError> {
@@ -103,7 +80,7 @@ with months as (
                 bytes,
                 owner
          from with_months_and_usage
-         where with_months_and_usage.owner = $3
+         where with_months_and_usage.owner = (SELECT name FROM accounts WHERE public_key = $3)
          order by file_id, start_date desc
      ),
      lagged_with_area as (
@@ -120,7 +97,7 @@ select * from integrated_by_month
             &[
                 &start_date,
                 &end_date,
-                username,
+                &serde_json::to_string(public_key).map_err(UsageCalculateError::Serialize)?,
             ],
         )
         .await
@@ -157,6 +134,8 @@ mod usage_service_tests {
     use crate::config::{config, IndexDbConfig};
     use crate::file_index_repo;
     use crate::usage_service::{calculate, UsageCalculateError};
+    use lockbook_core::service::clock_service::ClockImpl;
+    use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl};
     use uuid::Uuid;
 
     #[test]
@@ -174,10 +153,14 @@ mod usage_service_tests {
             let date_start = chrono::NaiveDateTime::from_str("2000-10-01T00:00:00.000").unwrap();
             let date_end = chrono::NaiveDateTime::from_str("2000-10-31T00:00:00.000").unwrap();
 
+            let public_key = RSAImpl::<ClockImpl>::generate_key()
+                .unwrap()
+                .to_public_key();
+
             let _ = transaction
                 .execute(
-                    "INSERT INTO accounts (name, public_key) VALUES ('juicy', '');",
-                    &[],
+                    "INSERT INTO accounts (name, public_key) VALUES ('juicy', $1);",
+                    &[&serde_json::to_string(&public_key).unwrap()],
                 )
                 .await
                 .unwrap();
@@ -188,7 +171,7 @@ mod usage_service_tests {
             let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-15', 'juicy', 20000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
             let _ = transaction.execute("INSERT INTO usage_ledger (file_id, timestamp, owner, bytes) VALUES ($1, '2000-10-31', 'juicy', 30000);", &[&serde_json::to_string(&file_id).unwrap()]).await.unwrap();
 
-            let res = calculate(&transaction, &"juicy".to_string(), date_start, date_end).await;
+            let res = calculate(&transaction, &public_key, date_start, date_end).await;
 
             res
         }

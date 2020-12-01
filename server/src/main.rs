@@ -16,13 +16,15 @@ pub mod usage_service;
 pub mod utils;
 
 use crate::config::config;
+use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{body, Body, Method, Request, Response, StatusCode};
+use hyper::{body, Body, Response, StatusCode};
 use lockbook_core::loggers;
+use lockbook_core::model::api::*;
+use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
-use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -33,6 +35,12 @@ pub struct ServerState {
     pub config: config::Config,
     pub index_db_client: tokio_postgres::Client,
     pub files_db_client: s3::bucket::Bucket,
+}
+
+pub struct RequestContext<'a, TRequest> {
+    server_state: &'a mut ServerState,
+    request: TRequest,
+    public_key: RSAPublicKey,
 }
 
 #[tokio::main]
@@ -72,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
         async move {
-            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
+            Ok::<_, Infallible>(service_fn(move |req: hyper::Request<Body>| {
                 let server_state = server_state.clone();
                 route(server_state, req)
             }))
@@ -88,73 +96,135 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+macro_rules! route_case {
+    ($TRequest:ty) => {
+        (&<$TRequest>::METHOD, <$TRequest>::ROUTE)
+    };
+}
+
+macro_rules! route_handler {
+    ($TRequest:ty, $handler:path, $hyper_request:ident, $s: ident) => {{
+        info!(
+            "Request matched {}{}",
+            <$TRequest>::METHOD,
+            <$TRequest>::ROUTE
+        );
+
+        let result = match unpack($hyper_request).await {
+            Ok((request, public_key)) => {
+                debug!("Request: {:?}", request);
+                wrap_err::<$TRequest>(
+                    $handler(&mut RequestContext {
+                        server_state: &mut $s,
+                        request,
+                        public_key,
+                    })
+                    .await,
+                )
+            },
+            Err(e) => Err(e),
+        };
+        debug!("Response: {:?}", result);
+        pack::<$TRequest>(result)
+    }};
+}
+
 async fn route(
     server_state: Arc<Mutex<ServerState>>,
-    request: Request<Body>,
+    hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     let mut s = server_state.lock().await;
-    match (request.method(), request.uri().path()) {
-        (&Method::PUT, "/change-document-content") => {
-            info!("Request matched PUT /change-document-content");
-            handle(&mut s, request, file_service::change_document_content).await
-        }
-        (&Method::POST, "/create-document") => {
-            info!("Request matched POST /create-document");
-            handle(&mut s, request, file_service::create_document).await
-        }
-        (&Method::DELETE, "/delete-document") => {
-            info!("Request matched DELETE /delete-document");
-            handle(&mut s, request, file_service::delete_document).await
-        }
-        (&Method::PUT, "/move-document") => {
-            info!("Request matched PUT /move-document");
-            handle(&mut s, request, file_service::move_document).await
-        }
-        (&Method::PUT, "/rename-document") => {
-            info!("Request matched PUT /rename-document");
-            handle(&mut s, request, file_service::rename_document).await
-        }
-        (&Method::GET, "/get-document") => {
-            info!("Request matched GET /get-document");
-            handle(&mut s, request, file_service::get_document).await
-        }
-        (&Method::POST, "/create-folder") => {
-            info!("Request matched POST /create-folder");
-            handle(&mut s, request, file_service::create_folder).await
-        }
-        (&Method::DELETE, "/delete-folder") => {
-            info!("Request matched DELETE /delete-folder");
-            handle(&mut s, request, file_service::delete_folder).await
-        }
-        (&Method::PUT, "/move-folder") => {
-            info!("Request matched PUT /move-folder");
-            handle(&mut s, request, file_service::move_folder).await
-        }
-        (&Method::PUT, "/rename-folder") => {
-            info!("Request matched PUT /rename-folder");
-            handle(&mut s, request, file_service::rename_folder).await
-        }
-        (&Method::GET, "/get-public-key") => {
-            info!("Request matched GET /get-public-key");
-            handle(&mut s, request, account_service::get_public_key).await
-        }
-        (&Method::GET, "/get-updates") => {
-            info!("Request matched GET /get-updates");
-            handle(&mut s, request, file_service::get_updates).await
-        }
-        (&Method::POST, "/new-account") => {
-            info!("Request matched POST /new-account");
-            handle(&mut s, request, account_service::new_account).await
-        }
-        (&Method::GET, "/get-usage") => {
-            info!("Request matched GET /get-usage");
-            handle(&mut s, request, account_service::calculate_usage).await
-        }
+    reconnect(&mut s).await;
+    match (hyper_request.method(), hyper_request.uri().path()) {
+        route_case!(ChangeDocumentContentRequest) => route_handler!(
+            ChangeDocumentContentRequest,
+            file_service::change_document_content,
+            hyper_request,
+            s
+        ),
+        route_case!(CreateDocumentRequest) => route_handler!(
+            CreateDocumentRequest,
+            file_service::create_document,
+            hyper_request,
+            s
+        ),
+        route_case!(DeleteDocumentRequest) => route_handler!(
+            DeleteDocumentRequest,
+            file_service::delete_document,
+            hyper_request,
+            s
+        ),
+        route_case!(MoveDocumentRequest) => route_handler!(
+            MoveDocumentRequest,
+            file_service::move_document,
+            hyper_request,
+            s
+        ),
+        route_case!(RenameDocumentRequest) => route_handler!(
+            RenameDocumentRequest,
+            file_service::rename_document,
+            hyper_request,
+            s
+        ),
+        route_case!(GetDocumentRequest) => route_handler!(
+            GetDocumentRequest,
+            file_service::get_document,
+            hyper_request,
+            s
+        ),
+        route_case!(CreateFolderRequest) => route_handler!(
+            CreateFolderRequest,
+            file_service::create_folder,
+            hyper_request,
+            s
+        ),
+        route_case!(DeleteFolderRequest) => route_handler!(
+            DeleteFolderRequest,
+            file_service::delete_folder,
+            hyper_request,
+            s
+        ),
+        route_case!(MoveFolderRequest) => route_handler!(
+            MoveFolderRequest,
+            file_service::move_folder,
+            hyper_request,
+            s
+        ),
+        route_case!(RenameFolderRequest) => route_handler!(
+            RenameFolderRequest,
+            file_service::rename_folder,
+            hyper_request,
+            s
+        ),
+        route_case!(GetPublicKeyRequest) => route_handler!(
+            GetPublicKeyRequest,
+            account_service::get_public_key,
+            hyper_request,
+            s
+        ),
+        route_case!(GetUpdatesRequest) => route_handler!(
+            GetUpdatesRequest,
+            file_service::get_updates,
+            hyper_request,
+            s
+        ),
+        route_case!(NewAccountRequest) => route_handler!(
+            NewAccountRequest,
+            account_service::new_account,
+            hyper_request,
+            s
+        ),
+        route_case!(GetUsageRequest) => route_handler!(
+            GetUsageRequest,
+            account_service::get_usage,
+            hyper_request,
+            s
+        ),
         _ => {
             warn!(
                 "Request matched no endpoints: {} {}",
-                request.method(),
-                request.uri().path()
+                hyper_request.method(),
+                hyper_request.uri().path()
             );
             hyper::Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -163,17 +233,17 @@ async fn route(
     }
 }
 
-async fn handle<'a, Request, Response, ResponseError, Fut>(
-    server_state: &'a mut ServerState,
-    request: hyper::Request<Body>,
-    endpoint_handle: impl FnOnce(&'a mut ServerState, Request) -> Fut,
-) -> Result<hyper::Response<Body>, hyper::http::Error>
-where
-    Fut: Future<Output = Result<Response, ResponseError>>,
-    Request: DeserializeOwned,
-    Response: Serialize,
-    ResponseError: Serialize,
-{
+fn wrap_err<TRequest: Request>(
+    result: Result<TRequest::Response, Option<TRequest::Error>>,
+) -> Result<TRequest::Response, ErrorWrapper<TRequest::Error>> {
+    match result {
+        Ok(response) => Ok(response),
+        Err(Some(e)) => Err(ErrorWrapper::Endpoint(e)),
+        Err(None) => Err(ErrorWrapper::InternalError),
+    }
+}
+
+async fn reconnect(server_state: &mut ServerState) {
     if server_state.index_db_client.is_closed() {
         match file_index_repo::connect(&server_state.config.index_db).await {
             Err(e) => {
@@ -185,49 +255,111 @@ where
             }
         }
     }
-    serialize::<Response, ResponseError>(match deserialize::<Request>(request).await {
-        Ok(req) => Ok(endpoint_handle(server_state, req).await),
-        Err(err) => Err(err),
-    })
 }
 
-#[derive(Debug)]
-enum Error {
-    HyperBodyToBytes(hyper::Error),
-    HyperBodyBytesToString(std::string::FromUtf8Error),
-    JsonDeserialize(serde_json::error::Error),
-    JsonSerialize(serde_json::error::Error),
-}
-
-async fn deserialize<Request: DeserializeOwned>(
-    request: hyper::Request<Body>,
-) -> Result<Request, Error> {
-    let body_bytes = body::to_bytes(request.into_body())
-        .await
-        .map_err(Error::HyperBodyToBytes)?;
-    let body_string =
-        String::from_utf8(body_bytes.to_vec()).map_err(Error::HyperBodyBytesToString)?;
-    let request = serde_json::from_str(&body_string).map_err(Error::JsonDeserialize)?;
-    Ok(request)
-}
-
-fn serialize<Response: Serialize, ResponseError: Serialize>(
-    response: Result<Result<Response, ResponseError>, Error>,
-) -> Result<hyper::Response<Body>, hyper::http::Error> {
-    let response_body =
-        response.and_then(|r| serde_json::to_string(&r).map_err(Error::JsonSerialize));
-    match response_body {
-        Ok(body) => {
-            debug!("Response: {:?}", body);
-            hyper::Response::builder()
-                .status(StatusCode::OK)
-                .body(body.into())
+async fn unpack<TRequest: Request + DeserializeOwned>(
+    hyper_request: hyper::Request<Body>,
+) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
+    let request_bytes = match from_request(hyper_request).await {
+        Ok(o) => o,
+        Err(e) => {
+            warn!("Error getting request bytes: {:?}", e);
+            return Err(ErrorWrapper::<TRequest::Error>::BadRequest);
         }
-        Err(err) => {
-            warn!("Response: {:?}", err);
-            hyper::Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(hyper::Body::empty())
+    };
+    let request: RequestWrapper<TRequest> = match deserialize_request(request_bytes) {
+        Ok(o) => o,
+        Err(e) => {
+            warn!("Error deserializing request: {:?}", e);
+            return Err(ErrorWrapper::<TRequest::Error>::BadRequest);
         }
+    };
+
+    verify_client_version(&request).map_err(|_| {
+        warn!("Client connected with unsupported client version");
+        ErrorWrapper::<TRequest::Error>::ClientUpdateRequired
+    })?;
+    verify_time(&request).map_err(|_| {
+        warn!("Client auth verification failed");
+        ErrorWrapper::<TRequest::Error>::ExpiredAuth
+    })?;
+    verify_auth(&request).map_err(|_| {
+        warn!("Client auth verification failed");
+        ErrorWrapper::<TRequest::Error>::InvalidAuth
+    })?;
+
+    Ok((
+        request.signed_request.timestamped_value.value,
+        request.signed_request.public_key,
+    ))
+}
+
+fn pack<TRequest>(
+    result: Result<TRequest::Response, ErrorWrapper<TRequest::Error>>,
+) -> Result<hyper::Response<Body>, hyper::http::Error>
+where
+    TRequest: Request,
+    TRequest::Response: Serialize,
+    TRequest::Error: Serialize,
+{
+    let response_bytes = match serialize_response::<TRequest>(result) {
+        Ok(o) => o,
+        Err(e) => {
+            warn!("Error serializing response: {:?}", e);
+            return empty_response();
+        }
+    };
+
+    to_response(response_bytes)
+}
+
+async fn from_request(request: hyper::Request<Body>) -> Result<Bytes, hyper::Error> {
+    body::to_bytes(request.into_body()).await
+}
+
+fn deserialize_request<TRequest: Request + DeserializeOwned>(
+    request: Bytes,
+) -> Result<RequestWrapper<TRequest>, serde_json::error::Error> {
+    serde_json::from_slice(&request)
+}
+
+fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) -> Result<(), ()> {
+    match &request.client_version as &str {
+        "0.0.0" => Err(()),
+        "0.1.0" => Ok(()),
+        "0.1.1" => Ok(()),
+        "0.1.2" => Ok(()),
+        _ => Err(()),
     }
+}
+
+fn verify_time<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
+    Ok(()) // todo
+}
+
+fn verify_auth<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
+    Ok(()) // todo
+}
+
+fn serialize_response<TRequest>(
+    response: Result<TRequest::Response, ErrorWrapper<TRequest::Error>>,
+) -> Result<Bytes, serde_json::error::Error>
+where
+    TRequest: Request,
+    TRequest::Response: Serialize,
+    TRequest::Error: Serialize,
+{
+    Ok(Bytes::from(serde_json::to_vec(&response)?))
+}
+
+fn to_response(response: Bytes) -> Result<hyper::Response<Body>, hyper::http::Error> {
+    hyper::Response::builder()
+        .status(StatusCode::OK)
+        .body(response.into())
+}
+
+fn empty_response() -> Result<hyper::Response<Body>, hyper::http::Error> {
+    hyper::Response::builder()
+        .status(StatusCode::OK)
+        .body(hyper::Body::empty())
 }
