@@ -19,6 +19,7 @@ bincode = "1.2.1"
 chrono = "0.4.15"
 diffy = "0.2.0"
 fern = { version = "0.6.0", features = ["colored"]}
+flate2 = "1.0"
 jni = { version = "0.13.1", default-features = false }
 log = "0.4.8"
 rand = "0.7"

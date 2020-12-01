@@ -37,8 +37,8 @@ data class FolderAccessInfo(
 )
 
 data class AESEncrypted(
-    val value: String = "",
-    val nonce: String = ""
+    val value: List<Int> = listOf(),
+    val nonce: List<Int> = listOf()
 )
 
 enum class FileType {
@@ -54,14 +54,15 @@ data class UserAccessInfo(
 )
 
 data class RSAEncrypted(
-    val value: String
+    val value: List<Int>
 )
 
 data class Account(
     val username: String,
     @Json(name = "api_url")
     val apiUrl: String,
-    val keys: RSAPrivateKey,
+    @Json(name = "private_key")
+    val privateKey: RSAPrivateKey,
 )
 
 data class RSAPrivateKey(
