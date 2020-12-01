@@ -83,8 +83,16 @@ class CreateFileDialogFragment : DialogFragment() {
         }
 
         create_file_text.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                create_file_extension.requestFocus()
+            }
+
+            true
+        }
+
+        create_file_extension.setOnEditorActionListener { v, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                handleCreateFileRequest(create_file_text.text.toString())
+                handleCreateFileRequest(create_file_text.text.toString() + create_file_extension.text.toString())
             }
 
             true
