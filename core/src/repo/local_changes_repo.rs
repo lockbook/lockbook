@@ -3,10 +3,9 @@ use std::time::SystemTimeError;
 use sled::Db;
 use uuid::Uuid;
 
-use crate::model::crypto::{Document, UserAccessInfo};
+use crate::model::crypto::{EncryptedDocument, UserAccessInfo};
 use crate::model::file_metadata::FileType;
 use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
-use crate::repo::local_changes_repo::DbError::TimeError;
 use crate::service::clock_service::Clock;
 
 #[derive(Debug)]
@@ -25,7 +24,7 @@ pub trait LocalChangesRepo {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_version: &Document,
+        old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
@@ -35,7 +34,7 @@ pub trait LocalChangesRepo {
     fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn delete(db: &Db, id: Uuid) -> Result<(), DbError>;
 }
 
 pub struct LocalChangesRepoImpl<Time: Clock> {
@@ -77,7 +76,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         let new_local_change = LocalChange {
-            timestamp: Time::get_time().map_err(TimeError)?,
+            timestamp: Time::get_time(),
             id,
             renamed: None,
             moved: None,
@@ -104,7 +103,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(&db, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time().map_err(TimeError)?,
+                    timestamp: Time::get_time(),
                     id,
                     renamed: Some(Renamed::from(old_name)),
                     moved: None,
@@ -151,7 +150,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(&db, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time().map_err(TimeError)?,
+                    timestamp: Time::get_time(),
                     id,
                     renamed: None,
                     moved: Some(Moved::from(old_parent)),
@@ -191,7 +190,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
     fn track_edit(
         db: &Db,
         id: Uuid,
-        old_version: &Document,
+        old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
@@ -205,7 +204,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(&db, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time().map_err(TimeError)?,
+                    timestamp: Time::get_time(),
                     id,
                     renamed: None,
                     moved: None,
@@ -255,7 +254,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(&db, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time().map_err(TimeError)?,
+                    timestamp: Time::get_time(),
                     id,
                     renamed: None,
                     moved: None,
@@ -276,11 +275,11 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 } else if file_type == FileType::Document {
                     if change.new {
                         // If a document was created and deleted, just forget about it
-                        Self::delete_if_exists(&db, id)
+                        Self::delete(&db, id)
                     } else {
                         // If a document was deleted, don't bother pushing it's rename / move
                         let delete_tracked = LocalChange {
-                            timestamp: Time::get_time().map_err(TimeError)?,
+                            timestamp: Time::get_time(),
                             id,
                             renamed: None,
                             moved: None,
@@ -317,7 +316,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 new.new = false;
 
                 if !new.deleted {
-                    Self::delete_if_exists(&db, new.id)?
+                    Self::delete(&db, new.id)?
                 } else {
                     tree.insert(
                         id.as_bytes(),
@@ -340,7 +339,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 edit.renamed = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete_if_exists(&db, edit.id)?
+                    Self::delete(&db, edit.id)?
                 } else {
                     tree.insert(
                         id.as_bytes(),
@@ -363,7 +362,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 edit.moved = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete_if_exists(&db, edit.id)?
+                    Self::delete(&db, edit.id)?
                 } else {
                     tree.insert(
                         id.as_bytes(),
@@ -386,7 +385,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 edit.content_edited = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete_if_exists(&db, edit.id)?
+                    Self::delete(&db, edit.id)?
                 } else {
                     tree.insert(
                         id.as_bytes(),
@@ -400,7 +399,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn delete(db: &Db, id: Uuid) -> Result<(), DbError> {
         let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
 
         match Self::get_local_changes(&db, id)? {
@@ -415,8 +414,6 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
 
 #[cfg(test)]
 mod unit_tests {
-    use std::time::SystemTimeError;
-
     use uuid::Uuid;
 
     use crate::model::file_metadata::FileType::{Document, Folder};
@@ -431,8 +428,8 @@ mod unit_tests {
     pub struct TestClock;
 
     impl Clock for TestClock {
-        fn get_time() -> Result<u128, SystemTimeError> {
-            Ok(0)
+        fn get_time() -> i64 {
+            0
         }
     }
 
