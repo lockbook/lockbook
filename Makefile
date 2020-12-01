@@ -27,7 +27,7 @@ core_lint: core
 
 .PHONY: core_test
 core_test: core
-	docker run core:$(hash) cargo test --lib
+	docker run core:$(hash) cargo test --release --lib
 
 .PHONY: server
 server: is_docker_running
@@ -66,7 +66,7 @@ cli_lint: cli
 
 .PHONY: cli_test
 cli_test: cli
-	docker run cli:$(hash) cargo test
+	docker run cli:$(hash) cargo test --release
 
 .PHONY: linux
 linux: is_docker_running
@@ -83,7 +83,7 @@ linux_lint: linux
 
 .PHONY: linux_test
 linux_test: linux
-	docker run linux:$(hash) cargo test
+	docker run linux:$(hash) cargo test --release
 
 .PHONY: integration_tests
 integration_tests: is_docker_running

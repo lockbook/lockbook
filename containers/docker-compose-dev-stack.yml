@@ -59,5 +59,6 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
+        (./target/release/lockbook-server &) && \
+        tail --retry -f "\$$(pwd)/lockbook_server.log"
       '
