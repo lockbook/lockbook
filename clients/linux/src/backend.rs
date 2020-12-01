@@ -218,7 +218,7 @@ impl LbCore {
     pub fn open(&self, id: &Uuid) -> Result<(FileMetadata, String), String> {
         match self.file_by_id(*id) {
             Ok(meta) => match self.read(meta.id) {
-                Ok(decrypted) => Ok((meta, String::from_utf8(decrypted).unwrap())),
+                Ok(decrypted) => Ok((meta, String::from_utf8_lossy(&decrypted).to_string())),
                 Err(err) => Err(err),
             },
             Err(err) => Err(format!("{:?}", err)),
