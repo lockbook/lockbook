@@ -10,7 +10,6 @@ data class FileMetadata(
     val parent: String = "",
     val name: String = "",
     val owner: String = "",
-    val signature: SignedValue = SignedValue(),
     @Json(name = "metadata_version")
     val metadataVersion: Long = 0,
     @Json(name = "content_version")
@@ -30,21 +29,16 @@ data class FileUsage(
     val secs: Int,
 )
 
-data class SignedValue(
-    val content: String = "",
-    val signature: String = ""
-)
-
 data class FolderAccessInfo(
     @Json(name = "folder_id")
     val folderId: String = "",
     @Json(name = "access_key")
-    val accessKey: EncryptedValueWithNonce = EncryptedValueWithNonce()
+    val accessKey: AESEncrypted = AESEncrypted()
 )
 
-data class EncryptedValueWithNonce(
-    val garbage: String = "",
-    val nonce: String = ""
+data class AESEncrypted(
+    val value: List<Int> = listOf(),
+    val nonce: List<Int> = listOf()
 )
 
 enum class FileType {
@@ -56,22 +50,19 @@ data class UserAccessInfo(
     @Json(name = "public_key")
     val publicKey: RSAPublicKey,
     @Json(name = "access_key")
-    val accessKey: EncryptedValue
+    val accessKey: RSAEncrypted
 )
 
-data class EncryptedValue(
-    val garbage: String
-)
-
-data class DecryptedValue(
-    val secret: String
+data class RSAEncrypted(
+    val value: List<Int>
 )
 
 data class Account(
     val username: String,
-    val keys: RSAPrivateKey,
     @Json(name = "api_url")
     val apiUrl: String,
+    @Json(name = "private_key")
+    val privateKey: RSAPrivateKey,
 )
 
 data class RSAPrivateKey(
@@ -119,17 +110,6 @@ data class SyncingStatus(
     var maxProgress: Int = 0
 )
 
-data class CreateFileDialogInfo(
-    var isDialogOpen: Boolean = false,
-    var alertDialogFileName: String = "",
-    var fileCreationType: FileType = FileType.Document
-)
-
-data class RenameFileDialogInfo(
-    var isDialogOpen: Boolean = false,
-    var alertDialogFileName: String = ""
-)
-
 data class MoveFileInfo(
     val ids: Array<String>,
     val names: Array<String>
@@ -166,12 +146,6 @@ data class Page(
 data class Transformation(
     var translation: Point = Point(0f, 0f),
     var scale: Float = 1f,
-)
-
-data class PressurePoint(
-    val x: Float,
-    val y: Float,
-    val pressure: Float
 )
 
 data class Point(
