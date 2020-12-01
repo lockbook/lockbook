@@ -2,75 +2,29 @@ mod integration_test;
 
 #[cfg(test)]
 mod new_account_tests {
-    use crate::integration_test::{aes_key, generate_account, rsa_key, sign};
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
-    // use rsa::{BigUint, RSAPrivateKey};
-    use uuid::Uuid;
-
     use crate::assert_matches;
+    use crate::integration_test::{generate_account, generate_root_metadata};
+    use lockbook_core::client::{ApiError, Client};
+    use lockbook_core::model::api::*;
+    use lockbook_core::DefaultClient;
 
     #[test]
     fn new_account() {
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, _) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
     }
 
     #[test]
     fn new_account_duplicate() {
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+        let (root, _) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Err(ApiError::<NewAccountError>::Api(
+            result,
+            Err(ApiError::<NewAccountError>::Endpoint(
                 NewAccountError::UsernameTaken
             ))
         );
@@ -78,24 +32,18 @@ mod new_account_tests {
 
     #[test]
     fn new_account_invalid_username() {
-        let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+        let mut account = generate_account();
+        let (mut root, _) = generate_root_metadata(&account);
+        let access_key = root.user_access_keys[&account.username].clone();
+        root.user_access_keys.remove(&account.username);
+        account.username += " ";
+        root.user_access_keys
+            .insert(account.username.clone(), access_key);
 
+        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &(account.username.clone() + " "),
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Err(ApiError::<NewAccountError>::Api(
+            result,
+            Err(ApiError::<NewAccountError>::Endpoint(
                 NewAccountError::InvalidUsername
             ))
         );
@@ -105,10 +53,10 @@ mod new_account_tests {
     // fn new_account_invalid_public_key() {
     //     let account = generate_account();
     //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AesImpl::generate_key();
+    //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::new_account(
+    //         DefaultClient::new_account(
     //                 //             &account.username,
     //             &sign(&account),
     //             RSAPrivateKey::from_components(
@@ -124,11 +72,11 @@ mod new_account_tests {
     //             folder_id,
     //             FolderAccessInfo {
     //                 folder_id: folder_id,
-    //                 access_key: aes_key(&folder_key, &folder_key),
+    //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_key(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
-    //         Err(ApiError::<NewAccountError>::Api(
+    //         Err(ApiError::<NewAccountError>::Endpoint(
     //             NewAccountError::InvalidPublicKey
     //         ))
     //     );
@@ -138,24 +86,24 @@ mod new_account_tests {
     // fn new_account_invalid_signature() {
     //     let account = generate_account();
     //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AesImpl::generate_key();
+    //     let folder_key = AESImpl::generate_key();
 
     //     assert_matches!(
-    //         ClientImpl::new_account(
+    //         DefaultClient::new_account(
     //                 //             &account.username,
     //             &SignedValue {
     //                 content: String::default(),
     //                 signature: String::default(),
     //             },
-    //             account.keys.to_public_key(),
+    //             account.private_key.to_public_key(),
     //             folder_id,
     //             FolderAccessInfo {
     //                 folder_id: folder_id,
-    //                 access_key: aes_key(&folder_key, &folder_key),
+    //                 access_key: aes_encrypt(&folder_key, &folder_key),
     //             },
-    //             rsa_key(&account.keys.to_public_key(), &folder_key)
+    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
     //         ),
-    //         Err(ApiError::<NewAccountError>::Api(NewAccountError::InvalidAuth))
+    //         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidAuth))
     //     );
     // }
 }

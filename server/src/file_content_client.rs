@@ -1,5 +1,5 @@
 use crate::config::FilesDbConfig;
-use lockbook_core::model::crypto::EncryptedValueWithNonce;
+use lockbook_core::model::crypto::EncryptedDocument;
 use s3::bucket::Bucket as S3Client;
 use s3::creds::AwsCredsError;
 use s3::creds::Credentials;
@@ -82,7 +82,7 @@ pub async fn create(
     client: &S3Client,
     file_id: Uuid,
     content_version: u64,
-    file_contents: &EncryptedValueWithNonce,
+    file_contents: &EncryptedDocument,
 ) -> Result<(), Error> {
     match client
         .put_object(
@@ -111,7 +111,7 @@ pub async fn get(
     client: &S3Client,
     file_id: Uuid,
     content_version: u64,
-) -> Result<EncryptedValueWithNonce, Error> {
+) -> Result<EncryptedDocument, Error> {
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
         .await?
