@@ -2,10 +2,11 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use lockbook_core::model::crypto::DecryptedValue;
+    use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
     use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+    use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
@@ -13,9 +14,6 @@ mod sync_tests {
         DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, DefaultSyncService,
     };
-
-    use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
-    use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
     #[test]
     fn test_create_files_and_folders_sync() {
@@ -121,12 +119,7 @@ mod sync_tests {
         DefaultSyncService::sync(&db2).unwrap();
         println!("2nd sync done, db2");
 
-        DefaultFileService::write_document(
-            &db,
-            file.id,
-            &DecryptedValue::from("meaningful messages"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db, file.id, "meaningful messages".as_bytes()).unwrap();
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
@@ -200,10 +193,8 @@ mod sync_tests {
         println!("7th calculate work ");
 
         assert_eq!(
-            DefaultFileService::read_document(&db2, edited_file.id)
-                .unwrap()
-                .secret,
-            "meaningful messages".to_string()
+            DefaultFileService::read_document(&db2, edited_file.id).unwrap(),
+            "meaningful messages".as_bytes()
         );
         assert_dbs_eq(&db, &db2);
     }
@@ -227,8 +218,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("nice document"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "nice document".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -285,10 +275,8 @@ mod sync_tests {
         );
 
         assert_eq!(
-            DefaultFileService::read_document(&db2, file.id)
-                .unwrap()
-                .secret,
-            "nice document"
+            DefaultFileService::read_document(&db2, file.id).unwrap(),
+            "nice document".as_bytes()
         );
 
         assert_dbs_eq(&db1, &db2);
@@ -313,8 +301,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Wow, what a doc"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Wow, what a doc".as_bytes()).unwrap();
 
         let new_folder1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/folder2/", account.username))
@@ -347,10 +334,8 @@ mod sync_tests {
             new_folder1.id
         );
         assert_eq!(
-            DefaultFileService::read_document(&db2, file.id)
-                .unwrap()
-                .secret,
-            "Wow, what a doc"
+            DefaultFileService::read_document(&db2, file.id).unwrap(),
+            "Wow, what a doc".as_bytes()
         );
     }
 
@@ -484,7 +469,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("noice")).unwrap();
+        DefaultFileService::write_document(&db1, file.id, "noice".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
     }
@@ -531,11 +516,6 @@ mod sync_tests {
                 WorkUnit::ServerChange { .. } => true,
             })
             .for_each(|work| DefaultSyncService::execute_work(&db1, &account, work).unwrap());
-
-        println!(
-            "{:#?}",
-            DefaultFileMetadataRepo::test_repo_integrity(&db1).unwrap()
-        );
 
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db1)
             .unwrap()
@@ -602,8 +582,6 @@ mod sync_tests {
         )
         .unwrap();
 
-        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
-
         DefaultSyncService::calculate_work(&db2)
             .unwrap()
             .work_units
@@ -613,8 +591,6 @@ mod sync_tests {
                 WorkUnit::ServerChange { .. } => true,
             })
             .for_each(|work| DefaultSyncService::execute_work(&db2, &account, work).unwrap());
-
-        println!("{:#?}", DefaultFileMetadataRepo::get_all(&db2).unwrap());
 
         assert!(DefaultFileMetadataRepo::test_repo_integrity(&db2)
             .unwrap()
@@ -663,12 +639,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db1, &format!("{}/test.bin", account.username))
                 .unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("some good content"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "some good content".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -679,20 +650,11 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("some new content"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "some new content".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultFileService::write_document(
-            &db2,
-            file.id,
-            &DecryptedValue::from("some offline content"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db2, file.id, "some offline content".as_bytes())
+            .unwrap();
         let works = DefaultSyncService::calculate_work(&db2).unwrap();
 
         assert_eq!(works.work_units.len(), 2);
@@ -735,8 +697,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -747,35 +708,26 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("Line 1\nLine 2\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
-        DefaultFileService::write_document(
-            &db2,
-            file.id,
-            &DecryptedValue::from("Line 1\nOffline Line\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
+            .unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 1"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 2"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Offline Line"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 1"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 2"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
     }
 
@@ -797,8 +749,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -809,39 +760,30 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("Line 1\nLine 2\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
         let folder =
             DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
                 .unwrap();
         DefaultFileService::move_file(&db2, file.id, folder.id).unwrap();
-        DefaultFileService::write_document(
-            &db2,
-            file.id,
-            &DecryptedValue::from("Line 1\nOffline Line\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
+            .unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 1"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 2"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Offline Line"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 1"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 2"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
     }
 
@@ -863,8 +805,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -875,39 +816,30 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("Line 1\nLine 2\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
         let folder =
             DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
                 .unwrap();
-        DefaultFileService::write_document(
-            &db2,
-            file.id,
-            &DecryptedValue::from("Line 1\nOffline Line\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
+            .unwrap();
         DefaultFileService::move_file(&db2, file.id, folder.id).unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 1"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 2"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Offline Line"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 1"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 2"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
     }
 
@@ -929,8 +861,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultFileService::write_document(&db1, file.id, &DecryptedValue::from("Line 1\n"))
-            .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -941,39 +872,30 @@ mod sync_tests {
         .unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
-        DefaultFileService::write_document(
-            &db1,
-            file.id,
-            &DecryptedValue::from("Line 1\nLine 2\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         let folder =
             DefaultFileService::create_at_path(&db1, &format!("{}/folder1/", account.username))
                 .unwrap();
         DefaultFileService::move_file(&db1, file.id, folder.id).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
-        DefaultFileService::write_document(
-            &db2,
-            file.id,
-            &DecryptedValue::from("Line 1\nOffline Line\n"),
-        )
-        .unwrap();
+        DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
+            .unwrap();
 
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 1"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Line 2"));
-        assert!(DefaultFileService::read_document(&db1, file.id)
-            .unwrap()
-            .secret
-            .contains("Offline Line"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 1"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Line 2"));
+        assert!(String::from_utf8_lossy(
+            &DefaultFileService::read_document(&db1, file.id).unwrap()
+        )
+        .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
     }
 
@@ -992,8 +914,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
                 .unwrap();
 
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("original"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
 
         DefaultSyncService::sync(&db).unwrap();
 
@@ -1002,8 +923,7 @@ mod sync_tests {
             .work_units
             .is_empty());
 
-        DefaultFileService::write_document(&db, file.id, &DecryptedValue::from("original"))
-            .unwrap();
+        DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
 
         assert_eq!(
             DefaultSyncService::calculate_work(&db)
