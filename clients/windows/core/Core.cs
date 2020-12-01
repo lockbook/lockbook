@@ -186,9 +186,9 @@ namespace lockbook {
                 s => new Core.MigrateDb.Success());
         }
 
-        public async Task<Core.CreateAccount.IResult> CreateAccount(string username) {
+        public async Task<Core.CreateAccount.IResult> CreateAccount(string username, string apiUrl) {
             return await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
-                () => create_account(path, username, "http://api.lockbook.app:8000"),
+                () => create_account(path, username, apiUrl),
                 s => new Core.CreateAccount.Success());
         }
 

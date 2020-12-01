@@ -1,5 +1,5 @@
-use crate::utils::{username_is_valid, version_is_supported};
-use crate::{file_index_repo, usage_service, ServerState};
+use crate::utils::username_is_valid;
+use crate::{file_index_repo, usage_service, RequestContext};
 use chrono::FixedOffset;
 use lockbook_core::model::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
@@ -9,25 +9,18 @@ use lockbook_core::model::file_metadata::FileType;
 use std::ops::Add;
 
 pub async fn new_account(
-    server_state: &mut ServerState,
-    request: NewAccountRequest,
-) -> Result<NewAccountResponse, NewAccountError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(NewAccountError::ClientUpdateRequired);
-    }
-
-    // let auth = serde_json::from_str::<SignedValue>(&request.auth)
-    //     .map_err(|_| NewAccountError::InvalidAuth)?;
-    // RsaImpl::verify(&request.public_key, &auth).map_err(|_| NewAccountError::InvalidPublicKey)?;
+    context: &mut RequestContext<'_, NewAccountRequest>,
+) -> Result<NewAccountResponse, Option<NewAccountError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     if !username_is_valid(&request.username) {
-        debug!("{} is not a valid username", request.username);
-        return Err(NewAccountError::InvalidUsername);
+        return Err(Some(NewAccountError::InvalidUsername));
     }
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(NewAccountError::InternalError);
+            return Err(None);
         }
     };
 
@@ -35,17 +28,17 @@ pub async fn new_account(
         &transaction,
         &request.username,
         &serde_json::to_string(&request.public_key)
-            .map_err(|_| NewAccountError::InvalidPublicKey)?,
+            .map_err(|_| Some(NewAccountError::InvalidPublicKey))?,
     )
     .await;
     new_account_result.map_err(|e| match e {
-        file_index_repo::AccountError::UsernameTaken => NewAccountError::UsernameTaken,
+        file_index_repo::AccountError::UsernameTaken => Some(NewAccountError::UsernameTaken),
         _ => {
             error!(
                 "Internal server error! Cannot create account in Postgres: {:?}",
                 e
             );
-            NewAccountError::InternalError
+            None
         }
     })?;
 
@@ -55,19 +48,18 @@ pub async fn new_account(
         request.folder_id,
         FileType::Folder,
         &request.username,
-        &request.username,
-        &request.signature,
+        &context.public_key,
         &request.parent_access_key,
     )
     .await;
     let new_version = create_folder_result.map_err(|e| match e {
-        file_index_repo::FileError::IdTaken => NewAccountError::FileIdTaken,
+        file_index_repo::FileError::IdTaken => Some(NewAccountError::FileIdTaken),
         _ => {
             error!(
                 "Internal server error! Cannot create account root folder in Postgres: {:?}",
                 e
             );
-            NewAccountError::InternalError
+            None
         }
     })?;
     let new_user_access_key_result = file_index_repo::create_user_access_key(
@@ -75,7 +67,7 @@ pub async fn new_account(
         &request.username,
         request.folder_id,
         &serde_json::to_string(&request.user_access_key)
-            .map_err(|_| NewAccountError::InvalidUserAccessKey)?,
+            .map_err(|_| Some(NewAccountError::InvalidUserAccessKey))?,
     )
     .await;
     new_user_access_key_result.map_err(|e| {
@@ -83,7 +75,7 @@ pub async fn new_account(
             "Internal server error! Cannot create access keys for user in Postgres: {:?}",
             e
         );
-        NewAccountError::InternalError
+        None
     })?;
 
     match transaction.commit().await {
@@ -92,38 +84,32 @@ pub async fn new_account(
         }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(NewAccountError::InternalError)
+            Err(None)
         }
     }
 }
 
 pub async fn get_public_key(
-    server_state: &mut ServerState,
-    request: GetPublicKeyRequest,
-) -> Result<GetPublicKeyResponse, GetPublicKeyError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(GetPublicKeyError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        return Err(GetPublicKeyError::InvalidUsername);
-    }
+    context: &mut RequestContext<'_, GetPublicKeyRequest>,
+) -> Result<GetPublicKeyResponse, Option<GetPublicKeyError>> {
+    let request = &context.request;
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:?}", e);
-            return Err(GetPublicKeyError::InternalError);
+            return Err(None);
         }
     };
     let result = file_index_repo::get_public_key(&transaction, &request.username).await;
     let key = result.map_err(|e| match e {
-        file_index_repo::PublicKeyError::UserNotFound => GetPublicKeyError::UserNotFound,
+        file_index_repo::PublicKeyError::UserNotFound => Some(GetPublicKeyError::UserNotFound),
         _ => {
             error!(
                 "Internal server error! Cannot get public key from Postgres: {:?}",
                 e
             );
-            GetPublicKeyError::InternalError
+            None
         }
     })?;
 
@@ -131,28 +117,20 @@ pub async fn get_public_key(
         Ok(()) => Ok(GetPublicKeyResponse { key: key }),
         Err(e) => {
             error!("Internal server error! Cannot commit transaction: {:?}", e);
-            Err(GetPublicKeyError::InternalError)
+            Err(None)
         }
     }
 }
 
-pub async fn calculate_usage(
-    server_state: &mut ServerState,
-    request: GetUsageRequest,
-) -> Result<GetUsageResponse, GetUsageError> {
-    if !version_is_supported(&request.client_version) {
-        return Err(GetUsageError::ClientUpdateRequired);
-    }
-
-    if !username_is_valid(&request.username) {
-        debug!("{} is not a valid username", request.username);
-        return Err(GetUsageError::InvalidUsername);
-    }
+pub async fn get_usage(
+    context: &mut RequestContext<'_, GetUsageRequest>,
+) -> Result<GetUsageResponse, Option<GetUsageError>> {
+    let server_state = &mut context.server_state;
     let transaction = match server_state.index_db_client.transaction().await {
         Ok(t) => t,
         Err(e) => {
             error!("Internal server error! Cannot begin transaction: {:#?}", e);
-            return Err(GetUsageError::InternalError);
+            return Err(None);
         }
     };
 
@@ -160,14 +138,14 @@ pub async fn calculate_usage(
 
     let res = usage_service::calculate(
         &transaction,
-        &request.username,
+        &context.public_key,
         timestamp,
         timestamp.add(FixedOffset::east(1)),
     )
     .await
     .map_err(|e| {
         error!("Usage calculation error: {:#?}", e);
-        GetUsageError::InternalError
+        None
     })?;
 
     Ok(GetUsageResponse { usages: res })
