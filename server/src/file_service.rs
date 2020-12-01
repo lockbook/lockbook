@@ -576,7 +576,7 @@ pub async fn move_folder(
         file_index_repo::FileError::ParentDoesNotExist => Some(MoveFolderError::ParentNotFound),
         file_index_repo::FileError::IllegalRootChange => Some(MoveFolderError::CannotMoveRoot),
         file_index_repo::FileError::FolderMovedIntoDescendants => {
-            MoveFolderError::CannotMoveIntoDescendant
+            Some(MoveFolderError::CannotMoveIntoDescendant)
         }
         file_index_repo::FileError::ParentDeleted => Some(MoveFolderError::ParentDeleted),
         FileError::Deserialize(_)
