@@ -2,134 +2,81 @@ mod integration_test;
 
 #[cfg(test)]
 mod move_document_tests {
-    use crate::integration_test::{
-        aes_key, aes_str, generate_account, random_filename, rsa_key, sign,
-    };
-    use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::crypto::*;
-    use lockbook_core::service::crypto_service::{AesImpl, SymmetricCryptoService};
-    use uuid::Uuid;
-
     use crate::assert_matches;
+    use crate::integration_test::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
+    use lockbook_core::client::{ApiError, Client};
+    use lockbook_core::model::api::*;
+    use lockbook_core::model::file_metadata::FileType;
+    use lockbook_core::DefaultClient;
 
     #[test]
     fn move_document() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+        let (mut folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &folder,
+                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document
-        assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                }
-            ),
-            Ok(_)
-        );
+        doc.parent = folder.id;
+        DefaultClient::request(&account, MoveDocumentRequest::new(&doc)).unwrap();
     }
 
     #[test]
     fn move_document_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
+        // create folder to move document to
+        let (folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &folder,
+                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
+
+        // move document that wasn't created
+        let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
 
         // move document that wasn't created
         assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                Uuid::new_v4(),
-                0,
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-            ),
-            Err(ApiError::<MoveDocumentError>::Api(
+            result,
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentNotFound
             ))
         );
@@ -139,62 +86,29 @@ mod move_document_tests {
     fn move_document_parent_not_found() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
-        .unwrap();
-
-        // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document to folder that was never created
+        let (folder, _) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        doc.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                }
-            ),
-            Err(ApiError::<MoveDocumentError>::Api(
+            result,
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::ParentNotFound
             ))
         );
@@ -204,89 +118,42 @@ mod move_document_tests {
     fn move_document_deleted() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
         .unwrap();
 
         // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+        let (folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &folder,
+                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
 
         // delete document
-        assert_matches!(
-            ClientImpl::delete_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-            ),
-            Ok(_)
-        );
+        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
         // move deleted document
+        doc.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Err(ApiError::<MoveDocumentError>::Api(
+            result,
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentDeleted
             ))
         );
@@ -296,78 +163,40 @@ mod move_document_tests {
     fn move_document_conflict() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &random_filename(),
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
         .unwrap();
 
         // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+        let (folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &folder,
+                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap();
 
         // move document
+        doc.parent = folder.id;
+        doc.metadata_version -= 1;
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version - 1,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Err(ApiError::<MoveDocumentError>::Api(
+            result,
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::EditConflict
             ))
         );
@@ -377,99 +206,55 @@ mod move_document_tests {
     fn move_document_path_taken() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
-        );
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let doc_id = Uuid::new_v4();
-        let doc_key = AesImpl::generate_key();
-        let doc_name = random_filename();
-        let version = ClientImpl::create_document(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            doc_id,
-            &doc_name,
-            folder_id,
-            aes_str(&doc_key, "doc content"),
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &doc_key),
-            },
+        let (mut doc, doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
+            ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-
-        assert_matches!(
-            ClientImpl::create_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                &random_filename(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
+        let (mut folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &folder,
+                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
-        // create document with same name in that folder
-        let doc_id2 = Uuid::new_v4();
-        let doc_key2 = AesImpl::generate_key();
-        assert_matches!(
-            ClientImpl::create_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id2,
-                &doc_name,
-                subfolder_id,
-                aes_str(&doc_key2, "doc content"),
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &doc_key2),
-                },
+        // create document
+        let (mut doc2, _) =
+            generate_file_metadata(&account, &folder, &folder_key, FileType::Document);
+        doc2.name = doc.name.clone();
+        doc2.metadata_version = DefaultClient::request(
+            &account,
+            CreateDocumentRequest::new(
+                &doc2,
+                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
-            Ok(_)
-        );
+        )
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // move document
+        doc.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveDocumentRequest::new(&doc));
         assert_matches!(
-            ClientImpl::move_document(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                doc_id,
-                version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&folder_key, &subfolder_key),
-                },
-            ),
-            Err(ApiError::<MoveDocumentError>::Api(
+            result,
+            Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentPathTaken
             ))
         );
