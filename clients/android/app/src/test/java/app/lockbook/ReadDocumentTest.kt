@@ -48,7 +48,7 @@ class ReadDocumentTest {
             CoreModel.insertFile(config, document).component1()
         )
 
-        assertType<DecryptedValue>(
+        assertType<String>(
             CoreModel.getDocumentContent(config, document.id).component1()
         )
     }
@@ -94,7 +94,7 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentUnexpectedError() {
-        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
+        val getDocumentResult: Result<String, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
 
         assertType<ReadDocumentError.Unexpected>(

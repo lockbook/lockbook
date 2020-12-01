@@ -21,7 +21,7 @@ class ModifyFileTests: SLCTest {
         let data = Data(count: 1000)
         assertSuccess(core.api.updateFile(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.api.synchronize())
-        assertSuccess(core.api.getFile(id: createdFile.id)) { $0.secret == data.base64EncodedString() }
+        assertSuccess(core.api.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
     func testUpdateContent1MB() throws {
@@ -33,7 +33,7 @@ class ModifyFileTests: SLCTest {
         let data = Data(count: 1000*1000)
         assertSuccess(core.api.updateFile(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.api.synchronize())
-        assertSuccess(core.api.getFile(id: createdFile.id)) { $0.secret == data.base64EncodedString() }
+        assertSuccess(core.api.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     func testUpdateContent10MB() throws {
         let resultCreateFile = core.api.createFile(name: randomFilename(), dirId: root!.id, isFolder: false)
@@ -44,7 +44,7 @@ class ModifyFileTests: SLCTest {
         let data = Data(count: 10*1000*1000)
         assertSuccess(core.api.updateFile(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.api.synchronize())
-        assertSuccess(core.api.getFile(id: createdFile.id)) { $0.secret == data.base64EncodedString() }
+        assertSuccess(core.api.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
     func testRename() throws {

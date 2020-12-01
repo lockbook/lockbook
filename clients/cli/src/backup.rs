@@ -124,8 +124,8 @@ pub fn backup() {
                 ),
             });
 
-        let document_content = read_document(&get_config(), document_metadata.id)
-            .unwrap_or_else(|err| match err {
+        let document_content =
+            read_document(&get_config(), document_metadata.id).unwrap_or_else(|err| match err {
                 CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument)
                 | CoreError::UiError(ReadDocumentError::NoAccount)
                 | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
@@ -133,16 +133,13 @@ pub fn backup() {
                     &format!("Could not read file: {} error: {:?}", &doc, err),
                     UNEXPECTED_ERROR,
                 ),
-            })
-            .secret;
-
-        document
-            .write_all(document_content.as_bytes())
-            .unwrap_or_else(|err| {
-                exit_with(
-                    &format!("Could not write to file: {}, error: {}", &doc, err),
-                    COULD_NOT_WRITE_TO_OS_FILE,
-                )
             });
+
+        document.write_all(&document_content).unwrap_or_else(|err| {
+            exit_with(
+                &format!("Could not write to file: {}, error: {}", &doc, err),
+                COULD_NOT_WRITE_TO_OS_FILE,
+            )
+        });
     }
 }
