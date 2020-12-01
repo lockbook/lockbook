@@ -816,7 +816,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
 
     string_to_jstring(
         &env,
-        translate(read_document(&deserialized_config, deserialized_id)),
+        translate(
+            read_document(&deserialized_config, deserialized_id)
+                .map(|d| String::from(String::from_utf8_lossy(&d))),
+        ),
     )
 }
 
@@ -850,7 +853,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
     }
     .into();
 
-    let serialized_content: String = match env.get_string(jcontent) {
+    let content: String = match env.get_string(jcontent) {
         Ok(ok) => ok,
         Err(_) => {
             return serialize_to_jstring(
@@ -881,22 +884,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         }
     };
 
-    let deserialized_content: String = match serde_json::from_str(&serialized_content) {
-        Ok(ok) => ok,
-        Err(_) => {
-            return serialize_to_jstring(
-                &env,
-                Error::<()>::Unexpected("Couldn't deserialize content!".to_string()),
-            );
-        }
-    };
-
     string_to_jstring(
         &env,
         translate(write_document(
             &deserialized_config,
             deserialized_id,
-            &deserialized_content.into_bytes(),
+            &content.into_bytes(),
         )),
     )
 }
