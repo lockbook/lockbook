@@ -1,19 +1,39 @@
-use crate::model::account::Username;
+use crate::model::account::{Account, Username};
 use crate::model::crypto::*;
 use crate::model::file_metadata::FileMetadata;
+use reqwest::Method;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
-
 use uuid::Uuid;
+
+pub trait Request {
+    type Response;
+    type Error;
+    const METHOD: Method;
+    const ROUTE: &'static str;
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RequestWrapper<T: Request> {
+    pub signed_request: RSASigned<T>,
+    pub client_version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum ErrorWrapper<E> {
+    Endpoint(E),
+    ClientUpdateRequired,
+    InvalidAuth,
+    ExpiredAuth,
+    InternalError,
+    BadRequest,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_content: EncryptedValueWithNonce,
+    pub new_content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -23,27 +43,27 @@ pub struct ChangeDocumentContentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ChangeDocumentContentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
-    ClientUpdateRequired,
+}
+
+impl Request for ChangeDocumentContentRequest {
+    type Response = ChangeDocumentContentResponse;
+    type Error = ChangeDocumentContentError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/change-document-content";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
-    pub content: EncryptedValueWithNonce,
+    pub content: EncryptedDocument,
     pub parent_access_key: FolderAccessInfo,
 }
 
@@ -54,23 +74,35 @@ pub struct CreateDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum CreateDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
-    ClientUpdateRequired,
+}
+
+impl CreateDocumentRequest {
+    pub fn new(file_metadata: &FileMetadata, content: EncryptedDocument) -> Self {
+        CreateDocumentRequest {
+            id: file_metadata.id,
+            name: file_metadata.name.clone(),
+            parent: file_metadata.parent,
+            content,
+            parent_access_key: file_metadata.folder_access_keys.clone(),
+        }
+    }
+}
+
+impl Request for CreateDocumentRequest {
+    type Response = CreateDocumentResponse;
+    type Error = CreateDocumentError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/create-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteDocumentRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
 }
 
@@ -81,23 +113,23 @@ pub struct DeleteDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DeleteDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
-    ClientUpdateRequired,
+}
+
+impl Request for DeleteDocumentRequest {
+    type Response = DeleteDocumentResponse;
+    type Error = DeleteDocumentError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/delete-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveDocumentRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -111,10 +143,7 @@ pub struct MoveDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MoveDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
@@ -124,14 +153,28 @@ pub enum MoveDocumentError {
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
-    ClientUpdateRequired,
+}
+
+impl MoveDocumentRequest {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
+        MoveDocumentRequest {
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_parent: file_metadata.parent,
+            new_folder_access: file_metadata.folder_access_keys.clone(),
+        }
+    }
+}
+
+impl Request for MoveDocumentRequest {
+    type Response = MoveDocumentResponse;
+    type Error = MoveDocumentError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/move-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameDocumentRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -144,43 +187,57 @@ pub struct RenameDocumentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RenameDocumentError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     DocumentDeleted,
     EditConflict,
     DocumentPathTaken,
-    ClientUpdateRequired,
+}
+
+impl RenameDocumentRequest {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
+        RenameDocumentRequest {
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_name: file_metadata.name.clone(),
+        }
+    }
+}
+
+impl Request for RenameDocumentRequest {
+    type Response = RenameDocumentResponse;
+    type Error = RenameDocumentError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/rename-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentRequest {
     pub id: Uuid,
     pub content_version: u64,
-    pub client_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentResponse {
-    pub content: EncryptedValueWithNonce,
+    pub content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetDocumentError {
-    InternalError,
     DocumentNotFound,
-    ClientUpdateRequired,
+}
+
+impl Request for GetDocumentRequest {
+    type Response = GetDocumentResponse;
+    type Error = GetDocumentError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub name: String,
     pub parent: Uuid,
@@ -194,23 +251,34 @@ pub struct CreateFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum CreateFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FileIdTaken,
     FolderPathTaken,
     ParentNotFound,
-    ClientUpdateRequired,
+}
+
+impl CreateFolderRequest {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
+        CreateFolderRequest {
+            id: file_metadata.id,
+            name: file_metadata.name.clone(),
+            parent: file_metadata.parent,
+            parent_access_key: file_metadata.folder_access_keys.clone(),
+        }
+    }
+}
+
+impl Request for CreateFolderRequest {
+    type Response = CreateFolderResponse;
+    type Error = CreateFolderError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/create-folder";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct DeleteFolderRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
 }
 
@@ -221,10 +289,7 @@ pub struct DeleteFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum DeleteFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
@@ -234,11 +299,15 @@ pub enum DeleteFolderError {
     ClientUpdateRequired,
 }
 
+impl Request for DeleteFolderRequest {
+    type Response = DeleteFolderResponse;
+    type Error = DeleteFolderError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/delete-folder";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MoveFolderRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
@@ -252,10 +321,7 @@ pub struct MoveFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MoveFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
@@ -266,14 +332,28 @@ pub enum MoveFolderError {
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
-    ClientUpdateRequired,
+}
+
+impl MoveFolderRequest {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
+        MoveFolderRequest {
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_parent: file_metadata.parent,
+            new_folder_access: file_metadata.folder_access_keys.clone(),
+        }
+    }
+}
+
+impl Request for MoveFolderRequest {
+    type Response = MoveFolderResponse;
+    type Error = MoveFolderError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/move-folder";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RenameFolderRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_name: String,
@@ -286,10 +366,7 @@ pub struct RenameFolderResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RenameFolderError {
-    InternalError,
-    InvalidAuth,
     InvalidUsername,
-    ExpiredAuth,
     NotPermissioned,
     UserNotFound,
     FolderNotFound,
@@ -297,13 +374,28 @@ pub enum RenameFolderError {
     CannotRenameRoot,
     EditConflict,
     FolderPathTaken,
-    ClientUpdateRequired,
+}
+
+impl RenameFolderRequest {
+    pub fn new(file_metadata: &FileMetadata) -> Self {
+        RenameFolderRequest {
+            id: file_metadata.id,
+            old_metadata_version: file_metadata.metadata_version,
+            new_name: file_metadata.name.clone(),
+        }
+    }
+}
+
+impl Request for RenameFolderRequest {
+    type Response = RenameFolderResponse;
+    type Error = RenameFolderError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/rename-folder";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyRequest {
     pub username: String,
-    pub client_version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -313,17 +405,19 @@ pub struct GetPublicKeyResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetPublicKeyError {
-    InternalError,
     InvalidUsername,
     UserNotFound,
-    ClientUpdateRequired,
+}
+
+impl Request for GetPublicKeyRequest {
+    type Response = GetPublicKeyResponse;
+    type Error = GetPublicKeyError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-public-key";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetUsageRequest {
-    pub username: String,
-    pub client_version: String,
-}
+pub struct GetUsageRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUsageResponse {
@@ -339,17 +433,19 @@ pub struct FileUsage {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUsageError {
-    InternalError,
     InvalidUsername,
     UserNotFound,
-    ClientUpdateRequired,
+}
+
+impl Request for GetUsageRequest {
+    type Response = GetUsageResponse;
+    type Error = GetUsageError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-usage";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
-    pub username: String,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub since_metadata_version: u64,
 }
 
@@ -360,24 +456,24 @@ pub struct GetUpdatesResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUpdatesError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
-    NotPermissioned,
     UserNotFound,
     InvalidUsername,
-    ClientUpdateRequired,
+}
+
+impl Request for GetUpdatesRequest {
+    type Response = GetUpdatesResponse;
+    type Error = GetUpdatesError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-updates";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
-    pub signature: SignedValue,
-    pub client_version: String,
     pub public_key: RSAPublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: FolderAccessInfo,
-    pub user_access_key: EncryptedValue,
+    pub user_access_key: EncryptedUserAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -387,13 +483,33 @@ pub struct NewAccountResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {
-    InternalError,
-    InvalidAuth,
-    ExpiredAuth,
     UsernameTaken,
     InvalidPublicKey,
     InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
-    ClientUpdateRequired,
+}
+
+impl NewAccountRequest {
+    pub fn new(account: &Account, root_metadata: &FileMetadata) -> Self {
+        NewAccountRequest {
+            username: account.username.clone(),
+            public_key: account.private_key.to_public_key(),
+            folder_id: root_metadata.id,
+            parent_access_key: root_metadata.folder_access_keys.clone(),
+            user_access_key: root_metadata
+                .user_access_keys
+                .get(&account.username)
+                .expect("file metadata for new account request must have user access key") // TODO: handle better
+                .access_key
+                .clone(),
+        }
+    }
+}
+
+impl Request for NewAccountRequest {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/new-account";
 }

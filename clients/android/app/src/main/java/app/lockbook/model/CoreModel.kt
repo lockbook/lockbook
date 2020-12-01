@@ -117,7 +117,7 @@ object CoreModel {
                 writeDocument(
                     Klaxon().toJsonString(config),
                     id,
-                    Klaxon().toJsonString(DecryptedValue(content))
+                    content
                 )
             )
 
@@ -200,8 +200,8 @@ object CoreModel {
     fun getDocumentContent(
         config: Config,
         fileId: String
-    ): Result<DecryptedValue, ReadDocumentError> {
-        val getDocumentResult: Result<DecryptedValue, ReadDocumentError>? =
+    ): Result<String, ReadDocumentError> {
+        val getDocumentResult: Result<String, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter)
                 .parse(readDocument(Klaxon().toJsonString(config), fileId))
 
