@@ -31,8 +31,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="5dp"
-                android:spinnerMode="dropdown"
-                android:src="@drawable/baseline_palette_white_pallete_18dp" />
+                android:spinnerMode="dropdown" />
 
             <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/handwriting_editor_erase"

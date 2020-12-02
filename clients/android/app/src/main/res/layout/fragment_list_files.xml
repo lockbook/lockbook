@@ -47,6 +47,17 @@
                 android:orientation="vertical">
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/list_files_fab_drawing"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="10dp"
+                    android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(true)}"
+                    android:src="@drawable/round_gesture_white_18dp"
+                    android:visibility="gone"
+                    app:rippleColor="@color/light"
+                    android:contentDescription="@string/list_files_create_document" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_folder"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -62,7 +73,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked()}"
+                    android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(false)}"
                     android:src="@drawable/ic_baseline_insert_drive_file_24"
                     android:visibility="gone"
                     app:rippleColor="@color/light"
