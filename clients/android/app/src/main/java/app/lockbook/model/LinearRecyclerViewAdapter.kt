@@ -41,7 +41,7 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
 
         val date = Date(Timestamp(item.metadataVersion).time)
         holder.fileMetadata = item
-        holder.cardView.linear_file_name.text = item.name
+        holder.cardView.linear_file_name.text = item.name.removeSuffix(".draw")
         holder.cardView.linear_file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
             if (item.metadataVersion != 0L) date else holder.cardView.resources.getString(R.string.never_synced)
@@ -57,13 +57,23 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
                 )
                 holder.cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
             }
-            item.fileType == FileType.Document -> {
+            item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
                 holder.cardView.background.setTint(
                     ResourcesCompat.getColor(
                         App.instance.resources,
                         R.color.colorPrimaryDark,
                         App.instance.theme
                     )
+                )
+                holder.cardView.linear_file_icon.setImageResource(R.drawable.round_gesture_white_18dp)
+            }
+            item.fileType == FileType.Document -> {
+                holder.cardView.background.setTint(
+                        ResourcesCompat.getColor(
+                                App.instance.resources,
+                                R.color.colorPrimaryDark,
+                                App.instance.theme
+                        )
                 )
                 holder.cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
             }
