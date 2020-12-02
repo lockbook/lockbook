@@ -28,8 +28,11 @@ use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl};
+use lockbook_core::service::clock_service::ClockImpl;
 
 static LOG_FILE: &str = "lockbook_server.log";
+static MAX_SIGNATURE_DELAY_MS: u64 = 60000;
 
 pub struct ServerState {
     pub config: config::Config,
@@ -257,7 +260,7 @@ async fn reconnect(server_state: &mut ServerState) {
     }
 }
 
-async fn unpack<TRequest: Request + DeserializeOwned>(
+async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
     hyper_request: hyper::Request<Body>,
 ) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
     let request_bytes = match from_request(hyper_request).await {
@@ -278,10 +281,6 @@ async fn unpack<TRequest: Request + DeserializeOwned>(
     verify_client_version(&request).map_err(|_| {
         warn!("Client connected with unsupported client version");
         ErrorWrapper::<TRequest::Error>::ClientUpdateRequired
-    })?;
-    verify_time(&request).map_err(|_| {
-        warn!("Client auth verification failed");
-        ErrorWrapper::<TRequest::Error>::ExpiredAuth
     })?;
     verify_auth(&request).map_err(|_| {
         warn!("Client auth verification failed");
@@ -333,12 +332,8 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
     }
 }
 
-fn verify_time<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
-    Ok(()) // todo
-}
-
-fn verify_auth<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
-    Ok(()) // todo
+fn verify_auth<TRequest: Request + Serialize>(request: &RequestWrapper<TRequest>) -> Result<(), ()> {
+    RSAImpl::<ClockImpl>::verify(&request.signed_request.public_key, &request.signed_request, MAX_SIGNATURE_DELAY_MS).map_err(|_| ())
 }
 
 fn serialize_response<TRequest>(
