@@ -603,7 +603,6 @@ val readDocumentConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
         okTag -> {
-            Timber.e(jv.obj?.toJsonString(prettyPrint = true))
             val ok = jv.obj?.string("content")
             if (ok != null) {
                 Ok(ok)
