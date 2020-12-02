@@ -89,6 +89,8 @@ class MoveFileDialogFragment : DialogFragment() {
             moveFileViewModel.moveFilesToFolder()
         }
 
+        dialog?.setCanceledOnTouchOutside(false) ?: errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+
         moveFileViewModel.ids = ids
         moveFileViewModel.names = names
 
@@ -121,11 +123,9 @@ class MoveFileDialogFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         val sizePoint = Point()
-        dialog?.window?.windowManager?.defaultDisplay?.getSize(sizePoint)
-
         dialog?.window?.setLayout(
-            (sizePoint.x * 0.9).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
         )
     }
 

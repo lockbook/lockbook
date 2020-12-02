@@ -86,6 +86,8 @@ class CreateFileDialogFragment : DialogFragment() {
             dismiss()
         }
 
+        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+
         if(isDrawing || fileType == Klaxon().toJsonString(FileType.Folder)) {
             create_file_extension.visibility = View.GONE
             create_file_text_part.visibility = View.GONE

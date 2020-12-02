@@ -78,6 +78,7 @@ class RenameFileDialogFragment : DialogFragment() {
                 }).show()
         }
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
+        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(rename_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
 
         rename_file_cancel.setOnClickListener {
             dismiss()
