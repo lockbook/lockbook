@@ -294,6 +294,7 @@ namespace Core {
             TargetParentHasChildNamedThat,
             TargetParentDoesNotExist,
             CannotMoveRoot,
+            FolderMovedIntoItself,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
