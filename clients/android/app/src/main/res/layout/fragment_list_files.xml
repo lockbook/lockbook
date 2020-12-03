@@ -14,9 +14,25 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <cafe.adriel.krumbsview.KrumbsView
+            android:id="@+id/krumbsView"
+            android:layout_gravity="top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/colorPrimary"
+            app:krumbsStartItem="Home"
+            app:krumbsTextSize="24sp"
+            app:krumbsCurrentItemTextColor="@color/colorAccent"
+            app:krumbsPreviousItemTextColor="@color/colorPrimaryDark"
+            app:krumbsSeparatorTintColor="@color/colorPrimaryDark"
+            app:krumbsSeparatorIcon="@drawable/ic_play_arrow"
+            app:krumbsAnimationType="growShrink"
+            app:krumbsAnimationDuration="longDuration"/>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:layout_gravity="center"
             android:orientation="vertical">
 
             <androidx.swiperefreshlayout.widget.SwipeRefreshLayout

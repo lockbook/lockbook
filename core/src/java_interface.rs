@@ -1116,6 +1116,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
     )
 }
 
+
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
     env: JNIEnv,
