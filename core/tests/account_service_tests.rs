@@ -2,22 +2,21 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::client::ApiError;
-    use lockbook_core::service::account_service::{
-        AccountCreationError, AccountImportError, AccountService,
-    };
-    use lockbook_core::{
-        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
-    };
-
     use crate::integration_test::{generate_account, random_username, test_config, test_db};
+    use lockbook_core::client::ApiError;
     use lockbook_core::model::account::Account;
     use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::db_provider::DbProvider;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+    use lockbook_core::service::account_service::{
+        AccountCreationError, AccountImportError, AccountService,
+    };
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_core::{
+        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
+        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
+    };
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 
@@ -55,7 +54,7 @@ mod account_tests {
         assert!(
             matches!(
                 err,
-                AccountCreationError::ApiError(ApiError::Api(NewAccountError::UsernameTaken))
+                AccountCreationError::ApiError(ApiError::Endpoint(NewAccountError::UsernameTaken))
             ),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
             &generated_account.username,
@@ -76,7 +75,9 @@ mod account_tests {
             assert!(
                 matches!(
                     err,
-                    AccountCreationError::ApiError(ApiError::Api(NewAccountError::InvalidUsername))
+                    AccountCreationError::ApiError(ApiError::Endpoint(
+                        NewAccountError::InvalidUsername
+                    ))
                 ),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,
@@ -143,8 +144,7 @@ mod account_tests {
                 | AccountCreationError::FolderError(_)
                 | AccountCreationError::MetadataRepoError(_)
                 | AccountCreationError::ApiError(_)
-                | AccountCreationError::KeySerializationError(_)
-                | AccountCreationError::AuthGenFailure(_) => {
+                | AccountCreationError::KeySerializationError(_) => {
                     panic!("This action should have failed with AccountAlreadyExists!")
                 }
                 AccountCreationError::AccountExistsAlready => {}
@@ -160,7 +160,7 @@ mod account_tests {
         let account = Account {
             username: "Smail".to_string(),
             api_url: generate_account().api_url,
-            keys: RSAPrivateKey::from_components(
+            private_key: RSAPrivateKey::from_components(
                 BigUint::from_bytes_be(b"Test"),
                 BigUint::from_bytes_be(b"Test"),
                 BigUint::from_bytes_be(b"Test"),
