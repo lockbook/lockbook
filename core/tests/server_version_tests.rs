@@ -2,13 +2,20 @@ mod integration_test;
 
 #[cfg(test)]
 mod server_version_tests {
+    use crate::assert_matches;
     use crate::integration_test::{generate_account, test_config};
-
-    use lockbook_core::client::{api_request, ApiError};
+    use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
-    use lockbook_core::{create_account, get_account};
-    use reqwest::Method;
+    use lockbook_core::service::code_version_service::CodeVersion;
+    use lockbook_core::{create_account, get_account, DefaultCrypto};
     use rsa::RSAPublicKey;
+
+    struct MockCodeVersion;
+    impl CodeVersion for MockCodeVersion {
+        fn get_code_version() -> &'static str {
+            "0.0.0"
+        }
+    }
 
     #[test]
     fn forced_upgrade() {
@@ -22,37 +29,18 @@ mod server_version_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> = api_request(
-            &generated_account.api_url,
-            Method::GET,
-            "get-public-key",
-            &GetPublicKeyRequest {
-                username: String::from(&account.username),
-                client_version: "0.0.0".to_string(),
-            },
-        )
-        .map(|r: GetPublicKeyResponse| r.key);
-
-        match result {
-            Ok(_) => {
-                panic!("Server should have rejected this due to the version being unsupported")
-            }
-            Err(err) => match err {
-                ApiError::Serialize(_)
-                | ApiError::SendFailed(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_) => {
-                    panic!("Server should have rejected this due to the version being unsupported")
-                }
-                ApiError::Api(err2) => match err2 {
-                    GetPublicKeyError::InternalError
-                    | GetPublicKeyError::InvalidUsername
-                    | GetPublicKeyError::UserNotFound => panic!(
-                        "Server should have rejected this due to the version being unsupported"
-                    ),
-                    GetPublicKeyError::ClientUpdateRequired => {}
+        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
+            ClientImpl::<DefaultCrypto, MockCodeVersion>::request(
+                &account,
+                GetPublicKeyRequest {
+                    username: account.username.clone(),
                 },
-            },
-        }
+            )
+            .map(|r: GetPublicKeyResponse| r.key);
+
+        assert_matches!(
+            result,
+            Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired)
+        );
     }
 }

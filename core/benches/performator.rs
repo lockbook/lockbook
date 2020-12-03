@@ -1,7 +1,6 @@
 use cpuprofiler::PROFILER;
 use criterion::profiler::Profiler;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use lockbook_core::model::crypto::DecryptedValue;
 use lockbook_core::model::file_metadata::FileType::Document;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
@@ -51,7 +50,8 @@ pub fn bench_performator(c: &mut Criterion) {
     let bytes = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(1000)
-        .collect::<String>();
+        .collect::<String>()
+        .into_bytes();
 
     group.throughput(Throughput::Bytes(bytes.len() as u64));
     group.bench_function("create_write_read", |b| {
@@ -60,12 +60,7 @@ pub fn bench_performator(c: &mut Criterion) {
                 DefaultFileService::create(db, &Uuid::new_v4().to_string(), root.id, Document)
                     .unwrap();
 
-            let _ = DefaultFileService::write_document(
-                db,
-                file.id,
-                &DecryptedValue::from(bytes.clone()),
-            )
-            .unwrap();
+            let _ = DefaultFileService::write_document(db, file.id, &bytes.clone()).unwrap();
 
             let _ = DefaultFileService::read_document(db, file.id).unwrap();
         });

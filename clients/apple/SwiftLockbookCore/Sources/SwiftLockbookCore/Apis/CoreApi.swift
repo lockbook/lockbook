@@ -59,7 +59,7 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: list_metadatas(documentsDirectory))
     }
     
-    public func getFile(id: UUID) -> FfiResult<DecryptedValue, ReadDocumentError> {
+    public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     

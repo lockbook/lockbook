@@ -77,7 +77,7 @@ namespace lockbook {
             progressRing.Visibility = Visibility.Visible;
             progressRing.IsActive = true;
             newAccountError.Visibility = Visibility.Collapsed;
-            var createAccountResult = await App.CoreService.CreateAccount(username.Text);
+            var createAccountResult = await App.CoreService.CreateAccount(username.Text, "http://api.lockbook.app:8000");
 
             switch (createAccountResult) {
                 case Core.CreateAccount.Success:
