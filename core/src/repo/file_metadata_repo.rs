@@ -86,7 +86,7 @@ pub trait FileMetadataRepo {
     ) -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
     fn get_all(db: &Db) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(db: &Db, filter: Option<Filter>) -> Result<Vec<String>, FindingParentsFailed>;
-    fn non_recursive_delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<(), DbError>;
     fn get_children_non_recursively(db: &Db, id: Uuid) -> Result<Vec<FileMetadata>, DbError>;
     fn set_last_synced(db: &Db, last_updated: u64) -> Result<(), DbError>;
     fn get_last_updated(db: &Db) -> Result<u64, DbError>;
@@ -337,7 +337,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         Ok(paths)
     }
 
-    fn non_recursive_delete_if_exists(db: &Db, id: Uuid) -> Result<(), DbError> {
+    fn non_recursive_delete(db: &Db, id: Uuid) -> Result<(), DbError> {
         let tree = db.open_tree(FILE_METADATA).map_err(DbError::SledError)?;
         tree.remove(id.as_bytes()).map_err(DbError::SledError)?;
         Ok(())
@@ -526,7 +526,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::account::Account;
-    use crate::model::crypto::{EncryptedValueWithNonce, FolderAccessInfo, SignedValue};
+    use crate::model::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::dummy_config;
@@ -556,16 +556,9 @@ mod unit_tests {
             user_access_keys: Default::default(),
             folder_access_keys: FolderAccessInfo {
                 folder_id: Default::default(),
-                access_key: EncryptedValueWithNonce {
-                    garbage: "".to_string(),
-                    nonce: "".to_string(),
-                },
+                access_key: EncryptedFolderAccessKey::new("", ""),
             },
             deleted: false,
-            signature: SignedValue {
-                content: "".to_string(),
-                signature: "".to_string(),
-            },
         }
     }
 
@@ -701,7 +694,7 @@ mod unit_tests {
         let account = Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            keys,
+            private_key: keys,
         };
 
         DefaultAccountRepo::insert_account(&db, &account).unwrap();
