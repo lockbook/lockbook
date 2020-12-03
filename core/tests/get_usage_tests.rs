@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_usage_tests {
-    use lockbook_core::model::crypto::*;
+    use crate::integration_test::{generate_account, random_filename, test_config};
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::model::file_metadata::FileType::Folder;
     use lockbook_core::repo::document_repo::DocumentRepo;
@@ -10,8 +10,6 @@ mod get_usage_tests {
         connect_to_db, create_account, create_file, delete_file, get_root, get_usage, init_logger,
         sync_all, write_document, DefaultDocumentRepo,
     };
-
-    use crate::integration_test::{generate_account, random_filename, test_config};
     use std::path::Path;
 
     #[test]
@@ -27,14 +25,7 @@ mod get_usage_tests {
         let root = get_root(config).unwrap();
 
         let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
-        )
-        .unwrap();
+        write_document(config, file.id, "0000000000".as_bytes()).unwrap();
 
         assert!(
             get_usage(config).unwrap().is_empty(),
@@ -45,14 +36,14 @@ mod get_usage_tests {
 
         let local_encrypted = {
             let db = connect_to_db(config).unwrap();
-            DefaultDocumentRepo::get(&db, file.id).unwrap().content
+            DefaultDocumentRepo::get(&db, file.id).unwrap().value
         };
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
         assert_eq!(
             get_usage(config).unwrap()[0].byte_secs,
-            serde_json::to_vec(&local_encrypted).unwrap().len() as u64
+            local_encrypted.len() as u64
         )
     }
 
@@ -69,14 +60,7 @@ mod get_usage_tests {
         let root = get_root(config).unwrap();
 
         let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
-        )
-        .unwrap();
+        write_document(config, file.id, &String::from("0000000000").into_bytes()).unwrap();
 
         sync_all(config).unwrap();
         delete_file(config, file.id).unwrap();
@@ -102,32 +86,11 @@ mod get_usage_tests {
 
         let folder = create_file(config, "folder", root.id, Folder).unwrap();
         let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
-        )
-        .unwrap();
+        write_document(config, file.id, &String::from("0000000000").into_bytes()).unwrap();
         let file2 = create_file(config, &random_filename(), folder.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file2.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
-        )
-        .unwrap();
+        write_document(config, file2.id, &String::from("0000000000").into_bytes()).unwrap();
         let file3 = create_file(config, &random_filename(), folder.id, FileType::Document).unwrap();
-        write_document(
-            config,
-            file3.id,
-            &DecryptedValue {
-                secret: "0000000000".to_string(),
-            },
-        )
-        .unwrap();
+        write_document(config, file3.id, &String::from("0000000000").into_bytes()).unwrap();
 
         sync_all(config).unwrap();
         delete_file(config, folder.id).unwrap();
@@ -135,7 +98,7 @@ mod get_usage_tests {
 
         let local_encrypted = {
             let db = connect_to_db(config).unwrap();
-            DefaultDocumentRepo::get(&db, file.id).unwrap().content
+            DefaultDocumentRepo::get(&db, file.id).unwrap().value
         };
 
         let usages = get_usage(config).unwrap();
@@ -145,9 +108,6 @@ mod get_usage_tests {
         }
 
         assert_eq!(get_usage(config).unwrap().len(), 3);
-        assert_eq!(
-            total_usage,
-            serde_json::to_vec(&local_encrypted).unwrap().len() as u64
-        )
+        assert_eq!(total_usage, local_encrypted.len() as u64)
     }
 }
