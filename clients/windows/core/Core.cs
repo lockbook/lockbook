@@ -207,7 +207,7 @@ namespace lockbook {
         public async Task<Core.GetAccount.IResult> GetAccount() {
             return await FFICommon<Core.GetAccount.IResult, Core.GetAccount.ExpectedError, Core.GetAccount.PossibleErrors, Core.GetAccount.UnexpectedError>(
                 () => get_account(path),
-                s => new Core.GetAccount.Success { accountJson = s });
+                s => new Core.GetAccount.Success { account = JsonConvert.DeserializeObject<Account>(s) });
         }
 
         public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {

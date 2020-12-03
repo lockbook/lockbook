@@ -1,4 +1,4 @@
-﻿using Core.GetUsage;
+﻿using Core;
 using System;
 using Windows.UI.Popups;
 using Windows.UI.Xaml.Controls;
@@ -17,12 +17,13 @@ namespace lockbook {
         public SignInContentDialog() {
             this.InitializeComponent();
             setUsage();
+            setUsernameAndApiUrl();
         }
 
         private async void setUsage() {
             var usageString = "";
             switch(await App.CoreService.GetUsage()) {
-                case Success success:
+                case Core.GetUsage.Success success:
                     ulong bytes = 0;
                     foreach (var usage in success.usage) {
                         bytes += usage.byteSeconds;
@@ -49,26 +50,49 @@ namespace lockbook {
                     }
                     break;
 
-                case ExpectedError expectedError:
+                case Core.GetUsage.ExpectedError expectedError:
                     switch (expectedError.Error) {
-                        case PossibleErrors.NoAccount:
+                        case Core.GetUsage.PossibleErrors.NoAccount:
                             usageString = "No Account!";
                             break;
-                        case PossibleErrors.CouldNotReachServer:
+                        case Core.GetUsage.PossibleErrors.CouldNotReachServer:
                             usageString = "Offline!";
                             break;
-                        case PossibleErrors.ClientUpdateRequired:
+                        case Core.GetUsage.PossibleErrors.ClientUpdateRequired:
                             usageString = "Update required to calculate usage!";
                             break;
                     }
                     break;
 
-                case UnexpectedError ohNo:
+                case Core.GetUsage.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
 
             spaceUsedTextBlock.Text = usageString;
         }
+
+        public async void setUsernameAndApiUrl() {
+            switch (await App.CoreService.GetAccount()) {
+                case Core.GetAccount.Success success:
+                    usernameTextBlock.Text = success.account.username;
+                    apiTextBlock.Text = success.account.apiUrl;
+                    break;
+
+                case Core.GetAccount.ExpectedError expectedError:
+                    switch (expectedError.Error) {
+                        case Core.GetAccount.PossibleErrors.NoAccount:
+                            usernameTextBlock.Text = "No Account!";
+                            apiTextBlock.Text = "No Account!";
+                            break;
+                    }
+                    break;
+
+                case Core.GetAccount.UnexpectedError ohNo:
+                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+            }
+        }
+
     }
 }
