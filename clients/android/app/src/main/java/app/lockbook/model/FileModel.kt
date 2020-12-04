@@ -15,15 +15,19 @@ import timber.log.Timber
 
 class FileModel(path: String) {
     private val _files = MutableLiveData<List<FileMetadata>>()
+    private val _updateBreadcrumbBar = SingleMutableLiveData<List<String>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
-    val filePath: MutableList<FileMetadata> = mutableListOf()
+    private val filePath: MutableList<String> = mutableListOf()
     val config = Config(path)
 
     val files: LiveData<List<FileMetadata>>
         get() = _files
+
+    val updateBreadcrumbBar: LiveData<List<String>>
+        get() = _updateBreadcrumbBar
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -46,6 +50,7 @@ class FileModel(path: String) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
                         filePath.remove(filePath.last())
+                        _updateBreadcrumbBar.postValue(filePath)
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
@@ -70,7 +75,8 @@ class FileModel(path: String) {
 
     fun intoFolder(fileMetadata: FileMetadata) {
         parentFileMetadata = fileMetadata
-        filePath.add(fileMetadata)
+        filePath.add(fileMetadata.name)
+        _updateBreadcrumbBar.postValue(filePath)
         refreshFiles()
     }
 
@@ -78,7 +84,8 @@ class FileModel(path: String) {
         when (val getRootResult = CoreModel.getRoot(config)) {
             is Ok -> {
                 parentFileMetadata = getRootResult.value
-                filePath.add(getRootResult.value)
+                filePath.add(getRootResult.value.name)
+                _updateBreadcrumbBar.postValue(filePath)
                 refreshFiles()
             }
             is Err -> when (val error = getRootResult.error) {
