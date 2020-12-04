@@ -32,6 +32,7 @@ import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
+import cafe.adriel.krumbsview.model.Krumb
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
@@ -208,6 +209,16 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.updateBreadcrumbBar.observe(
+            viewLifecycleOwner,
+            { path ->
+                files_breadcrumb_bar.removeAllItems()
+                for (folder in path) {
+                    files_breadcrumb_bar.addItem(Krumb(folder))
+                }
+            }
+        )
+
         listFilesViewModel.showSuccessfulDeletion.observe(
             viewLifecycleOwner,
             {
@@ -250,6 +261,12 @@ class ListFilesFragment : Fragment() {
         )
 
         return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        files_breadcrumb_bar.setOnPreviousItemClickListener {
+            listFilesViewModel.handleUpADirectory()
+        }
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
@@ -411,6 +428,11 @@ class ListFilesFragment : Fragment() {
         }
 
         adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
+        if (files.isEmpty()) {
+            list_files_empty_folder.visibility = View.VISIBLE
+        } else if (files.isNotEmpty() && list_files_empty_folder.visibility == View.VISIBLE) {
+            list_files_empty_folder.visibility = View.GONE
+        }
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {
