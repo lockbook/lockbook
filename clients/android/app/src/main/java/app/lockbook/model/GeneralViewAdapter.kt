@@ -56,9 +56,9 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
             } else {
                 if (fileMetadata.fileType == FileType.Document && fileMetadata.name.endsWith(".draw")) {
                     if (cardView.linear_file_icon != null) {
-                        cardView.linear_file_icon.setImageResource(R.drawable.round_gesture_white_18dp)
+                        cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
                     } else {
-                        cardView.grid_file_icon.setImageResource(R.drawable.round_gesture_white_18dp)
+                        cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
                     }
                 } else if (fileMetadata.fileType == FileType.Document) {
                     if (cardView.linear_file_icon != null) {

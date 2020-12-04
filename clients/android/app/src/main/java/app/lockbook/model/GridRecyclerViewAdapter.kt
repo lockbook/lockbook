@@ -58,7 +58,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
                         App.instance.theme
                     )
                 )
-                holder.cardView.grid_file_icon.setImageResource(R.drawable.round_gesture_white_18dp)
+                holder.cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
             }
             item.fileType == FileType.Document -> {
                 holder.cardView.background.setTint(
