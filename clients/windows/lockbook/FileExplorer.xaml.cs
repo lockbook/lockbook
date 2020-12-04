@@ -297,7 +297,7 @@ namespace lockbook {
                     break;
                 case Core.DeleteFile.ExpectedError error:
                     switch (error.Error) {
-                        case Core.DeleteFile.PossibleErrors.NoFileWithThatId:
+                        case Core.DeleteFile.PossibleErrors.FileDoesNotExist:
                             await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
                             break;
                     }

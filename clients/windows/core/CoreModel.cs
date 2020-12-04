@@ -244,7 +244,8 @@ namespace Core {
         public class Success : IResult {
         }
         public enum PossibleErrors {
-            NoFileWithThatId,
+            FileDoesNotExist,
+            CannotDeleteRoot,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
