@@ -118,7 +118,6 @@ class FileModel(path: String) {
                 return false
             }
         }
-
         return true
     }
 
