@@ -15,19 +15,18 @@
         android:layout_height="match_parent">
 
         <cafe.adriel.krumbsview.KrumbsView
-            android:id="@+id/file_breadcrumb_bar"
+            android:id="@+id/files_breadcrumb_bar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="15dp"
             android:layout_gravity="top"
-            android:background="@color/colorPrimary"
+            android:background="@color/colorPrimaryDark"
             app:krumbsAnimationDuration="longDuration"
-            app:krumbsAnimationType="growShrink"
-            app:krumbsCurrentItemTextColor="@color/colorAccent"
-            app:krumbsPreviousItemTextColor="@color/colorPrimaryDark"
+            app:krumbsAnimationType="fadeInOut"
+            app:krumbsCurrentItemTextColor="@color/blue"
+            app:krumbsPreviousItemTextColor="@color/blue"
             app:krumbsSeparatorIcon="@drawable/ic_baseline_arrow_forward_ios_24"
-            app:krumbsSeparatorTintColor="@color/colorPrimaryDark"
-            app:krumbsStartItem="Home"
-            app:krumbsTextSize="24sp"
+            app:krumbsSeparatorTintColor="@color/blue"
+            app:krumbsTextSize="12sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
@@ -39,7 +38,7 @@
             android:orientation="vertical"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/krumbsView"
+            app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar"
             app:layout_constraintBottom_toBottomOf="parent">
 
             <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -61,7 +60,17 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:animateLayoutChanges="true"
-            app:layout_constraintTop_toTopOf="@+id/krumbsView">
+            app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar">
+
+            <TextView
+                android:id="@+id/list_files_empty_folder"
+                android:visibility="gone"
+                android:layout_width="150dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                style="@style/Text.Caption"
+                android:gravity="center"
+                android:text="@string/empty_folder" />
 
             <LinearLayout
                 android:layout_width="wrap_content"

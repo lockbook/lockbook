@@ -62,11 +62,11 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
             }
             item.fileType == FileType.Document -> {
                 holder.cardView.background.setTint(
-                        ResourcesCompat.getColor(
-                                App.instance.resources,
-                                R.color.colorPrimaryDark,
-                                App.instance.theme
-                        )
+                    ResourcesCompat.getColor(
+                        App.instance.resources,
+                        R.color.colorPrimaryDark,
+                        App.instance.theme
+                    )
                 )
                 holder.cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
             }

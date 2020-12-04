@@ -116,6 +116,9 @@ class ListFilesViewModel(path: String, application: Application) :
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
 
+    val updateBreadcrumbBar: LiveData<List<String>>
+        get() = fileModel.updateBreadcrumbBar
+
     val showSuccessfulDeletion: LiveData<Unit>
         get() = _showSuccessfulDeletion
 
@@ -197,6 +200,14 @@ class ListFilesViewModel(path: String, application: Application) :
         fileModel.upADirectory()
 
         return true
+    }
+
+    fun handleUpADirectory() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.upADirectory()
+            }
+        }
     }
 
     fun handleActivityResult(requestCode: Int) {
