@@ -687,5 +687,47 @@ namespace test {
             Assert.AreEqual(Core.MoveFile.PossibleErrors.FolderMovedIntoItself,
                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
+
+        [TestMethod]
+        public void DeleteFile() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            CastOrDie(createFileResult, out Core.CreateFile.Success _);
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+
+            var deleteFileResult = CoreService.DeleteFile(fileId).WaitResult();
+            CastOrDie(deleteFileResult, out Core.DeleteFile.Success _);
+        }
+
+        [TestMethod]
+        public void DeleteFileDoesNotExist() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var deleteFileResult = CoreService.DeleteFile(Guid.NewGuid().ToString()).WaitResult();
+            Assert.AreEqual(Core.DeleteFile.PossibleErrors.FileDoesNotExist,
+                CastOrDie(deleteFileResult, out Core.DeleteFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void DeleteFileCannotDeleteRoot() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getRootResult = CoreService.GetRoot().WaitResult();
+            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
+
+            var deleteFileResult = CoreService.DeleteFile(root.Id).WaitResult();
+            Assert.AreEqual(Core.DeleteFile.PossibleErrors.CannotDeleteRoot,
+                CastOrDie(deleteFileResult, out Core.DeleteFile.ExpectedError _).Error);
+        }
     }
 }
