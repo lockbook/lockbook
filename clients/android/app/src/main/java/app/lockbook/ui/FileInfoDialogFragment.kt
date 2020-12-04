@@ -58,8 +58,8 @@ class FileInfoDialogFragment : DialogFragment() {
         dialog?.window?.windowManager?.defaultDisplay?.getSize(sizePoint)
 
         dialog?.window?.setLayout(
-                (sizePoint.x * 0.9).toInt(),
-                WindowManager.LayoutParams.WRAP_CONTENT
+            (sizePoint.x * 0.9).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT
         )
     }
 
