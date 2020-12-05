@@ -1,5 +1,5 @@
 .PHONY: all
-all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli_lint cli_test integration_tests_run kotlin_interface_tests_run android
+all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test integration_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
 	echo "Done!"
 
 .PHONY: clean
