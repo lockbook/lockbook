@@ -11,7 +11,6 @@ use crate::repo::file_metadata_repo::Problem::{
 };
 use crate::storage::db_provider;
 use crate::storage::db_provider::Backend;
-use serde_json::Error;
 
 #[derive(Debug)]
 pub enum DbError {
@@ -138,7 +137,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                     }
                 },
                 Err(err) => {
-                    error!("Failed parsing {:?} into a UUID", &value);
+                    error!("Failed parsing {:?} into a UUID. Error: {:?}", &value, err);
                     Ok(None)
                 }
             },
