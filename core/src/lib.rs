@@ -53,7 +53,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use crate::storage::db_provider::{to_backend, Backend, DbProvider, DiskBackedDB};
+use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]

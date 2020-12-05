@@ -2,7 +2,6 @@ use uuid::Uuid;
 
 use crate::model::crypto::*;
 use crate::storage::db_provider::{Backend, BackendError};
-use std::borrow::Borrow;
 
 #[derive(Debug)]
 pub enum Error {
