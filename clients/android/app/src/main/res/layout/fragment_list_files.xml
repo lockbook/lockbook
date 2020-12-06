@@ -87,7 +87,7 @@
                     android:layout_margin="10dp"
                     android:contentDescription="@string/list_files_create_document"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(true)}"
-                    android:src="@drawable/round_gesture_white_18dp"
+                    android:src="@drawable/ic_baseline_border_color_24"
                     android:visibility="gone"
                     app:rippleColor="@color/light" />
 
