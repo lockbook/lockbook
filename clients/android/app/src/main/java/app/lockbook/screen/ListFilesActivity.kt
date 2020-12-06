@@ -133,6 +133,10 @@ class ListFilesActivity : AppCompatActivity() {
         }.exhaustive
     }
 
+    fun setToolbarTitle(title: String) {
+        list_files_toolbar.title = title
+    }
+
     fun switchMenu() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
