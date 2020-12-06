@@ -274,7 +274,6 @@ class ListFilesFragment : Fragment() {
         files_breadcrumb_bar.setOnPreviousItemClickListener {
             listFilesViewModel.handleUpADirectory()
         }
-        listFilesViewModel.displayCurrentBreadcrumb()
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
