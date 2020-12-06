@@ -9,6 +9,7 @@ import androidx.work.WorkerParameters
 import app.lockbook.App
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
@@ -57,7 +58,9 @@ class FileModel(path: String) {
                 ) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
-                        filePath.remove(filePath.last())
+                        if(filePath.size != 1) {
+                            filePath.remove(filePath.last())
+                        }
                         _updateBreadcrumbBar.postValue(filePath)
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
@@ -92,8 +95,7 @@ class FileModel(path: String) {
         when (val getRootResult = CoreModel.getRoot(config)) {
             is Ok -> {
                 parentFileMetadata = getRootResult.value
-                filePath.add(getRootResult.value.name)
-                _updateBreadcrumbBar.postValue(filePath)
+                filePath.add("Root")
                 _setToolbarTitle.postValue(getRootResult.value.name + "'s Lockbook")
                 refreshFiles()
             }
