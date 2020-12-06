@@ -1,6 +1,6 @@
 #!/bin/sh
 
 set -a
-. ../containers/dev-test.env
+. ../containers/test.env
 cd ../server
 RUST_LOG=info cargo run

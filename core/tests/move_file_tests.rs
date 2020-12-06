@@ -264,37 +264,23 @@ mod move_document_tests {
     fn move_folder_cannot_move_root() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-        let version = ClientImpl::new_account(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            account.keys.to_public_key(),
-            folder_id,
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &folder_key),
-            },
-            rsa_key(&account.keys.to_public_key(), &folder_key),
-        )
-        .unwrap();
+        let (mut root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // moving root into itself
+        // create folder that will be moved into itself
+        let (mut folder, _folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // move root into its child
+        root.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&root));
         assert_matches!(
-            ClientImpl::move_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                folder_id,
-                version,
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-            ),
-            Err(ApiError::<MoveFolderError>::Api(
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
                 MoveFolderError::CannotMoveRoot
             ))
         );
@@ -304,56 +290,65 @@ mod move_document_tests {
     fn move_folder_into_itself() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // create folder that will be moved into itself
+        let (mut folder, _folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // move folder into itself
+        folder.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&folder));
         assert_matches!(
-            ClientImpl::new_account(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                account.keys.to_public_key(),
-                folder_id,
-                FolderAccessInfo {
-                    folder_id: folder_id,
-                    access_key: aes_key(&folder_key, &folder_key),
-                },
-                rsa_key(&account.keys.to_public_key(), &folder_key)
-            ),
-            Ok(_)
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
+                MoveFolderError::CannotMoveIntoDescendant
+            ))
         );
+    }
 
-        // create folder to move itself into
-        let subfolder_id = Uuid::new_v4();
-        let subfolder_key = AesImpl::generate_key();
-        let version = ClientImpl::create_folder(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            subfolder_id,
-            &random_filename(),
-            folder_id,
-            FolderAccessInfo {
-                folder_id: subfolder_id,
-                access_key: aes_key(&folder_key, &subfolder_key),
-            },
-        )
-        .unwrap();
+    #[test]
+    fn move_folder_into_descendants() {
+        // new account
+        let account = generate_account();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // create folder that will be moved
+        let (mut folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // create folder to move parent to
+        let (folder2, folder_key2) =
+            generate_file_metadata(&account, &folder, &folder_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder2))
+                .unwrap()
+                .new_metadata_version;
+
+        // create folder to move parent to
+        let (folder3, _folder_key3) =
+            generate_file_metadata(&account, &folder2, &folder_key2, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder3))
+                .unwrap()
+                .new_metadata_version;
+
+        // move folder into itself
+        folder.parent = folder3.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&folder));
         assert_matches!(
-            ClientImpl::move_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                subfolder_id,
-                version,
-                subfolder_id,
-                FolderAccessInfo {
-                    folder_id: subfolder_id,
-                    access_key: aes_key(&subfolder_key, &subfolder_key),
-                }
-            ),
-            Err(ApiError::<MoveFolderError>::Api(
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
                 MoveFolderError::CannotMoveIntoDescendant
             ))
         );
