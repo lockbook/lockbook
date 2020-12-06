@@ -86,31 +86,14 @@ mod delete_document_tests {
     fn delete_cannot_delete_root() {
         // new account
         let account = generate_account();
-        let folder_id = Uuid::new_v4();
-        let folder_key = AesImpl::generate_key();
-        let version = ClientImpl::new_account(
-            &account.api_url,
-            &account.username,
-            &sign(&account),
-            account.keys.to_public_key(),
-            folder_id,
-            FolderAccessInfo {
-                folder_id: folder_id,
-                access_key: aes_key(&folder_key, &folder_key),
-            },
-            rsa_key(&account.keys.to_public_key(), &folder_key),
-        )
-        .unwrap();
+        let (root, _root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // rename document
+        // delete root
+        let result = DefaultClient::request(&account, DeleteFolderRequest { id: root.id });
         assert_matches!(
-            ClientImpl::delete_folder(
-                &account.api_url,
-                &account.username,
-                &sign(&account),
-                folder_id,
-            ),
-            Err(ApiError::<DeleteFolderError>::Api(
+            result,
+            Err(ApiError::<DeleteFolderError>::Endpoint(
                 DeleteFolderError::CannotDeleteRoot
             ))
         );
