@@ -9,7 +9,6 @@ import androidx.work.WorkerParameters
 import app.lockbook.App
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
@@ -58,7 +57,7 @@ class FileModel(path: String) {
                 ) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
-                        if(filePath.size != 1) {
+                        if (filePath.size != 1) {
                             filePath.remove(filePath.last())
                         }
                         _updateBreadcrumbBar.postValue(filePath)
