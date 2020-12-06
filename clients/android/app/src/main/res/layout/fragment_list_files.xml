@@ -27,6 +27,7 @@
             app:krumbsSeparatorIcon="@drawable/ic_baseline_arrow_forward_ios_24"
             app:krumbsSeparatorTintColor="@color/blue"
             app:krumbsTextSize="12sp"
+            app:krumbsStartItem="@string/krumbs_start_item"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
