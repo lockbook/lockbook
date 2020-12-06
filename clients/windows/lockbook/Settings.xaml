@@ -13,9 +13,9 @@
         <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
             <TextBlock Text="Settings" Style="{StaticResource SubheaderTextBlockStyle}" Margin="0,0,0,20"/>
             <TextBlock Text="Username" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
-            <TextBlock Text="Checking..." FontSize="11"  Margin="0,0,0,10"/>
+            <TextBlock Text="Checking..." x:Name="usernameTextBlock" FontSize="11"  Margin="0,0,0,10"/>
             <TextBlock Text="Server Location" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
-            <TextBlock Text="Checking..." FontSize="11"  Margin="0,0,0,10"/>
+            <TextBlock Text="Checking..." x:Name="apiTextBlock" FontSize="11"  Margin="0,0,0,10"/>
             <TextBlock Text="Space Utilized" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
             <TextBlock Text="Checking Server..." x:Name="spaceUsedTextBlock" FontSize="11"  Margin="0,0,0,10"/>
             <TextBlock Text="Export Private Key" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
