@@ -89,6 +89,13 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onSwipeToRefresh()
         }
 
+        listFilesViewModel.setToolbarTitle.observe(
+            viewLifecycleOwner,
+            { toolbarTitle ->
+                setToolbarTitle(toolbarTitle)
+            }
+        )
+
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
@@ -267,6 +274,7 @@ class ListFilesFragment : Fragment() {
         files_breadcrumb_bar.setOnPreviousItemClickListener {
             listFilesViewModel.handleUpADirectory()
         }
+        listFilesViewModel.displayCurrentBreadcrumb()
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
@@ -445,6 +453,14 @@ class ListFilesFragment : Fragment() {
     private fun moreOptionsMenu() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
+        } else {
+            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
+        }
+    }
+
+    private fun setToolbarTitle(title: String) {
+        if (activity is ListFilesActivity) {
+            (activity as ListFilesActivity).setToolbarTitle(title)
         } else {
             errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
         }
