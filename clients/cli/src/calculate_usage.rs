@@ -5,10 +5,10 @@ use crate::UNEXPECTED_ERROR;
 use lockbook_core::{get_usage, Error as CoreError, GetUsageError};
 
 const BYTE: u64 = 1;
-const KILOBYTE: u64 = BYTE * 1024;
-const MEGABYTE: u64 = KILOBYTE * 1024;
-const GIGABYTE: u64 = MEGABYTE * 1024;
-const TERABYTE: u64 = GIGABYTE * 1024;
+const KILOBYTE: u64 = BYTE * 1000;
+const MEGABYTE: u64 = KILOBYTE * 1000;
+const GIGABYTE: u64 = MEGABYTE * 1000;
+const TERABYTE: u64 = GIGABYTE * 1000;
 
 const KILOBYTE_PLUS_ONE: u64 = KILOBYTE + 1;
 const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
