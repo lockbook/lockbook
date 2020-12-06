@@ -121,7 +121,7 @@ macro_rules! route_handler {
                     })
                     .await,
                 )
-            },
+            }
             Err(e) => Err(e),
         };
         debug!("Response: {:?}", result);

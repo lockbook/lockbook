@@ -43,7 +43,6 @@ class CreateFileDialogFragment : DialogFragment() {
             args.putString(FILE_TYPE_KEY, fileType)
             args.putBoolean(IS_DRAWING_KEY, isDrawing)
 
-
             val fragment = CreateFileDialogFragment()
             fragment.arguments = args
             return fragment
@@ -88,7 +87,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
         dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
 
-        if(isDrawing || fileType == Klaxon().toJsonString(FileType.Folder)) {
+        if (isDrawing || fileType == Klaxon().toJsonString(FileType.Folder)) {
             create_file_extension.visibility = View.GONE
             create_file_text_part.visibility = View.GONE
             create_file_text.visibility = View.VISIBLE
@@ -105,7 +104,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 handleCreateFileRequest(create_file_text.text.toString())
             }
 
-            if(isDrawing) {
+            if (isDrawing) {
                 create_file_create.setOnClickListener {
                     handleCreateFileRequest(create_file_text.text.toString() + ".draw")
                 }
@@ -116,13 +115,12 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
                 create_file_text.hint = "Folder Name"
             }
-
         } else if (fileType == Klaxon().toJsonString(FileType.Document)) {
             create_file_text_part.setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_NEXT) {
                     create_file_extension.requestFocus()
                     val extension = create_file_extension.text.toString()
-                    if(extension.isEmpty()) {
+                    if (extension.isEmpty()) {
                         create_file_extension.setText(".")
                         create_file_extension.setSelection(1)
                     } else {
@@ -145,8 +143,6 @@ class CreateFileDialogFragment : DialogFragment() {
                 handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
             }
         }
-
-
     }
 
     private fun handleCreateFileRequest(name: String) {
