@@ -65,6 +65,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
+    val setToolbarTitle: LiveData<String>
+        get() = fileModel.setToolbarTitle
+
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
 
@@ -206,6 +209,14 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.upADirectory()
+            }
+        }
+    }
+
+    fun displayCurrentBreadcrumb() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.updateBreadcrumbWithLatest()
             }
         }
     }
