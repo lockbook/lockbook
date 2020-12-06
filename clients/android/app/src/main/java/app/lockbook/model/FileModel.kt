@@ -14,6 +14,7 @@ import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
 class FileModel(path: String) {
+    private val _setToolbarTitle = MutableLiveData<String>()
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _updateBreadcrumbBar = SingleMutableLiveData<List<String>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
@@ -22,6 +23,9 @@ class FileModel(path: String) {
     lateinit var lastDocumentAccessed: FileMetadata
     private val filePath: MutableList<String> = mutableListOf()
     val config = Config(path)
+
+    val setToolbarTitle: LiveData<String>
+        get() = _setToolbarTitle
 
     val files: LiveData<List<FileMetadata>>
         get() = _files
@@ -36,6 +40,10 @@ class FileModel(path: String) {
         get() = _unexpectedErrorHasOccurred
 
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
+
+    fun updateBreadcrumbWithLatest() {
+        _updateBreadcrumbBar.postValue(filePath)
+    }
 
     fun upADirectory() {
         when (
@@ -86,6 +94,7 @@ class FileModel(path: String) {
                 parentFileMetadata = getRootResult.value
                 filePath.add(getRootResult.value.name)
                 _updateBreadcrumbBar.postValue(filePath)
+                _setToolbarTitle.postValue(getRootResult.value.name + "'s Lockbook")
                 refreshFiles()
             }
             is Err -> when (val error = getRootResult.error) {
