@@ -265,7 +265,7 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (mut root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        root.metadata_version = DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap().folder_metadata_version;
 
         // create folder that will be moved into itself
         let (mut folder, _folder_key) =
