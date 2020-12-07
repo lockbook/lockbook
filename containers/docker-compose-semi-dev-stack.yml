@@ -7,7 +7,7 @@ services:
     env_file:
       - ../containers/test.env
     ports:
-      - "8002:9000"
+      - "9000:9000"
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
@@ -30,7 +30,7 @@ services:
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
-      - "8001:5432"
+      - "5432:5432"
   config_indexdb:
     image: postgres:12.3
     container_name: config_indexdb-integration-$HASH
