@@ -44,6 +44,22 @@ namespace Core {
         public string secret;
     }
 
+    public class Account {
+        [JsonProperty("username")]
+        public string username;
+        [JsonProperty("api_url")]
+        public string apiUrl;
+        [JsonProperty("private_key")]
+        public RSAPrivateKey key;
+    }
+
+public class RSAPrivateKey {
+        public List<long> n;
+        public List<long> e;
+        public List<long> d;
+        public List<List<long>> primes;
+    }
+
     public enum FileType {
         Folder,
         Document
@@ -136,7 +152,7 @@ namespace Core {
     namespace GetAccount {
         public interface IResult { }
         public class Success : IResult {
-            public string accountJson;
+            public Account account;
         }
         public enum PossibleErrors {
             NoAccount
