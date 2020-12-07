@@ -3,4 +3,7 @@
 set -a
 . ../containers/test.env
 cd ../server
-RUST_LOG=info cargo run
+INDEX_DB_HOST=localhost
+FILES_DB_HOST=localhost
+RUST_LOG=info 
+cargo run
