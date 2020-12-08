@@ -165,8 +165,11 @@ mod rename_document_tests {
     fn rename_folder_cannot_rename_root() {
         // new account
         let account = generate_account();
-        let (root, _root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        let (mut root, _root_key) = generate_root_metadata(&account);
+        root.metadata_version =
+            DefaultClient::request(&account, NewAccountRequest::new(&account, &root))
+                .unwrap()
+                .folder_metadata_version;
 
         // rename root
         let result = DefaultClient::request(&account, RenameFolderRequest::new(&root));
