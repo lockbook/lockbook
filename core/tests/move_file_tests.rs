@@ -265,7 +265,10 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (mut root, root_key) = generate_root_metadata(&account);
-        root.metadata_version = DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap().folder_metadata_version;
+        root.metadata_version =
+            DefaultClient::request(&account, NewAccountRequest::new(&account, &root))
+                .unwrap()
+                .folder_metadata_version;
 
         // create folder that will be moved into itself
         let (mut folder, _folder_key) =
@@ -328,17 +331,17 @@ mod move_document_tests {
                 .new_metadata_version;
 
         // create folder to move parent to
-        let (folder2, folder_key2) =
+        let (mut folder2, folder_key2) =
             generate_file_metadata(&account, &folder, &folder_key, FileType::Folder);
-        folder.metadata_version =
+        folder2.metadata_version =
             DefaultClient::request(&account, CreateFolderRequest::new(&folder2))
                 .unwrap()
                 .new_metadata_version;
 
         // create folder to move parent to
-        let (folder3, _folder_key3) =
+        let (mut folder3, _folder_key3) =
             generate_file_metadata(&account, &folder2, &folder_key2, FileType::Folder);
-        folder.metadata_version =
+        folder3.metadata_version =
             DefaultClient::request(&account, CreateFolderRequest::new(&folder3))
                 .unwrap()
                 .new_metadata_version;
