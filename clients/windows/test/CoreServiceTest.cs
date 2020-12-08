@@ -12,8 +12,7 @@ namespace test {
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
         CoreService CoreService = new CoreService(lockbookDir);
-        //string apiUrl = Environment.GetEnvironmentVariable("API_URL");
-        string apiUrl = "http://localhost:8000";
+        string apiUrl = Environment.GetEnvironmentVariable("API_URL");
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
