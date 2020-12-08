@@ -161,6 +161,7 @@
     <string name="menu_list_files_grid_layout">Grid</string>
     <string name="dialog_file_extension">File Ext.</string>
     <string name="dialog_file_folder">Folder Name</string>
+    <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
