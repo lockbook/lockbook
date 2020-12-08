@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 
@@ -42,6 +42,22 @@ namespace Core {
     public class DecryptedValue {
         [JsonProperty("secret")]
         public string secret;
+    }
+
+    public class Account {
+        [JsonProperty("username")]
+        public string username;
+        [JsonProperty("api_url")]
+        public string apiUrl;
+        [JsonProperty("private_key")]
+        public RSAPrivateKey key;
+    }
+
+public class RSAPrivateKey {
+        public List<long> n;
+        public List<long> e;
+        public List<long> d;
+        public List<List<long>> primes;
     }
 
     public enum FileType {
@@ -136,7 +152,7 @@ namespace Core {
     namespace GetAccount {
         public interface IResult { }
         public class Success : IResult {
-            public string accountJson;
+            public Account account;
         }
         public enum PossibleErrors {
             NoAccount
