@@ -231,12 +231,12 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun onNewDocumentFABClicked() {
+    fun onNewDocumentFABClicked(isDrawing: Boolean) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document)))
+                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
             }
         }
     }
@@ -246,7 +246,7 @@ class ListFilesViewModel(path: String, application: Application) :
             withContext(Dispatchers.IO) {
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder)))
+                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
             }
         }
     }

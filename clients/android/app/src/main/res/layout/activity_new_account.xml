@@ -57,7 +57,8 @@
         android:fontFamily="monospace"
         android:hint="@string/new_account_username"
         android:importantForAutofill="no"
-        android:inputType="textVisiblePassword" />
+        android:inputType="textVisiblePassword"
+        android:imeOptions="actionDone" />
 
 
     <Button
