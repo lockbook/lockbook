@@ -164,21 +164,6 @@ class MoveFileTest {
     }
 
     @Test
-    fun cannotMoveRoot() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
-
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
-
-        assertType<MoveFileError.CannotMoveRoot>(
-            CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id).component2()
-        )
-    }
-
-    @Test
     fun moveFileTargetParentHasChildNamedThat() {
         val documentName = generateAlphaString()
 
@@ -231,6 +216,49 @@ class MoveFileTest {
 
         assertType<MoveFileError.TargetParentHasChildNamedThat>(
             CoreModel.moveFile(config, firstDocument.id, folder.id).component2()
+        )
+    }
+
+    @Test
+    fun cannotMoveRoot() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<MoveFileError.CannotMoveRoot>(
+            CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id).component2()
+        )
+    }
+
+    @Test
+    fun moveFileMoveFolderIntoItself() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val folder = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, folder).component1()
+        )
+
+        assertType<MoveFileError.FolderMovedIntoItself>(
+            CoreModel.moveFile(config, folder.id, folder.id).component2()
         )
     }
 

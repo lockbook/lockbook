@@ -1,6 +1,9 @@
 #!/bin/sh
 
 set -a
-. ../containers/devtest.env
+. ../containers/test.env
 cd ../server
-RUST_LOG=info cargo run
+INDEX_DB_HOST=localhost
+FILES_DB_HOST=localhost
+RUST_LOG=info 
+cargo run
