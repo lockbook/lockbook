@@ -565,6 +565,7 @@ pub fn insert_file(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum FileDeleteError {
+    CannotDeleteRoot,
     FileDoesNotExist,
 }
 
@@ -588,6 +589,9 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
             }
             FileType::Folder => {
                 DefaultFileService::delete_folder(&db, id).map_err(|err| match err {
+                    file_service::DeleteFolderError::CannotDeleteRoot => {
+                        Error::UiError(FileDeleteError::CannotDeleteRoot)
+                    }
                     file_service::DeleteFolderError::MetadataError(_)
                     | file_service::DeleteFolderError::CouldNotFindFile
                     | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
@@ -720,12 +724,13 @@ pub fn rename_file(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum MoveFileError {
-    NoAccount,
-    FileDoesNotExist,
+    CannotMoveRoot,
     DocumentTreatedAsFolder,
+    FileDoesNotExist,
+    FolderMovedIntoItself,
+    NoAccount,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
-    CannotMoveRoot,
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
@@ -736,6 +741,9 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
         Err(err) => match err {
             FileMoveError::DocumentTreatedAsFolder => {
                 Err(Error::UiError(MoveFileError::DocumentTreatedAsFolder))
+            }
+            FileMoveError::FolderMovedIntoItself => {
+                Err(Error::UiError(MoveFileError::FolderMovedIntoItself))
             }
             FileMoveError::AccountRetrievalError(account_err) => match account_err {
                 AccountRepoError::NoAccount => Err(Error::UiError(MoveFileError::NoAccount)),
@@ -752,6 +760,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
             }
             FileMoveError::CannotMoveRoot => Err(Error::UiError(MoveFileError::CannotMoveRoot)),
             FileMoveError::DbError(_)
+            | FileMoveError::FindingChildrenFailed(_)
             | FileMoveError::FailedToRecordChange(_)
             | FileMoveError::FailedToDecryptKey(_)
             | FileMoveError::FailedToReEncryptKey(_)

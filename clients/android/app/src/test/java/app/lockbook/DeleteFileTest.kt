@@ -80,6 +80,21 @@ class DeleteFileTest {
     }
 
     @Test
+    fun deleteFileCannotDeleteRoot() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<FileDeleteError.CannotDeleteRoot>(
+            CoreModel.deleteFile(config, rootFileMetadata.id).component2()
+        )
+    }
+
+    @Test
     fun deleteFileUnexpectedError() {
         val fileDelete: Result<Unit, FileDeleteError>? =
             Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
