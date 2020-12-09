@@ -149,6 +149,7 @@ pub enum MoveDocumentError {
     DocumentNotFound,
     ParentNotFound,
     ParentDeleted,
+    FolderMovedIntoItself,
     EditConflict,
     DocumentDeleted,
     DocumentPathTaken,
@@ -294,6 +295,8 @@ pub enum DeleteFolderError {
     FolderNotFound,
     EditConflict,
     FolderDeleted,
+    CannotDeleteRoot,
+    ClientUpdateRequired,
 }
 
 impl Request for DeleteFolderRequest {
@@ -324,6 +327,8 @@ pub enum MoveFolderError {
     FolderNotFound,
     ParentNotFound,
     ParentDeleted,
+    CannotMoveRoot,
+    CannotMoveIntoDescendant,
     EditConflict,
     FolderDeleted,
     FolderPathTaken,
@@ -366,6 +371,7 @@ pub enum RenameFolderError {
     UserNotFound,
     FolderNotFound,
     FolderDeleted,
+    CannotRenameRoot,
     EditConflict,
     FolderPathTaken,
 }
