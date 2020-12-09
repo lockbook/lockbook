@@ -9,7 +9,7 @@ use lockbook_core::{
 };
 
 use crate::utils::{exit_with, get_account_or_exit, get_config};
-use crate::{DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use crate::{COULD_NOT_DELETE_ROOT, DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, UNEXPECTED_ERROR};
 
 pub fn remove(path: &str) {
     get_account_or_exit();
@@ -65,6 +65,10 @@ pub fn remove(path: &str) {
             UiError(FileDeleteError::FileDoesNotExist) => exit_with(
                 &format!("Cannot delete '{}', file does not exist.", path),
                 FILE_NOT_FOUND,
+            ),
+            UiError(FileDeleteError::CannotDeleteRoot) => exit_with(
+                &format!("Cannot delete '{}' since it is the root folder.", path),
+                COULD_NOT_DELETE_ROOT,
             ),
             UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
         },
