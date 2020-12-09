@@ -8,44 +8,114 @@ extern crate qrcode_generator;
 extern crate sourceview;
 
 mod account;
+mod app;
 mod backend;
 mod editmode;
 mod filetree;
-mod gui;
 mod intro;
 mod menubar;
 mod messages;
 mod settings;
 mod util;
 
+use std::cell::RefCell;
 use std::env;
+use std::process;
+use std::rc::Rc;
 use std::sync::Arc;
 
+use gio::prelude::*;
+use gtk::prelude::*;
+use gtk::Application as GtkApp;
+use gtk::CssProvider as GtkCssProvider;
+use gtk::Dialog as GtkDialog;
+use gtk::Label as GtkLabel;
+use gtk::StyleContext as GtkStyleContext;
+
+use crate::app::LbApp;
 use crate::backend::LbCore;
-use crate::gui::run_gtk;
+use crate::messages::Messenger;
 use crate::settings::Settings;
 
-fn lockbook_path() -> String {
-    match env::var("LOCKBOOK_PATH") {
-        Ok(path) => path,
-        Err(_) => format!("{}/.lockbook", env::var("HOME").unwrap()),
+fn main() {
+    let data_dir = get_data_dir();
+
+    let core = Arc::new(LbCore::new(&data_dir));
+    if let Err(err) = core.init_db() {
+        launch_err("initializing db", &err);
+    }
+
+    let settings = match Settings::from_data_dir(&data_dir) {
+        Ok(s) => Rc::new(RefCell::new(s)),
+        Err(err) => launch_err("unable to read settings", &err.to_string()),
+    };
+
+    let gtk_app = GtkApp::new(None, Default::default()).unwrap();
+    gtk_app.connect_activate(on_activate(&core, &settings));
+    gtk_app.connect_shutdown(on_shutdown(&settings));
+    gtk_app.run(&[]);
+}
+
+fn get_data_dir() -> String {
+    let default = format!("{}/.lockbook", env::var("HOME").unwrap());
+    env::var("LOCKBOOK_PATH").unwrap_or(default)
+}
+
+fn on_activate(core: &Arc<LbCore>, settings: &Rc<RefCell<Settings>>) -> impl Fn(&GtkApp) {
+    let core = core.clone();
+    let settings = settings.clone();
+
+    move |app| {
+        if let Err(err) = gtk_add_css_provider() {
+            launch_err("adding css provider", &err);
+        }
+
+        let (msngr, receiver) = Messenger::new_main_channel();
+
+        let lb = LbApp::new(&core, &settings, &app, msngr);
+        lb.attach_events(receiver);
+        lb.show();
     }
 }
 
-fn main() {
-    let datadir = lockbook_path();
+fn on_shutdown(settings: &Rc<RefCell<Settings>>) -> impl Fn(&GtkApp) {
+    let settings = settings.clone();
 
-    let core = LbCore::new(&datadir);
-    match core.init_db() {
-        Ok(_) => {}
-        Err(err) => panic!("{}", err),
+    move |_| match settings.borrow_mut().to_file() {
+        Ok(_) => println!("bye!"),
+        Err(err) => println!("error: {:?}", err),
+    }
+}
+
+fn gtk_add_css_provider() -> Result<(), String> {
+    let styling = include_bytes!("../res/app.css");
+    let provider = GtkCssProvider::new();
+    if let Err(err) = provider.load_from_data(styling) {
+        return Err(format!("loading styling css: {}", err));
     }
 
-    let settings_file = format!("{}/settings.yaml", datadir);
-    let sr = Settings::new_rc(match Settings::from_file(&settings_file) {
-        Ok(s) => s,
-        Err(err) => panic!("unable to read settings: {}", err),
-    });
+    if let Some(screen) = gdk::Screen::get_default() {
+        let priority = gtk::STYLE_PROVIDER_PRIORITY_APPLICATION;
+        GtkStyleContext::add_provider_for_screen(&screen, &provider, priority);
+        Ok(())
+    } else {
+        Err("no gdk default screen found".to_string())
+    }
+}
 
-    run_gtk(sr, Arc::new(core));
+fn launch_err(prefix: &str, err: &str) -> ! {
+    let lbl = GtkLabel::new(Some(&format!("error: {}: {}", prefix, err)));
+    lbl.set_margin_top(20);
+    lbl.set_margin_bottom(20);
+    lbl.set_margin_start(20);
+    lbl.set_margin_end(20);
+
+    let d = GtkDialog::new();
+    d.set_title("Lockbook Launch Error");
+    d.set_icon_name(Some("emblem-important"));
+    d.get_content_area().add(&lbl);
+    d.show_all();
+    d.run();
+
+    process::exit(1);
 }
