@@ -33,7 +33,8 @@
         android:fontFamily="monospace"
         android:hint="@string/import_description"
         android:importantForAutofill="no"
-        android:inputType="textVisiblePassword" />
+        android:inputType="textVisiblePassword"
+        android:imeOptions="actionDone" />
 
     <Button
         android:id="@+id/import_lockbook"
