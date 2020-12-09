@@ -380,15 +380,16 @@ class ListFilesFragment : Fragment() {
         list_files_fab.setImageResource(R.drawable.ic_baseline_add_24)
         list_files_fab_folder.hide()
         list_files_fab_document.hide()
+        list_files_fab_drawing.hide()
         list_files_refresh.alpha = 1f
         list_files_frame_layout.isClickable = false
     }
 
     private fun showFABMenu() {
         list_files_fab.animate().setDuration(200L).rotation(-90f)
-//        list_files_fab.setImageResource(R.drawable.round_gesture_white_18dp)
         list_files_fab_folder.show()
         list_files_fab_document.show()
+        list_files_fab_drawing.show()
         list_files_refresh.alpha = 0.7f
         list_files_frame_layout.isClickable = true
         list_files_frame_layout.setOnClickListener {
@@ -478,7 +479,8 @@ class ListFilesFragment : Fragment() {
     private fun showCreateFileDialog(createFileInfo: CreateFileInfo) {
         val dialogFragment = CreateFileDialogFragment.newInstance(
             createFileInfo.parentId,
-            createFileInfo.fileType
+            createFileInfo.fileType,
+            createFileInfo.isDrawing
         )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
