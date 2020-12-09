@@ -12,8 +12,7 @@ import app.lockbook.model.BreadCrumbAdapter
 import app.lockbook.model.BreadCrumbItemClickListener
 
 data class BreadCrumb(
-        val title: String,
-        val id: String
+    val title: String
 )
 
 class BreadCrumbView : FrameLayout {
@@ -24,17 +23,17 @@ class BreadCrumbView : FrameLayout {
     constructor(context: Context) : this(context, null)
     constructor(context: Context, attrs: AttributeSet?) : this(context, attrs, 0)
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(
-            context,
-            attrs,
-            defStyleAttr
+        context,
+        attrs,
+        defStyleAttr
     ) {
         createAndAddRecyclerView(context)
 
         attrs?.let {
             val typedArray =
-                    context.obtainStyledAttributes(attrs, R.styleable.BreadCrumbView, defStyleAttr, 0)
+                context.obtainStyledAttributes(attrs, R.styleable.BreadCrumbView, defStyleAttr, 0)
             val arrowDrawable =
-                    typedArray.getResourceId(R.styleable.BreadCrumbView_arrow_drawable, -1)
+                typedArray.getResourceId(R.styleable.BreadCrumbView_arrow_drawable, -1)
             val textColor = typedArray.getColor(R.styleable.BreadCrumbView_text_color, -1)
             val textSize = typedArray.getColor(R.styleable.BreadCrumbView_text_size, -1)
             typedArray.recycle()
@@ -53,12 +52,12 @@ class BreadCrumbView : FrameLayout {
     private fun createAndAddRecyclerView(context: Context) {
         recyclerView = RecyclerView(context)
         val recyclerViewParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
         )
 
         recyclerView.layoutManager =
-                LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+            LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
         breadCrumbAdapter = BreadCrumbAdapter(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, position: Int) {}
         })
@@ -68,13 +67,9 @@ class BreadCrumbView : FrameLayout {
         addView(recyclerView, recyclerViewParams)
     }
 
-
     fun addBreadCrumbItem(item: BreadCrumb) {
         breadCrumbAdapter.addBreadCrumbItem(item)
-        postDelayed(
-                { recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1) },
-                100
-        )
+        recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
 
     fun setListener(listener: BreadCrumbItemClickListener) {
@@ -83,17 +78,12 @@ class BreadCrumbView : FrameLayout {
     fun setArrowDrawable(arrowDrawable: Int) = breadCrumbAdapter.setArrowDrawable(arrowDrawable)
     fun setBreadCrumbItems(items: MutableList<BreadCrumb>) {
         breadCrumbAdapter.setBreadCrumbItems(items)
-        postDelayed(
-                { recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1) },
-                100
-        )
+        recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
-
 
     fun setTextColor(textColor: Int) = breadCrumbAdapter.setTextColor(textColor)
     fun setTextSize(textSize: Int) = breadCrumbAdapter.setTextSize(textSize)
     fun getBreadCrumbItem(position: Int) = breadCrumbAdapter.getBreadCrumbItem(position)
     fun removeAllBreadCrumbItems() = breadCrumbAdapter.removeAllBreadCrumbItems()
     fun removeLastBreadCrumbItem() = breadCrumbAdapter.removeLastBreadCrumbItem()
-
 }

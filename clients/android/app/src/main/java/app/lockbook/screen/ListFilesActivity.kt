@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -82,7 +83,18 @@ class ListFilesActivity : AppCompatActivity() {
             }
         }.exhaustive
 
-        when (val optionValue = preference.getString(FILE_LAYOUT_KEY, LINEAR_LAYOUT)) {
+        val config = resources.configuration
+
+        when (
+            val optionValue = preference.getString(
+                FILE_LAYOUT_KEY,
+                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                    GRID_LAYOUT
+                } else {
+                    LINEAR_LAYOUT
+                }
+            )
+        ) {
             LINEAR_LAYOUT -> menu?.findItem(R.id.menu_list_files_linear_view)?.isChecked = true
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
