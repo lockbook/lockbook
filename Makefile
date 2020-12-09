@@ -1,5 +1,5 @@
 .PHONY: all
-all: core_fmt core_test core_lint server_fmt server_lint server_test cli_fmt cli_lint cli_test integration_tests_run kotlin_interface_tests_run android
+all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test integration_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
 	echo "Done!"
 
 .PHONY: clean
@@ -151,7 +151,15 @@ performance_bench_report: is_docker_running
 dev_stack_run: server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
+
+.PHONY: semi_dev_stack_run
+semi_dev_stack_run: is_docker_running
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) up
 
 # Helpers
 .PHONY: is_docker_running

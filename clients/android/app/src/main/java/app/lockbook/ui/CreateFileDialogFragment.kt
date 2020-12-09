@@ -1,29 +1,33 @@
 package app.lockbook.ui
 
+import android.graphics.Point
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_create_file.*
-import kotlinx.android.synthetic.main.dialog_move_file.*
 import kotlinx.coroutines.*
 import timber.log.Timber
+import kotlin.properties.Delegates
 
 class CreateFileDialogFragment : DialogFragment() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    lateinit var parentId: String
-    lateinit var fileType: String
+    private lateinit var parentId: String
+    private lateinit var fileType: String
+    private var isDrawing by Delegates.notNull<Boolean>()
     lateinit var config: Config
 
     companion object {
@@ -31,11 +35,13 @@ class CreateFileDialogFragment : DialogFragment() {
 
         private const val PARENT_ID_KEY = "ID_KEY"
         private const val FILE_TYPE_KEY = "FILE_TYPE_KEY"
+        private const val IS_DRAWING_KEY = "IS_DRAWING_KEY"
 
-        fun newInstance(parentId: String, fileType: String): CreateFileDialogFragment {
+        fun newInstance(parentId: String, fileType: String, isDrawing: Boolean): CreateFileDialogFragment {
             val args = Bundle()
             args.putString(PARENT_ID_KEY, parentId)
             args.putString(FILE_TYPE_KEY, fileType)
+            args.putBoolean(IS_DRAWING_KEY, isDrawing)
 
             val fragment = CreateFileDialogFragment()
             fragment.arguments = args
@@ -57,10 +63,12 @@ class CreateFileDialogFragment : DialogFragment() {
         val bundle = arguments
         val nullableParentId = bundle?.getString(PARENT_ID_KEY)
         val nullableFileType = bundle?.getString(FILE_TYPE_KEY)
+        val nullableIsDrawing = bundle?.getBoolean(IS_DRAWING_KEY)
 
-        if (nullableParentId != null && nullableFileType != null) {
+        if (nullableParentId != null && nullableFileType != null && nullableIsDrawing != null) {
             parentId = nullableParentId
             fileType = nullableFileType
+            isDrawing = nullableIsDrawing
         } else {
             Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
                 .addCallback(object : Snackbar.Callback() {
@@ -77,8 +85,63 @@ class CreateFileDialogFragment : DialogFragment() {
             dismiss()
         }
 
-        create_file_create.setOnClickListener {
-            handleCreateFileRequest(create_file_text.text.toString())
+        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+
+        if (isDrawing || fileType == Klaxon().toJsonString(FileType.Folder)) {
+            create_file_extension.visibility = View.GONE
+            create_file_text_part.visibility = View.GONE
+            create_file_text.visibility = View.VISIBLE
+
+            create_file_text.setOnEditorActionListener { v, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    handleCreateFileRequest(create_file_text.text.toString())
+                }
+
+                true
+            }
+
+            create_file_create.setOnClickListener {
+                handleCreateFileRequest(create_file_text.text.toString())
+            }
+
+            if (isDrawing) {
+                create_file_create.setOnClickListener {
+                    handleCreateFileRequest(create_file_text.text.toString() + ".draw")
+                }
+                create_file_text.hint = "Drawing Name"
+            } else {
+                create_file_create.setOnClickListener {
+                    handleCreateFileRequest(create_file_text.text.toString())
+                }
+                create_file_text.hint = "Folder Name"
+            }
+        } else if (fileType == Klaxon().toJsonString(FileType.Document)) {
+            create_file_text_part.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                    create_file_extension.requestFocus()
+                    val extension = create_file_extension.text.toString()
+                    if (extension.isEmpty()) {
+                        create_file_extension.setText(".")
+                        create_file_extension.setSelection(1)
+                    } else {
+                        create_file_extension.setSelection(extension.length)
+                    }
+                }
+
+                true
+            }
+
+            create_file_extension.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
+                }
+
+                true
+            }
+
+            create_file_create.setOnClickListener {
+                handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
+            }
         }
     }
 
@@ -130,8 +193,11 @@ class CreateFileDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
+        val sizePoint = Point()
+        dialog?.window?.windowManager?.defaultDisplay?.getSize(sizePoint)
+
         dialog?.window?.setLayout(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            (sizePoint.x * 0.9).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT
         )
     }

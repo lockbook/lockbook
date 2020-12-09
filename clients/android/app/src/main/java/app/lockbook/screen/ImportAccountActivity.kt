@@ -3,6 +3,7 @@ package app.lockbook.screen
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
@@ -34,8 +35,17 @@ class ImportAccountActivity : AppCompatActivity() {
         import_lockbook.setOnClickListener {
             onClickImportAccount()
         }
+
         qr_import_button.setOnClickListener {
             navigateToQRCodeScanner()
+        }
+
+        text_import_account_string.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                onClickImportAccount()
+            }
+
+            true
         }
     }
 
