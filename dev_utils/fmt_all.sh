@@ -11,5 +11,8 @@ cargo fmt
 cd ../clients/cli
 cargo fmt
 
+cd ../linux
+cargo fmt
+
 cd ../android
 ./gradlew formatKotlin
