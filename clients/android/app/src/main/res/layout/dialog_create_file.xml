@@ -17,18 +17,55 @@
         android:textAlignment="center"
         android:text="@string/new_file_title" />
 
-    <EditText
-        android:id="@+id/create_file_text"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
         android:layout_marginTop="16dp"
         android:layout_marginLeft="4dp"
         android:layout_marginRight="4dp"
-        android:layout_marginBottom="4dp"
-        android:hint="@string/dialog_file_name"
-        style="@style/Text.Small"
-        android:inputType="text"
-        android:importantForAutofill="no" />
+        android:layout_marginBottom="4dp">
+
+        <EditText
+            android:id="@+id/create_file_text_part"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="@string/dialog_file_name"
+            style="@style/Text.Small"
+            android:inputType="text"
+            android:layout_weight="1"
+            android:layout_marginEnd="10dp"
+            android:importantForAutofill="no"
+            android:imeOptions="actionNext" />
+
+        <EditText
+            android:id="@+id/create_file_extension"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="@string/dialog_file_extension"
+            style="@style/Text.Small"
+            android:inputType="text"
+            android:layout_weight="0.4"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone" />
+
+        <EditText
+            android:id="@+id/create_file_text"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            style="@style/Text.Small"
+            android:hint="@string/create_file_default_file_hint"
+            android:inputType="text"
+            android:layout_weight="1"
+            android:layout_marginEnd="10dp"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone" />
+
+    </LinearLayout>
+
+
 
     <LinearLayout
         android:layout_width="match_parent"
