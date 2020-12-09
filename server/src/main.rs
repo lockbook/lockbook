@@ -21,6 +21,8 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use lockbook_core::loggers;
 use lockbook_core::model::api::*;
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -28,8 +30,6 @@ use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
-use lockbook_core::service::clock_service::ClockImpl;
 
 static LOG_FILE: &str = "lockbook_server.log";
 static MAX_SIGNATURE_DELAY_MS: u64 = 60000;
@@ -124,7 +124,7 @@ macro_rules! route_handler {
                     })
                     .await,
                 )
-            },
+            }
             Err(e) => Err(e),
         };
         debug!("Response: {:?}", result);
@@ -338,8 +338,14 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
     }
 }
 
-fn verify_auth<TRequest: Request + Serialize>(request: &RequestWrapper<TRequest>) -> Result<(), RSAVerifyError> {
-    RSAImpl::<ClockImpl>::verify(&request.signed_request.public_key, &request.signed_request, MAX_SIGNATURE_DELAY_MS)
+fn verify_auth<TRequest: Request + Serialize>(
+    request: &RequestWrapper<TRequest>,
+) -> Result<(), RSAVerifyError> {
+    RSAImpl::<ClockImpl>::verify(
+        &request.signed_request.public_key,
+        &request.signed_request,
+        MAX_SIGNATURE_DELAY_MS,
+    )
 }
 
 fn serialize_response<TRequest>(
