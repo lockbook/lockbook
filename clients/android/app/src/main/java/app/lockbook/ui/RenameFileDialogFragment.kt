@@ -1,10 +1,12 @@
 package app.lockbook.ui
 
+import android.graphics.Point
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
@@ -16,8 +18,10 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.android.synthetic.main.dialog_move_file.*
 import kotlinx.android.synthetic.main.dialog_rename_file.*
+import kotlinx.android.synthetic.main.dialog_rename_file.rename_file
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -74,6 +78,7 @@ class RenameFileDialogFragment : DialogFragment() {
                 }).show()
         }
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
+        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(rename_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
 
         rename_file_cancel.setOnClickListener {
             dismiss()
@@ -81,6 +86,14 @@ class RenameFileDialogFragment : DialogFragment() {
 
         rename_file_rename.setOnClickListener {
             handleRenameRequest(rename_file.text.toString())
+        }
+
+        rename_file.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                handleRenameRequest(rename_file.text.toString())
+            }
+
+            true
         }
 
         rename_file.setText(name)
@@ -120,8 +133,11 @@ class RenameFileDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
+        val sizePoint = Point()
+        dialog?.window?.windowManager?.defaultDisplay?.getSize(sizePoint)
+
         dialog?.window?.setLayout(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            (sizePoint.x * 0.9).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT
         )
     }
