@@ -160,6 +160,7 @@ public enum MoveFileError: String, UiError {
     case CannotMoveRoot
     case DocumentTreatedAsFolder
     case FileDoesNotExist
+    case FolderMovedIntoItself
     case NoAccount
     case TargetParentDoesNotExist
     case TargetParentHasChildNamedThat
@@ -194,5 +195,6 @@ public enum GetUsageError: String, UiError {
 }
 
 public enum FileDeleteError: String, UiError {
+    case CannotDeleteRoot
     case FileDoesNotExist
 }
