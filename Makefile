@@ -151,7 +151,15 @@ performance_bench_report: is_docker_running
 dev_stack_run: server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
 	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
+
+.PHONY: semi_dev_stack_run
+semi_dev_stack_run: is_docker_running
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) up
 
 # Helpers
 .PHONY: is_docker_running

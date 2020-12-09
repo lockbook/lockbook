@@ -169,14 +169,15 @@ mod move_document_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        doc.metadata_version = DefaultClient::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
                 aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
             ),
         )
-        .unwrap();
+        .unwrap()
+        .new_metadata_and_content_version;
 
         // create folder to move document to
         let (folder, folder_key) =
@@ -256,6 +257,103 @@ mod move_document_tests {
             result,
             Err(ApiError::<MoveDocumentError>::Endpoint(
                 MoveDocumentError::DocumentPathTaken
+            ))
+        );
+    }
+
+    #[test]
+    fn move_folder_cannot_move_root() {
+        // new account
+        let account = generate_account();
+        let (mut root, root_key) = generate_root_metadata(&account);
+        root.metadata_version =
+            DefaultClient::request(&account, NewAccountRequest::new(&account, &root))
+                .unwrap()
+                .folder_metadata_version;
+
+        // create folder that will be moved into itself
+        let (mut folder, _folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // move root into its child
+        root.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&root));
+        assert_matches!(
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
+                MoveFolderError::CannotMoveRoot
+            ))
+        );
+    }
+
+    #[test]
+    fn move_folder_into_itself() {
+        // new account
+        let account = generate_account();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        // create folder that will be moved into itself
+        let (mut folder, _folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // move folder into itself
+        folder.parent = folder.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&folder));
+        assert_matches!(
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
+                MoveFolderError::CannotMoveIntoDescendant
+            ))
+        );
+    }
+
+    #[test]
+    fn move_folder_into_descendants() {
+        // new account
+        let account = generate_account();
+        let (root, root_key) = generate_root_metadata(&account);
+        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        // create folder that will be moved
+        let (mut folder, folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        folder.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder))
+                .unwrap()
+                .new_metadata_version;
+
+        // create folder to move parent to
+        let (mut folder2, folder_key2) =
+            generate_file_metadata(&account, &folder, &folder_key, FileType::Folder);
+        folder2.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder2))
+                .unwrap()
+                .new_metadata_version;
+
+        // create folder to move parent to
+        let (mut folder3, _folder_key3) =
+            generate_file_metadata(&account, &folder2, &folder_key2, FileType::Folder);
+        folder3.metadata_version =
+            DefaultClient::request(&account, CreateFolderRequest::new(&folder3))
+                .unwrap()
+                .new_metadata_version;
+
+        // move folder into itself
+        folder.parent = folder3.id;
+        let result = DefaultClient::request(&account, MoveFolderRequest::new(&folder));
+        assert_matches!(
+            result,
+            Err(ApiError::<MoveFolderError>::Endpoint(
+                MoveFolderError::CannotMoveIntoDescendant
             ))
         );
     }

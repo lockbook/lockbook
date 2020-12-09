@@ -95,6 +95,7 @@ sealed class InsertFileError : CoreError() {
 
 sealed class FileDeleteError : CoreError() {
     object FileDoesNotExist : FileDeleteError()
+    object CannotDeleteRoot : FileDeleteError()
     data class Unexpected(val error: String) : FileDeleteError()
 }
 
@@ -121,6 +122,7 @@ sealed class MoveFileError : CoreError() {
     object TargetParentDoesNotExist : MoveFileError()
     object TargetParentHasChildNamedThat : MoveFileError()
     object CannotMoveRoot : MoveFileError()
+    object FolderMovedIntoItself : MoveFileError()
     data class Unexpected(val error: String) : MoveFileError()
 }
 

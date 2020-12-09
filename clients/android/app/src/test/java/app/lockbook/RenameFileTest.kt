@@ -171,7 +171,6 @@ class RenameFileTest {
 
     @Test
     fun cannotRenameRoot() {
-        val fileName = generateAlphaString()
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )

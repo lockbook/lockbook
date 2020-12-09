@@ -134,13 +134,14 @@ class FileModel(path: String) {
             is Err -> {
                 when (val error = deleteFileResult.error) {
                     is FileDeleteError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! The file you selected does not exist!")
+                    is FileDeleteError.CannotDeleteRoot -> _errorHasOccurred.postValue("Error! The file you selected is root!")
                     is FileDeleteError.Unexpected -> {
                         Timber.e("Unable to delete file: ${error.error}")
                         _unexpectedErrorHasOccurred.postValue(
                             error.error
                         )
                     }
-                }
+                }.exhaustive
 
                 false
             }

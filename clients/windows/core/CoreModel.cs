@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 
@@ -260,7 +260,8 @@ public class RSAPrivateKey {
         public class Success : IResult {
         }
         public enum PossibleErrors {
-            NoFileWithThatId,
+            FileDoesNotExist,
+            CannotDeleteRoot,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
@@ -310,6 +311,7 @@ public class RSAPrivateKey {
             TargetParentHasChildNamedThat,
             TargetParentDoesNotExist,
             CannotMoveRoot,
+            FolderMovedIntoItself,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }

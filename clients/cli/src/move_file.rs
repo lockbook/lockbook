@@ -1,9 +1,11 @@
 use crate::utils::{exit_with, exit_with_no_account, get_config};
 use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE, FILE_NOT_FOUND, NO_ROOT_OPS,
-    UNEXPECTED_ERROR,
+    COULD_NOT_MOVE_FOLDER_INTO_ITSELF, DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE,
+    FILE_NOT_FOUND, NO_ROOT_OPS, UNEXPECTED_ERROR,
 };
-use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
+use lockbook_core::{
+    get_file_by_path, Error as CoreError, Error, GetFileByPathError, MoveFileError,
+};
 use std::process::exit;
 
 pub fn move_file(path1: &str, path2: &str) {
@@ -26,6 +28,12 @@ pub fn move_file(path1: &str, path2: &str) {
                         }
                         CoreError::UiError(MoveFileError::TargetParentDoesNotExist) => {
                             exit_with(&format!("No file found at {}", path2), FILE_NOT_FOUND)
+                        }
+                        Error::UiError(MoveFileError::FolderMovedIntoItself) => {
+                            exit_with(
+                                "Cannot move file into its self or children.",
+                                COULD_NOT_MOVE_FOLDER_INTO_ITSELF,
+                            );
                         }
                         CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
                             exit_with(
