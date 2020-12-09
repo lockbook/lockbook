@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "test": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "API_URL": "http://localhost:8000"
+      }
+    }
+  }
+}

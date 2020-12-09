@@ -297,8 +297,11 @@ namespace lockbook {
                     break;
                 case Core.DeleteFile.ExpectedError error:
                     switch (error.Error) {
-                        case Core.DeleteFile.PossibleErrors.NoFileWithThatId:
-                            await new MessageDialog("Could not locate the file you're trying to rename! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                        case Core.DeleteFile.PossibleErrors.FileDoesNotExist:
+                            await new MessageDialog("Could not locate the file you're trying to delete! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.DeleteFile.PossibleErrors.CannotDeleteRoot:
+                            await new MessageDialog("You cannot delete your root folder!", "Delete Error!").ShowAsync();
                             break;
                     }
                     break;
@@ -359,6 +362,9 @@ namespace lockbook {
                             break;
                         case Core.MoveFile.PossibleErrors.CannotMoveRoot:
                             await new MessageDialog("Cannot move root folder!", "Cannot move root!").ShowAsync();
+                            break;
+                        case Core.MoveFile.PossibleErrors.FolderMovedIntoItself:
+                            await new MessageDialog("Cannot move parent into a child folder!", "Move failed!").ShowAsync();
                             break;
                     }
                     break;

@@ -60,6 +60,8 @@ pub enum FileError {
     OwnerDoesNotExist,
     ParentDoesNotExist,
     ParentDeleted,
+    FolderMovedIntoDescendants,
+    IllegalRootChange,
     PathTaken,
     Postgres(PostgresError),
     Serialize(serde_json::Error),
@@ -177,6 +179,7 @@ pub async fn change_document_content_version(
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
                 old.content_version AS old_content_version,
+                old.parent AS parent_id,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
@@ -186,8 +189,11 @@ pub async fn change_document_content_version(
         )
         .await
         .map_err(FileError::Postgres)?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, FileType::Document)?;
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        FileType::Document,
+        id,
+    )?;
     Ok((metadata.old_content_version, metadata.new_metadata_version))
 }
 
@@ -240,9 +246,13 @@ pub async fn delete_file(
             old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
             UPDATE files new
             SET
-                deleted = TRUE,
+                deleted = (CASE WHEN old.id != old.parent
+                    THEN TRUE
+                    ELSE old.deleted END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted
+                    (CASE WHEN
+                    NOT old.deleted
+                    AND old.id != old.parent
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
             FROM old
@@ -250,6 +260,7 @@ pub async fn delete_file(
             RETURNING
                 old.id AS id,
                 old.deleted AS old_deleted,
+                old.parent AS parent_id,
                 old.content_version AS old_content_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -274,7 +285,16 @@ pub async fn move_file(
 ) -> Result<u64, FileError> {
     let rows = transaction
         .query(
-            "WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
+            "
+            WITH RECURSIVE file_descendants AS (
+                SELECT * FROM files AS parent
+                WHERE parent.id = $1
+                AND parent.is_folder = $3
+                    UNION
+                SELECT children.* FROM files AS children
+                JOIN file_descendants ON file_descendants.id = children.parent
+            ),
+            old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
             parent AS (
                 SELECT * FROM files WHERE id = $4
             )
@@ -283,24 +303,30 @@ pub async fn move_file(
                 parent =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $4
                     ELSE old.parent END),
                 metadata_version =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END),
                 parent_access_key =
                     (CASE WHEN
                         NOT old.deleted
+                        AND old.id != old.parent
                         AND old.metadata_version = $2
                         AND old.is_folder = $3
+                        AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $4)
                         AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
                     THEN $5
                     ELSE old.parent_access_key END)
@@ -310,6 +336,8 @@ pub async fn move_file(
             RETURNING
                 old.deleted AS old_deleted,
                 parent.deleted AS parent_deleted,
+                old.parent AS parent_id,
+                EXISTS(SELECT * FROM file_descendants WHERE id = $4) AS moved_into_descendant,
                 old.metadata_version AS old_metadata_version,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
@@ -322,8 +350,11 @@ pub async fn move_file(
             ],
         )
         .await?;
-    let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type)?;
+    let metadata = FileMoveResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        file_type,
+        id,
+    )?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -340,11 +371,17 @@ pub async fn rename_file(
             UPDATE files new
             SET
                 name =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted
+                    AND old.metadata_version = $2
+                    AND old.is_folder = $3
+                    AND old.id != old.parent
                     THEN $4
                     ELSE old.name END),
                 metadata_version =
-                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND old.is_folder = $3
+                    (CASE WHEN NOT old.deleted
+                    AND old.metadata_version = $2
+                    AND old.is_folder = $3
+                    AND old.id != old.parent
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.metadata_version END)
             FROM old
@@ -353,6 +390,7 @@ pub async fn rename_file(
                 old.deleted AS old_deleted,
                 old.metadata_version AS old_metadata_version,
                 old.content_version AS old_content_version,
+                old.parent AS parent_id,
                 new.metadata_version AS new_metadata_version,
                 old.is_folder AS is_folder;",
             &[
@@ -363,8 +401,11 @@ pub async fn rename_file(
             ],
         )
         .await?;
-    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?
-        .validate(old_metadata_version, file_type)?;
+    let metadata = FileUpdateResponse::from_row(rows_to_row(&rows)?)?.validate(
+        old_metadata_version,
+        file_type,
+        id,
+    )?;
     Ok(metadata.new_metadata_version)
 }
 
@@ -408,6 +449,7 @@ struct FileUpdateResponse {
     old_deleted: bool,
     old_metadata_version: u64,
     old_content_version: u64,
+    parent_id: Uuid,
     new_metadata_version: u64,
     is_folder: bool,
 }
@@ -422,6 +464,11 @@ impl FileUpdateResponse {
             old_content_version: row
                 .try_get::<&str, i64>("old_content_version")
                 .map_err(FileError::Postgres)? as u64,
+            parent_id: serde_json::from_str::<Uuid>(
+                row.try_get::<&str, &str>("parent_id")
+                    .map_err(FileError::Postgres)?,
+            )
+            .map_err(FileError::Deserialize)?,
             new_metadata_version: row
                 .try_get::<&str, i64>("new_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -433,6 +480,7 @@ impl FileUpdateResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
+        id: Uuid,
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -440,6 +488,8 @@ impl FileUpdateResponse {
             Err(FileError::Deleted)
         } else if self.old_metadata_version != expected_old_metadata_version {
             Err(FileError::IncorrectOldVersion)
+        } else if self.parent_id == id {
+            Err(FileError::IllegalRootChange)
         } else {
             Ok(self)
         }
@@ -449,6 +499,8 @@ impl FileUpdateResponse {
 struct FileMoveResponse {
     old_deleted: bool,
     parent_deleted: bool,
+    parent_id: Uuid,
+    moved_into_descendant: bool,
     old_metadata_version: u64,
     new_metadata_version: u64,
     is_folder: bool,
@@ -466,6 +518,14 @@ impl FileMoveResponse {
                 Some(true) => true,
                 _ => false,
             },
+            parent_id: serde_json::from_str::<Uuid>(
+                row.try_get::<&str, &str>("parent_id")
+                    .map_err(FileError::Postgres)?,
+            )
+            .map_err(FileError::Deserialize)?,
+            moved_into_descendant: row
+                .try_get::<&str, bool>("moved_into_descendant")
+                .map_err(FileError::Postgres)?,
             old_metadata_version: row
                 .try_get::<&str, i64>("old_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
@@ -484,6 +544,7 @@ impl FileMoveResponse {
         self,
         expected_old_metadata_version: u64,
         expected_file_type: FileType,
+        id: Uuid,
     ) -> Result<Self, FileError> {
         if self.is_folder != (expected_file_type == FileType::Folder) {
             Err(FileError::WrongFileType)
@@ -495,6 +556,10 @@ impl FileMoveResponse {
             Err(FileError::IncorrectOldVersion)
         } else if !self.parent_exists {
             Err(FileError::ParentDoesNotExist)
+        } else if self.parent_id == id {
+            Err(FileError::IllegalRootChange)
+        } else if self.moved_into_descendant {
+            Err(FileError::FolderMovedIntoDescendants)
         } else {
             Ok(self)
         }
@@ -505,6 +570,7 @@ impl FileMoveResponse {
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_deleted: bool,
+    pub parent_id: Uuid,
     pub old_content_version: u64,
     pub new_metadata_version: u64,
     pub is_folder: bool,
@@ -526,6 +592,11 @@ impl FileDeleteResponses {
                     )
                     .map_err(FileError::Deserialize)?,
                     old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
+                    parent_id: serde_json::from_str::<Uuid>(
+                        row.try_get::<&str, &str>("parent_id")
+                            .map_err(FileError::Postgres)?,
+                    )
+                    .map_err(FileError::Deserialize)?,
                     old_content_version: row
                         .try_get::<&str, i64>("old_content_version")
                         .map_err(FileError::Postgres)?
@@ -548,6 +619,8 @@ impl FileDeleteResponses {
             r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
         }) {
             Err(FileError::WrongFileType)
+        } else if self.responses.iter().any(|r| r.parent_id == r.id) {
+            Err(FileError::IllegalRootChange)
         } else if !self
             .responses
             .iter()
