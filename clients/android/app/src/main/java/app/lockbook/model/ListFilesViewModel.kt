@@ -206,13 +206,18 @@ class ListFilesViewModel(path: String, application: Application) :
         return true
     }
 
-    fun handleGetChildrenInPath(position: Int) {
+    fun handleRefreshAtParent(position: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                for(index in (position + 1) until fileModel.filePath.size) {
-                    fileModel.filePath.removeAt(position)
-                }
-                fileModel.parentFileMetadata = fileModel.filePath.last()
+                fileModel.refreshAtParent(position)
+            }
+        }
+    }
+
+    fun handleUpdateBreadcrumbWithLatest() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.updateBreadCrumbWithLatest()
             }
         }
     }

@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -31,7 +30,6 @@ import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import kotlin.collections.ArrayList
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
@@ -94,6 +92,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
+
                 updateRecyclerView(files, adapter)
             }
         )
@@ -265,7 +264,7 @@ class ListFilesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         files_breadcrumb_bar.setListener(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, position: Int) {
-                listFilesViewModel.handleGetChildrenInPath(position)
+                listFilesViewModel.handleRefreshAtParent(position)
             }
         })
     }
@@ -423,6 +422,7 @@ class ListFilesFragment : Fragment() {
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
+        listFilesViewModel.handleUpdateBreadcrumbWithLatest()
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }

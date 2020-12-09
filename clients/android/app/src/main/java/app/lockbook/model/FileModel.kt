@@ -22,7 +22,7 @@ class FileModel(path: String) {
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
-    val filePath: MutableList<FileMetadata> = mutableListOf()
+    private val filePath: MutableList<FileMetadata> = mutableListOf()
     val config = Config(path)
 
     val setToolbarTitle: LiveData<String>
@@ -57,7 +57,7 @@ class FileModel(path: String) {
                         if (filePath.size != 1) {
                             filePath.remove(filePath.last())
                         }
-                        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name, file.id) })
+                        updateBreadCrumbWithLatest()
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
@@ -80,10 +80,13 @@ class FileModel(path: String) {
         }.exhaustive
     }
 
+    fun updateBreadCrumbWithLatest() {
+        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name) })
+    }
+
     fun intoFolder(fileMetadata: FileMetadata) {
         parentFileMetadata = fileMetadata
         filePath.add(fileMetadata)
-        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name, file.id) })
         refreshFiles()
     }
 
@@ -92,6 +95,7 @@ class FileModel(path: String) {
             is Ok -> {
                 parentFileMetadata = getRootResult.value
                 filePath.add(getRootResult.value)
+                updateBreadCrumbWithLatest()
                 _setToolbarTitle.postValue("${getRootResult.value.name}'s Lockbook")
                 refreshFiles()
             }
@@ -109,7 +113,10 @@ class FileModel(path: String) {
 
     fun refreshFiles() {
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
-            is Ok -> matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+            is Ok -> {
+                updateBreadCrumbWithLatest()
+                matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+            }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
@@ -126,6 +133,16 @@ class FileModel(path: String) {
             }
         }
         return true
+    }
+
+    fun refreshAtParent(position: Int) {
+        val firstChildPosition = position + 1
+        for (index in firstChildPosition until filePath.size) {
+            filePath.removeAt(firstChildPosition)
+        }
+
+        parentFileMetadata = filePath.last()
+        refreshFiles()
     }
 
     private fun deleteFile(id: String): Boolean {

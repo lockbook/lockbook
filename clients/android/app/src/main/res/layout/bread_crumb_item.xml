@@ -1,21 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:orientation="horizontal"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:gravity="center">
+    android:gravity="top">
 
     <!--    Usually an arrow of some sort -->
     <ImageView
         android:id="@+id/bread_crumb_separator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:padding="8dp" />
+        android:paddingEnd="8dp"
+        tools:ignore="ContentDescription,RtlSymmetry" />
 
     <TextView
         android:id="@+id/bread_crumb_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:padding="8dp" />
+        android:paddingEnd="8dp"
+        android:background="?android:selectableItemBackground"
+        android:backgroundTint="?attr/colorPrimaryDark"
+        tools:ignore="RtlSymmetry" />
 
 </LinearLayout>
