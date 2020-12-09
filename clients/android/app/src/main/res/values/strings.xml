@@ -157,8 +157,11 @@
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
-    <string name="menu_list_files_linear_layout">Linear File Layout</string>
-    <string name="menu_list_files_grid_layout">Grid File Layout</string>
+    <string name="menu_list_files_linear_layout">List</string>
+    <string name="menu_list_files_grid_layout">Grid</string>
+    <string name="dialog_file_extension">File Ext.</string>
+    <string name="dialog_file_folder">Folder Name</string>
+    <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

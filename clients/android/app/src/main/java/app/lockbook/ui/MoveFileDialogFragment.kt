@@ -1,5 +1,6 @@
 package app.lockbook.ui
 
+import android.graphics.Point
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -88,6 +89,8 @@ class MoveFileDialogFragment : DialogFragment() {
             moveFileViewModel.moveFilesToFolder()
         }
 
+        dialog?.setCanceledOnTouchOutside(false) ?: errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+
         moveFileViewModel.ids = ids
         moveFileViewModel.names = names
 
@@ -119,6 +122,7 @@ class MoveFileDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
+        val sizePoint = Point()
         dialog?.window?.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT

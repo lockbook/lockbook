@@ -122,7 +122,8 @@ data class RenameFileInfo(
 
 data class CreateFileInfo(
     val parentId: String,
-    val fileType: String
+    val fileType: String,
+    val isDrawing: Boolean
 )
 
 data class Drawing(
