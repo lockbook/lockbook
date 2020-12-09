@@ -1,0 +1,20 @@
+#intro_heading {
+    font-size: 64px;
+    opacity: 0.75;
+}
+
+#intro_hr {
+    background: rgba(100, 100, 100, 0.35);
+}
+
+#intro_error {
+    color: red;
+}
+
+#intro_error {
+    font-weight: bold;
+}
+
+#intro_doing_caption {
+    font-size: 20px;
+}
