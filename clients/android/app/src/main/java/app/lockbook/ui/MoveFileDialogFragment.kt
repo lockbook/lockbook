@@ -122,7 +122,6 @@ class MoveFileDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        val sizePoint = Point()
         dialog?.window?.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT

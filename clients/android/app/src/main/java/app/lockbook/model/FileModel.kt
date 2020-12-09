@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
+import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import com.github.michaelbull.result.Err
@@ -16,12 +17,12 @@ import timber.log.Timber
 class FileModel(path: String) {
     private val _setToolbarTitle = MutableLiveData<String>()
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _updateBreadcrumbBar = SingleMutableLiveData<List<String>>()
+    private val _updateBreadcrumbBar = SingleMutableLiveData<List<BreadCrumb>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
-    private val filePath: MutableList<String> = mutableListOf()
+    val filePath: MutableList<FileMetadata> = mutableListOf()
     val config = Config(path)
 
     val setToolbarTitle: LiveData<String>
@@ -30,7 +31,7 @@ class FileModel(path: String) {
     val files: LiveData<List<FileMetadata>>
         get() = _files
 
-    val updateBreadcrumbBar: LiveData<List<String>>
+    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
         get() = _updateBreadcrumbBar
 
     val errorHasOccurred: LiveData<String>
@@ -40,10 +41,6 @@ class FileModel(path: String) {
         get() = _unexpectedErrorHasOccurred
 
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
-
-    fun updateBreadcrumbWithLatest() {
-        _updateBreadcrumbBar.postValue(filePath)
-    }
 
     fun upADirectory() {
         when (
@@ -60,7 +57,7 @@ class FileModel(path: String) {
                         if (filePath.size != 1) {
                             filePath.remove(filePath.last())
                         }
-                        _updateBreadcrumbBar.postValue(filePath)
+                        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name, file.id) })
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
@@ -85,8 +82,8 @@ class FileModel(path: String) {
 
     fun intoFolder(fileMetadata: FileMetadata) {
         parentFileMetadata = fileMetadata
-        filePath.add(fileMetadata.name)
-        _updateBreadcrumbBar.postValue(filePath)
+        filePath.add(fileMetadata)
+        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name, file.id) })
         refreshFiles()
     }
 
@@ -94,8 +91,8 @@ class FileModel(path: String) {
         when (val getRootResult = CoreModel.getRoot(config)) {
             is Ok -> {
                 parentFileMetadata = getRootResult.value
-                filePath.add("Root")
-                _setToolbarTitle.postValue(getRootResult.value.name + "'s Lockbook")
+                filePath.add(getRootResult.value)
+                _setToolbarTitle.postValue("${getRootResult.value.name}'s Lockbook")
                 refreshFiles()
             }
             is Err -> when (val error = getRootResult.error) {

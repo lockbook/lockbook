@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -18,25 +19,19 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
-import app.lockbook.model.GeneralViewAdapter
-import app.lockbook.model.GridRecyclerViewAdapter
-import app.lockbook.model.LinearRecyclerViewAdapter
-import app.lockbook.model.ListFilesViewModel
+import app.lockbook.model.*
 import app.lockbook.modelfactory.ListFilesViewModelFactory
-import app.lockbook.ui.CreateFileDialogFragment
-import app.lockbook.ui.FileInfoDialogFragment
-import app.lockbook.ui.MoveFileDialogFragment
-import app.lockbook.ui.RenameFileDialogFragment
+import app.lockbook.ui.*
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
-import cafe.adriel.krumbsview.model.Krumb
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import kotlin.collections.ArrayList
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
@@ -219,10 +214,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.updateBreadcrumbBar.observe(
             viewLifecycleOwner,
             { path ->
-                files_breadcrumb_bar.removeAllItems()
-                for (folder in path) {
-                    files_breadcrumb_bar.addItem(Krumb(folder))
-                }
+                files_breadcrumb_bar.setBreadCrumbItems(path.toMutableList())
             }
         )
 
@@ -271,9 +263,11 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        files_breadcrumb_bar.setOnPreviousItemClickListener {
-            listFilesViewModel.handleUpADirectory()
-        }
+        files_breadcrumb_bar.setListener(object : BreadCrumbItemClickListener {
+            override fun onItemClick(breadCrumbItem: View, position: Int) {
+                listFilesViewModel.handleGetChildrenInPath(position)
+            }
+        })
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {

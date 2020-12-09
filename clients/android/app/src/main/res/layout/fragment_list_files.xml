@@ -14,20 +14,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <cafe.adriel.krumbsview.KrumbsView
+        <app.lockbook.ui.BreadCrumbView
             android:id="@+id/files_breadcrumb_bar"
             android:layout_width="match_parent"
-            android:layout_height="15dp"
+            android:layout_height="30dp"
             android:layout_gravity="top"
-            android:background="@color/colorPrimaryDark"
-            app:krumbsAnimationDuration="longDuration"
-            app:krumbsAnimationType="fadeInOut"
-            app:krumbsCurrentItemTextColor="@color/blue"
-            app:krumbsPreviousItemTextColor="@color/blue"
-            app:krumbsSeparatorIcon="@drawable/ic_baseline_arrow_forward_ios_24"
-            app:krumbsSeparatorTintColor="@color/blue"
-            app:krumbsTextSize="12sp"
-            app:krumbsStartItem="@string/krumbs_start_item"
+            app:text_size="15"
+            app:text_color="@color/textColor"
+            app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
