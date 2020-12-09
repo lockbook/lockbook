@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="BreadCrumbView">
+        <attr name="arrow_drawable" format="reference|integer" />
+        <attr name="text_color" format="color" />
+        <attr name="text_size" format="integer" />
+    </declare-styleable>
+</resources>
