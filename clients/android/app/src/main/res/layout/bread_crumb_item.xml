@@ -4,7 +4,8 @@
     android:orientation="horizontal"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:gravity="top">
+    android:gravity="top"
+    tools:ignore="UseCompoundDrawables">
 
     <!--    Usually an arrow of some sort -->
     <ImageView
@@ -12,7 +13,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:paddingEnd="8dp"
-        tools:ignore="ContentDescription,RtlSymmetry" />
+        tools:ignore="RtlSymmetry"
+        android:contentDescription="@string/bread_crumb_folder" />
 
     <TextView
         android:id="@+id/bread_crumb_title"
