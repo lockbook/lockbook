@@ -44,6 +44,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:hint="@string/dialog_file_extension"
+            android:text="@string/create_file_dialog_default_extension"
             style="@style/Text.Small"
             android:inputType="text"
             android:layout_weight="0.4"
