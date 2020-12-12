@@ -92,7 +92,7 @@ class CreateFileDialogFragment : DialogFragment() {
             create_file_text_part.visibility = View.GONE
             create_file_text.visibility = View.VISIBLE
 
-            create_file_text.setOnEditorActionListener { v, actionId, event ->
+            create_file_text.setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_DONE) {
                     handleCreateFileRequest(create_file_text.text.toString())
                 }
