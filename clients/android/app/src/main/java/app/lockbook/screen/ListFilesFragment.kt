@@ -18,15 +18,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
-import app.lockbook.model.GeneralViewAdapter
-import app.lockbook.model.GridRecyclerViewAdapter
-import app.lockbook.model.LinearRecyclerViewAdapter
-import app.lockbook.model.ListFilesViewModel
+import app.lockbook.model.*
 import app.lockbook.modelfactory.ListFilesViewModelFactory
-import app.lockbook.ui.CreateFileDialogFragment
-import app.lockbook.ui.FileInfoDialogFragment
-import app.lockbook.ui.MoveFileDialogFragment
-import app.lockbook.ui.RenameFileDialogFragment
+import app.lockbook.ui.*
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
@@ -88,9 +82,17 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onSwipeToRefresh()
         }
 
+        listFilesViewModel.setToolbarTitle.observe(
+            viewLifecycleOwner,
+            { toolbarTitle ->
+                setToolbarTitle(toolbarTitle)
+            }
+        )
+
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
+
                 updateRecyclerView(files, adapter)
             }
         )
@@ -208,6 +210,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.updateBreadcrumbBar.observe(
+            viewLifecycleOwner,
+            { path ->
+                files_breadcrumb_bar.setBreadCrumbItems(path.toMutableList())
+            }
+        )
+
         listFilesViewModel.showSuccessfulDeletion.observe(
             viewLifecycleOwner,
             {
@@ -250,6 +259,14 @@ class ListFilesFragment : Fragment() {
         )
 
         return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        files_breadcrumb_bar.setListener(object : BreadCrumbItemClickListener {
+            override fun onItemClick(breadCrumbItem: View, position: Int) {
+                listFilesViewModel.handleRefreshAtParent(position)
+            }
+        })
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
@@ -405,12 +422,18 @@ class ListFilesFragment : Fragment() {
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
+        listFilesViewModel.handleUpdateBreadcrumbWithLatest()
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }
         }
 
         adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
+        if (files.isEmpty()) {
+            list_files_empty_folder.visibility = View.VISIBLE
+        } else if (files.isNotEmpty() && list_files_empty_folder.visibility == View.VISIBLE) {
+            list_files_empty_folder.visibility = View.GONE
+        }
     }
 
     private fun navigateToFileEditor(editableFile: EditableFile) {
@@ -423,6 +446,14 @@ class ListFilesFragment : Fragment() {
     private fun moreOptionsMenu() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
+        } else {
+            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
+        }
+    }
+
+    private fun setToolbarTitle(title: String) {
+        if (activity is ListFilesActivity) {
+            (activity as ListFilesActivity).setToolbarTitle(title)
         } else {
             errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
         }

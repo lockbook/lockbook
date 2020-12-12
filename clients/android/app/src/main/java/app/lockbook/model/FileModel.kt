@@ -7,6 +7,7 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
+import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import com.github.michaelbull.result.Err
@@ -14,15 +15,24 @@ import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
 class FileModel(path: String) {
+    private val _setToolbarTitle = MutableLiveData<String>()
     private val _files = MutableLiveData<List<FileMetadata>>()
+    private val _updateBreadcrumbBar = SingleMutableLiveData<List<BreadCrumb>>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
+    private val filePath: MutableList<FileMetadata> = mutableListOf()
     val config = Config(path)
+
+    val setToolbarTitle: LiveData<String>
+        get() = _setToolbarTitle
 
     val files: LiveData<List<FileMetadata>>
         get() = _files
+
+    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
+        get() = _updateBreadcrumbBar
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -44,6 +54,10 @@ class FileModel(path: String) {
                 ) {
                     is Ok -> {
                         parentFileMetadata = getParentOfParentResult.value
+                        if (filePath.size != 1) {
+                            filePath.remove(filePath.last())
+                        }
+                        updateBreadCrumbWithLatest()
                         matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
@@ -66,8 +80,13 @@ class FileModel(path: String) {
         }.exhaustive
     }
 
+    fun updateBreadCrumbWithLatest() {
+        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name) })
+    }
+
     fun intoFolder(fileMetadata: FileMetadata) {
         parentFileMetadata = fileMetadata
+        filePath.add(fileMetadata)
         refreshFiles()
     }
 
@@ -75,6 +94,9 @@ class FileModel(path: String) {
         when (val getRootResult = CoreModel.getRoot(config)) {
             is Ok -> {
                 parentFileMetadata = getRootResult.value
+                filePath.add(getRootResult.value)
+                updateBreadCrumbWithLatest()
+                _setToolbarTitle.postValue("${getRootResult.value.name}'s Lockbook")
                 refreshFiles()
             }
             is Err -> when (val error = getRootResult.error) {
@@ -91,7 +113,10 @@ class FileModel(path: String) {
 
     fun refreshFiles() {
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
-            is Ok -> matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+            is Ok -> {
+                updateBreadCrumbWithLatest()
+                matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+            }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
                     Timber.e("Unable to get children: ${getChildrenResult.error}")
@@ -107,8 +132,17 @@ class FileModel(path: String) {
                 return false
             }
         }
-
         return true
+    }
+
+    fun refreshAtParent(position: Int) {
+        val firstChildPosition = position + 1
+        for (index in firstChildPosition until filePath.size) {
+            filePath.removeAt(firstChildPosition)
+        }
+
+        parentFileMetadata = filePath.last()
+        refreshFiles()
     }
 
     private fun deleteFile(id: String): Boolean {
