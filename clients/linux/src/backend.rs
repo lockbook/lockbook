@@ -16,10 +16,12 @@ use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    read_document, set_last_synced, write_document, AccountExportError, CalculateWorkError,
-    CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
+    read_document, rename_file, set_last_synced, write_document, AccountExportError,
+    CalculateWorkError, CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError,
+    SetLastSyncedError,
 };
 
+use crate::error::LbResult;
 use crate::util::KILOBYTE;
 
 fn api_url() -> String {
@@ -225,6 +227,10 @@ impl LbCore {
         delete_file(&self.config, *id).map_err(|err| format!("{:?}", err))
     }
 
+    pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
+        rename_file(&self.config, *id, new_name).map_err(errs::rename::to_lb_error)
+    }
+
     pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> Result<(), String> {
         let account = self.account().unwrap().unwrap();
 
@@ -288,6 +294,53 @@ impl LbCore {
         match get_usage(&self.config) {
             Ok(u) => Ok((u.into_iter().map(|usage| usage.byte_secs).sum(), fake_limit)),
             Err(err) => Err(format!("{:?}", err)),
+        }
+    }
+}
+
+mod errs {
+    macro_rules! imports {
+        ($enum:ident $(as $rename:ident )?, $( $( $variants:ident ).+ $(as $renames:ident )?),+) => {
+            use crate::error::LbError;
+            use lockbook_core::{Error, Error::UiError, Error::Unexpected};
+            use lockbook_core::$enum $( as $rename )?;
+            $( $( use lockbook_core::$enum::$variants as $renames; )+ )*
+        };
+    }
+
+    macro_rules! user {
+        ($base:literal $(, $args:tt )?) => {
+            LbError::User(format!($base $(, $args )?))
+        };
+    }
+
+    macro_rules! prog {
+        ($msg:expr) => {
+            LbError::Program($msg)
+        };
+    }
+
+    pub mod rename {
+        imports!(
+            RenameFileError as Renaming,
+            CannotRenameRoot as IsRoot,
+            FileDoesNotExist as NotExist,
+            FileNameNotAvailable as NameNotAvail,
+            NewNameContainsSlash as NameHasSlash,
+            NewNameEmpty as NameIsEmpty
+        );
+
+        pub fn to_lb_error(e: Error<Renaming>) -> LbError {
+            match e {
+                UiError(e) => match e {
+                    IsRoot => user!("The root folder cannot be renamed."),
+                    NotExist => user!("The file you are trying to rename does not exist."),
+                    NameNotAvail => user!("The new file name is not available."),
+                    NameHasSlash => user!("File names cannot contain slashes."),
+                    NameIsEmpty => user!("File names cannot be blank."),
+                },
+                Unexpected(msg) => prog!(msg),
+            }
         }
     }
 }
