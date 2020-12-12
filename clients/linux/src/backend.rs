@@ -1,5 +1,7 @@
+use std::env;
 use std::path::Path;
 
+use glib::Sender as GlibSender;
 use qrcode_generator::QrCodeEcc;
 use uuid::Uuid;
 
@@ -18,11 +20,10 @@ use lockbook_core::{
     CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
 };
 
+use crate::util::KILOBYTE;
+
 fn api_url() -> String {
-    match std::env::var("LOCKBOOK_API_URL") {
-        Ok(path) => path,
-        Err(_) => "http://qa.lockbook.app:8000".to_string(),
-    }
+    env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
 }
 
 pub enum LbSyncMsg {
@@ -100,18 +101,15 @@ impl LbCore {
     }
 
     pub fn export_account(&self) -> Result<String, String> {
-        match export_account(&self.config) {
-            Ok(privkey) => Ok(privkey),
-            Err(err) => match err {
-                CoreError::UiError(AccountExportError::NoAccount) => {
-                    Err("Unable to load account".to_string())
-                }
-                CoreError::Unexpected(msg) => Err(msg),
-            },
-        }
+        export_account(&self.config).map_err(|err| match err {
+            CoreError::UiError(AccountExportError::NoAccount) => {
+                "Unable to load account".to_string()
+            }
+            CoreError::Unexpected(msg) => msg,
+        })
     }
 
-    pub fn account_qrcode(&self, chan: &glib::Sender<Result<String, String>>) {
+    pub fn account_qrcode(&self, chan: &GlibSender<Result<String, String>>) {
         match self.export_account() {
             Ok(privkey) => {
                 let path = format!("{}/account-qr.png", self.config.writeable_path);
@@ -139,48 +137,41 @@ impl LbCore {
     }
 
     pub fn root(&self) -> Result<FileMetadata, String> {
-        match get_root(&self.config) {
-            Ok(root) => Ok(root),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_root(&self.config).map_err(|err| format!("{:?}", err))
     }
 
     pub fn children(&self, parent: &FileMetadata) -> Result<Vec<FileMetadata>, String> {
-        match get_children(&self.config, parent.id) {
-            Ok(files) => Ok(files),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_children(&self.config, parent.id).map_err(|err| format!("{:?}", err))
     }
 
     pub fn create_file_at_path(&self, path: &str) -> Result<FileMetadata, String> {
         let prefixed = format!("{}/{}", self.root().unwrap().name, path);
-        match create_file_at_path(&self.config, &prefixed) {
-            Ok(file) => Ok(file),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+
+        create_file_at_path(&self.config, &prefixed).map_err(|err| format!("{:?}", err))
     }
 
     pub fn file_by_id(&self, id: Uuid) -> Result<FileMetadata, String> {
-        match get_file_by_id(&self.config, id) {
-            Ok(file) => Ok(file),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_file_by_id(&self.config, id).map_err(|err| format!("{:?}", err))
     }
 
     pub fn file_by_path(&self, path: &str) -> Result<FileMetadata, String> {
         let acct = self.account().unwrap().unwrap();
         let p = format!("{}/{}", acct.username, path);
 
-        match get_file_by_path(&self.config, &p) {
-            Ok(file) => Ok(file),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_file_by_path(&self.config, &p).map_err(|err| format!("{:?}", err))
     }
 
     pub fn list_paths(&self) -> Result<Vec<String>, String> {
-        match list_paths(&self.config, None) {
-            Ok(paths) => Ok(paths),
-            Err(err) => Err(format!("{:?}", err)),
+        list_paths(&self.config, None).map_err(|err| format!("{:?}", err))
+    }
+
+    pub fn list_paths_without_root(&self) -> Result<Vec<String>, String> {
+        match self.list_paths() {
+            Ok(paths) => {
+                let root = self.account().unwrap().unwrap().username;
+                Ok(paths.iter().map(|p| p.replacen(&root, "", 1)).collect())
+            }
+            Err(err) => Err(err),
         }
     }
 
@@ -209,10 +200,7 @@ impl LbCore {
     }
 
     pub fn save(&self, id: Uuid, content: String) -> Result<(), String> {
-        match write_document(&self.config, id, content.as_bytes()) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        write_document(&self.config, id, content.as_bytes()).map_err(|err| format!("{:?}", err))
     }
 
     pub fn open(&self, id: &Uuid) -> Result<(FileMetadata, String), String> {
@@ -226,40 +214,31 @@ impl LbCore {
     }
 
     pub fn read(&self, id: Uuid) -> Result<DecryptedDocument, String> {
-        match read_document(&self.config, id) {
-            Ok(dval) => Ok(dval),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        read_document(&self.config, id).map_err(|err| format!("{:?}", err))
     }
 
     pub fn get_children_recursively(&self, id: Uuid) -> Result<Vec<FileMetadata>, String> {
-        match get_and_get_children_recursively(&self.config, id) {
-            Ok(children) => Ok(children),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_and_get_children_recursively(&self.config, id).map_err(|err| format!("{:?}", err))
     }
 
     pub fn delete(&self, id: &Uuid) -> Result<(), String> {
-        match delete_file(&self.config, *id) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        delete_file(&self.config, *id).map_err(|err| format!("{:?}", err))
     }
 
-    pub fn sync(&self, chan: &glib::Sender<LbSyncMsg>) -> Result<(), String> {
+    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> Result<(), String> {
         let account = self.account().unwrap().unwrap();
 
-        let mut work_calculated: WorkCalculated;
+        let mut work: WorkCalculated;
         while {
-            work_calculated = match self.calculate_work() {
-                Ok(work) => work,
+            work = match self.calculate_work() {
+                Ok(w) => w,
                 Err(err) => return Err(format!("{:?}", err)),
             };
-            !work_calculated.work_units.is_empty()
+            !work.work_units.is_empty()
         } {
             let mut has_errors = false;
 
-            for wu in work_calculated.work_units {
+            for wu in work.work_units {
                 let (prefix, meta) = match &wu {
                     WorkUnit::LocalChange { metadata } => ("Pushing", metadata),
                     WorkUnit::ServerChange { metadata } => ("Pulling", metadata),
@@ -277,9 +256,7 @@ impl LbCore {
             }
 
             if !has_errors {
-                if let Err(err) =
-                    self.set_last_synced(work_calculated.most_recent_update_from_server)
-                {
+                if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
                     chan.send(LbSyncMsg::Error(format!("setting last sync: {:?}", err)))
                         .unwrap();
                 }
@@ -303,15 +280,13 @@ impl LbCore {
     }
 
     pub fn get_last_synced(&self) -> Result<i64, String> {
-        match get_last_synced(&self.config) {
-            Ok(last) => Ok(last),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+        get_last_synced(&self.config).map_err(|err| format!("{:?}", err))
     }
 
-    pub fn usage(&self) -> Result<u64, String> {
+    pub fn usage(&self) -> Result<(u64, f64), String> {
+        let fake_limit = KILOBYTE as f64 * 20.0;
         match get_usage(&self.config) {
-            Ok(u) => Ok(u.into_iter().map(|usage| usage.byte_secs).sum()),
+            Ok(u) => Ok((u.into_iter().map(|usage| usage.byte_secs).sum(), fake_limit)),
             Err(err) => Err(format!("{:?}", err)),
         }
     }
