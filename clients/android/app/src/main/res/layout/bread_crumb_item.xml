@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="horizontal"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="top"
+    tools:ignore="UseCompoundDrawables">
+
+    <!--    Usually an arrow of some sort -->
+    <ImageView
+        android:id="@+id/bread_crumb_separator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingEnd="8dp"
+        tools:ignore="RtlSymmetry"
+        android:contentDescription="@string/bread_crumb_folder" />
+
+    <TextView
+        android:id="@+id/bread_crumb_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingEnd="8dp"
+        android:background="?android:selectableItemBackground"
+        android:backgroundTint="?attr/colorPrimaryDark"
+        tools:ignore="RtlSymmetry" />
+
+</LinearLayout>

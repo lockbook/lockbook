@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
+import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
@@ -65,6 +66,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
+    val setToolbarTitle: LiveData<String>
+        get() = fileModel.setToolbarTitle
+
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
 
@@ -115,6 +119,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
+
+    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
+        get() = fileModel.updateBreadcrumbBar
 
     val showSuccessfulDeletion: LiveData<Unit>
         get() = _showSuccessfulDeletion
@@ -197,6 +204,22 @@ class ListFilesViewModel(path: String, application: Application) :
         fileModel.upADirectory()
 
         return true
+    }
+
+    fun handleRefreshAtParent(position: Int) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.refreshAtParent(position)
+            }
+        }
+    }
+
+    fun handleUpdateBreadcrumbWithLatest() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.updateBreadCrumbWithLatest()
+            }
+        }
     }
 
     fun handleActivityResult(requestCode: Int) {

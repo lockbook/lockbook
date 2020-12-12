@@ -1,8 +1,7 @@
-use std::cell::RefCell;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::rc::Rc;
+use std::io;
 
 use serde::{Deserialize, Serialize};
 
@@ -27,26 +26,22 @@ impl Settings {
         }
     }
 
-    pub fn new_rc(s: Settings) -> Rc<RefCell<Settings>> {
-        Rc::new(RefCell::new(s))
-    }
-
-    pub fn from_file(path: &str) -> Result<Self, Box<dyn Error>> {
-        let mut s: Settings = match File::open(path) {
+    pub fn from_data_dir(dir: &str) -> Result<Self, Box<dyn Error>> {
+        let path = format!("{}/settings.yaml", dir);
+        let mut s: Self = match File::open(&path) {
             Ok(f) => serde_yaml::from_reader(f)?,
             Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => Settings::default(),
+                io::ErrorKind::NotFound => Self::default(),
                 _ => return Err(Box::new(err)),
             },
         };
-        s.path = path.to_string();
+        s.path = path;
         Ok(s)
     }
 
-    pub fn to_file(&self) -> std::io::Result<()> {
-        let content = serde_yaml::to_string(self).ok().unwrap();
-        fs::write(&self.path, &content)?;
-        Ok(())
+    pub fn to_file(&self) -> io::Result<()> {
+        let content = serde_yaml::to_string(&self).ok().unwrap();
+        fs::write(&self.path, &content)
     }
 
     pub fn toggle_tree_col(&mut self, col: String) {
