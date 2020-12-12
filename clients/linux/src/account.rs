@@ -1,3 +1,4 @@
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -349,7 +350,9 @@ impl Editor {
     fn new() -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(GtkAlign::Center);
-        empty.add(&GtkImage::from_file("./lockbook.png"));
+        empty.add(&GtkImage::from_pixbuf(Some(
+            &GdkPixbuf::from_inline(LOGO, false).unwrap(),
+        )));
 
         let info = GtkBox::new(Vertical, 0);
         info.set_vexpand(false);
@@ -440,6 +443,8 @@ pub fn text_left(txt: &str) -> GtkLabel {
     l.set_margin_start(4);
     l
 }
+
+const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
 
 const ESC: u16 = 9;
 const ARROW_UP: u16 = 111;
