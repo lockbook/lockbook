@@ -21,6 +21,8 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use lockbook_core::loggers;
 use lockbook_core::model::api::*;
+use lockbook_core::service::clock_service::ClockImpl;
+use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -30,6 +32,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
+static MAX_SIGNATURE_DELAY_MS: u64 = 60000;
 
 pub struct ServerState {
     pub config: config::Config,
@@ -121,7 +124,7 @@ macro_rules! route_handler {
                     })
                     .await,
                 )
-            },
+            }
             Err(e) => Err(e),
         };
         debug!("Response: {:?}", result);
@@ -257,7 +260,7 @@ async fn reconnect(server_state: &mut ServerState) {
     }
 }
 
-async fn unpack<TRequest: Request + DeserializeOwned>(
+async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
     hyper_request: hyper::Request<Body>,
 ) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
     let request_bytes = match from_request(hyper_request).await {
@@ -279,14 +282,16 @@ async fn unpack<TRequest: Request + DeserializeOwned>(
         warn!("Client connected with unsupported client version");
         ErrorWrapper::<TRequest::Error>::ClientUpdateRequired
     })?;
-    verify_time(&request).map_err(|_| {
-        warn!("Client auth verification failed");
-        ErrorWrapper::<TRequest::Error>::ExpiredAuth
-    })?;
-    verify_auth(&request).map_err(|_| {
-        warn!("Client auth verification failed");
-        ErrorWrapper::<TRequest::Error>::InvalidAuth
-    })?;
+
+    match verify_auth(&request) {
+        Ok(()) => {}
+        Err(RSAVerifyError::SignatureExpired(_)) => {
+            return Err(ErrorWrapper::<TRequest::Error>::ExpiredAuth);
+        }
+        Err(_) => {
+            return Err(ErrorWrapper::<TRequest::Error>::InvalidAuth);
+        }
+    }
 
     Ok((
         request.signed_request.timestamped_value.value,
@@ -333,12 +338,14 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
     }
 }
 
-fn verify_time<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
-    Ok(()) // todo
-}
-
-fn verify_auth<TRequest: Request>(_: &RequestWrapper<TRequest>) -> Result<(), ()> {
-    Ok(()) // todo
+fn verify_auth<TRequest: Request + Serialize>(
+    request: &RequestWrapper<TRequest>,
+) -> Result<(), RSAVerifyError> {
+    RSAImpl::<ClockImpl>::verify(
+        &request.signed_request.public_key,
+        &request.signed_request,
+        MAX_SIGNATURE_DELAY_MS,
+    )
 }
 
 fn serialize_response<TRequest>(
