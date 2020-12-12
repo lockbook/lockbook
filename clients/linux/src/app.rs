@@ -2,26 +2,27 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::thread;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use uuid::Uuid;
-
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
+use glib::Receiver as GlibReceiver;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
-    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button as GtkButton,
-    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Clipboard as GtkClipboard,
-    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
-    Expander as GtkExpander, Image as GtkImage, Label as GtkLabel, ListStore as GtkListStore,
-    Notebook as GtkNotebook, ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
-    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
-    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
-    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
-    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
-    WindowPosition as GtkWindowPosition,
+    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
+    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
+    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
+    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
+    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
+    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
+    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
+    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
+    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
+use uuid::Uuid;
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
@@ -29,78 +30,36 @@ use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::filetree::FileTreeCol;
-use crate::intro::IntroScreen;
+use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
-use crate::messages::{Messenger, Msg, MsgReceiver};
+use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::tree_iter_value;
-use crate::util::{Util, KILOBYTE};
-
-pub fn run_gtk(sr: Rc<RefCell<Settings>>, core: Arc<LbCore>) {
-    let gtkapp = GtkApp::new(None, Default::default()).unwrap();
-
-    let sr1 = sr.clone();
-    gtkapp.connect_activate(move |a| {
-        gtk_add_css_provider();
-
-        let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
-        let m = Messenger::new(sender);
-
-        let lb = LockbookApp::new(&a, core.clone(), m, sr1.clone());
-        lb.attach_events(receiver);
-        lb.show();
-    });
-
-    gtkapp.connect_shutdown(move |_| match sr.borrow_mut().to_file() {
-        Ok(_) => println!("bye!"),
-        Err(err) => println!("error: {:?}", err),
-    });
-
-    gtkapp.run(&[]);
-}
-
-fn gtk_add_css_provider() {
-    let provider = gtk::CssProvider::new();
-    provider
-        .load_from_data(STYLE.as_bytes())
-        .expect("Failed to load CSS");
-
-    gtk::StyleContext::add_provider_for_screen(
-        &gdk::Screen::get_default().expect("Error initializing gtk css provider."),
-        &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
-}
-
-fn make_glib_chan<T, F: FnMut(T) -> glib::Continue + 'static>(func: F) -> glib::Sender<T> {
-    let (s, r) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
-    r.attach(None, func);
-    s
-}
+use crate::util;
 
 #[derive(Clone)]
-struct LockbookApp {
+pub struct LbApp {
+    core: Arc<LbCore>,
     settings: Rc<RefCell<Settings>>,
     state: Rc<RefCell<LbState>>,
-    core: Arc<LbCore>,
     gui: Rc<Gui>,
     messenger: Messenger,
 }
 
-impl LockbookApp {
-    fn new(a: &GtkApp, core: Arc<LbCore>, m: Messenger, s: Rc<RefCell<Settings>>) -> Self {
+impl LbApp {
+    pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp, m: Messenger) -> Self {
         let gui = Gui::new(&a, &m, &s.borrow());
 
         Self {
-            settings: s,
+            core: c.clone(),
+            settings: s.clone(),
             state: Rc::new(RefCell::new(LbState::default())),
-            core,
             gui: Rc::new(gui),
             messenger: m,
         }
     }
 
-    fn attach_events(&self, r: MsgReceiver) {
+    pub fn attach_events(&self, r: GlibReceiver<Msg>) {
         let lb = self.clone();
         r.attach(None, move |msg| {
             match msg {
@@ -129,13 +88,13 @@ impl LockbookApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::UnexpectedErr(desc, deets) => lb.show_unexpected_err(&desc, &deets),
+                Msg::UnexpectedErr(desc, deets) => lb.err(&desc, &deets),
             }
             glib::Continue(true)
         });
     }
 
-    fn show(&self) {
+    pub fn show(&self) {
         self.gui.show(&self.core, &self.messenger);
     }
 
@@ -154,7 +113,7 @@ impl LockbookApp {
         });
 
         let c = self.core.clone();
-        std::thread::spawn(move || ch.send(c.create_account(&name)).unwrap());
+        thread::spawn(move || ch.send(c.create_account(&name)).unwrap());
     }
 
     fn import_account(&self, privkey: String) {
@@ -182,7 +141,7 @@ impl LockbookApp {
                     });
 
                     let c = c.clone();
-                    std::thread::spawn(move || c.sync(&sync_chan));
+                    thread::spawn(move || c.sync(&sync_chan));
                 }
                 Err(err) => gui.intro.error_import(&err),
             }
@@ -190,7 +149,7 @@ impl LockbookApp {
         });
 
         let c = self.core.clone();
-        std::thread::spawn(move || import_chan.send(c.import_account(&privkey)).unwrap());
+        thread::spawn(move || import_chan.send(c.import_account(&privkey)).unwrap());
     }
 
     fn export_account(&self) {
@@ -200,26 +159,20 @@ impl LockbookApp {
         spinner.start();
 
         let placeholder = GtkBox::new(Horizontal, 0);
+        util::gui::set_marginy(&placeholder, 200);
+        util::gui::set_marginx(&placeholder, 125);
         placeholder.set_valign(GtkAlign::Center);
-        placeholder.set_margin_top(200);
-        placeholder.set_margin_bottom(200);
-        placeholder.set_margin_start(125);
-        placeholder.set_margin_end(125);
         placeholder.add(&spinner);
         placeholder.add(&GtkLabel::new(Some("Generating QR code...")));
 
         let image_cntr = GtkBox::new(Horizontal, 0);
-        image_cntr.set_margin_start(8);
-        image_cntr.set_margin_end(8);
+        util::gui::set_marginx(&image_cntr, 8);
         image_cntr.set_center_widget(Some(&placeholder));
 
         match self.core.export_account() {
             Ok(privkey) => {
-                let btn = GtkButton::with_label("Copy to Clipboard");
-                btn.connect_clicked(move |_| GuiUtil::copy_to_clipboard(&privkey));
-
                 let btn_cntr = GtkBox::new(Horizontal, 0);
-                btn_cntr.set_center_widget(Some(&btn));
+                btn_cntr.set_center_widget(Some(&util::gui::clipboard_btn(&privkey)));
                 btn_cntr.set_margin_bottom(8);
 
                 let d = self.gui.new_dialog("Lockbook Private Key");
@@ -228,7 +181,7 @@ impl LockbookApp {
                 d.set_resizable(false);
                 d.show_all()
             }
-            Err(err) => self.show_unexpected_err("Unable to export account", &err),
+            Err(err) => self.err("Unable to export account", &err),
         }
 
         let ch = make_glib_chan(move |path: Result<String, String>| {
@@ -240,7 +193,7 @@ impl LockbookApp {
         });
 
         let core = self.core.clone();
-        std::thread::spawn(move || core.account_qrcode(&ch));
+        thread::spawn(move || core.account_qrcode(&ch));
     }
 
     fn perform_sync(&self) {
@@ -262,7 +215,7 @@ impl LockbookApp {
         });
 
         let c = self.core.clone();
-        std::thread::spawn(move || c.sync(&ch));
+        thread::spawn(move || c.sync(&ch));
     }
 
     fn quit(&self) {
@@ -288,7 +241,7 @@ impl LockbookApp {
                 Ok(meta) => {
                     self.state.borrow_mut().set_opened_file(Some(meta.clone()));
                     match meta.file_type {
-                        FileType::Document => self.open_document(meta.id),
+                        FileType::Document => self.open_document(&meta.id),
                         FileType::Folder => self.open_folder(&meta),
                     }
                 }
@@ -297,16 +250,13 @@ impl LockbookApp {
         }
     }
 
-    fn open_document(&self, id: Uuid) {
+    fn open_document(&self, id: &Uuid) {
         match self.core.open(&id) {
-            Ok((meta, content)) => {
-                let path = self.core.full_path_for(&meta);
-                self.edit(&EditMode::PlainText {
-                    path,
-                    meta,
-                    content,
-                })
-            }
+            Ok((meta, content)) => self.edit(&EditMode::PlainText {
+                path: self.core.full_path_for(&meta),
+                meta,
+                content,
+            }),
             Err(err) => println!("error opening '{}': {}", id, err),
         }
     }
@@ -336,6 +286,7 @@ impl LockbookApp {
                 let id = f.id;
                 let content = acctscr.text_content();
                 let core = self.core.clone();
+                let m = self.messenger.clone();
 
                 let ch = make_glib_chan(move |result: Result<(), String>| {
                     match result {
@@ -343,15 +294,13 @@ impl LockbookApp {
                             acctscr.set_saving(false);
                             acctscr.sync().set_status(&core);
                         }
-                        Err(err) => {
-                            println!("error saving: {}", err);
-                        }
+                        Err(err) => m.send(Msg::UnexpectedErr("saving file".to_string(), err)),
                     }
                     glib::Continue(false)
                 });
 
                 let c = self.core.clone();
-                std::thread::spawn(move || ch.send(c.save(id, content)).unwrap());
+                thread::spawn(move || ch.send(c.save(id, content)).unwrap());
             }
         }
     }
@@ -402,13 +351,10 @@ impl LockbookApp {
 
         let model = GtkTreeStore::new(&[glib::Type::String, glib::Type::String]);
         let tree = GtkTreeView::with_model(&model);
+        util::gui::set_margin(&tree, 16);
         tree.get_selection().set_mode(GtkSelectionMode::None);
         tree.set_enable_search(false);
         tree.set_can_focus(false);
-        tree.set_margin_top(16);
-        tree.set_margin_bottom(16);
-        tree.set_margin_start(16);
-        tree.set_margin_end(16);
         tree_add_col(&tree, "Name", 0);
         tree_add_col(&tree, "Children", 1);
         for f in &file_data {
@@ -418,9 +364,8 @@ impl LockbookApp {
 
         let msg = "Are you absolutely sure you want to delete the following files?";
         let lbl = GtkLabel::new(Some(&msg));
+        util::gui::set_marginx(&lbl, 16);
         lbl.set_margin_top(16);
-        lbl.set_margin_start(16);
-        lbl.set_margin_end(16);
 
         let d = self.gui.new_dialog("Confirm Delete");
         d.get_content_area().add(&lbl);
@@ -517,11 +462,7 @@ impl LockbookApp {
             }
         }
 
-        let txt = match opened_file {
-            Some(meta) => self.core.full_path_for(meta),
-            None => "".to_string(),
-        };
-
+        let txt = opened_file.map_or("".to_string(), |f| self.core.full_path_for(f));
         self.gui.account.deselect_search_field();
         self.gui.account.set_search_field_text(&txt);
     }
@@ -541,67 +482,103 @@ impl LockbookApp {
     }
 
     fn show_dialog_preferences(&self) {
-        let tabs = GuiUtil::settings(&self.settings, &self.messenger);
+        let tabs = SettingsUi::create(&self.settings, &self.messenger);
 
         let d = self.gui.new_dialog("Lockbook Settings");
         d.set_default_size(300, 400);
         d.get_content_area().add(&tabs);
         d.add_button("Ok", GtkResponseType::Ok);
-        d.connect_response(|d, resp| {
-            if let GtkResponseType::Ok = resp {
-                d.close();
-            }
-        });
+        d.connect_response(|d, _| d.close());
         d.show_all();
     }
 
     fn show_dialog_about(&self) {
-        let logo = gdk_pixbuf::Pixbuf::from_file("./lockbook-intro.png").unwrap();
-
         let d = GtkAboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
-        d.set_logo(Some(&logo));
+        d.set_logo(Some(&GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap()));
         d.set_program_name("Lockbook");
         d.set_version(Some(VERSION));
         d.set_website(Some("https://lockbook.app"));
         d.set_authors(&["The Lockbook Team"]);
         d.set_license(Some(LICENSE));
         d.set_comments(Some(COMMENTS));
-        d.connect_response(|d, resp| {
-            if let GtkResponseType::DeleteEvent = resp {
-                d.close();
-            }
-        });
         d.show_all();
+        if d.run() == GtkResponseType::DeleteEvent {
+            d.close();
+        }
     }
 
     fn show_dialog_usage(&self) {
         match self.core.usage() {
-            Ok(n_bytes) => {
-                let usage = GuiUtil::usage(n_bytes);
+            Ok((n_bytes, limit)) => {
+                let usage = usage(n_bytes, limit);
                 let d = self.gui.new_dialog("My Lockbook Usage");
                 d.get_content_area().add(&usage);
                 d.show_all();
             }
-            Err(err) => self.show_unexpected_err("Unable to get usage", &err),
-        };
+            Err(err) => self.err("Unable to get usage", &err),
+        }
     }
 
-    fn show_unexpected_err(&self, desc: &str, deets: &str) {
-        let lbl = GtkLabel::new(Some(&format!("ERROR: {}", desc)));
-        GtkWidgetExt::set_widget_name(&lbl, "unexpected_err_lbl");
+    fn err(&self, desc: &str, deets: &str) {
+        let details = util::gui::scrollable(&GtkLabel::new(Some(&deets)));
+        util::gui::set_margin(&details, 16);
 
-        let details = GuiUtil::selectable_label(&deets);
-        details.set_margin_top(16);
+        let copy = GtkBox::new(Horizontal, 0);
+        copy.set_center_widget(Some(&util::gui::clipboard_btn(&deets)));
+        copy.set_margin_bottom(16);
 
-        let content = GtkExpander::new(None);
-        content.set_label_widget(Some(&lbl));
-        content.set_expanded(true);
-        content.add(&details);
-
-        let d = self.gui.new_dialog("Lockbook Error");
-        d.get_content_area().add(&content);
+        let d = self.gui.new_dialog(&format!("Error: {}", desc));
+        d.set_default_size(500, -1);
+        d.get_content_area().add(&details);
+        d.get_content_area().add(&copy);
         d.show_all();
+    }
+}
+
+struct LbState {
+    search: Option<SearchComponents>,
+    opened_file: Option<FileMetadata>,
+}
+
+impl LbState {
+    fn default() -> Self {
+        Self {
+            search: None,
+            opened_file: None,
+        }
+    }
+
+    fn set_search_components(&mut self, search: SearchComponents) {
+        self.search = Some(search);
+    }
+
+    fn search_ref(&self) -> Option<&SearchComponents> {
+        self.search.as_ref()
+    }
+
+    fn get_first_search_match(&self) -> Option<String> {
+        if let Some(search) = self.search.as_ref() {
+            let model = &search.sort_model;
+            if let Some(iter) = model.get_iter_first() {
+                return Some(tree_iter_value!(model, &iter, 1, String));
+            }
+        }
+        None
+    }
+
+    fn get_opened_file(&self) -> Option<&FileMetadata> {
+        match &self.opened_file {
+            Some(f) => Some(f),
+            None => None,
+        }
+    }
+
+    fn set_opened_file(&mut self, f: Option<FileMetadata>) {
+        self.opened_file = f;
+        if self.opened_file.is_some() {
+            self.search = None;
+        }
     }
 }
 
@@ -614,23 +591,13 @@ struct SearchComponents {
 
 impl SearchComponents {
     fn new(core: &LbCore) -> Self {
-        let root = core.account().unwrap().unwrap().username;
-        let root_len = root.len();
-        let mut possibs = Vec::new();
-        for mut p in core.list_paths().ok().unwrap() {
-            if p.starts_with(&root) {
-                p.replace_range(..root_len, "");
-            }
-            possibs.push(p);
-        }
-
         let list_store = GtkListStore::new(&[glib::Type::I64, glib::Type::String]);
         let sort_model = GtkTreeModelSort::new(&list_store);
         sort_model.set_sort_column_id(GtkSortColumn::Index(0), GtkSortType::Descending);
         sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
 
         Self {
-            possibs,
+            possibs: core.list_paths_without_root().unwrap(),
             list_store,
             sort_model,
             matcher: SkimMatcherV2::default(),
@@ -682,52 +649,6 @@ impl SearchComponents {
                 let values: [&dyn ToValue; 2] = [&score, &p];
                 list.set(&list.append(), &[0, 1], &values);
             }
-        }
-    }
-}
-
-struct LbState {
-    search: Option<SearchComponents>,
-    opened_file: Option<FileMetadata>,
-}
-
-impl LbState {
-    fn default() -> Self {
-        Self {
-            search: None,
-            opened_file: None,
-        }
-    }
-
-    fn set_search_components(&mut self, search: SearchComponents) {
-        self.search = Some(search);
-    }
-
-    fn search_ref(&self) -> Option<&SearchComponents> {
-        self.search.as_ref()
-    }
-
-    fn get_first_search_match(&self) -> Option<String> {
-        if let Some(search) = self.search.as_ref() {
-            let model = &search.sort_model;
-            if let Some(iter) = model.get_iter_first() {
-                return Some(tree_iter_value!(model, &iter, 1, String));
-            }
-        }
-        None
-    }
-
-    fn get_opened_file(&self) -> Option<&FileMetadata> {
-        match &self.opened_file {
-            Some(f) => Some(f),
-            None => None,
-        }
-    }
-
-    fn set_opened_file(&mut self, f: Option<FileMetadata>) {
-        self.opened_file = f;
-        if self.opened_file.is_some() {
-            self.search = None;
         }
     }
 }
@@ -786,7 +707,7 @@ impl Gui {
                 None => self.show_intro_screen(),
             },
             Err(err) => m.send(Msg::UnexpectedErr(
-                "Unable to load account".to_string(),
+                "unable to load account".to_string(),
                 err,
             )),
         }
@@ -815,17 +736,13 @@ impl Gui {
     }
 }
 
-struct GuiUtil;
-impl GuiUtil {
-    fn copy_to_clipboard(txt: &str) {
-        GtkClipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(&txt);
-    }
-
-    fn settings(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkNotebook {
+struct SettingsUi;
+impl SettingsUi {
+    fn create(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkNotebook {
         let tabs = GtkNotebook::new();
         for tab_data in vec![
-            ("File Tree", settings_filetree(&s, &m)),
-            ("Window", settings_window(&s)),
+            ("File Tree", Self::filetree(&s, &m)),
+            ("Window", Self::window(&s)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -835,124 +752,62 @@ impl GuiUtil {
         tabs
     }
 
-    fn selectable_label(txt: &str) -> GtkLabel {
-        let lbl = GtkLabel::new(Some(txt));
-        lbl.set_selectable(true);
-        lbl.set_max_width_chars(80);
-        lbl.set_line_wrap(true);
-        lbl.set_line_wrap_mode(pango::WrapMode::Char);
-        lbl.connect_button_release_event(|lbl, _| {
-            lbl.select_region(0, -1);
-            gtk::Inhibit(false)
+    fn filetree(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
+        let chbxs = GtkBox::new(Vertical, 0);
+
+        for col in FileTreeCol::removable() {
+            let s = s.clone();
+            let m = m.clone();
+
+            let ch = GtkCheckBox::with_label(&col.name());
+            ch.set_active(!s.borrow().hidden_tree_cols.contains(&col.name()));
+            ch.connect_toggled(move |_| m.send(Msg::ToggleTreeCol(col)));
+            chbxs.add(&ch);
+        }
+
+        chbxs
+    }
+
+    fn window(s: &Rc<RefCell<Settings>>) -> GtkBox {
+        let s = s.clone();
+
+        let ch = GtkCheckBox::with_label("Maximize on startup");
+        ch.set_active(s.borrow().window_maximize);
+        ch.connect_toggled(move |chbox| {
+            s.borrow_mut().window_maximize = chbox.get_active();
         });
-        lbl
-    }
 
-    fn usage(usage: u64) -> GtkBox {
-        let limit = KILOBYTE as f64 * 20.0;
-
-        let pbar = GtkProgressBar::new();
-        pbar.set_size_request(300, -1);
-        pbar.set_margin_start(16);
-        pbar.set_margin_end(16);
-        pbar.set_fraction(usage as f64 / limit);
-
-        let human_limit = Util::human_readable_bytes(limit as u64);
-        let human_usage = Util::human_readable_bytes(usage);
-
-        let lbl = GtkLabel::new(Some(&format!("{} / {}", human_usage, human_limit)));
-        lbl.set_margin_bottom(24);
-
-        let cntr = GtkBox::new(Vertical, 0);
-        cntr.set_margin_top(32);
-        cntr.set_margin_bottom(36);
-        cntr.add(&lbl);
-        cntr.add(&pbar);
-        cntr
-    }
-}
-
-fn settings_filetree(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
-    let s = s.borrow();
-    let chbxs = GtkBox::new(Vertical, 0);
-
-    for col in FileTreeCol::removable() {
-        let m = m.clone();
-
-        let ch = GtkCheckBox::with_label(&col.name());
-        ch.set_active(!s.hidden_tree_cols.contains(&col.name()));
-        ch.connect_toggled(move |_| m.send(Msg::ToggleTreeCol(col)));
+        let chbxs = GtkBox::new(Vertical, 0);
         chbxs.add(&ch);
+        chbxs
     }
-
-    chbxs
 }
 
-fn settings_window(s: &Rc<RefCell<Settings>>) -> GtkBox {
-    let s = s.clone();
+fn usage(usage: u64, limit: f64) -> GtkBox {
+    let human_limit = util::human_readable_bytes(limit as u64);
+    let human_usage = util::human_readable_bytes(usage);
 
-    let ch = GtkCheckBox::with_label("Maximize on startup");
-    ch.set_active(s.borrow().window_maximize);
-    ch.connect_toggled(move |chbox| {
-        s.borrow_mut().window_maximize = chbox.get_active();
-    });
+    let lbl = GtkLabel::new(Some(&format!("{} / {}", human_usage, human_limit)));
+    lbl.set_margin_bottom(24);
 
-    let chbxs = GtkBox::new(Vertical, 0);
-    chbxs.add(&ch);
-    chbxs
+    let pbar = GtkProgressBar::new();
+    util::gui::set_marginx(&pbar, 16);
+    pbar.set_size_request(300, -1);
+    pbar.set_fraction(usage as f64 / limit);
+
+    let cntr = GtkBox::new(Vertical, 0);
+    util::gui::set_marginy(&cntr, 36);
+    cntr.add(&lbl);
+    cntr.add(&pbar);
+    cntr
 }
 
-const STYLE: &str = "
-#intro_heading {
-    font-size: 64px;
-    opacity: 0.75;
+fn make_glib_chan<T, F: FnMut(T) -> glib::Continue + 'static>(func: F) -> glib::Sender<T> {
+    let (s, r) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
+    r.attach(None, func);
+    s
 }
-#intro_hr {
-    background: rgba(100, 100, 100, 0.35);
-}
-#unexpected_err_lbl,
-#intro_error {
-    color: red;
-}
-#unexpected_err_lbl {
-    font-size: 14px;
-}
-#intro_error {
-    font-weight: bold;
-}
-#intro_doing_caption {
-    font-size: 20px;
-}
-";
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-const COMMENTS: &str = "
-Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.
-";
-
-const LICENSE: &str = "
-This is free and unencumbered software released into the public domain.
-
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
-
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
-
-THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-For more information, please refer to <http://unlicense.org/>";
+const LICENSE: &str = include_str!("../res/UNLICENSE");
+const COMMENTS: &str = "Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.";
