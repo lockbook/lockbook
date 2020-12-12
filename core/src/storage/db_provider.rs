@@ -60,7 +60,7 @@ impl Backend<'_> {
                 let k = String::from_utf8_lossy(key.as_ref()).to_string();
                 let path_str = format!("{}/{}/{}", config.writeable_path, n, k);
                 let path = Path::new(&path_str);
-                let data = &value.into().clone();
+                let data = &value.into();
                 trace!("write\t{} {:?} bytes", &path_str, data.len());
                 create_dir_all(path.parent().unwrap()).map_err(BackendError::FileError)?;
                 let mut f = OpenOptions::new()
@@ -154,7 +154,6 @@ impl Backend<'_> {
                 trace!("dump\t{}", &path_str);
                 match read_dir(path) {
                     Ok(rd) => rd
-                        .into_iter()
                         .map(|e| {
                             e.map_err(BackendError::FileError).and_then(|de| {
                                 self.read(&namespace, de.file_name().into_string().unwrap())
