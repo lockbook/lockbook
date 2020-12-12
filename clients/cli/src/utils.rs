@@ -1,7 +1,7 @@
 use std::env;
 
+use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use chrono_human_duration::ChronoHumanDuration;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
