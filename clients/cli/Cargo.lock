@@ -149,6 +149,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53d1ccbaf7d9ec9537465a97bf19edc1a4e158ecb49fc16178202238c569cc42"
 
 [[package]]
+name = "basic-human-duration"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "475b26787ec6f3ec3e39c06d5d4b001847c10c4d21c9ac58fccb2a4658a6d47c"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "bincode"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -257,15 +266,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "time",
-]
-
-[[package]]
-name = "chrono-human-duration"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19283df3a144dfdeee6568e42ad7f0939d3c261bcdfe954b1a1098f6f7c1b908"
-dependencies = [
- "chrono",
 ]
 
 [[package]]
@@ -847,8 +847,8 @@ name = "lockbook"
 version = "0.2.19"
 dependencies = [
  "atty",
+ "basic-human-duration",
  "chrono",
- "chrono-human-duration",
  "lockbook_core",
  "qr2term",
  "serde_json",
