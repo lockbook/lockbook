@@ -1,3 +1,4 @@
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -48,7 +49,9 @@ impl IntroScreen {
 
         let cntr = GtkBox::new(Horizontal, 32);
         cntr.set_halign(GtkAlign::Center);
-        cntr.add(&GtkImage::from_file("./lockbook-intro.png"));
+        cntr.add(&GtkImage::from_pixbuf(Some(
+            &GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap(),
+        )));
         cntr.add(&heading);
         cntr
     }
@@ -178,3 +181,5 @@ impl IntroDoing {
         self.spinner.stop();
     }
 }
+
+pub const LOGO_INTRO: &[u8] = include_bytes!("../res/lockbook-intro-pixdata");
