@@ -1,8 +1,8 @@
+use glib::Receiver as GlibReceiver;
 use uuid::Uuid;
 
 use crate::filetree::FileTreeCol;
 
-pub type MsgReceiver = glib::Receiver<Msg>;
 pub type MsgFn = fn() -> Msg;
 
 pub enum Msg {
@@ -40,8 +40,9 @@ pub struct Messenger {
 }
 
 impl Messenger {
-    pub fn new(s: glib::Sender<Msg>) -> Self {
-        Self { s }
+    pub fn new_main_channel() -> (Self, GlibReceiver<Msg>) {
+        let (s, r) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
+        (Self { s }, r)
     }
 
     pub fn send(&self, m: Msg) {
