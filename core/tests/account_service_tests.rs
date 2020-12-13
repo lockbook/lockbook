@@ -260,7 +260,7 @@ mod account_tests {
             let account = Account {
                 api_url: generated_account.api_url,
                 username: random_username(),
-                private_key: generated_account.private_key
+                private_key: generated_account.private_key,
             };
             DefaultAccountRepo::insert_account(&to_backend(&cfg2), &account).unwrap();
         } // release lock on db
