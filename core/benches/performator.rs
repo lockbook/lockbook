@@ -9,8 +9,7 @@ use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::storage::db_provider::to_backend;
 use lockbook_core::{
-    connect_to_db, DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService,
-    DefaultSyncService,
+    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
 };
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -36,8 +35,7 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let db = &connect_to_db(config).unwrap();
-    let backend = &to_backend(db);
+    let backend = &to_backend(config);
 
     let _ = DefaultAccountService::create_account(
         backend,
