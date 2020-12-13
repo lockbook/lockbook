@@ -15,8 +15,8 @@ pub trait DbProvider {
     fn connect_to_db(config: &Config) -> Result<Db, Error>;
 }
 
-pub fn to_backend(db: &Db) -> Backend {
-    Backend::Sled(db)
+pub fn to_backend(cfg: &Config) -> Backend {
+    Backend::File(cfg)
 }
 
 pub struct DiskBackedDB;
