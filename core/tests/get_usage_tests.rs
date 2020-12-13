@@ -8,8 +8,8 @@ mod get_usage_tests {
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::storage::db_provider::to_backend;
     use lockbook_core::{
-        create_account, create_file, delete_file, get_root, get_usage, init_logger,
-        sync_all, write_document, DefaultDocumentRepo,
+        create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
+        write_document, DefaultDocumentRepo,
     };
     use std::path::Path;
 
@@ -37,9 +37,7 @@ mod get_usage_tests {
 
         let local_encrypted = {
             let backend = &to_backend(config);
-            DefaultDocumentRepo::get(backend, file.id)
-                .unwrap()
-                .value
+            DefaultDocumentRepo::get(backend, file.id).unwrap().value
         };
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
@@ -101,9 +99,7 @@ mod get_usage_tests {
 
         let local_encrypted = {
             let backend = &to_backend(config);
-            DefaultDocumentRepo::get(backend, file.id)
-                .unwrap()
-                .value
+            DefaultDocumentRepo::get(backend, file.id).unwrap().value
         };
 
         let usages = get_usage(config).unwrap();

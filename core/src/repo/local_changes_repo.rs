@@ -452,7 +452,6 @@ mod unit_tests {
     use crate::service::clock_service::Clock;
     use crate::storage::db_provider::to_backend;
 
-
     pub struct TestClock;
 
     impl Clock for TestClock {
