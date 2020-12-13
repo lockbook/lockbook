@@ -12,9 +12,9 @@ use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{
     AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
-use lockbook_core::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
+use lockbook_core::storage::db_provider::Backend;
 use lockbook_core::{
-    Db, DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+    DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
 use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::de::DeserializeOwned;
@@ -35,8 +35,8 @@ macro_rules! assert_matches (
     }
 );
 
-pub fn test_db() -> Db {
-    DiskBackedDB::connect_to_db(&test_config()).unwrap()
+pub fn test_db() -> Config {
+    test_config()
 }
 
 pub fn test_config() -> Config {

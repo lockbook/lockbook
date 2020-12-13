@@ -450,9 +450,8 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
-    use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::to_backend;
 
-    type DefaultDbProvider = DiskBackedDB;
 
     pub struct TestClock;
 
@@ -477,8 +476,8 @@ mod unit_tests {
 
     #[test]
     fn set_and_unset_fields() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         assert_total_local_changes!(backend, 0);
 
@@ -615,8 +614,8 @@ mod unit_tests {
 
     #[test]
     fn new_document_deleted() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let id = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(backend, id).unwrap();
@@ -643,8 +642,8 @@ mod unit_tests {
 
     #[test]
     fn new_folder_deleted() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let id = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(backend, id).unwrap();
@@ -679,8 +678,8 @@ mod unit_tests {
 
     #[test]
     fn track_changes_on_multiple_files() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let id1 = Uuid::new_v4();
         TestLocalChangesRepo::track_new_file(backend, id1).unwrap();
@@ -712,8 +711,8 @@ mod unit_tests {
 
     #[test]
     fn unknown_id() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
@@ -730,8 +729,8 @@ mod unit_tests {
 
     #[test]
     fn rename_back_to_original() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let id = Uuid::new_v4();
 
@@ -747,8 +746,8 @@ mod unit_tests {
 
     #[test]
     fn move_back_to_original() {
-        let db = &DefaultDbProvider::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();

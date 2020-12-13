@@ -20,6 +20,7 @@ COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
 COPY containers/dummy.rs benches/performator.rs
+COPY containers/dummy.rs benches/throughput.rs
 RUN cargo build --release
 
 # Changes onwards!
