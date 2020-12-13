@@ -7,8 +7,7 @@ use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
 use lockbook_core::storage::db_provider::{to_backend, Backend};
 use lockbook_core::{
-    connect_to_db, DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService,
-    DefaultSyncService,
+    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
 };
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -29,8 +28,7 @@ pub fn bench_throughput(c: &mut Criterion) {
         writeable_path: format!("/tmp/throughput{}", id),
     };
 
-    let db = &connect_to_db(config).unwrap();
-    let sled = &to_backend(db);
+    let sled = &to_backend(config);
     let file = &Backend::File(config);
 
     let mut group = c.benchmark_group("Throughput");
