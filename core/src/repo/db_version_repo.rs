@@ -47,12 +47,12 @@ impl DbVersionRepo for DbVersionRepoImpl {
 mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
-    use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::to_backend;
 
     #[test]
     fn db_version_sanity_check() {
-        let db = &DiskBackedDB::connect_to_db(&temp_config()).unwrap();
-        let backend = &to_backend(db);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
 
         assert!(DbVersionRepoImpl::get(backend).unwrap().is_none());
         DbVersionRepoImpl::set(backend, "version 1").unwrap();
