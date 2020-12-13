@@ -12,10 +12,10 @@ mod account_tests {
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::{to_backend, DbProvider};
+    use lockbook_core::storage::db_provider::to_backend;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultDbProvider, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
+        DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
@@ -255,18 +255,23 @@ mod account_tests {
         )
         .unwrap();
 
+        let cfg2 = test_config();
         {
-            let db = DefaultDbProvider::connect_to_db(&cfg1).unwrap();
-            let mut account = DefaultAccountRepo::get_account(&to_backend(&db)).unwrap();
-            account.username = random_username();
-            DefaultAccountRepo::insert_account(&to_backend(&db), &account).unwrap();
+            let account = Account {
+                api_url: generated_account.api_url,
+                username: random_username(),
+                private_key: generated_account.private_key
+            };
+            DefaultAccountRepo::insert_account(&to_backend(&cfg2), &account).unwrap();
         } // release lock on db
 
-        let account_string = export_account(&cfg1).unwrap();
+        let account_string = export_account(&cfg2).unwrap();
 
-        let cfg2 = test_config();
+        println!("Your thing\n{}", &account_string);
 
-        match import_account(&cfg2, &account_string) {
+        let cfg3 = test_config();
+
+        match import_account(&cfg3, &account_string) {
             Ok(_) => panic!("Should not have passed"),
             Err(err) => match err {
                 Error::UiError(ImportError::AccountDoesNotExist) => {}

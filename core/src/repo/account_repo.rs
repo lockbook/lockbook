@@ -68,9 +68,8 @@ mod unit_tests {
     use crate::repo::account_repo::{AccountRepo, AccountRepoImpl};
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
-    use crate::storage::db_provider::{to_backend, DbProvider, DiskBackedDB};
+    use crate::storage::db_provider::to_backend;
 
-    type DefaultDbProvider = DiskBackedDB;
     type DefaultAccountRepo = AccountRepoImpl;
 
     #[test]
@@ -82,8 +81,7 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let db = &DefaultDbProvider::connect_to_db(&config).unwrap();
-        let backend = &to_backend(db);
+        let backend = &to_backend(&config);
         let res = DefaultAccountRepo::get_account(backend);
         assert!(res.is_err());
 
