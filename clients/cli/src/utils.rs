@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, thread};
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -199,9 +199,14 @@ pub fn set_up_auto_save(watch_file_metadata: FileMetadata, watch_file_location: 
         )
     });
 
-    watcher.watch(watch_file_location.clone(), RecursiveMode::NonRecursive);
+    watcher.watch(watch_file_location.clone(), RecursiveMode::Recursive).unwrap_or_else(|err| {
+        exit_with(
+            &format!("notify watcher failed to watch: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
 
-    std::thread::spawn(move || loop {
+    thread::spawn(move || loop {
         match rx.recv() {
             Ok(event) => {
                 println!("{:?}", event);
@@ -214,7 +219,7 @@ pub fn set_up_auto_save(watch_file_metadata: FileMetadata, watch_file_location: 
             }
             Err(err) => {
                 exit_with(
-                    &format!("notify watcher failed to watch: {:#?}", err),
+                    &format!("notify event failed: {:#?}", err),
                     UNEXPECTED_ERROR,
                 )
             }
