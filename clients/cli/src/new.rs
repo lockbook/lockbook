@@ -1,15 +1,16 @@
 use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{
-    create_file_at_path, write_document, CreateFileAtPathError, Error as CoreError,
-    WriteToDocumentError,
+    create_file_at_path, CreateFileAtPathError, Error as CoreError,
 };
 use std::fs;
 use std::fs::File;
 use std::path::Path;
 use uuid::Uuid;
 
+use crate::edit::save_file_to_core;
 use crate::utils::{
     edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
+    set_up_auto_save,
 };
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
@@ -60,43 +61,22 @@ pub fn new(file_name: &str) {
         ),
     }
 
+    set_up_auto_save(file_metadata.clone(), file_location.clone());
+
     if file_metadata.file_type == Folder {
         exit_with("Folder created.", SUCCESS);
     }
 
     let edit_was_successful = edit_file_with_editor(&file_location);
+    // hot_watch.unwatch(file_location.clone()).unwrap_or_else(|err| {
+    //     exit_with(
+    //         &format!("Could unwatch temporary file. HotWatch: {:#?}", err),
+    //         UNEXPECTED_ERROR,
+    //     )
+    // });
 
     if edit_was_successful {
-        let secret = match fs::read_to_string(temp_file_path) {
-            Ok(content) => content.into_bytes(),
-            Err(err) => exit_with(
-                &format!(
-                    "Could not read from temporary file, not deleting {}, err: {:#?}",
-                    file_location, err
-                ),
-                UNEXPECTED_ERROR,
-            ),
-        };
-
-        match write_document(&get_config(), file_metadata.id, &secret) {
-            Ok(_) => exit_with(
-                "Document encrypted and saved. Cleaning up temporary file.",
-                SUCCESS,
-            ),
-            Err(err) => match err {
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
-                    "Unexpected: No account! Run init or import to get started!",
-                    UNEXPECTED_ERROR,
-                ),
-                CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                    exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
-                }
-                CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                    exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
-                }
-            },
-        }
+        save_file_to_core(file_metadata, &file_location, temp_file_path, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
