@@ -23,8 +23,8 @@ use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use std::path::Path;
 use std::process::exit;
-use notify::{Watcher, RecommendedWatcher, RecursiveMode};
 use std::sync::mpsc::channel;
+use hotwatch::{Hotwatch, Event};
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
@@ -189,40 +189,29 @@ pub fn print_last_successful_sync() {
     }
 }
 
-pub fn set_up_auto_save(watch_file_metadata: FileMetadata, watch_file_location: String) {
-    let (tx, rx) = channel();
-
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap_or_else(|err| {
+pub fn set_up_auto_save(watch_file_metadata: FileMetadata, watch_file_location: String) -> Hotwatch {
+    let mut hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(2)).unwrap_or_else(|err| {
         exit_with(
-            &format!("notify watcher failed to initialize: {:#?}", err),
+            &format!("hotwatch failed to initialize: {:#?}", err),
             UNEXPECTED_ERROR,
         )
     });
 
-    watcher.watch(watch_file_location.clone(), RecursiveMode::Recursive).unwrap_or_else(|err| {
-        exit_with(
-            &format!("notify watcher failed to watch: {:#?}", err),
-            UNEXPECTED_ERROR,
-        )
-    });
-
-    thread::spawn(move || loop {
-        match rx.recv() {
-            Ok(event) => {
-                println!("{:?}", event);
-                save_file_to_core(
-                    watch_file_metadata.clone(),
-                    &watch_file_location,
-                    Path::new(watch_file_location.as_str()),
-                    true,
-                );
-            }
-            Err(err) => {
-                exit_with(
-                    &format!("notify event failed: {:#?}", err),
-                    UNEXPECTED_ERROR,
-                )
-            }
+    hot_watch.watch(watch_file_location.clone(), move |event: Event| {
+        if let Event::Write(_) = event {
+            save_file_to_core(
+                watch_file_metadata.clone(),
+                &watch_file_location,
+                Path::new(watch_file_location.as_str()),
+                true
+            )
         }
+    }).unwrap_or_else(|err| {
+        exit_with(
+            &format!("hotwatch failed to watch: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
     });
+
+    hot_watch
 }

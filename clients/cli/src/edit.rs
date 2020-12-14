@@ -18,6 +18,7 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
 };
 use lockbook_core::model::file_metadata::FileMetadata;
+use notify::Watcher;
 
 pub fn edit(file_name: &str) {
     get_account_or_exit();
@@ -85,9 +86,11 @@ pub fn edit(file_name: &str) {
         )
     });
 
-    set_up_auto_save(file_metadata.clone(), file_location.clone());
+    let mut watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
 
     let edit_was_successful = edit_file_with_editor(&file_location);
+
+    watcher.unwatch(file_location.clone());
 
     if edit_was_successful {
         let secret = fs::read_to_string(temp_file_path).unwrap_or_else(|_| {
