@@ -16,6 +16,7 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
     PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
+use notify::Watcher;
 
 pub fn new(file_name: &str) {
     get_account_or_exit();
@@ -67,7 +68,11 @@ pub fn new(file_name: &str) {
         exit_with("Folder created.", SUCCESS);
     }
 
+    let mut watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+
     let edit_was_successful = edit_file_with_editor(&file_location);
+
+    watcher.unwatch(file_location.clone());
     // hot_watch.unwatch(file_location.clone()).unwrap_or_else(|err| {
     //     exit_with(
     //         &format!("Could unwatch temporary file. HotWatch: {:#?}", err),
