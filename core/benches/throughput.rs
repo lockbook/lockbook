@@ -5,9 +5,10 @@ use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::storage::db_provider::{to_backend, Backend};
+use lockbook_core::storage::db_provider::{Backend, DbProvider};
 use lockbook_core::{
-    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
+    DefaultAccountService, DefaultDbProvider, DefaultFileMetadataRepo, DefaultFileService,
+    DefaultSyncService,
 };
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -22,14 +23,16 @@ fn random_string() -> String {
         .collect()
 }
 pub fn bench_throughput(c: &mut Criterion) {
-    let id: String = random_string();
-
-    let config = &Config {
-        writeable_path: format!("/tmp/throughput{}", id),
+    let cfg_sled = &Config {
+        writeable_path: format!("/tmp/throughput{}", random_string()),
+    };
+    let cfg_file = &Config {
+        writeable_path: format!("/tmp/throughput{}", random_string()),
     };
 
-    let sled = &to_backend(config);
-    let file = &Backend::File(config);
+    let db = &DefaultDbProvider::connect_to_db(cfg_sled).unwrap();
+    let sled = &Backend::Sled(db);
+    let file = &Backend::File(cfg_file);
 
     let mut group = c.benchmark_group("Throughput");
 
