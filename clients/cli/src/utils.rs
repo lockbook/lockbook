@@ -12,14 +12,19 @@ use lockbook_core::{
 };
 use lockbook_core::{get_last_synced, DefaultClock};
 
+use crate::edit::save_file_to_core;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{
     NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
     UPDATE_REQUIRED,
 };
 use lockbook_core::model::account::Account;
+use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
+use std::path::Path;
 use std::process::exit;
+use notify::{Watcher, RecommendedWatcher, RecursiveMode};
+use std::sync::mpsc::channel;
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
@@ -182,4 +187,37 @@ pub fn print_last_successful_sync() {
 
         println!("Last successful sync: {}", duration);
     }
+}
+
+pub fn set_up_auto_save(watch_file_metadata: FileMetadata, watch_file_location: String) {
+    let (tx, rx) = channel();
+
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap_or_else(|err| {
+        exit_with(
+            &format!("notify watcher failed to initialize: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
+
+    watcher.watch(watch_file_location.clone(), RecursiveMode::NonRecursive);
+
+    std::thread::spawn(move || loop {
+        match rx.recv() {
+            Ok(event) => {
+                println!("{:?}", event);
+                save_file_to_core(
+                    watch_file_metadata.clone(),
+                    &watch_file_location,
+                    Path::new(watch_file_location.as_str()),
+                    true,
+                );
+            }
+            Err(err) => {
+                exit_with(
+                    &format!("notify watcher failed to watch: {:#?}", err),
+                    UNEXPECTED_ERROR,
+                )
+            }
+        }
+    });
 }

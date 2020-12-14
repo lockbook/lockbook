@@ -1,7 +1,7 @@
-use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::fs;
 
 use uuid::Uuid;
 
@@ -10,11 +10,14 @@ use lockbook_core::{
     ReadDocumentError, WriteToDocumentError,
 };
 
-use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config};
+use crate::utils::{
+    edit_file_with_editor, exit_with, get_account_or_exit, get_config, set_up_auto_save,
+};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
 };
+use lockbook_core::model::file_metadata::FileMetadata;
 
 pub fn edit(file_name: &str) {
     get_account_or_exit();
@@ -82,6 +85,8 @@ pub fn edit(file_name: &str) {
         )
     });
 
+    set_up_auto_save(file_metadata.clone(), file_location.clone());
+
     let edit_was_successful = edit_file_with_editor(&file_location);
 
     if edit_was_successful {
@@ -120,4 +125,60 @@ pub fn edit(file_name: &str) {
             COULD_NOT_DELETE_OS_FILE,
         )
     });
+}
+
+pub fn save_file_to_core(
+    file_metadata: FileMetadata,
+    file_location: &String,
+    temp_file_path: &Path,
+    silent: bool,
+) {
+    let secret = match fs::read_to_string(temp_file_path) {
+        Ok(content) => content.into_bytes(),
+        Err(err) => {
+            if !silent {
+                exit_with(
+                    &format!(
+                        "Could not read from temporary file, not deleting {}, err: {:#?}",
+                        file_location, err
+                    ),
+                    UNEXPECTED_ERROR,
+                )
+            } else {
+                return;
+            }
+        }
+    };
+
+    match write_document(&get_config(), file_metadata.id, &secret) {
+        Ok(_) => {
+            if !silent {
+                exit_with(
+                    "Document encrypted and saved. Cleaning up temporary file.",
+                    SUCCESS,
+                )
+            } else {
+                return;
+            }
+        }
+        Err(err) => {
+            if !silent {
+                match err {
+                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
+                        "Unexpected: No account! Run init or import to get started!",
+                        UNEXPECTED_ERROR,
+                    ),
+                    CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
+                        exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
+                    }
+                    CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
+                        exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
+                    }
+                }
+            } else {
+                return;
+            }
+        }
+    }
 }
