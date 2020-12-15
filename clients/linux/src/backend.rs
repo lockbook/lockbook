@@ -17,7 +17,7 @@ use lockbook_core::{
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
     read_document, rename_file, set_last_synced, write_document, CalculateWorkError,
-    CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
+    Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
 };
 
 use crate::error::LbResult;
@@ -70,28 +70,9 @@ impl LbCore {
         }
     }
 
-    pub fn create_account(&self, username: &str) -> Result<(), String> {
-        match create_account(&self.config, &username, &api_url()) {
-            Ok(_) => Ok(()),
-            Err(err) => match err {
-                CoreError::UiError(err) => match err {
-                    CreateAccountError::UsernameTaken => Err(String::from("Username taken.")),
-                    CreateAccountError::InvalidUsername => {
-                        Err(format!("Username '{}' is not valid (a-z || 0-9)", username))
-                    }
-                    CreateAccountError::CouldNotReachServer => {
-                        Err(String::from("Could not reach server."))
-                    }
-                    CreateAccountError::AccountExistsAlready => {
-                        Err(String::from("An account already exists."))
-                    }
-                    CreateAccountError::ClientUpdateRequired => {
-                        Err(String::from("Client upgrade required."))
-                    }
-                },
-                CoreError::Unexpected(msg) => panic!(msg),
-            },
-        }
+    pub fn create_account(&self, uname: &str) -> LbResult<()> {
+        create_account(&self.config, &uname, &api_url())
+            .map_err(|err| errs::create_account::to_lb_error(err, uname))
     }
 
     pub fn import_account(&self, privkey: &str) -> Result<(), String> {
@@ -303,8 +284,8 @@ mod errs {
     }
 
     macro_rules! user {
-        ($base:literal $(, $args:tt )?) => {
-            LbError::User(format!($base $(, $args )?))
+        ($base:literal $(, $args:tt )*) => {
+            LbError::User(format!($base $(, $args )*))
         };
     }
 
@@ -312,6 +293,32 @@ mod errs {
         ($msg:expr) => {
             LbError::Program($msg)
         };
+    }
+
+    pub mod create_account {
+        imports!(
+            CreateAccountError as CreatingAcct,
+            UsernameTaken as UnameTaken,
+            InvalidUsername as UnameInvalid,
+            AccountExistsAlready as AccountExists,
+            CouldNotReachServer,
+            ClientUpdateRequired
+        );
+
+        const UNAME_REQS: &str = "letters and numbers only";
+
+        pub fn to_lb_error(e: Error<CreatingAcct>, uname: &str) -> LbError {
+            match e {
+                UiError(e) => match e {
+                    UnameTaken => user!("The username '{}' is already taken.", uname),
+                    UnameInvalid => user!("Invalid username '{}' ({}).", uname, UNAME_REQS),
+                    AccountExists => user!("An account already exists."),
+                    CouldNotReachServer => user!("Unable to connect to the server."),
+                    ClientUpdateRequired => user!("Client upgrade required."),
+                },
+                Unexpected(msg) => prog!(msg),
+            }
+        }
     }
 
     pub mod export_account {
