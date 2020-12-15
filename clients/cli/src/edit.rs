@@ -1,7 +1,7 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::fs;
 
 use uuid::Uuid;
 
@@ -18,7 +18,6 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
 };
 use lockbook_core::model::file_metadata::FileMetadata;
-use notify::Watcher;
 
 pub fn edit(file_name: &str) {
     get_account_or_exit();
