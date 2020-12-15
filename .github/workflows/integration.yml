@@ -74,14 +74,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: DB Assertions
-        run: make server_tests
-      - name: Kotlin
-        run: make kotlin_interface_tests
-      - name: CSharp
-        run: make csharp_interface_tests
-      - name: Swift
-        run: make swift_interface_tests_run
+      - name: Build server container
+        run: make server
   Integration-Test-Containers:
     runs-on: [self-hosted, dockerized]
     needs: Server
@@ -90,12 +84,16 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
     - uses: actions/checkout@v2
-    - name: Build server container
-      run: make server
-    - name: Build test container
+    - name: DB Assertions
+      run: make server_tests
+    - name: Rust Integration Tests
       run: make integration_tests
-    - name: Compile and run tests
-      run: make integration_tests_run
+    - name: Kotlin
+      run: make kotlin_interface_tests
+    - name: CSharp
+      run: make csharp_interface_tests
+    - name: Swift
+      run: make swift_interface_tests
   Integration-Tests:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
@@ -104,6 +102,8 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
+      - name: Remove Other Stacks
+        run: make kill_dev_stack
       - name: DB Assertions
         run: make server_tests_run
       - name: Kotlin Integration Tests
@@ -112,3 +112,5 @@ jobs:
         run: make swift_interface_tests_run
       - name: CSharp Integration Tests
         run: make csharp_interface_tests_run
+      - name: Tear Down Stack
+        run: make kill_dev_stack
