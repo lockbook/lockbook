@@ -48,8 +48,7 @@ server_tests: is_docker_running
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) up --exit-code-from=server_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up server_tests
 
 .PHONY: cli
 cli: is_docker_running
@@ -91,9 +90,7 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up swift_interface_tests
 
 .PHONY: android
 android: is_docker_running
@@ -113,8 +110,7 @@ kotlin_interface_tests: is_docker_running
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up kotlin_interface_tests
 
 .PHONY: swift_interface_tests
 swift_interface_tests: is_docker_running
@@ -122,8 +118,7 @@ swift_interface_tests: is_docker_running
 
 .PHONY: swift_interface_tests_run
 swift_interface_tests_run: server swift_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) up --exit-code-from=swift_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 
 .PHONY: csharp_interface_tests
 csharp_interface_tests: is_docker_running
@@ -131,8 +126,7 @@ csharp_interface_tests: is_docker_running
 
 .PHONY: csharp_interface_tests_run
 csharp_interface_tests_run: server csharp_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) up --exit-code-from=csharp_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
 
 .PHONY: performance
 performance: is_docker_running
@@ -140,8 +134,7 @@ performance: is_docker_running
 
 .PHONY: performance_bench
 performance_bench: performance server
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) down
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) up --exit-code-from=performance_bench
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
@@ -149,17 +142,11 @@ performance_bench_report: is_docker_running
 
 .PHONY: dev_stack_run
 dev_stack_run: server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up lockbook_server
 
-.PHONY: semi_dev_stack_run
-semi_dev_stack_run: is_docker_running
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) up
+.PHONY: kill_dev_stack
+kill_dev_stack:
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down
 
 # Helpers
 .PHONY: is_docker_running
