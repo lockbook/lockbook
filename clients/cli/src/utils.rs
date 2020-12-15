@@ -236,10 +236,12 @@ pub fn set_up_auto_save(
 }
 
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
-    watcher.unwatch(file_location.clone()).unwrap_or_else(|err| {
-        exit_with(
-            &format!("hotwatch failed to unwatch: {:#?}", err),
-            UNEXPECTED_ERROR,
-        )
-    });
+    watcher
+        .unwatch(file_location.clone())
+        .unwrap_or_else(|err| {
+            exit_with(
+                &format!("hotwatch failed to unwatch: {:#?}", err),
+                UNEXPECTED_ERROR,
+            )
+        });
 }

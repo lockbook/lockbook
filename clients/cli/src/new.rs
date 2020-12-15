@@ -6,7 +6,10 @@ use std::path::Path;
 use uuid::Uuid;
 
 use crate::edit::save_file_to_core;
-use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config, set_up_auto_save, stop_auto_save};
+use crate::utils::{
+    edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
+    set_up_auto_save, stop_auto_save,
+};
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
     PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
