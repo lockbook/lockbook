@@ -34,6 +34,8 @@ services:
       - ../containers/test.env
     depends_on:
       - indexdb
+    volumes:
+      - $PWD/index_db:/index_db
     entrypoint: >
       /bin/sh -c '\
         while ! pg_isready -h $$INDEX_DB_HOST -p $$INDEX_DB_PORT -U $$INDEX_DB_USER; do echo "Waiting for Postgres to start..." && sleep 0.2; done; \
@@ -42,7 +44,7 @@ services:
       '
   lockbook_server:
     image: server:$HASH
-    container_name: server-integration-$HASH
+    container_name: lockbook-server-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -53,7 +55,8 @@ services:
         sleep 5 && \
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
-
+    ports:
+      - "8000:8000"
   integration_tests:
     image: integration_tests:$HASH
     container_name: integration_tests-integration-$HASH
@@ -65,4 +68,70 @@ services:
       /bin/sh -c '\
         sleep 5 && \
         LOCKBOOK_DEBUG=1 cargo test --release --no-fail-fast -- --nocapture \
+      '
+
+  server_tests:
+    image: server_tests:$HASH
+    container_name: server_tests-server-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - indexdb
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        RUST_LOG=lockbook_server=debug cargo test --release \
+      '
+
+  swift_interface_tests:
+    image: swift_interface_tests:$HASH
+    container_name: swift_interface_tests-swift-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        swift test
+      '
+
+  csharp_interface_tests:
+    image: csharp_interface_tests:$HASH
+    container_name: csharp_interface_tests-csharp-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        dotnet test
+      '
+
+  kotlin_interface_tests:
+    image: kotlin_interface_tests:$HASH
+    container_name: kotlin_interface_tests-kotlin-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        ./gradlew test -i \
+      '
+
+  performance_bench:
+    image: performance:$HASH
+    container_name: performance-$TYPE-$HASH
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/sh -c '\
+        sleep 5 && \
+        LOCKBOOK_DEBUG=1 cargo bench -- --profile-time 5 && \
+        pprof --svg $$(find . -type f -executable -name "performator-*") simple-create_write_read.profile > simple-create_write_read.svg \
       '
