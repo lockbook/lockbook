@@ -6,10 +6,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use crate::edit::save_file_to_core;
-use crate::utils::{
-    edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
-    set_up_auto_save,
-};
+use crate::utils::{edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config, set_up_auto_save, stop_auto_save};
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
     PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
@@ -65,11 +62,11 @@ pub fn new(file_name: &str) {
         exit_with("Folder created.", SUCCESS);
     }
 
-    let mut watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+    let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
-    watcher.unwatch(file_location.clone());
+    stop_auto_save(watcher, file_location.clone());
 
     if edit_was_successful {
         save_file_to_core(file_metadata, &file_location, temp_file_path, false)

@@ -1,4 +1,4 @@
-use std::{env, thread};
+use std::env;
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -24,7 +24,6 @@ use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use std::path::Path;
 use std::process::exit;
-use std::sync::mpsc::channel;
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
@@ -193,7 +192,7 @@ pub fn set_up_auto_save(
     watch_file_metadata: FileMetadata,
     watch_file_location: String,
 ) -> Hotwatch {
-    let mut hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(10))
+    let mut hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5))
         .unwrap_or_else(|err| {
             exit_with(
                 &format!("hotwatch failed to initialize: {:#?}", err),
@@ -203,7 +202,21 @@ pub fn set_up_auto_save(
 
     hot_watch
         .watch(watch_file_location.clone(), move |event: Event| {
-            if let Event::Write(_) = event {
+            if let Event::NoticeWrite(_) = event {
+                save_file_to_core(
+                    watch_file_metadata.clone(),
+                    &watch_file_location,
+                    Path::new(watch_file_location.as_str()),
+                    true,
+                )
+            } else if let Event::Write(_) = event {
+                save_file_to_core(
+                    watch_file_metadata.clone(),
+                    &watch_file_location,
+                    Path::new(watch_file_location.as_str()),
+                    true,
+                )
+            } else if let Event::Create(_) = event {
                 save_file_to_core(
                     watch_file_metadata.clone(),
                     &watch_file_location,
@@ -220,4 +233,13 @@ pub fn set_up_auto_save(
         });
 
     hot_watch
+}
+
+pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
+    watcher.unwatch(file_location.clone()).unwrap_or_else(|err| {
+        exit_with(
+            &format!("hotwatch failed to unwatch: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
 }
