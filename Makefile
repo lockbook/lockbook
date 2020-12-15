@@ -90,7 +90,7 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up swift_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 
 .PHONY: android
 android: is_docker_running
