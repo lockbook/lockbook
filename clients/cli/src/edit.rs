@@ -10,7 +10,10 @@ use lockbook_core::{
     ReadDocumentError, WriteToDocumentError,
 };
 
-use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config, set_up_auto_save, stop_auto_save};
+use crate::utils::{
+    edit_file_with_editor, exit_with, get_account_or_exit, get_config, set_up_auto_save,
+    stop_auto_save,
+};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
