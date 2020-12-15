@@ -10,9 +10,7 @@ use lockbook_core::{
     ReadDocumentError, WriteToDocumentError,
 };
 
-use crate::utils::{
-    edit_file_with_editor, exit_with, get_account_or_exit, get_config, set_up_auto_save,
-};
+use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config, set_up_auto_save, stop_auto_save};
 use crate::{
     COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
     DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
@@ -85,11 +83,11 @@ pub fn edit(file_name: &str) {
         )
     });
 
-    let mut watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+    let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
-    watcher.unwatch(file_location.clone());
+    stop_auto_save(watcher, file_location.clone());
 
     if edit_was_successful {
         let secret = fs::read_to_string(temp_file_path).unwrap_or_else(|_| {
