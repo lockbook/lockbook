@@ -1,7 +1,5 @@
 use lockbook_core::model::file_metadata::FileType::Folder;
-use lockbook_core::{
-    create_file_at_path, CreateFileAtPathError, Error as CoreError,
-};
+use lockbook_core::{create_file_at_path, CreateFileAtPathError, Error as CoreError};
 use std::fs;
 use std::fs::File;
 use std::path::Path;
@@ -16,7 +14,6 @@ use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
     PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
-use notify::Watcher;
 
 pub fn new(file_name: &str) {
     get_account_or_exit();
@@ -73,12 +70,6 @@ pub fn new(file_name: &str) {
     let edit_was_successful = edit_file_with_editor(&file_location);
 
     watcher.unwatch(file_location.clone());
-    // hot_watch.unwatch(file_location.clone()).unwrap_or_else(|err| {
-    //     exit_with(
-    //         &format!("Could unwatch temporary file. HotWatch: {:#?}", err),
-    //         UNEXPECTED_ERROR,
-    //     )
-    // });
 
     if edit_was_successful {
         save_file_to_core(file_metadata, &file_location, temp_file_path, false)
