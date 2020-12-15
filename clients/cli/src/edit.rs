@@ -160,7 +160,8 @@ pub fn save_file_to_core(
                     "Document encrypted and saved. Cleaning up temporary file.",
                     SUCCESS,
                 )
-            } else {}
+            } else {
+            }
         }
         Err(err) => {
             if !silent {
@@ -177,7 +178,8 @@ pub fn save_file_to_core(
                         exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
                     }
                 }
-            } else {}
+            } else {
+            }
         }
     }
 }
