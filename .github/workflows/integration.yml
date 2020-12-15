@@ -76,6 +76,10 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build server container
         run: make server
+      - name: Check Formatting
+        run: make server_fmt
+      - name: Lint
+        run: make server_lint
   Integration-Test-Containers:
     runs-on: [self-hosted, dockerized]
     needs: Server
