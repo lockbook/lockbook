@@ -1,8 +1,6 @@
-FROM rust
+FROM rust AS core-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
-RUN rustup component add rustfmt --toolchain stable
-RUN rustup component add clippy --toolchain stable
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
@@ -20,3 +18,14 @@ ENV API_URL=unused
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
 RUN cargo build --release
+
+FROM core-build AS core-fmt
+RUN rustup component add rustfmt --toolchain stable
+RUN cargo +stable fmt -- --check -l
+
+FROM core-build AS core-lint
+RUN rustup component add clippy --toolchain stable
+RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+
+FROM core-build AS core-test
+RUN cargo test --release --lib
