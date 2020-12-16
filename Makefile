@@ -14,20 +14,20 @@ exorcise:
 
 .PHONY: core
 core: is_docker_running
-	docker build -f containers/Dockerfile.core . --tag core:$(hash)
+	docker build --target core-build -f containers/Dockerfile.core . 
 
 .PHONY: core_fmt
 core_fmt: core
 	@echo The following files need formatting:
-	docker run core:$(hash) cargo +stable fmt -- --check -l
+	docker build --target core-fmt -f containers/Dockerfile.core .
 
 .PHONY: core_lint
 core_lint: core
-	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target core-lint -f containers/Dockerfile.core .
 
 .PHONY: core_test
 core_test: core
-	docker run core:$(hash) cargo test --release --lib
+	docker build --target core-test -f containers/Dockerfile.core .
 
 .PHONY: server
 server: is_docker_running
