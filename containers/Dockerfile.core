@@ -2,7 +2,6 @@ FROM rust AS core-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
 WORKDIR core
-
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs src/lib.rs
@@ -10,7 +9,6 @@ COPY core/Cargo.toml .
 COPY core/Cargo.lock .
 COPY core/benches ./benches
 RUN cargo build --release
-
 # Build our source
 COPY core .
 # Compile-time env var
@@ -19,13 +17,16 @@ ENV API_URL=unused
 RUN touch src/lib.rs
 RUN cargo build --release
 
+# Check the formatting of core
 FROM core-build AS core-fmt
 RUN rustup component add rustfmt --toolchain stable
 RUN cargo +stable fmt -- --check -l
 
+# Check the lint of core
 FROM core-build AS core-lint
 RUN rustup component add clippy --toolchain stable
 RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
+# Run core tests
 FROM core-build AS core-test
 RUN cargo test --release --lib

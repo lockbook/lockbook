@@ -31,20 +31,20 @@ core_test: core
 
 .PHONY: server
 server: is_docker_running
-	docker build -f containers/Dockerfile.server . --tag server:$(hash)
+	docker build --target server-build -f containers/Dockerfile.server .
 
 .PHONY: server_fmt
 server_fmt: server
 	@echo The following files need formatting:
-	docker run server:$(hash) cargo +stable fmt -- --check -l
+	docker build --target server-fmt -f containers/Dockerfile.server .
 
 .PHONY: server_lint
 server_lint: server
-	docker run server:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target server-lint -f containers/Dockerfile.server .
 
 .PHONY: server_tests
 server_tests: is_docker_running
-	docker build -f containers/Dockerfile.server . --tag server_tests:$(hash)
+	docker build --target server-build -f containers/Dockerfile.server .
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests
@@ -52,20 +52,20 @@ server_tests_run: server server_tests
 
 .PHONY: cli
 cli: is_docker_running
-	docker build -f containers/Dockerfile.cli . --tag cli:$(hash)
+	docker build --target cli-build -f containers/Dockerfile.cli .
 
 .PHONY: cli_fmt
 cli_fmt: cli
 	@echo The following files need formatting:
-	docker run cli:$(hash) cargo +stable fmt -- --check -l
+	docker build --target cli-fmt -f containers/Dockerfile.cli .
 
 .PHONY: cli_lint
 cli_lint: cli
-	docker run cli:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target cli-lint -f containers/Dockerfile.cli .
 
 .PHONY: cli_test
 cli_test: cli
-	docker run cli:$(hash) cargo test --release
+	docker build --target cli-test -f containers/Dockerfile.cli .
 
 .PHONY: linux
 linux: is_docker_running
@@ -94,19 +94,19 @@ integration_tests_run: integration_tests server
 
 .PHONY: android
 android: is_docker_running
-	docker build -f containers/Dockerfile.android . --tag android:$(hash)
+	docker build --target android-build -f containers/Dockerfile.android .
 
 .PHONY: android_lint
 android_lint: android
-	docker run android:$(hash) ./gradlew lint
+	docker build --target android-lint -f containers/Dockerfile.android .
 
 .PHONY: android_fmt
 android_fmt: android
-	docker run android:$(hash) ./gradlew lintKotlin 
+	docker build --target android-fmt -f containers/Dockerfile.android .
 
 .PHONY: kotlin_interface_tests
 kotlin_interface_tests: is_docker_running
-	docker build -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
+	docker build --target android-kotlin-interface-tests -f containers/Dockerfile.android .
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests
