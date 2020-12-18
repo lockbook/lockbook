@@ -32,6 +32,7 @@ use crate::editmode::EditMode;
 use crate::error::{
     LbError,
     LbError::{Program as ProgErr, User as UserErr},
+    LbResult,
 };
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
@@ -186,14 +187,19 @@ impl LbApp {
                 d.set_resizable(false);
                 d.show_all()
             }
-            Err(err) => self.err("unable to export account", &ProgErr(err)),
+            Err(err) => self.err("unable to export account", &err),
         }
 
-        let ch = make_glib_chan(move |path: Result<String, String>| {
-            let path = path.unwrap();
-            let qr_image = GtkImage::from_file(&path);
-            image_cntr.set_center_widget(Some(&qr_image));
-            image_cntr.show_all();
+        let m = self.messenger.clone();
+        let ch = make_glib_chan(move |res: LbResult<String>| {
+            match res {
+                Ok(path) => {
+                    let qr_image = GtkImage::from_file(&path);
+                    image_cntr.set_center_widget(Some(&qr_image));
+                    image_cntr.show_all();
+                }
+                Err(err) => m.send_err("generating qr code", err),
+            }
             glib::Continue(false)
         });
 
