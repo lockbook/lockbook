@@ -109,11 +109,15 @@ impl LbApp {
 
         let gui = self.gui.clone();
         let c = self.core.clone();
+        let m = self.messenger.clone();
 
-        let ch = make_glib_chan(move |result: Result<(), String>| {
+        let ch = make_glib_chan(move |result| {
             match result {
                 Ok(_) => gui.show_account_screen(&c),
-                Err(err) => gui.intro.error_create(&err),
+                Err(err) => match err {
+                    UserErr(err) => gui.intro.error_create(&err),
+                    prog_err => m.send_err("creating account", prog_err),
+                },
             }
             glib::Continue(false)
         });
