@@ -25,6 +25,7 @@ use gtk::{
 use uuid::Uuid;
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use lockbook_core::model::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
@@ -129,23 +130,21 @@ impl LbApp {
     fn import_account(&self, privkey: String) {
         self.gui.intro.doing("Importing account...");
 
-        let gui = self.gui.clone();
-        let c = self.core.clone();
+        let (gui, c, m) = (self.gui.clone(), self.core.clone(), self.messenger.clone());
 
         let import_chan = make_glib_chan(move |result: Result<(), String>| {
             match result {
                 Ok(_) => {
-                    let gui = gui.clone();
-                    let cc = c.clone();
+                    let (gui, cc, m) = (gui.clone(), c.clone(), m.clone());
 
                     let sync_chan = make_glib_chan(move |msg| {
                         match msg {
-                            LbSyncMsg::Doing(work) => gui.intro.doing_status(&work),
+                            LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
+                            LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
                                 gui.show_account_screen(&cc);
                                 gui.account.sync().set_status(&cc);
                             }
-                            _ => {}
                         }
                         glib::Continue(true)
                     });
@@ -216,11 +215,19 @@ impl LbApp {
         let acctscr = self.gui.account.clone();
         acctscr.sync().set_syncing(true);
 
+        let m = self.messenger.clone();
+
         let ch = make_glib_chan(move |msg| {
             let sync_ui = acctscr.sync();
             match msg {
-                LbSyncMsg::Doing(work) => sync_ui.doing(&work),
-                LbSyncMsg::Error(err) => sync_ui.error(&format!("error: {}", err)),
+                LbSyncMsg::Doing(work, path, i, total) => {
+                    let prefix = match work {
+                        WorkUnit::LocalChange { metadata: _ } => "Pushing",
+                        WorkUnit::ServerChange { metadata: _ } => "Pulling",
+                    };
+                    sync_ui.doing(&format!("{}: {} ({}/{})", prefix, path, i, total));
+                }
+                LbSyncMsg::Error(err) => m.send_err("syncing", err),
                 LbSyncMsg::Done => {
                     sync_ui.set_syncing(false);
                     sync_ui.set_status(&core);
