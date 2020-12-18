@@ -11,6 +11,7 @@ mod account;
 mod app;
 mod backend;
 mod editmode;
+mod error;
 mod filetree;
 mod intro;
 mod menubar;

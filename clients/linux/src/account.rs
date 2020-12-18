@@ -19,6 +19,7 @@ use crate::editmode::EditMode;
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
+use crate::util;
 
 pub struct AccountScreen {
     header: Header,
@@ -406,8 +407,8 @@ impl Editor {
             ("Children", n_children.to_string()),
         ];
         for (row, (key, val)) in rows.into_iter().enumerate() {
-            grid.attach(&text_right(key), 0, row as i32, 1, 1);
-            grid.attach(&text_left(&val), 1, row as i32, 1, 1);
+            grid.attach(&util::gui::text_right(key), 0, row as i32, 1, 1);
+            grid.attach(&util::gui::text_left(&val), 1, row as i32, 1, 1);
         }
 
         self.info.foreach(|w| self.info.remove(w));
@@ -428,20 +429,6 @@ fn entry_set_primary_icon(entry: &GtkEntry, name: &str) {
 
 fn entry_set_primary_icon_tooltip(entry: &GtkEntry, tooltip: Option<&str>) {
     entry.set_icon_tooltip_text(GtkEntryIconPosition::Primary, tooltip);
-}
-
-pub fn text_right(txt: &str) -> GtkLabel {
-    let l = GtkLabel::new(Some(txt));
-    l.set_halign(GtkAlign::End);
-    l.set_margin_end(4);
-    l
-}
-
-pub fn text_left(txt: &str) -> GtkLabel {
-    let l = GtkLabel::new(Some(txt));
-    l.set_halign(GtkAlign::Start);
-    l.set_margin_start(4);
-    l
 }
 
 const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
