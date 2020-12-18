@@ -17,6 +17,7 @@ pub enum Msg {
     SaveFile,
     CloseFile,
     DeleteFiles,
+    RenameFile,
 
     SearchFieldFocus,
     SearchFieldBlur(bool),

@@ -202,6 +202,12 @@ impl FileTree {
         }
     }
 
+    pub fn set_name(&self, id: &Uuid, name: &str) {
+        if let Some(iter) = self.search(&self.iter(), &id) {
+            self.model.set(&iter, &[0], &[&name.to_string()]);
+        }
+    }
+
     pub fn remove(&self, id: &Uuid) {
         if let Some(iter) = self.search(&self.iter(), &id) {
             self.model.remove(&iter);
@@ -323,11 +329,9 @@ impl FileTreeCol {
     }
 }
 
-type PopupItemAction = MsgFn;
-type ItemData = (&'static str, PopupItemAction);
-
 #[derive(Hash, Eq, PartialEq, Debug)]
 enum PopupItem {
+    Rename,
     Open,
     Delete,
 }
@@ -335,10 +339,10 @@ enum PopupItem {
 impl PopupItem {
     fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
-        for (item_key, (name, action)) in Self::data() {
+        for (item_key, action) in Self::data() {
             let m = m.clone();
 
-            let mi = GtkMenuItem::with_label(name);
+            let mi = GtkMenuItem::with_label(&format!("{:?}", item_key));
             mi.connect_activate(move |_| m.send(action()));
             items.insert(item_key, mi);
         }
@@ -346,15 +350,12 @@ impl PopupItem {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, ItemData)> {
+    fn data() -> Vec<(Self, MsgFn)> {
         vec![
-            (Self::Open, ("Open", || Msg::OpenFile(None))),
-            (Self::Delete, ("Delete", || Msg::DeleteFiles)),
+            (Self::Rename, || Msg::RenameFile),
+            (Self::Open, || Msg::OpenFile(None)),
+            (Self::Delete, || Msg::DeleteFiles),
         ]
-    }
-
-    fn list() -> Vec<Self> {
-        vec![Self::Open, Self::Delete]
     }
 }
 
@@ -367,7 +368,7 @@ impl FileTreePopup {
     fn new(m: &Messenger) -> Self {
         let items = PopupItem::hashmap(&m);
         let menu = GtkMenu::new();
-        for key in &PopupItem::list() {
+        for (key, _) in &PopupItem::data() {
             menu.append(items.get(&key).unwrap());
         }
 
@@ -375,13 +376,20 @@ impl FileTreePopup {
     }
 
     fn update(&self, t: &GtkTreeView) {
-        let (selected_rows, _) = t.get_selection().get_selected_rows();
-        let has_selection = !selected_rows.is_empty();
+        let tsel = t.get_selection();
+        let tmodel = t.get_model().unwrap();
+
+        let (selected_rows, _) = tsel.get_selected_rows();
         let n_selected = selected_rows.len();
 
+        let at_least_1 = n_selected > 0;
+        let only_1 = n_selected == 1;
+        let is_root = tsel.iter_is_selected(&tmodel.get_iter_first().unwrap());
+
         for (key, is_enabled) in &[
-            (PopupItem::Open, n_selected == 1),
-            (PopupItem::Delete, has_selection),
+            (PopupItem::Rename, only_1 && !is_root),
+            (PopupItem::Open, only_1),
+            (PopupItem::Delete, at_least_1),
         ] {
             self.set_enabled(&key, *is_enabled);
         }
