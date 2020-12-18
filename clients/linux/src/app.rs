@@ -29,7 +29,10 @@ use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::LbError::{Program as ProgErr, User as UserErr};
+use crate::error::{
+    LbError,
+    LbError::{Program as ProgErr, User as UserErr},
+};
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
@@ -90,7 +93,7 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::UnexpectedErr(desc, deets) => lb.err(&desc, &deets),
+                Msg::Error(title, err) => lb.err(&title, &err),
             }
             glib::Continue(true)
         });
@@ -183,7 +186,7 @@ impl LbApp {
                 d.set_resizable(false);
                 d.show_all()
             }
-            Err(err) => self.err("Unable to export account", &err),
+            Err(err) => self.err("unable to export account", &ProgErr(err)),
         }
 
         let ch = make_glib_chan(move |path: Result<String, String>| {
@@ -296,7 +299,7 @@ impl LbApp {
                             acctscr.set_saving(false);
                             acctscr.sync().set_status(&core);
                         }
-                        Err(err) => m.send(Msg::UnexpectedErr("saving file".to_string(), err)),
+                        Err(err) => m.send_err("saving file", ProgErr(err)),
                     }
                     glib::Continue(false)
                 });
@@ -447,9 +450,9 @@ impl LbApp {
                         errlbl.set_text(&err);
                         errlbl.show();
                     }
-                    ProgErr(err) => {
+                    prog_err => {
                         d.close();
-                        m.send(Msg::UnexpectedErr("renaming file".to_string(), err));
+                        m.send_err("renaming file", prog_err);
                     }
                 },
             }
@@ -585,22 +588,24 @@ impl LbApp {
                 d.get_content_area().add(&usage);
                 d.show_all();
             }
-            Err(err) => self.err("Unable to get usage", &err),
+            Err(err) => self.err("Unable to get usage", &ProgErr(err)),
         }
     }
 
-    fn err(&self, desc: &str, deets: &str) {
-        let details = util::gui::scrollable(&GtkLabel::new(Some(&deets)));
+    fn err(&self, title: &str, err: &LbError) {
+        let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
         util::gui::set_margin(&details, 16);
 
         let copy = GtkBox::new(Horizontal, 0);
-        copy.set_center_widget(Some(&util::gui::clipboard_btn(&deets)));
+        copy.set_center_widget(Some(&util::gui::clipboard_btn(&err.msg())));
         copy.set_margin_bottom(16);
 
-        let d = self.gui.new_dialog(&format!("Error: {}", desc));
+        let d = self.gui.new_dialog(&format!("Error: {}", title));
         d.set_default_size(500, -1);
         d.get_content_area().add(&details);
-        d.get_content_area().add(&copy);
+        if err.is_prog() {
+            d.get_content_area().add(&copy);
+        }
         d.show_all();
     }
 }
@@ -775,10 +780,7 @@ impl Gui {
                 Some(_) => self.show_account_screen(&core),
                 None => self.show_intro_screen(),
             },
-            Err(err) => m.send(Msg::UnexpectedErr(
-                "unable to load account".to_string(),
-                err,
-            )),
+            Err(err) => m.send_err("unable to load account", ProgErr(err)),
         }
     }
 
