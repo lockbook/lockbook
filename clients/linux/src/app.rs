@@ -29,6 +29,7 @@ use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
+use crate::error::LbError::{Program as ProgErr, User as UserErr};
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
@@ -74,6 +75,7 @@ impl LbApp {
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close_file(),
                 Msg::DeleteFiles => lb.delete_files(),
+                Msg::RenameFile => lb.rename_file(),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
@@ -387,6 +389,73 @@ impl LbApp {
 
         d.close();
         self.gui.account.sync().set_status(&self.core);
+    }
+
+    fn rename_file(&self) {
+        // Get the iterator for the selected tree item.
+        let (selected_tpaths, tmodel) = self.gui.account.tree().selected_rows();
+        let tpath = selected_tpaths.get(0).unwrap();
+        let iter = tmodel.get_iter(&tpath).unwrap();
+
+        // Get the FileMetadata from the iterator.
+        let id = tree_iter_value!(tmodel, &iter, 1, String);
+        let uuid = Uuid::parse_str(&id).unwrap();
+        let meta = self.core.file_by_id(uuid).unwrap();
+
+        let lbl = util::gui::text_left("Enter the new name:");
+        lbl.set_margin_top(12);
+
+        let entry = GtkEntry::new();
+        util::gui::set_marginy(&entry, 16);
+        entry.set_margin_start(8);
+        entry.set_activates_default(true);
+
+        let errlbl = util::gui::text_left("");
+        util::gui::set_widget_name(&errlbl, "err");
+        errlbl.set_margin_start(8);
+        errlbl.set_margin_bottom(8);
+
+        let d = self.gui.new_dialog(&format!("Rename '{}'", meta.name));
+        util::gui::set_marginx(&d.get_content_area(), 16);
+        d.set_default_size(300, -1);
+        d.get_content_area().add(&lbl);
+        d.get_content_area().add(&entry);
+        d.add_button("Ok", GtkResponseType::Ok);
+        d.set_default_response(GtkResponseType::Ok);
+
+        let (acctscr, core, m) = (
+            self.gui.account.clone(),
+            self.core.clone(),
+            self.messenger.clone(),
+        );
+        d.connect_response(move |d, resp| {
+            if resp != GtkResponseType::Ok {
+                d.close();
+                return;
+            }
+
+            let (id, name) = (meta.id, entry.get_text());
+            match core.rename(&id, &name) {
+                Ok(_) => {
+                    d.close();
+                    acctscr.tree().set_name(&id, &name);
+                    acctscr.sync().set_status(&core);
+                }
+                Err(err) => match err {
+                    UserErr(err) => {
+                        util::gui::add(&d.get_content_area(), &errlbl);
+                        errlbl.set_text(&err);
+                        errlbl.show();
+                    }
+                    ProgErr(err) => {
+                        d.close();
+                        m.send(Msg::UnexpectedErr("renaming file".to_string(), err));
+                    }
+                },
+            }
+        });
+
+        d.show_all();
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {
