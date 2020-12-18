@@ -16,9 +16,8 @@ use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    read_document, rename_file, set_last_synced, write_document, AccountExportError,
-    CalculateWorkError, CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError,
-    SetLastSyncedError,
+    read_document, rename_file, set_last_synced, write_document, CalculateWorkError,
+    CreateAccountError, Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
 };
 
 use crate::error::LbResult;
@@ -102,16 +101,11 @@ impl LbCore {
         }
     }
 
-    pub fn export_account(&self) -> Result<String, String> {
-        export_account(&self.config).map_err(|err| match err {
-            CoreError::UiError(AccountExportError::NoAccount) => {
-                "Unable to load account".to_string()
-            }
-            CoreError::Unexpected(msg) => msg,
-        })
+    pub fn export_account(&self) -> LbResult<String> {
+        export_account(&self.config).map_err(errs::export_account::to_lb_error)
     }
 
-    pub fn account_qrcode(&self, chan: &GlibSender<Result<String, String>>) {
+    pub fn account_qrcode(&self, chan: &GlibSender<LbResult<String>>) {
         match self.export_account() {
             Ok(privkey) => {
                 let path = format!("{}/account-qr.png", self.config.writeable_path);
@@ -121,7 +115,7 @@ impl LbCore {
                 }
                 chan.send(Ok(path)).unwrap();
             }
-            Err(err) => chan.send(Err(format!("{:?}", err))).unwrap(),
+            err => chan.send(err).unwrap(),
         }
     }
 
@@ -304,7 +298,7 @@ mod errs {
             use crate::error::LbError;
             use lockbook_core::{Error, Error::UiError, Error::Unexpected};
             use lockbook_core::$enum $( as $rename )?;
-            $( $( use lockbook_core::$enum::$variants as $renames; )+ )*
+            $( $( use lockbook_core::$enum::$variants )+ $( as $renames )?; )*
         };
     }
 
@@ -318,6 +312,17 @@ mod errs {
         ($msg:expr) => {
             LbError::Program($msg)
         };
+    }
+
+    pub mod export_account {
+        imports!(AccountExportError as Exporting, NoAccount);
+
+        pub fn to_lb_error(e: Error<Exporting>) -> LbError {
+            match e {
+                UiError(NoAccount) => user!("No account found"),
+                Unexpected(msg) => prog!(msg),
+            }
+        }
     }
 
     pub mod rename {
