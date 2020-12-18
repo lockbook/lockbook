@@ -16,11 +16,11 @@ use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    read_document, rename_file, set_last_synced, write_document, CalculateWorkError,
-    Error as CoreError, ExecuteWorkError, GetAccountError, SetLastSyncedError,
+    read_document, rename_file, set_last_synced, write_document, Error as CoreError,
+    GetAccountError,
 };
 
-use crate::error::LbResult;
+use crate::error::{LbError, LbResult};
 use crate::util::KILOBYTE;
 
 fn api_url() -> String {
@@ -28,8 +28,8 @@ fn api_url() -> String {
 }
 
 pub enum LbSyncMsg {
-    Doing(String),
-    Error(String),
+    Doing(WorkUnit, String, usize, usize),
+    Error(LbError),
     Done,
 }
 
@@ -206,41 +206,31 @@ impl LbCore {
         rename_file(&self.config, *id, new_name).map_err(errs::rename::to_lb_error)
     }
 
-    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> Result<(), String> {
+    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
         let account = self.account().unwrap().unwrap();
 
         let mut work: WorkCalculated;
         while {
             work = match self.calculate_work() {
                 Ok(w) => w,
-                Err(err) => return Err(format!("{:?}", err)),
+                Err(err) => return Err(err),
             };
             !work.work_units.is_empty()
         } {
-            let mut has_errors = false;
+            let total = work.work_units.len();
 
-            for wu in work.work_units {
-                let (prefix, meta) = match &wu {
-                    WorkUnit::LocalChange { metadata } => ("Pushing", metadata),
-                    WorkUnit::ServerChange { metadata } => ("Pulling", metadata),
-                };
-
-                let path = self.full_path_for(&meta);
-                let action = format!("{}: {}", prefix, path);
-                chan.send(LbSyncMsg::Doing(action.clone())).unwrap();
+            for (i, wu) in work.work_units.iter().enumerate() {
+                let path = self.full_path_for(&wu.get_metadata());
+                chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
+                    .unwrap();
 
                 if let Err(err) = self.do_work(&account, wu) {
-                    chan.send(LbSyncMsg::Error(format!("{}: {:?}", action, err)))
-                        .unwrap();
-                    has_errors = true;
+                    return Err(err);
                 }
             }
 
-            if !has_errors {
-                if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
-                    chan.send(LbSyncMsg::Error(format!("setting last sync: {:?}", err)))
-                        .unwrap();
-                }
+            if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
+                chan.send(LbSyncMsg::Error(err)).unwrap();
             }
         }
 
@@ -248,16 +238,19 @@ impl LbCore {
         Ok(())
     }
 
-    pub fn calculate_work(&self) -> Result<WorkCalculated, CoreError<CalculateWorkError>> {
-        calculate_work(&self.config)
+    pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
+        calculate_work(&self.config).map_err(errs::calc_work::to_lb_error)
     }
 
-    fn do_work(&self, a: &Account, wu: WorkUnit) -> Result<(), CoreError<ExecuteWorkError>> {
-        execute_work(&self.config, &a, wu)
+    fn do_work(&self, a: &Account, wu: &WorkUnit) -> LbResult<()> {
+        execute_work(&self.config, &a, wu.clone()).map_err(errs::exec_work::to_lb_error)
     }
 
-    fn set_last_synced(&self, last_sync: u64) -> Result<(), CoreError<SetLastSyncedError>> {
-        set_last_synced(&self.config, last_sync)
+    fn set_last_synced(&self, last_sync: u64) -> LbResult<()> {
+        set_last_synced(&self.config, last_sync).map_err(|err| match err {
+            CoreError::UiError(lockbook_core::SetLastSyncedError::Stub) => panic!("impossible"),
+            CoreError::Unexpected(msg) => LbError::Program(msg),
+        })
     }
 
     pub fn get_last_synced(&self) -> Result<i64, String> {
@@ -350,6 +343,46 @@ mod errs {
                     NameNotAvail => user!("The new file name is not available."),
                     NameHasSlash => user!("File names cannot contain slashes."),
                     NameIsEmpty => user!("File names cannot be blank."),
+                },
+                Unexpected(msg) => prog!(msg),
+            }
+        }
+    }
+
+    pub mod calc_work {
+        imports!(
+            CalculateWorkError as CalculatingWork,
+            CouldNotReachServer,
+            ClientUpdateRequired,
+            NoAccount
+        );
+
+        pub fn to_lb_error(e: Error<CalculatingWork>) -> LbError {
+            match e {
+                UiError(e) => match e {
+                    CouldNotReachServer => user!("Unable to connect to the server."),
+                    ClientUpdateRequired => user!("Client upgrade required."),
+                    NoAccount => user!("No account found."),
+                },
+                Unexpected(msg) => prog!(msg),
+            }
+        }
+    }
+
+    pub mod exec_work {
+        imports!(
+            ExecuteWorkError as ExecutingWork,
+            CouldNotReachServer,
+            ClientUpdateRequired,
+            BadAccount
+        );
+
+        pub fn to_lb_error(e: Error<ExecutingWork>) -> LbError {
+            match e {
+                UiError(e) => match e {
+                    CouldNotReachServer => user!("Unable to connect to the server."),
+                    ClientUpdateRequired => user!("Client upgrade required."),
+                    BadAccount => user!("wut"),
                 },
                 Unexpected(msg) => prog!(msg),
             }
