@@ -106,7 +106,7 @@ android_fmt: android
 
 .PHONY: kotlin_interface_tests
 kotlin_interface_tests: is_docker_running
-	docker build --target android-kotlin-interface-tests -f containers/Dockerfile.android . --tag kotlin_interface_tests:$(hash)
+	docker build -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests
