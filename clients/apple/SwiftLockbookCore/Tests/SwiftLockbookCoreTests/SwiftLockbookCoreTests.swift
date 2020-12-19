@@ -8,16 +8,14 @@ struct CoreScenario {
     let api: CoreApi
     
     init() {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftLockbookCoreTests", isDirectory: false)
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("SwiftLockbookCoreTests/\(UUID().uuidString)", isDirectory: false)
         api = CoreApi(documentsDirectory: dir.path)
     }
     
     /// Creates a working directory for your testing, deletes if one already exists
     /// - Throws: A file-system error when it cannot perform an operation
     func setUp() throws {
-        if (FileManager.default.fileExists(atPath: dir.path)) {
-            try cleanUp()
-        }
+        try cleanUp()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: .none)
         
     }
@@ -25,7 +23,9 @@ struct CoreScenario {
     /// Deletes the testing directory
     /// - Throws: A file-system error if it can't delete
     func cleanUp() throws {
-        try FileManager.default.removeItem(atPath: dir.path)
+        if (FileManager.default.fileExists(atPath: dir.path)) {
+            try FileManager.default.removeItem(atPath: dir.path)
+        }
     }
 }
 
