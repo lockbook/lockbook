@@ -23,13 +23,6 @@ RUN yes | sdkmanager --licenses
 COPY clients/android clients/android
 COPY core core
 
-# Build Core
-WORKDIR core
-
-# Dependency on core which has compile-time env var
-ENV API_URL=unused
-RUN make android
-
 # Build android
 WORKDIR ../clients/android
 RUN ./gradlew assemble
