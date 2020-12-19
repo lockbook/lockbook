@@ -118,3 +118,4 @@ jobs:
         run: make csharp_interface_tests_run
       - name: Tear Down Stack
         run: make kill_dev_stack
+        if: always()
