@@ -8,6 +8,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cargo-ndk
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
 RUN unzip -q android-ndk-r21c-linux-x86_64.zip
@@ -17,30 +18,26 @@ RUN cd /opt \
     && unzip -q android-sdk-tools.zip -d ${ANDROID_HOME}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools
 RUN yes | sdkmanager --licenses
+
 # Copy android and core in
 COPY clients/android clients/android
 COPY core core
+
 # Build Core
 WORKDIR core
+
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
 RUN make android
+
 # Build android
 WORKDIR ../clients/android
 RUN ./gradlew assemble
 
+# Check formatting
 FROM android-build AS android-fmt
 RUN ./gradlew lintKotlin 
 
+# Check lint
 FROM android-build AS android-lint
 RUN ./gradlew lint
-
-FROM android-build AS android-kotlin-interface-tests
-WORKDIR ../../core
-ENV API_URL=http://lockbook_server:8000
-RUN make linux_jni
-WORKDIR ..
-RUN mkdir -p android/core/src/main/jniLibs/desktop
-RUN mv core/target/release/$(libName) android/core/src/main/jniLibs/desktop/$(libName)
-WORKDIR clients/android
-RUN ./gradlew assemble
