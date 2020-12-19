@@ -1,9 +1,11 @@
-FROM rust
+FROM debian
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
 # Install java
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
-
+# Install rust 
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 # Install android things
 RUN cd /opt \
     && wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip -O android-sdk-tools.zip \
