@@ -57,6 +57,7 @@ services:
       '
     ports:
       - "8000:8000"
+
   integration_tests:
     image: integration_tests:$HASH
     container_name: integration_tests-integration-$HASH
