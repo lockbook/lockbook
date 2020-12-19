@@ -33,3 +33,9 @@ RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clip
 # Run core tests
 FROM core-build AS core-test
 RUN cargo test --release --lib
+
+# Set up for integration tests
+FROM core-build AS integration-tests-build
+ENV API_URL=http://lockbook_server:8000
+RUN touch src/lib.rs
+RUN cargo build --release
