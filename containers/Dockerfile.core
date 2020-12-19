@@ -1,5 +1,7 @@
 FROM rust AS core-build
 
+# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
+RUN rustup toolchain install stable
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
@@ -35,7 +37,7 @@ FROM core-build AS core-test
 RUN cargo test --release --lib
 
 # Set up for integration tests
-FROM core-build AS integration-tests-build
+FROM core-build AS integration-tests
 ENV API_URL=http://lockbook_server:8000
 RUN touch src/lib.rs
 RUN cargo build --release

@@ -1,5 +1,7 @@
 FROM rust AS cli-build
 
+# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
+RUN rustup toolchain install stable
 WORKDIR cli
 
 # CLI depends on core via a relative import

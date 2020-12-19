@@ -86,7 +86,7 @@ linux_test: linux
 
 .PHONY: integration_tests
 integration_tests: is_docker_running
-	docker build --target integration-tests-build -f containers/Dockerfile.core . --tag integration_tests:$(hash)
+	docker build --target integration-tests -f containers/Dockerfile.core . --tag integration_tests:$(hash)
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
