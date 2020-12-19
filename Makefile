@@ -49,6 +49,7 @@ server_tests: is_docker_running
 .PHONY: server_tests_run
 server_tests_run: server server_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
+	exit $$(docker wait server_tests-client-$(hash))
 
 .PHONY: cli
 cli: is_docker_running
@@ -90,7 +91,8 @@ integration_tests: is_docker_running
 
 .PHONY: integration_tests_run
 integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up integration_tests
+	exit $$(docker wait integration_tests-integration-$(hash))
 
 .PHONY: android
 android: is_docker_running
@@ -111,6 +113,7 @@ kotlin_interface_tests: is_docker_running
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up kotlin_interface_tests
+	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
 .PHONY: swift_interface_tests
 swift_interface_tests: is_docker_running
@@ -119,6 +122,7 @@ swift_interface_tests: is_docker_running
 .PHONY: swift_interface_tests_run
 swift_interface_tests_run: server swift_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
+	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
 .PHONY: csharp_interface_tests
 csharp_interface_tests: is_docker_running
@@ -127,6 +131,7 @@ csharp_interface_tests: is_docker_running
 .PHONY: csharp_interface_tests_run
 csharp_interface_tests_run: server csharp_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
+	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
 .PHONY: performance
 performance: is_docker_running
@@ -135,6 +140,7 @@ performance: is_docker_running
 .PHONY: performance_bench
 performance_bench: performance server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
+	exit $$(docker wait performance-$(hash)-$(hash))
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
