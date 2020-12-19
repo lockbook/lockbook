@@ -73,7 +73,7 @@ services:
 
   server_tests:
     image: server_tests:$HASH
-    container_name: server_tests-server-$HASH
+    container_name: server_tests-client-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -125,7 +125,7 @@ services:
 
   performance_bench:
     image: performance:$HASH
-    container_name: performance-$TYPE-$HASH
+    container_name: performance-$HASH-$HASH # TODO
     env_file:
       - ../containers/test.env
     depends_on:
