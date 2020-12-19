@@ -33,4 +33,4 @@ RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clip
 
 # Run core tests
 FROM linux-build AS linux-test
-RUN cargo test --release --lib
+RUN cargo test --release 
