@@ -79,7 +79,7 @@ echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag $current_version \
+	--tag "android $current_version" \
 	--name "Lockbook Android" \
 	--description "Android version of lockbook." \
 	--pre-release
@@ -87,7 +87,7 @@ github-release release \
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag $current_version \
+	--tag "android $current_version" \
 	--name "lockbook-android.apk" \
 	--file lockbook-android.apk
 
@@ -96,7 +96,7 @@ echo $sha_description >> ANDROID-SHA256
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag $current_version \
+	--tag "android $current_version" \
 	--name "android-sha256-$sha" \
 	--file ANDROID-SHA256
 
