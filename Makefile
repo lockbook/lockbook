@@ -74,15 +74,15 @@ linux: is_docker_running
 .PHONY: linux_fmt
 linux_fmt: linux
 	@echo The following files need formatting:
-	docker run linux:$(hash) cargo +stable fmt -- --check -l
+	docker build --target linux-build -f containers/Dockerfile.linux . 
 
 .PHONY: linux_lint
 linux_lint: linux
-	docker run linux:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target linux-lint -f containers/Dockerfile.linux . 
 
 .PHONY: linux_test
 linux_test: linux
-	docker run linux:$(hash) cargo test --release
+	docker build --target linux-test -f containers/Dockerfile.linux . 
 
 .PHONY: integration_tests
 integration_tests: is_docker_running
