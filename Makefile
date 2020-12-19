@@ -48,7 +48,7 @@ server_tests: is_docker_running
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up server_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
 
 .PHONY: cli
 cli: is_docker_running
