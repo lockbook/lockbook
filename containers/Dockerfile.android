@@ -1,19 +1,20 @@
-FROM openjdk:8 AS android-build
+FROM ubuntu:20.04 AS android-build
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
-# Install rust binary compilers for android
+RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
+
+# Install rust things
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cargo-ndk
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-# Install android sdk
+# Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
 RUN unzip -q android-ndk-r21c-linux-x86_64.zip
 ENV ANDROID_NDK_HOME=/android-ndk-r21c
 RUN cd /opt \
     && wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip -O android-sdk-tools.zip \
     && unzip -q android-sdk-tools.zip -d ${ANDROID_HOME}
-
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools
 RUN yes | sdkmanager --licenses
 # Copy android and core in
