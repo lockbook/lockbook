@@ -1,9 +1,11 @@
-FROM rust AS android-build
+FROM debian AS android-build
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
 # Install java
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 # Install rust binary compilers for android
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cargo-ndk
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 # Install android sdk
