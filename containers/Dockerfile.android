@@ -21,10 +21,9 @@ RUN yes | sdkmanager --licenses
 
 # Copy android and core in
 COPY clients/android clients/android
-COPY core core
 
 # Build android
-WORKDIR ../clients/android
+WORKDIR clients/android
 RUN ./gradlew assemble
 
 # Check formatting
@@ -34,3 +33,22 @@ RUN ./gradlew lintKotlin
 # Check lint
 FROM android-build AS android-lint
 RUN ./gradlew lint
+
+FROM android-build AS kotlin-interface-tests
+
+# Build Core
+WORKDIR ../..
+COPY core core
+WORKDIR core
+ENV API_URL=http://lockbook_server:8000
+RUN make linux_jni
+
+# Move android binary for tests
+WORKDIR ..
+COPY clients/android clients/android
+RUN mkdir -p clients/android/core/src/main/jniLibs/desktop
+RUN mv core/target/release/$(libName) clients/android/core/src/main/jniLibs/desktop/$(libName)
+
+# Build android
+WORKDIR clients/android
+RUN ./gradlew assemble
