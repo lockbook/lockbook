@@ -107,14 +107,19 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Remove Other Stacks
+        if: always()
         run: make kill_dev_stack
       - name: DB Assertions
+        if: always()
         run: make server_tests_run
       - name: Kotlin Integration Tests
+        if: always()
         run: make kotlin_interface_tests_run
       - name: Swift Integration Tests
+        if: always()
         run: make swift_interface_tests_run
       - name: CSharp Integration Tests
+        if: always()
         run: make csharp_interface_tests_run
       - name: Tear Down Stack
         run: make kill_dev_stack
