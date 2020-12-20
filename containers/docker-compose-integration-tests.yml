@@ -55,8 +55,6 @@ services:
         sleep 5 && \
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
-    ports:
-      - "8000:8000"
 
   integration_tests:
     image: integration_tests:$HASH
