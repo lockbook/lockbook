@@ -166,6 +166,7 @@ jobs:
   Clean-Up:
     runs-on: [self-hosted, dockerized]
     needs: [Core-Server-Db, Server-DB, Kotlin-Core, Swift-Core, CSharp-Core]
+    if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
