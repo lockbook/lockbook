@@ -174,3 +174,6 @@ jobs:
       - name: Tear Down Stack
         run: make kill_dev_stack
         if: always()
+      - name: Tear Down Stack
+        run: make kill_dev_stack
+        if: always()
