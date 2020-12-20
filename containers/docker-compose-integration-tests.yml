@@ -118,7 +118,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        ./gradlew test -i \
+        ./gradlew test \
       '
 
   performance_bench:
