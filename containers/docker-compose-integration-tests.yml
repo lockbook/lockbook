@@ -123,7 +123,7 @@ services:
 
   performance_bench:
     image: performance:$HASH
-    container_name: performance-$HASH-$HASH # TODO
+    container_name: performance-$TYPE-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
