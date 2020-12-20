@@ -156,6 +156,7 @@ db_container: is_docker_running
 .PHONY: dev_stack_run
 dev_stack_run: server db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate lockbook_server --detach
+	sleep 5
 
 .PHONY: kill_dev_stack
 kill_dev_stack:
