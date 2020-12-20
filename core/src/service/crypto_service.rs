@@ -60,6 +60,7 @@ pub trait PubKeyCryptoService {
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
         max_delay_ms: u64,
+        max_skew_ms: u64,
     ) -> Result<(), RSAVerifyError>;
 }
 
@@ -116,6 +117,7 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
         max_delay_ms: u64,
+        max_skew_ms: u64
     ) -> Result<(), RSAVerifyError> {
         if public_key != &to_verify.public_key {
             return Err(RSAVerifyError::WrongPublicKey);
@@ -123,13 +125,13 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
 
         let auth_time = to_verify.timestamped_value.timestamp;
         let current_time = Time::get_time();
-        if current_time < auth_time {
-            // TODO: introduce tolerance?
+        let max_delay_ms = max_delay_ms as i64;
+        let max_skew_ms = max_skew_ms as i64;
+        if current_time < auth_time - max_skew_ms {
             return Err(RSAVerifyError::SignatureInTheFuture(
-                (current_time - auth_time) as u64,
+                (current_time - (auth_time - max_delay_ms)) as u64,
             ));
         }
-        let max_delay_ms = max_delay_ms as i64;
         if current_time > auth_time + max_delay_ms {
             return Err(RSAVerifyError::SignatureExpired(
                 (auth_time + max_delay_ms - current_time) as u64,
@@ -189,7 +191,7 @@ mod unit_test_pubkey {
     fn test_sign_verify() {
         let key = RSAImpl::<EarlyClock>::generate_key().unwrap();
         let value = RSAImpl::<EarlyClock>::sign(&key, "Test").unwrap();
-        RSAImpl::<LateClock>::verify(&key.to_public_key(), &value, 20).unwrap();
+        RSAImpl::<LateClock>::verify(&key.to_public_key(), &value, 20, 20).unwrap();
     }
 
     #[test]

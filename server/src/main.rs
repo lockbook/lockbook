@@ -33,6 +33,7 @@ use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
 static MAX_SIGNATURE_DELAY_MS: u64 = 60000;
+static MAX_SIGNATURE_SKEW_MS: u64 = 5000;
 
 pub struct ServerState {
     pub config: config::Config,
@@ -285,7 +286,7 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
 
     match verify_auth(&request) {
         Ok(()) => {}
-        Err(RSAVerifyError::SignatureExpired(_)) => {
+        Err(RSAVerifyError::SignatureExpired(_)) | Err(RSAVerifyError::SignatureInTheFuture(_)) => {
             return Err(ErrorWrapper::<TRequest::Error>::ExpiredAuth);
         }
         Err(_) => {
@@ -345,6 +346,7 @@ fn verify_auth<TRequest: Request + Serialize>(
         &request.signed_request.public_key,
         &request.signed_request,
         MAX_SIGNATURE_DELAY_MS,
+        MAX_SIGNATURE_SKEW_MS,
     )
 }
 
