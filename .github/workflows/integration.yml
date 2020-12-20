@@ -103,6 +103,10 @@ jobs:
       run: make csharp_interface_tests
     - name: Swift
       run: make swift_interface_tests
+    - name: DB Config Image
+      run: make db_container
+    - name: Spin up dev stack
+      run: make dev_stack_run
 
   Core-Server-Db:
     runs-on: [self-hosted, dockerized]
@@ -115,6 +119,7 @@ jobs:
       - name: Core-Server-DB Integration Tests
         if: always()
         run: make server_tests_run
+
   Server-DB:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
@@ -126,6 +131,7 @@ jobs:
       - name: Server-DB
         if: always()
         run: make server_tests_run
+
   Kotlin-Core:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
@@ -161,7 +167,6 @@ jobs:
       - name: CSharp-Core
         if: always()
         run: make csharp_interface_tests_run
-
 
   Clean-Up:
     runs-on: [self-hosted, dockerized]
