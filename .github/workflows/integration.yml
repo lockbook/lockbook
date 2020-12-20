@@ -121,7 +121,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
-      steps:
+    steps:
+      - uses: actions/checkout@v2
       - name: Server <-> DB
         if: always()
         run: make server_tests_run
@@ -131,7 +132,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
-      steps:
+    steps:
+      - uses: actions/checkout@v2
       - name: Kotlin <-> Core
         if: always()
         run: make kotlin_interface_tests_run
@@ -142,7 +144,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
-      steps:
+    steps:
+      - uses: actions/checkout@v2
       - name: Swift <-> Core
         if: always()
         run: make swift_interface_tests_run
@@ -153,7 +156,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
-      steps:
+    steps:
+      - uses: actions/checkout@v2
       - name: CSharp <-> Core
         if: always()
         run: make csharp_interface_tests_run
@@ -165,7 +169,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
-      steps:
+    steps:
+      - uses: actions/checkout@v2
       - name: Tear Down Stack
         run: make kill_dev_stack
         if: always()
