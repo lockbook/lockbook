@@ -77,7 +77,7 @@ services:
     env_file:
       - ../containers/test.env
     depends_on:
-      - indexdb
+      - lockbook_server
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
