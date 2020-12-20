@@ -24,6 +24,7 @@ jobs:
       run: make core_fmt
     - name: Lint
       run: make core_lint
+
   Cli:
     runs-on: [self-hosted, dockerized]
     env:
@@ -39,6 +40,7 @@ jobs:
       run: make cli_fmt
     - name: Lint
       run: make cli_lint
+
   Linux:
     runs-on: [self-hosted, dockerized]
     env:
@@ -54,6 +56,7 @@ jobs:
       run: make linux_lint
     - name: Compile and run tests
       run: make linux_test
+
   Android:
     runs-on: [self-hosted, dockerized]
     env:
@@ -67,6 +70,7 @@ jobs:
         run: make android_fmt
       - name: Lint
         run: make android_lint
+
   Server:
     runs-on: [self-hosted, dockerized]
     env:
@@ -80,6 +84,7 @@ jobs:
         run: make server_fmt
       - name: Lint
         run: make server_lint
+
   Integration-Test-Containers:
     runs-on: [self-hosted, dockerized]
     needs: Server
@@ -98,7 +103,8 @@ jobs:
       run: make csharp_interface_tests
     - name: Swift
       run: make swift_interface_tests
-  Integration-Tests:
+
+  Core <-> Server <-> Db:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -109,18 +115,57 @@ jobs:
       - name: Core <-> Server <-> DB Integration Tests
         if: always()
         run: make server_tests_run
+  Server <-> DB:
+    runs-on: [self-hosted, dockerized]
+    needs: Integration-Test-Containers
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+      steps:
       - name: Server <-> DB
         if: always()
         run: make server_tests_run
+  Kotlin <-> Core:
+    runs-on: [self-hosted, dockerized]
+    needs: Integration-Test-Containers
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+      steps:
       - name: Kotlin <-> Core
         if: always()
         run: make kotlin_interface_tests_run
+
+  Swift <-> Core:
+    runs-on: [self-hosted, dockerized]
+    needs: Integration-Test-Containers
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+      steps:
       - name: Swift <-> Core
         if: always()
         run: make swift_interface_tests_run
+
+  CSharp <-> Core:
+    runs-on: [self-hosted, dockerized]
+    needs: Integration-Test-Containers
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+      steps:
       - name: CSharp <-> Core
         if: always()
         run: make csharp_interface_tests_run
+
+
+  Clean Up:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core <-> Server <-> Db, Server <-> DB, Kotlin <-> Core, Swift <-> Core, CSharp <-> Core]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+      steps:
       - name: Tear Down Stack
         run: make kill_dev_stack
         if: always()
