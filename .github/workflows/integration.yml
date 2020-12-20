@@ -106,9 +106,6 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Remove Other Stacks
-        if: always()
-        run: make kill_dev_stack
       - name: Core <-> Server <-> DB Integration Tests
         if: always()
         run: make server_tests_run
