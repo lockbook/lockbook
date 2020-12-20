@@ -109,16 +109,19 @@ jobs:
       - name: Remove Other Stacks
         if: always()
         run: make kill_dev_stack
-      - name: DB Assertions
+      - name: Core <-> Server <-> DB Integration Tests
         if: always()
         run: make server_tests_run
-      - name: Kotlin Integration Tests
+      - name: Server <-> DB
+        if: always()
+        run: make server_tests_run
+      - name: Kotlin <-> Core
         if: always()
         run: make kotlin_interface_tests_run
-      - name: Swift Integration Tests
+      - name: Swift <-> Core
         if: always()
         run: make swift_interface_tests_run
-      - name: CSharp Integration Tests
+      - name: CSharp <-> Core
         if: always()
         run: make csharp_interface_tests_run
       - name: Tear Down Stack
