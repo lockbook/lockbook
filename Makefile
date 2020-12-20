@@ -47,7 +47,7 @@ server_tests: is_docker_running
 	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash)
 
 .PHONY: server_tests_run
-server_tests_run: server server_tests
+server_tests_run: server server_tests db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate server_tests
 	exit $$(docker wait server_tests-client-$(hash))
 
@@ -90,7 +90,7 @@ integration_tests: is_docker_running
 	docker build --target integration-tests -f containers/Dockerfile.core . --tag integration_tests:$(hash)
 
 .PHONY: integration_tests_run
-integration_tests_run: integration_tests server
+integration_tests_run: integration_tests server db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up integration_tests
 	exit $$(docker wait integration_tests-integration-$(hash))
 
@@ -111,7 +111,7 @@ kotlin_interface_tests: is_docker_running
 	docker build --target kotlin-interface-tests -f containers/Dockerfile.android . --tag kotlin_interface_tests:$(hash)
 
 .PHONY: kotlin_interface_tests_run
-kotlin_interface_tests_run: server kotlin_interface_tests
+kotlin_interface_tests_run: server kotlin_interface_tests db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate kotlin_interface_tests
 	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
@@ -120,7 +120,7 @@ swift_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.swift_interface_tests . --tag swift_interface_tests:$(hash)
 
 .PHONY: swift_interface_tests_run
-swift_interface_tests_run: server swift_interface_tests
+swift_interface_tests_run: server swift_interface_tests db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate swift_interface_tests
 	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
@@ -129,7 +129,7 @@ csharp_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash)
 
 .PHONY: csharp_interface_tests_run
-csharp_interface_tests_run: server csharp_interface_tests
+csharp_interface_tests_run: server csharp_interface_tests db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate csharp_interface_tests
 	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
@@ -138,7 +138,7 @@ performance: is_docker_running
 	docker build -f containers/Dockerfile.performance . --tag performance:$(hash)
 
 .PHONY: performance_bench
-performance_bench: performance server
+performance_bench: performance server db_container
 	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate performance_bench
 	exit $$(docker wait performance-performance-$(hash))
 
@@ -146,8 +146,12 @@ performance_bench: performance server
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
 
+.PHONY: db_container
+db_container: is_docker_running
+	HASH=$(hash) docker build -f containers/Dockerfile.db . --tag db_with_migration-$(hash)
+
 .PHONY: dev_stack_run
-dev_stack_run: server
+dev_stack_run: server db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate lockbook_server
 
 .PHONY: kill_dev_stack
