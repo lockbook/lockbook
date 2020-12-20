@@ -70,7 +70,7 @@ impl LbCore {
         }
     }
 
-    pub fn create_account(&self, uname: &str) -> LbResult<()> {
+    pub fn create_account(&self, uname: &str) -> LbResult<Account> {
         create_account(&self.config, &uname, &api_url())
             .map_err(|err| errs::create_account::to_lb_error(err, uname))
     }
