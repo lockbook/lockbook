@@ -1,9 +1,9 @@
 FROM rust
 
+RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
 WORKDIR core
-
 
 # Getting libunwind and gperftools
 RUN mkdir -p /deps
