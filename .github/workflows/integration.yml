@@ -163,7 +163,7 @@ jobs:
         run: make csharp_interface_tests_run
 
 
-  Clean Up:
+  Clean-Up:
     runs-on: [self-hosted, dockerized]
     needs: [Core-Server-Db, Server-DB, Kotlin-Core, Swift-Core, CSharp-Core]
     env:
