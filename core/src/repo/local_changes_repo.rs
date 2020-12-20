@@ -8,6 +8,7 @@ use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 use crate::service::clock_service::Clock;
 use crate::storage::db_provider;
 use crate::storage::db_provider::Backend;
+use std::{thread, time};
 
 #[derive(Debug)]
 pub enum DbError {
@@ -275,6 +276,9 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
     }
 
     fn track_delete(backend: &Backend, id: Uuid, file_type: FileType) -> Result<(), DbError> {
+        // Added to ensure that a prior move is at least 1ms older than this delete
+        thread::sleep(time::Duration::from_millis(1));
+
         match Self::get_local_changes(backend, id)? {
             None => {
                 let new_local_change = LocalChange {
