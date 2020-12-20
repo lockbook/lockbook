@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM core-build AS csharp-interface-tests
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install essentials
@@ -20,19 +20,11 @@ RUN apt-get install -y apt-transport-https
 RUN apt-get update
 RUN apt-get install -y dotnet-sdk-3.1
 
-# Install rust things
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
 # Copy code
-COPY core core
 COPY clients/windows ../clients/windows
-
-# Build core
-WORKDIR core
-ENV API_URL=http://lockbook_server:8000
-RUN make lib_c_for_windows
+COPY target/release/liblockbook_core.so ../clients/windows/core/
 
 # Build tests
+ENV API_URL=http://lockbook_server:8000
 WORKDIR ../clients/windows/test 
 RUN dotnet build
