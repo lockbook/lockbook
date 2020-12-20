@@ -117,7 +117,7 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
         public_key: &RSAPublicKey,
         to_verify: &RSASigned<T>,
         max_delay_ms: u64,
-        max_skew_ms: u64
+        max_skew_ms: u64,
     ) -> Result<(), RSAVerifyError> {
         if public_key != &to_verify.public_key {
             return Err(RSAVerifyError::WrongPublicKey);
