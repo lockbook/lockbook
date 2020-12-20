@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 AS android-start
+FROM ubuntu:20.04 AS android-build
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
@@ -16,15 +16,13 @@ RUN yes | sdkmanager --licenses
 # Copy android in
 COPY clients/android clients/android
 WORKDIR clients/android
-
-# Build android
-FROM android-start AS android-build
 RUN ./gradlew assemble
 
+
 # Check formatting
-FROM android-start AS android-fmt
+FROM android-build AS android-fmt
 RUN ./gradlew lintKotlin 
 
 # Check lint
-FROM android-start AS android-lint
+FROM android-build AS android-lint
 RUN ./gradlew lint
