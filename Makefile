@@ -139,8 +139,8 @@ performance: is_docker_running
 
 .PHONY: performance_bench
 performance_bench: performance server
-	HASH=$(hash) TYPE="performace" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
-	exit $$(docker wait performance-performace-$(hash))
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
+	exit $$(docker wait performance-performance-$(hash))
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
