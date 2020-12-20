@@ -131,53 +131,42 @@ pub fn create_account(
     config: &Config,
     username: &str,
     api_url: &str,
-) -> Result<(), Error<CreateAccountError>> {
+) -> Result<Account, Error<CreateAccountError>> {
     let backend = &Backend::File(config);
 
-    match DefaultAccountService::create_account(backend, username, api_url) {
-        Ok(_) => Ok(()),
-        Err(err) => match err {
-            AccountCreationError::AccountExistsAlready => {
-                Err(Error::UiError(CreateAccountError::AccountExistsAlready))
-            }
-            AccountCreationError::ApiError(network) => match network {
-                ApiError::Endpoint(api_err) => match api_err {
-                    NewAccountError::UsernameTaken => {
-                        Err(Error::UiError(CreateAccountError::UsernameTaken))
-                    }
-                    NewAccountError::InvalidUsername => {
-                        Err(Error::UiError(CreateAccountError::InvalidUsername))
-                    }
-                    NewAccountError::InvalidPublicKey
-                    | NewAccountError::InvalidUserAccessKey
-                    | NewAccountError::FileIdTaken => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::SendFailed(_) => {
-                    Err(Error::UiError(CreateAccountError::CouldNotReachServer))
+    DefaultAccountService::create_account(backend, username, api_url).map_err(|e| match e {
+        AccountCreationError::AccountExistsAlready => {
+            Error::UiError(CreateAccountError::AccountExistsAlready)
+        }
+        AccountCreationError::ApiError(network) => match network {
+            ApiError::Endpoint(api_err) => match api_err {
+                NewAccountError::UsernameTaken => Error::UiError(CreateAccountError::UsernameTaken),
+                NewAccountError::InvalidUsername => {
+                    Error::UiError(CreateAccountError::InvalidUsername)
                 }
-                ApiError::ClientUpdateRequired => {
-                    Err(Error::UiError(CreateAccountError::ClientUpdateRequired))
-                }
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_)
-                | ApiError::InternalError
-                | ApiError::BadRequest
-                | ApiError::InvalidAuth
-                | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", network))),
+                NewAccountError::InvalidPublicKey
+                | NewAccountError::InvalidUserAccessKey
+                | NewAccountError::FileIdTaken => Error::Unexpected(format!("{:#?}", api_err)),
             },
-            AccountCreationError::KeyGenerationError(_)
-            | AccountCreationError::AccountRepoError(_)
-            | AccountCreationError::FolderError(_)
-            | AccountCreationError::MetadataRepoError(_)
-            | AccountCreationError::KeySerializationError(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
+            ApiError::SendFailed(_) => Error::UiError(CreateAccountError::CouldNotReachServer),
+            ApiError::ClientUpdateRequired => {
+                Error::UiError(CreateAccountError::ClientUpdateRequired)
             }
+            ApiError::Serialize(_)
+            | ApiError::ReceiveFailed(_)
+            | ApiError::Deserialize(_)
+            | ApiError::Sign(_)
+            | ApiError::InternalError
+            | ApiError::BadRequest
+            | ApiError::InvalidAuth
+            | ApiError::ExpiredAuth => Error::Unexpected(format!("{:#?}", network)),
         },
-    }
+        AccountCreationError::KeyGenerationError(_)
+        | AccountCreationError::AccountRepoError(_)
+        | AccountCreationError::FolderError(_)
+        | AccountCreationError::MetadataRepoError(_)
+        | AccountCreationError::KeySerializationError(_) => Error::Unexpected(format!("{:#?}", e)),
+    })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -190,50 +179,42 @@ pub enum ImportError {
     ClientUpdateRequired,
 }
 
-pub fn import_account(config: &Config, account_string: &str) -> Result<(), Error<ImportError>> {
+pub fn import_account(
+    config: &Config,
+    account_string: &str,
+) -> Result<Account, Error<ImportError>> {
     let backend = &Backend::File(config);
 
-    match DefaultAccountService::import_account(backend, account_string) {
-        Ok(_) => Ok(()),
-        Err(err) => match err {
-            AccountImportError::AccountStringCorrupted(_)
-            | AccountImportError::AccountStringFailedToDeserialize(_)
-            | AccountImportError::InvalidPrivateKey(_) => {
-                Err(Error::UiError(ImportError::AccountStringCorrupted))
-            }
-            AccountImportError::AccountExistsAlready => {
-                Err(Error::UiError(ImportError::AccountExistsAlready))
-            }
-            AccountImportError::PublicKeyMismatch => {
-                Err(Error::UiError(ImportError::UsernamePKMismatch))
-            }
-            AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
-                ApiError::SendFailed(_) => Err(Error::UiError(ImportError::CouldNotReachServer)),
-                ApiError::Endpoint(api_err) => match api_err {
-                    GetPublicKeyError::UserNotFound => {
-                        Err(Error::UiError(ImportError::AccountDoesNotExist))
-                    }
-                    GetPublicKeyError::InvalidUsername => {
-                        Err(Error::Unexpected(format!("{:#?}", api_err)))
-                    }
-                },
-                ApiError::ClientUpdateRequired => {
-                    Err(Error::UiError(ImportError::ClientUpdateRequired))
-                }
-                ApiError::Serialize(_)
-                | ApiError::ReceiveFailed(_)
-                | ApiError::Deserialize(_)
-                | ApiError::Sign(_)
-                | ApiError::InternalError
-                | ApiError::BadRequest
-                | ApiError::InvalidAuth
-                | ApiError::ExpiredAuth => Err(Error::Unexpected(format!("{:#?}", client_err))),
+    DefaultAccountService::import_account(backend, account_string).map_err(|e| match e {
+        AccountImportError::AccountStringCorrupted(_)
+        | AccountImportError::AccountStringFailedToDeserialize(_)
+        | AccountImportError::InvalidPrivateKey(_) => {
+            Error::UiError(ImportError::AccountStringCorrupted)
+        }
+        AccountImportError::AccountExistsAlready => {
+            Error::UiError(ImportError::AccountExistsAlready)
+        }
+        AccountImportError::PublicKeyMismatch => Error::UiError(ImportError::UsernamePKMismatch),
+        AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
+            ApiError::SendFailed(_) => Error::UiError(ImportError::CouldNotReachServer),
+            ApiError::Endpoint(api_err) => match api_err {
+                GetPublicKeyError::UserNotFound => Error::UiError(ImportError::AccountDoesNotExist),
+                GetPublicKeyError::InvalidUsername => Error::Unexpected(format!("{:#?}", api_err)),
             },
-            AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoError(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
-            }
+            ApiError::ClientUpdateRequired => Error::UiError(ImportError::ClientUpdateRequired),
+            ApiError::Serialize(_)
+            | ApiError::ReceiveFailed(_)
+            | ApiError::Deserialize(_)
+            | ApiError::Sign(_)
+            | ApiError::InternalError
+            | ApiError::BadRequest
+            | ApiError::InvalidAuth
+            | ApiError::ExpiredAuth => Error::Unexpected(format!("{:#?}", client_err)),
         },
-    }
+        AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoError(_) => {
+            Error::Unexpected(format!("{:#?}", e))
+        }
+    })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
