@@ -85,7 +85,7 @@ jobs:
       - name: Lint
         run: make server_lint
 
-  Prep Integration Tests:
+  Prep-Integration-Tests:
     runs-on: [self-hosted, dockerized]
     needs: Server
     env:
