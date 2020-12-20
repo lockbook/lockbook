@@ -104,7 +104,7 @@ jobs:
     - name: Swift
       run: make swift_interface_tests
 
-  Core <-> Server <-> Db:
+  Core-Server-Db:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -112,10 +112,10 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Core <-> Server <-> DB Integration Tests
+      - name: Core-Server-DB Integration Tests
         if: always()
         run: make server_tests_run
-  Server <-> DB:
+  Server-DB:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -123,10 +123,10 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Server <-> DB
+      - name: Server-DB
         if: always()
         run: make server_tests_run
-  Kotlin <-> Core:
+  Kotlin-Core:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -134,11 +134,11 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Kotlin <-> Core
+      - name: Kotlin-Core
         if: always()
         run: make kotlin_interface_tests_run
 
-  Swift <-> Core:
+  Swift-Core:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -146,11 +146,11 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: Swift <-> Core
+      - name: Swift-Core
         if: always()
         run: make swift_interface_tests_run
 
-  CSharp <-> Core:
+  CSharp-Core:
     runs-on: [self-hosted, dockerized]
     needs: Integration-Test-Containers
     env:
@@ -158,14 +158,14 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v2
-      - name: CSharp <-> Core
+      - name: CSharp-Core
         if: always()
         run: make csharp_interface_tests_run
 
 
   Clean Up:
     runs-on: [self-hosted, dockerized]
-    needs: [Core <-> Server <-> Db, Server <-> DB, Kotlin <-> Core, Swift <-> Core, CSharp <-> Core]
+    needs: [Core-Server-Db, Server-DB, Kotlin-Core, Swift-Core, CSharp-Core]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
