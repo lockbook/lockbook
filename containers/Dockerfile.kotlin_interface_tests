@@ -2,7 +2,7 @@ ARG HASH
 FROM core:${HASH}  AS kotlin-interface-tests
 
 ENV ANDROID_HOME /opt/android-sdk-linux
-RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
+RUN apt update && apt -y install default-jdk 
 
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
