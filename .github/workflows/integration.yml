@@ -87,7 +87,7 @@ jobs:
 
   Prep-Integration-Tests:
     runs-on: [self-hosted, dockerized]
-    needs: Server
+    needs: [Core, Server]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
