@@ -85,7 +85,7 @@ jobs:
       - name: Lint
         run: make server_lint
 
-  Integration-Test-Containers:
+  Prep-Integration-Tests:
     runs-on: [self-hosted, dockerized]
     needs: Server
     env:
@@ -103,10 +103,14 @@ jobs:
       run: make csharp_interface_tests
     - name: Swift
       run: make swift_interface_tests
+    - name: DB Config Image
+      run: make db_container
+    - name: Spin up dev stack
+      run: make dev_stack_run
 
   Core-Server-Db:
     runs-on: [self-hosted, dockerized]
-    needs: Integration-Test-Containers
+    needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -115,9 +119,10 @@ jobs:
       - name: Core-Server-DB Integration Tests
         if: always()
         run: make server_tests_run
+
   Server-DB:
     runs-on: [self-hosted, dockerized]
-    needs: Integration-Test-Containers
+    needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -126,9 +131,10 @@ jobs:
       - name: Server-DB
         if: always()
         run: make server_tests_run
+
   Kotlin-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Integration-Test-Containers
+    needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -140,7 +146,7 @@ jobs:
 
   Swift-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Integration-Test-Containers
+    needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -152,7 +158,7 @@ jobs:
 
   CSharp-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Integration-Test-Containers
+    needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BRANCH: ${{ github.head_ref }}
@@ -161,7 +167,6 @@ jobs:
       - name: CSharp-Core
         if: always()
         run: make csharp_interface_tests_run
-
 
   Clean-Up:
     runs-on: [self-hosted, dockerized]
@@ -175,6 +180,6 @@ jobs:
       - name: Tear Down Stack
         run: make kill_dev_stack
         if: always()
-      - name: Tear Down Stack
-        run: make kill_dev_stack
+      - name: Cleanup Stale Things
+        run: make clean
         if: always()
