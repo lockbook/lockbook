@@ -1,4 +1,6 @@
-FROM core-build AS kotlin-interface-tests
+ARG HASH
+FROM ubuntu:20.04  AS kotlin-interface-tests
+
 ENV ANDROID_HOME /opt/android-sdk-linux
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 
@@ -22,7 +24,7 @@ ENV API_URL=http://lockbook_server:8000
 
 # Move binaries for tests
 RUN mkdir -p core/src/main/jniLibs/desktop
-RUN mv ../../core/target/release/$(libName) core/src/main/jniLibs/desktop/$(libName)
+COPY --from=core:${HASH} core/target/release/liblockbook_core.so  core/src/main/jniLibs/desktop/liblockbook_core.so
 
 # Build android
 RUN ./gradlew assemble

@@ -111,7 +111,7 @@ android_fmt: android
 
 .PHONY: kotlin_interface_tests
 kotlin_interface_tests: is_docker_running
-	docker build --target kotlin-interface-tests -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
+	docker build --target kotlin-interface-tests -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests db_container
@@ -129,7 +129,7 @@ swift_interface_tests_run: server swift_interface_tests db_container
 
 .PHONY: csharp_interface_tests
 csharp_interface_tests: is_docker_running
-	docker build --target csharp-interface-tests -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash)
+	docker build --target csharp-interface-tests -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: csharp_interface_tests_run
 csharp_interface_tests_run: server csharp_interface_tests db_container
