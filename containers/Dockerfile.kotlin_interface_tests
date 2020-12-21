@@ -2,7 +2,9 @@ ARG HASH
 FROM core:${HASH}  AS kotlin-interface-tests
 
 ENV ANDROID_HOME /opt/android-sdk-linux
-RUN apt update && apt -y install openjdk-11-jdk
+RUN apt-get update && apt-get -y install software-properties-common
+RUN apt-add-repository 'deb http://security.debian.org/debian-security stretch/updates main' && apt-get update
+RUN apt-get -y install openjdk-8-jdk
 
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
