@@ -1,3 +1,4 @@
+ARG HASH
 FROM rust AS core-build
 
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
@@ -23,21 +24,21 @@ RUN touch src/lib.rs
 RUN cargo build --release
 
 # Check the formatting of core
-FROM core-build AS core-fmt
+FROM core:${HASH} AS core-fmt
 RUN rustup component add rustfmt --toolchain stable
 RUN cargo +stable fmt -- --check -l
 
 # Check the lint of core
-FROM core-build AS core-lint
+FROM core:${HASH} AS core-lint
 RUN rustup component add clippy --toolchain stable
 RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 # Run core tests
-FROM core-build AS core-test
+FROM core:${HASH} AS core-test
 RUN cargo test --release --lib
 
 # Set up for integration tests
-FROM core-build AS integration-tests
+FROM core:${HASH} AS integration-tests
 ENV API_URL=http://lockbook_server:8000
 RUN touch src/lib.rs
 RUN cargo build --release

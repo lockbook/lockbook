@@ -1,3 +1,4 @@
+ARG HASH
 FROM ubuntu:20.04 AS android-build
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
@@ -20,9 +21,9 @@ RUN ./gradlew assemble
 
 
 # Check formatting
-FROM android-build AS android-fmt
+FROM android:${HASH} AS android-fmt
 RUN ./gradlew lintKotlin 
 
 # Check lint
-FROM android-build AS android-lint
+FROM android:${HASH} AS android-lint
 RUN ./gradlew lint
