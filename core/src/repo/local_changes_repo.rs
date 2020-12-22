@@ -276,7 +276,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
     }
 
     fn track_delete(backend: &Backend, id: Uuid, file_type: FileType) -> Result<(), DbError> {
-        // Added to ensure that a prior move is at least 1ms older than this delete operation
+        // Added to ensure that a prior move is at least 1ms older than this delete
         thread::sleep(time::Duration::from_millis(1));
 
         match Self::get_local_changes(backend, id)? {
