@@ -24,11 +24,11 @@ RUN apt-get install -y dotnet-sdk-3.1
 WORKDIR /
 
 # Copy code
-COPY clients/windows .
-RUN mkdir -p windows/core/
-RUN cp core/target/release/liblockbook_core.so  windows/core
+COPY clients/windows clients/windows
+RUN mkdir -p /clients/windows/core/
+RUN cp /core/target/release/liblockbook_core.so  /clients/windows/core
 
 # Build tests
 ENV API_URL=http://lockbook_server:8000
-WORKDIR /windows/test 
+WORKDIR /clients/windows/test 
 RUN dotnet build
