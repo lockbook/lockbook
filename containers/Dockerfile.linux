@@ -1,3 +1,4 @@
+ARG HASH
 FROM debian AS linux-build
 
 RUN apt update -y
@@ -29,15 +30,15 @@ RUN touch src/main.rs
 RUN cargo build --release
 
 # Check the formatting of core
-FROM linux-build AS linux-fmt
+FROM linux:${HASH} AS linux-fmt
 RUN rustup component add rustfmt --toolchain stable
 RUN cargo +stable fmt -- --check -l
 
 # Check the lint of core
-FROM linux-build AS linux-lint
+FROM linux:${HASH} AS linux-lint
 RUN rustup component add clippy --toolchain stable
 RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 # Run core tests
-FROM linux-build AS linux-test
+FROM linux:${HASH} AS linux-test
 RUN cargo test --release 
