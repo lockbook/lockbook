@@ -3,6 +3,9 @@ FROM rust AS core-build
 
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
+RUN rustup component add clippy --toolchain stable
+RUN rustup component add rustfmt --toolchain stable
+
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
@@ -25,12 +28,10 @@ RUN cargo build --release
 
 # Check the formatting of core
 FROM core:${HASH} AS core-fmt
-RUN rustup component add rustfmt --toolchain stable
 RUN cargo +stable fmt -- --check -l
 
 # Check the lint of core
 FROM core:${HASH} AS core-lint
-RUN rustup component add clippy --toolchain stable
 RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
 
 # Run core tests
