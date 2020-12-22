@@ -1,13 +1,8 @@
+ARG HASH
 FROM ubuntu:20.04 AS android-build
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
 RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
-
-# Install rust things
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-RUN cargo install cargo-ndk
-RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
@@ -19,36 +14,16 @@ RUN cd /opt \
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools
 RUN yes | sdkmanager --licenses
 
-# Copy android and core in
+# Copy android in
 COPY clients/android clients/android
-
-# Build android
 WORKDIR clients/android
 RUN ./gradlew assemble
 
+
 # Check formatting
-FROM android-build AS android-fmt
+FROM android:${HASH} AS android-fmt
 RUN ./gradlew lintKotlin 
 
 # Check lint
-FROM android-build AS android-lint
+FROM android:${HASH} AS android-lint
 RUN ./gradlew lint
-
-FROM android-build AS kotlin-interface-tests
-
-# Build Core
-WORKDIR ../..
-COPY core core
-WORKDIR core
-ENV API_URL=http://lockbook_server:8000
-RUN make linux_jni
-
-# Move android binary for tests
-WORKDIR ..
-COPY clients/android clients/android
-RUN mkdir -p clients/android/core/src/main/jniLibs/desktop
-RUN mv core/target/release/$(libName) clients/android/core/src/main/jniLibs/desktop/$(libName)
-
-# Build android
-WORKDIR clients/android
-RUN ./gradlew assemble
