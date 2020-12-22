@@ -1,3 +1,4 @@
+ARG HASH
 FROM rust AS server-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
@@ -24,11 +25,11 @@ RUN touch src/main.rs
 RUN cargo build --release
 
 # Check formatting
-FROM server-build AS server-fmt
+FROM server:${HASH} AS server-fmt
 RUN rustup component add rustfmt --toolchain stable
 RUN cargo +stable fmt -- --check -l
 
 # Check lint
-FROM server-build AS server-lint
+FROM server:${HASH} AS server-lint
 RUN rustup component add clippy --toolchain stable
 RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
