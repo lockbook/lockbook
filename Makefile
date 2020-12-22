@@ -73,7 +73,7 @@ cli_test: cli
 
 .PHONY: linux
 linux: is_docker_running
-	docker build -f containers/Dockerfile.linux . --tag linux:$(hash) --tag linux:$(hash) --build-arg HASH=$(hash)
+	docker build --target linux-build -f containers/Dockerfile.linux . --tag linux:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux_fmt
 linux_fmt: linux
