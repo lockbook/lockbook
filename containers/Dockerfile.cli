@@ -2,32 +2,28 @@ FROM rust AS cli-build
 
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
-WORKDIR cli
 
 # CLI depends on core via a relative import
-COPY core ../core
+COPY core/Cargo.toml /core/Cargo.toml
+COPY core/Cargo.lock /core/Cargo.lock
+COPY containers/dummy.rs /core/src/lib.rs
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
-COPY containers/dummy.rs src/main.rs
-COPY clients/cli/Cargo.toml .
-COPY clients/cli/Cargo.lock .
+COPY containers/dummy.rs /clients/cli/src/main.rs
+COPY clients/cli/Cargo.toml /clients/cli/Cargo.toml
+COPY clients/cli/Cargo.lock /clients/cli/Cargo.lock
 
-# Dependency on core which has compile-time env var
-ENV API_URL=unused
+WORKDIR /clients/cli
 RUN cargo build --release
 
 # Build our source
-COPY clients/cli .
-
+COPY clients/cli /clients/cli
+COPY core /core
 # Cargo thinks this file hasn't changed on the filesystem
-RUN touch src/main.rs
+RUN touch /clients/cli/src/main.rs
+RUN touch /core/src/lib.rs
 RUN cargo build --release
-
-# Check formatting
-FROM cli-build AS cli-fmt
-RUN rustup component add rustfmt --toolchain stable
-RUN cargo +stable fmt -- --check -l
 
 # Check lint
 FROM cli-build AS cli-lint
