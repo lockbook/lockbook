@@ -1,68 +1,68 @@
-use sled::Db;
 use uuid::Uuid;
 
 use crate::model::crypto::*;
+use crate::storage::db_provider::{Backend, BackendError};
 
 #[derive(Debug)]
 pub enum Error {
-    SledError(sled::Error),
+    BackendError(BackendError),
     SerdeError(serde_json::Error),
     FileRowMissing(()), // TODO remove from insert
 }
 
 #[derive(Debug)]
 pub enum DbError {
-    SledError(sled::Error),
+    BackendError(BackendError),
     SerdeError(serde_json::Error),
 }
 
 pub trait DocumentRepo {
-    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error>;
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error>;
+    const NAMESPACE: &'static [u8] = b"documents";
+    fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
+    fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error>;
+    fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
+    fn delete(backend: &Backend, id: Uuid) -> Result<(), Error>;
 }
 
 pub struct DocumentRepoImpl;
 
 impl DocumentRepo for DocumentRepoImpl {
-    fn insert(db: &Db, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        tree.insert(
-            id.as_bytes(),
-            serde_json::to_vec(document).map_err(Error::SerdeError)?,
-        )
-        .map_err(Error::SledError)?;
-        Ok(())
+    fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
+        backend
+            .write(
+                Self::NAMESPACE,
+                id.to_string().as_str(),
+                serde_json::to_vec(document).map_err(Error::SerdeError)?,
+            )
+            .map_err(Error::BackendError)
     }
 
-    fn get(db: &Db, id: Uuid) -> Result<EncryptedDocument, Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        let maybe_value = tree.get(id.as_bytes()).map_err(Error::SledError)?;
-        let value = maybe_value.ok_or(()).map_err(Error::FileRowMissing)?;
-        let document: EncryptedDocument =
-            serde_json::from_slice(value.as_ref()).map_err(Error::SerdeError)?;
-
-        Ok(document)
-    }
-
-    fn maybe_get(db: &Db, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
-        let tree = db.open_tree(b"documents").map_err(DbError::SledError)?;
-        match tree.get(id.as_bytes()).map_err(DbError::SledError)? {
-            None => Ok(None),
-            Some(file) => {
-                let document: EncryptedDocument =
-                    serde_json::from_slice(file.as_ref()).map_err(DbError::SerdeError)?;
-
-                Ok(Some(document))
-            }
+    fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
+        let maybe_data: Option<Vec<u8>> = backend
+            .read(Self::NAMESPACE, id.to_string().as_str())
+            .map_err(Error::BackendError)?;
+        match maybe_data {
+            None => Err(Error::FileRowMissing(())),
+            Some(data) => serde_json::from_slice(&data).map_err(Error::SerdeError),
         }
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<(), Error> {
-        let tree = db.open_tree(b"documents").map_err(Error::SledError)?;
-        tree.remove(id.as_bytes()).map_err(Error::SledError)?;
-        Ok(())
+    fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
+        let maybe_data: Option<Vec<u8>> = backend
+            .read(Self::NAMESPACE, id.to_string().as_str())
+            .map_err(DbError::BackendError)?;
+        match maybe_data {
+            None => Ok(None),
+            Some(data) => serde_json::from_slice(&data)
+                .map(Some)
+                .map_err(DbError::SerdeError),
+        }
+    }
+
+    fn delete(backend: &Backend, id: Uuid) -> Result<(), Error> {
+        backend
+            .delete(Self::NAMESPACE, id.to_string().as_str())
+            .map_err(Error::BackendError)
     }
 }
 
@@ -71,33 +71,34 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::crypto::*;
-    use crate::model::state::dummy_config;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::model::state::temp_config;
     use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+    use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
 
-    type DefaultDbProvider = TempBackedDB;
+    type DefaultDbProvider = DiskBackedDB;
 
     #[test]
     fn update_document() {
         let test_document = EncryptedDocument::new("something", "nonce1");
 
-        let config = dummy_config();
+        let config = temp_config();
         let db = DefaultDbProvider::connect_to_db(&config).unwrap();
+        let sled = Backend::Sled(&db);
         let document_id = Uuid::new_v4();
 
-        DocumentRepoImpl::insert(&db, document_id, &test_document).unwrap();
+        DocumentRepoImpl::insert(&sled, document_id, &test_document).unwrap();
 
-        let document = DocumentRepoImpl::get(&db, document_id).unwrap();
+        let document = DocumentRepoImpl::get(&sled, document_id).unwrap();
         assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
         DocumentRepoImpl::insert(
-            &db,
+            &sled,
             document_id,
             &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
-        let file_updated = DocumentRepoImpl::get(&db, document_id).unwrap();
+        let file_updated = DocumentRepoImpl::get(&sled, document_id).unwrap();
 
         assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }

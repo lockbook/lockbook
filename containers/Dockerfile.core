@@ -1,8 +1,11 @@
-FROM rust
+ARG HASH
+FROM rust AS core-build
+
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
-RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
+RUN rustup component add rustfmt --toolchain stable
+
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
@@ -15,8 +18,28 @@ RUN cargo build --release
 
 # Build our source
 COPY core .
+
 # Compile-time env var
 ENV API_URL=unused
+
 # Cargo thinks this file hasn't changed on the filesystem
+RUN touch src/lib.rs
+RUN cargo build --release
+
+# Check the formatting of core
+FROM core:${HASH} AS core-fmt
+RUN cargo +stable fmt -- --check -l
+
+# Check the lint of core
+FROM core:${HASH} AS core-lint
+RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+
+# Run core tests
+FROM core:${HASH} AS core-test
+RUN cargo test --release --lib
+
+# Set up for integration tests
+FROM core:${HASH} AS integration-tests
+ENV API_URL=http://lockbook_server:8000
 RUN touch src/lib.rs
 RUN cargo build --release
