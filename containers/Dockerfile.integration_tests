@@ -1,4 +1,5 @@
 FROM rust
+
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable

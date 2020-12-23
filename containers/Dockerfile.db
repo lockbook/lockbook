@@ -1,0 +1,3 @@
+from postgres:12.3
+
+COPY index_db index_db

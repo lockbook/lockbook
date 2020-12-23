@@ -107,6 +107,7 @@ mod request_common_tests {
             _: &RSAPublicKey,
             _: &RSASigned<T>,
             _: u64,
+            _: u64,
         ) -> Result<(), RSAVerifyError> {
             unimplemented!()
         }
