@@ -1,6 +1,6 @@
 ARG HASH
 
-FROM core:$HASH as core-hash
+FROM core:$HASH as core-build
 
 FROM ubuntu:20.04 AS kotlin-interface-tests
 
@@ -22,7 +22,7 @@ ENV API_URL=http://lockbook_server:8000
 # Move binaries for tests
 RUN mkdir -p /clients/android/core/src/main/jniLibs/desktop
 WORKDIR /clients/android
-COPY --from=core-hash /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
+COPY --from=core-build /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
 
 # Build android
 RUN ./gradlew assemble
