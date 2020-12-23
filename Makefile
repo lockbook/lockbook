@@ -60,7 +60,7 @@ cli: is_docker_running
 
 .PHONY: cli_fmt
 cli_fmt: cli
-	@echo The following files need formatting:compute_usage
+	@echo The following files need formatting:
 	docker build --target cli-fmt -f containers/Dockerfile.cli . --tag cli_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: cli_lint
