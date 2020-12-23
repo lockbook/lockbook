@@ -1,10 +1,9 @@
 FROM rust
-# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
+
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
 WORKDIR core
-
 
 # Getting libunwind and gperftools
 RUN mkdir -p /deps
@@ -20,6 +19,7 @@ COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
 COPY containers/dummy.rs benches/performator.rs
+COPY containers/dummy.rs benches/throughput.rs
 RUN cargo build --release
 
 # Changes onwards!
