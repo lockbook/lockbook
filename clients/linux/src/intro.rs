@@ -87,8 +87,9 @@ impl IntroScreen {
         self.doing.start(caption);
     }
 
-    pub fn doing_status(&self, txt: &str) {
-        self.doing.status.set_text(txt);
+    pub fn doing_status(&self, path: &str, i: usize, total: usize) {
+        let status = format!("Syncing :: {} ({}/{})", path, i, total);
+        self.doing.status.set_text(&status);
     }
 
     pub fn error_create(&self, msg: &str) {

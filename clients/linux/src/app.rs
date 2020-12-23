@@ -25,10 +25,16 @@ use gtk::{
 use uuid::Uuid;
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use lockbook_core::model::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
+use crate::error::{
+    LbError,
+    LbError::{Program as ProgErr, User as UserErr},
+    LbResult,
+};
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
@@ -74,6 +80,7 @@ impl LbApp {
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close_file(),
                 Msg::DeleteFiles => lb.delete_files(),
+                Msg::RenameFile => lb.rename_file(),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
 
@@ -88,7 +95,7 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::UnexpectedErr(desc, deets) => lb.err(&desc, &deets),
+                Msg::Error(title, err) => lb.err(&title, &err),
             }
             glib::Continue(true)
         });
@@ -103,11 +110,15 @@ impl LbApp {
 
         let gui = self.gui.clone();
         let c = self.core.clone();
+        let m = self.messenger.clone();
 
-        let ch = make_glib_chan(move |result: Result<(), String>| {
+        let ch = make_glib_chan(move |result| {
             match result {
                 Ok(_) => gui.show_account_screen(&c),
-                Err(err) => gui.intro.error_create(&err),
+                Err(err) => match err {
+                    UserErr(err) => gui.intro.error_create(&err),
+                    prog_err => m.send_err("creating account", prog_err),
+                },
             }
             glib::Continue(false)
         });
@@ -119,23 +130,21 @@ impl LbApp {
     fn import_account(&self, privkey: String) {
         self.gui.intro.doing("Importing account...");
 
-        let gui = self.gui.clone();
-        let c = self.core.clone();
+        let (gui, c, m) = (self.gui.clone(), self.core.clone(), self.messenger.clone());
 
         let import_chan = make_glib_chan(move |result: Result<(), String>| {
             match result {
                 Ok(_) => {
-                    let gui = gui.clone();
-                    let cc = c.clone();
+                    let (gui, cc, m) = (gui.clone(), c.clone(), m.clone());
 
                     let sync_chan = make_glib_chan(move |msg| {
                         match msg {
-                            LbSyncMsg::Doing(work) => gui.intro.doing_status(&work),
+                            LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
+                            LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
                                 gui.show_account_screen(&cc);
                                 gui.account.sync().set_status(&cc);
                             }
-                            _ => {}
                         }
                         glib::Continue(true)
                     });
@@ -181,14 +190,19 @@ impl LbApp {
                 d.set_resizable(false);
                 d.show_all()
             }
-            Err(err) => self.err("Unable to export account", &err),
+            Err(err) => self.err("unable to export account", &err),
         }
 
-        let ch = make_glib_chan(move |path: Result<String, String>| {
-            let path = path.unwrap();
-            let qr_image = GtkImage::from_file(&path);
-            image_cntr.set_center_widget(Some(&qr_image));
-            image_cntr.show_all();
+        let m = self.messenger.clone();
+        let ch = make_glib_chan(move |res: LbResult<String>| {
+            match res {
+                Ok(path) => {
+                    let qr_image = GtkImage::from_file(&path);
+                    image_cntr.set_center_widget(Some(&qr_image));
+                    image_cntr.show_all();
+                }
+                Err(err) => m.send_err("generating qr code", err),
+            }
             glib::Continue(false)
         });
 
@@ -201,11 +215,19 @@ impl LbApp {
         let acctscr = self.gui.account.clone();
         acctscr.sync().set_syncing(true);
 
+        let m = self.messenger.clone();
+
         let ch = make_glib_chan(move |msg| {
             let sync_ui = acctscr.sync();
             match msg {
-                LbSyncMsg::Doing(work) => sync_ui.doing(&work),
-                LbSyncMsg::Error(err) => sync_ui.error(&format!("error: {}", err)),
+                LbSyncMsg::Doing(work, path, i, total) => {
+                    let prefix = match work {
+                        WorkUnit::LocalChange { metadata: _ } => "Pushing",
+                        WorkUnit::ServerChange { metadata: _ } => "Pulling",
+                    };
+                    sync_ui.doing(&format!("{}: {} ({}/{})", prefix, path, i, total));
+                }
+                LbSyncMsg::Error(err) => m.send_err("syncing", err),
                 LbSyncMsg::Done => {
                     sync_ui.set_syncing(false);
                     sync_ui.set_status(&core);
@@ -294,7 +316,7 @@ impl LbApp {
                             acctscr.set_saving(false);
                             acctscr.sync().set_status(&core);
                         }
-                        Err(err) => m.send(Msg::UnexpectedErr("saving file".to_string(), err)),
+                        Err(err) => m.send_err("saving file", ProgErr(err)),
                     }
                     glib::Continue(false)
                 });
@@ -387,6 +409,73 @@ impl LbApp {
 
         d.close();
         self.gui.account.sync().set_status(&self.core);
+    }
+
+    fn rename_file(&self) {
+        // Get the iterator for the selected tree item.
+        let (selected_tpaths, tmodel) = self.gui.account.tree().selected_rows();
+        let tpath = selected_tpaths.get(0).unwrap();
+        let iter = tmodel.get_iter(&tpath).unwrap();
+
+        // Get the FileMetadata from the iterator.
+        let id = tree_iter_value!(tmodel, &iter, 1, String);
+        let uuid = Uuid::parse_str(&id).unwrap();
+        let meta = self.core.file_by_id(uuid).unwrap();
+
+        let lbl = util::gui::text_left("Enter the new name:");
+        lbl.set_margin_top(12);
+
+        let entry = GtkEntry::new();
+        util::gui::set_marginy(&entry, 16);
+        entry.set_margin_start(8);
+        entry.set_activates_default(true);
+
+        let errlbl = util::gui::text_left("");
+        util::gui::set_widget_name(&errlbl, "err");
+        errlbl.set_margin_start(8);
+        errlbl.set_margin_bottom(8);
+
+        let d = self.gui.new_dialog(&format!("Rename '{}'", meta.name));
+        util::gui::set_marginx(&d.get_content_area(), 16);
+        d.set_default_size(300, -1);
+        d.get_content_area().add(&lbl);
+        d.get_content_area().add(&entry);
+        d.add_button("Ok", GtkResponseType::Ok);
+        d.set_default_response(GtkResponseType::Ok);
+
+        let (acctscr, core, m) = (
+            self.gui.account.clone(),
+            self.core.clone(),
+            self.messenger.clone(),
+        );
+        d.connect_response(move |d, resp| {
+            if resp != GtkResponseType::Ok {
+                d.close();
+                return;
+            }
+
+            let (id, name) = (meta.id, entry.get_text());
+            match core.rename(&id, &name) {
+                Ok(_) => {
+                    d.close();
+                    acctscr.tree().set_name(&id, &name);
+                    acctscr.sync().set_status(&core);
+                }
+                Err(err) => match err {
+                    UserErr(err) => {
+                        util::gui::add(&d.get_content_area(), &errlbl);
+                        errlbl.set_text(&err);
+                        errlbl.show();
+                    }
+                    prog_err => {
+                        d.close();
+                        m.send_err("renaming file", prog_err);
+                    }
+                },
+            }
+        });
+
+        d.show_all();
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) {
@@ -516,22 +605,24 @@ impl LbApp {
                 d.get_content_area().add(&usage);
                 d.show_all();
             }
-            Err(err) => self.err("Unable to get usage", &err),
+            Err(err) => self.err("Unable to get usage", &ProgErr(err)),
         }
     }
 
-    fn err(&self, desc: &str, deets: &str) {
-        let details = util::gui::scrollable(&GtkLabel::new(Some(&deets)));
+    fn err(&self, title: &str, err: &LbError) {
+        let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
         util::gui::set_margin(&details, 16);
 
         let copy = GtkBox::new(Horizontal, 0);
-        copy.set_center_widget(Some(&util::gui::clipboard_btn(&deets)));
+        copy.set_center_widget(Some(&util::gui::clipboard_btn(&err.msg())));
         copy.set_margin_bottom(16);
 
-        let d = self.gui.new_dialog(&format!("Error: {}", desc));
+        let d = self.gui.new_dialog(&format!("Error: {}", title));
         d.set_default_size(500, -1);
         d.get_content_area().add(&details);
-        d.get_content_area().add(&copy);
+        if err.is_prog() {
+            d.get_content_area().add(&copy);
+        }
         d.show_all();
     }
 }
@@ -706,10 +797,7 @@ impl Gui {
                 Some(_) => self.show_account_screen(&core),
                 None => self.show_intro_screen(),
             },
-            Err(err) => m.send(Msg::UnexpectedErr(
-                "unable to load account".to_string(),
-                err,
-            )),
+            Err(err) => m.send_err("unable to load account", ProgErr(err)),
         }
     }
 
