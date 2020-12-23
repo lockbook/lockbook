@@ -1,6 +1,7 @@
 use glib::Receiver as GlibReceiver;
 use uuid::Uuid;
 
+use crate::error::LbError;
 use crate::filetree::FileTreeCol;
 
 pub type MsgFn = fn() -> Msg;
@@ -17,6 +18,7 @@ pub enum Msg {
     SaveFile,
     CloseFile,
     DeleteFiles,
+    RenameFile,
 
     SearchFieldFocus,
     SearchFieldBlur(bool),
@@ -31,7 +33,7 @@ pub enum Msg {
     ShowDialogUsage,
     ShowDialogAbout,
 
-    UnexpectedErr(String, String),
+    Error(String, LbError),
 }
 
 #[derive(Clone)]
@@ -47,5 +49,9 @@ impl Messenger {
 
     pub fn send(&self, m: Msg) {
         self.s.send(m).unwrap();
+    }
+
+    pub fn send_err(&self, title: &str, err: LbError) {
+        self.send(Msg::Error(title.to_string(), err));
     }
 }
