@@ -1,6 +1,6 @@
 ARG HASH
 
-FROM core:$HASH as core-hash
+FROM core:$HASH as core-build
 
 FROM ubuntu:20.04 AS csharp-interface-tests
 ENV DEBIAN_FRONTEND=noninteractive
@@ -24,14 +24,14 @@ RUN apt-get install -y apt-transport-https
 RUN apt-get update
 RUN apt-get install -y dotnet-sdk-3.1
 
-WORKDIR /
-
 # Copy code
 COPY clients/windows clients/windows
 RUN mkdir -p /clients/windows/core/
-COPY --from=core-hash /core/target/release/liblockbook_core.so /clients/windows/core
+
+WORKDIR /clients/windows/test 
+ENV API_URL=http://lockbook_server:8000
+
+COPY --from=core-build /core/target/release/liblockbook_core.so /clients/windows/core
 
 # Build tests
-ENV API_URL=http://lockbook_server:8000
-WORKDIR /clients/windows/test 
 RUN dotnet build
