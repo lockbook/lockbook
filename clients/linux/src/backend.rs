@@ -23,6 +23,25 @@ use lockbook_core::{
 use crate::error::{LbError, LbResult};
 use crate::util::KILOBYTE;
 
+macro_rules! map_core_err {
+    ($enum:ident, $( $( $variants:ident )* $(=> $matches:expr )* ),+) => {
+        |err | match err {
+            lockbook_core::Error::UiError(e) => match e {
+                $( $( lockbook_core::$enum::$variants )* $( => $matches )* ),+
+            },
+            lockbook_core::Error::Unexpected(msg) => LbError::Program(msg),
+        }
+    };
+}
+
+macro_rules! uerr {
+    ($base:literal $(, $args:tt )*) => {
+        LbError::User(format!($base $(, $args )*))
+    };
+}
+
+const UNAME_REQS: &str = "letters and numbers only";
+
 fn api_url() -> String {
     env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
 }
@@ -71,8 +90,13 @@ impl LbCore {
     }
 
     pub fn create_account(&self, uname: &str) -> LbResult<Account> {
-        create_account(&self.config, &uname, &api_url())
-            .map_err(|err| errs::create_account::to_lb_error(err, uname))
+        create_account(&self.config, &uname, &api_url()).map_err(map_core_err!(CreateAccountError,
+            UsernameTaken => uerr!("The username '{}' is already taken.", uname),
+            InvalidUsername => uerr!("Invalid username '{}' ({}).", uname, UNAME_REQS),
+            AccountExistsAlready => uerr!("An account already exists."),
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+        ))
     }
 
     pub fn import_account(&self, privkey: &str) -> Result<(), String> {
@@ -83,7 +107,9 @@ impl LbCore {
     }
 
     pub fn export_account(&self) -> LbResult<String> {
-        export_account(&self.config).map_err(errs::export_account::to_lb_error)
+        export_account(&self.config).map_err(map_core_err!(AccountExportError,
+            NoAccount => uerr!("No account found"),
+        ))
     }
 
     pub fn account_qrcode(&self, chan: &GlibSender<LbResult<String>>) {
@@ -203,7 +229,13 @@ impl LbCore {
     }
 
     pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
-        rename_file(&self.config, *id, new_name).map_err(errs::rename::to_lb_error)
+        rename_file(&self.config, *id, new_name).map_err(map_core_err!(RenameFileError,
+            CannotRenameRoot => uerr!("The root folder cannot be renamed."),
+            FileDoesNotExist => uerr!("The file you are trying to rename does not exist."),
+            FileNameNotAvailable => uerr!("The new file name is not available."),
+            NewNameContainsSlash => uerr!("File names cannot contain slashes."),
+            NewNameEmpty => uerr!("File names cannot be blank."),
+        ))
     }
 
     pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
@@ -239,18 +271,25 @@ impl LbCore {
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
-        calculate_work(&self.config).map_err(errs::calc_work::to_lb_error)
+        calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+            NoAccount => uerr!("No account found."),
+        ))
     }
 
     fn do_work(&self, a: &Account, wu: &WorkUnit) -> LbResult<()> {
-        execute_work(&self.config, &a, wu.clone()).map_err(errs::exec_work::to_lb_error)
+        execute_work(&self.config, &a, wu.clone()).map_err(map_core_err!(ExecuteWorkError,
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+            BadAccount => uerr!("wut"),
+        ))
     }
 
     fn set_last_synced(&self, last_sync: u64) -> LbResult<()> {
-        set_last_synced(&self.config, last_sync).map_err(|err| match err {
-            CoreError::UiError(lockbook_core::SetLastSyncedError::Stub) => panic!("impossible"),
-            CoreError::Unexpected(msg) => LbError::Program(msg),
-        })
+        set_last_synced(&self.config, last_sync).map_err(map_core_err!(SetLastSyncedError,
+            Stub => panic!("impossible"),
+        ))
     }
 
     pub fn get_last_synced(&self) -> Result<i64, String> {
@@ -262,130 +301,6 @@ impl LbCore {
         match get_usage(&self.config) {
             Ok(u) => Ok((u.into_iter().map(|usage| usage.byte_secs).sum(), fake_limit)),
             Err(err) => Err(format!("{:?}", err)),
-        }
-    }
-}
-
-mod errs {
-    macro_rules! imports {
-        ($enum:ident $(as $rename:ident )?, $( $( $variants:ident ).+ $(as $renames:ident )?),+) => {
-            use crate::error::LbError;
-            use lockbook_core::{Error, Error::UiError, Error::Unexpected};
-            use lockbook_core::$enum $( as $rename )?;
-            $( $( use lockbook_core::$enum::$variants )+ $( as $renames )?; )*
-        };
-    }
-
-    macro_rules! user {
-        ($base:literal $(, $args:tt )*) => {
-            LbError::User(format!($base $(, $args )*))
-        };
-    }
-
-    macro_rules! prog {
-        ($msg:expr) => {
-            LbError::Program($msg)
-        };
-    }
-
-    pub mod create_account {
-        imports!(
-            CreateAccountError as CreatingAcct,
-            UsernameTaken as UnameTaken,
-            InvalidUsername as UnameInvalid,
-            AccountExistsAlready as AccountExists,
-            CouldNotReachServer,
-            ClientUpdateRequired
-        );
-
-        const UNAME_REQS: &str = "letters and numbers only";
-
-        pub fn to_lb_error(e: Error<CreatingAcct>, uname: &str) -> LbError {
-            match e {
-                UiError(e) => match e {
-                    UnameTaken => user!("The username '{}' is already taken.", uname),
-                    UnameInvalid => user!("Invalid username '{}' ({}).", uname, UNAME_REQS),
-                    AccountExists => user!("An account already exists."),
-                    CouldNotReachServer => user!("Unable to connect to the server."),
-                    ClientUpdateRequired => user!("Client upgrade required."),
-                },
-                Unexpected(msg) => prog!(msg),
-            }
-        }
-    }
-
-    pub mod export_account {
-        imports!(AccountExportError as Exporting, NoAccount);
-
-        pub fn to_lb_error(e: Error<Exporting>) -> LbError {
-            match e {
-                UiError(NoAccount) => user!("No account found"),
-                Unexpected(msg) => prog!(msg),
-            }
-        }
-    }
-
-    pub mod rename {
-        imports!(
-            RenameFileError as Renaming,
-            CannotRenameRoot as IsRoot,
-            FileDoesNotExist as NotExist,
-            FileNameNotAvailable as NameNotAvail,
-            NewNameContainsSlash as NameHasSlash,
-            NewNameEmpty as NameIsEmpty
-        );
-
-        pub fn to_lb_error(e: Error<Renaming>) -> LbError {
-            match e {
-                UiError(e) => match e {
-                    IsRoot => user!("The root folder cannot be renamed."),
-                    NotExist => user!("The file you are trying to rename does not exist."),
-                    NameNotAvail => user!("The new file name is not available."),
-                    NameHasSlash => user!("File names cannot contain slashes."),
-                    NameIsEmpty => user!("File names cannot be blank."),
-                },
-                Unexpected(msg) => prog!(msg),
-            }
-        }
-    }
-
-    pub mod calc_work {
-        imports!(
-            CalculateWorkError as CalculatingWork,
-            CouldNotReachServer,
-            ClientUpdateRequired,
-            NoAccount
-        );
-
-        pub fn to_lb_error(e: Error<CalculatingWork>) -> LbError {
-            match e {
-                UiError(e) => match e {
-                    CouldNotReachServer => user!("Unable to connect to the server."),
-                    ClientUpdateRequired => user!("Client upgrade required."),
-                    NoAccount => user!("No account found."),
-                },
-                Unexpected(msg) => prog!(msg),
-            }
-        }
-    }
-
-    pub mod exec_work {
-        imports!(
-            ExecuteWorkError as ExecutingWork,
-            CouldNotReachServer,
-            ClientUpdateRequired,
-            BadAccount
-        );
-
-        pub fn to_lb_error(e: Error<ExecutingWork>) -> LbError {
-            match e {
-                UiError(e) => match e {
-                    CouldNotReachServer => user!("Unable to connect to the server."),
-                    ClientUpdateRequired => user!("Client upgrade required."),
-                    BadAccount => user!("wut"),
-                },
-                Unexpected(msg) => prog!(msg),
-            }
         }
     }
 }
