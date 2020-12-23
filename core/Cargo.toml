@@ -45,3 +45,7 @@ cpuprofiler = "0.0.4"
 [[bench]]
 name = "performator"
 harness = false
+
+[[bench]]
+name = "throughput"
+harness = false

@@ -7,7 +7,7 @@
     background: rgba(100, 100, 100, 0.35);
 }
 
-#intro_error {
+#err, #intro_error {
     color: red;
 }
 

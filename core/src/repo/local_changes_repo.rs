@@ -1,40 +1,52 @@
 use std::time::SystemTimeError;
 
-use sled::Db;
 use uuid::Uuid;
 
 use crate::model::crypto::{EncryptedDocument, UserAccessInfo};
 use crate::model::file_metadata::FileType;
 use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 use crate::service::clock_service::Clock;
+use crate::storage::db_provider;
+use crate::storage::db_provider::Backend;
+use std::{thread, time};
 
 #[derive(Debug)]
 pub enum DbError {
     TimeError(SystemTimeError),
-    SledError(sled::Error),
+    BackendError(db_provider::BackendError),
     SerdeError(serde_json::Error),
 }
 
 pub trait LocalChangesRepo {
-    fn get_all_local_changes(db: &Db) -> Result<Vec<LocalChange>, DbError>;
-    fn get_local_changes(db: &Db, id: Uuid) -> Result<Option<LocalChange>, DbError>;
-    fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError>;
-    fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError>;
+    fn get_all_local_changes(backend: &Backend) -> Result<Vec<LocalChange>, DbError>;
+    fn get_local_changes(backend: &Backend, id: Uuid) -> Result<Option<LocalChange>, DbError>;
+    fn track_new_file(backend: &Backend, id: Uuid) -> Result<(), DbError>;
+    fn track_rename(
+        backend: &Backend,
+        id: Uuid,
+        old_name: &str,
+        new_name: &str,
+    ) -> Result<(), DbError>;
+    fn track_move(
+        backend: &Backend,
+        id: Uuid,
+        old_parent: Uuid,
+        new_parent: Uuid,
+    ) -> Result<(), DbError>;
     fn track_edit(
-        db: &Db,
+        backend: &Backend,
         id: Uuid,
         old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
     ) -> Result<(), DbError>;
-    fn track_delete(db: &Db, id: Uuid, file_type: FileType) -> Result<(), DbError>;
-    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError>;
-    fn delete(db: &Db, id: Uuid) -> Result<(), DbError>;
+    fn track_delete(backend: &Backend, id: Uuid, file_type: FileType) -> Result<(), DbError>;
+    fn untrack_new_file(backend: &Backend, id: Uuid) -> Result<(), DbError>;
+    fn untrack_rename(backend: &Backend, id: Uuid) -> Result<(), DbError>;
+    fn untrack_move(backend: &Backend, id: Uuid) -> Result<(), DbError>;
+    fn untrack_edit(backend: &Backend, id: Uuid) -> Result<(), DbError>;
+    fn delete(backend: &Backend, id: Uuid) -> Result<(), DbError>;
 }
 
 pub struct LocalChangesRepoImpl<Time: Clock> {
@@ -44,24 +56,23 @@ pub struct LocalChangesRepoImpl<Time: Clock> {
 static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
 
 impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
-    fn get_all_local_changes(db: &Db) -> Result<Vec<LocalChange>, DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-        let mut value = tree
-            .iter()
-            .map(|s| {
-                let change: LocalChange = serde_json::from_slice(s.unwrap().1.as_ref()).unwrap();
-                change
-            })
-            .collect::<Vec<LocalChange>>();
+    fn get_all_local_changes(backend: &Backend) -> Result<Vec<LocalChange>, DbError> {
+        let mut value = backend
+            .dump::<_, Vec<u8>>(LOCAL_CHANGES)
+            .map_err(DbError::BackendError)?
+            .into_iter()
+            .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
+            .collect::<Result<Vec<LocalChange>, DbError>>()?;
 
         value.sort_by(|change1, change2| change1.timestamp.cmp(&change2.timestamp));
 
         Ok(value)
     }
 
-    fn get_local_changes(db: &Db, id: Uuid) -> Result<Option<LocalChange>, DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-        let maybe_value = tree.get(id.as_bytes()).map_err(DbError::SledError)?;
+    fn get_local_changes(backend: &Backend, id: Uuid) -> Result<Option<LocalChange>, DbError> {
+        let maybe_value: Option<Vec<u8>> = backend
+            .read(LOCAL_CHANGES, id.to_string().as_str())
+            .map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
             Some(value) => {
@@ -72,9 +83,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn track_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
+    fn track_new_file(backend: &Backend, id: Uuid) -> Result<(), DbError> {
         let new_local_change = LocalChange {
             timestamp: Time::get_time(),
             id,
@@ -85,22 +94,27 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
             deleted: false,
         };
 
-        tree.insert(
-            id.as_bytes(),
-            serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-        )
-        .map_err(DbError::SledError)?;
+        backend
+            .write(
+                LOCAL_CHANGES,
+                id.to_string().as_str(),
+                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::BackendError)?;
         Ok(())
     }
 
-    fn track_rename(db: &Db, id: Uuid, old_name: &str, new_name: &str) -> Result<(), DbError> {
+    fn track_rename(
+        backend: &Backend,
+        id: Uuid,
+        old_name: &str,
+        new_name: &str,
+    ) -> Result<(), DbError> {
         if old_name == new_name {
             return Ok(());
         }
 
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+        match Self::get_local_changes(backend, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -112,26 +126,30 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     deleted: false,
                 };
 
-                tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::SledError)?;
+                backend
+                    .write(
+                        LOCAL_CHANGES,
+                        id.to_string().as_str(),
+                        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::BackendError)?;
                 Ok(())
             }
             Some(mut change) => match change.renamed {
                 None => {
                     change.renamed = Some(Renamed::from(old_name));
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                     Ok(())
                 }
                 Some(renamed) => {
                     if new_name == renamed.old_value {
-                        Self::untrack_rename(&db, id)
+                        Self::untrack_rename(backend, id)
                     } else {
                         Ok(())
                     }
@@ -140,14 +158,17 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn track_move(db: &Db, id: Uuid, old_parent: Uuid, new_parent: Uuid) -> Result<(), DbError> {
+    fn track_move(
+        backend: &Backend,
+        id: Uuid,
+        old_parent: Uuid,
+        new_parent: Uuid,
+    ) -> Result<(), DbError> {
         if old_parent == new_parent {
             return Ok(());
         }
 
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+        match Self::get_local_changes(backend, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -159,26 +180,30 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     deleted: false,
                 };
 
-                tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::SledError)?;
+                backend
+                    .write(
+                        LOCAL_CHANGES,
+                        id.to_string().as_str(),
+                        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::BackendError)?;
                 Ok(())
             }
             Some(mut change) => match change.moved {
                 None => {
                     change.moved = Some(Moved::from(old_parent));
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                     Ok(())
                 }
                 Some(moved) => {
                     if moved.old_value == new_parent {
-                        Self::untrack_move(&db, id)
+                        Self::untrack_move(backend, id)
                     } else {
                         Ok(())
                     }
@@ -188,7 +213,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
     }
 
     fn track_edit(
-        db: &Db,
+        backend: &Backend,
         id: Uuid,
         old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
@@ -199,9 +224,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
             return Ok(());
         }
 
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+        match Self::get_local_changes(backend, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -216,11 +239,13 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     }),
                     deleted: false,
                 };
-                tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::SledError)?;
+                backend
+                    .write(
+                        LOCAL_CHANGES,
+                        id.to_string().as_str(),
+                        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::BackendError)?;
                 Ok(())
             }
             Some(mut change) => match change.content_edited {
@@ -230,16 +255,18 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                         access_info: access_info_for_old_version.clone(),
                         old_content_checksum,
                     });
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                     Ok(())
                 }
                 Some(edited) => {
                     if edited.old_content_checksum == new_content_checksum {
-                        Self::untrack_edit(&db, id)
+                        Self::untrack_edit(backend, id)
                     } else {
                         Ok(())
                     }
@@ -248,10 +275,11 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn track_delete(db: &Db, id: Uuid, file_type: FileType) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
+    fn track_delete(backend: &Backend, id: Uuid, file_type: FileType) -> Result<(), DbError> {
+        // Added to ensure that a prior move is at least 1ms older than this delete
+        thread::sleep(time::Duration::from_millis(1));
 
-        match Self::get_local_changes(&db, id)? {
+        match Self::get_local_changes(backend, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -262,11 +290,13 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     content_edited: None,
                     deleted: true,
                 };
-                tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::SledError)?;
+                backend
+                    .write(
+                        LOCAL_CHANGES,
+                        id.to_string().as_str(),
+                        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    )
+                    .map_err(DbError::BackendError)?;
                 Ok(())
             }
             Some(mut change) => {
@@ -275,7 +305,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                 } else if file_type == FileType::Document {
                     if change.new {
                         // If a document was created and deleted, just forget about it
-                        Self::delete(&db, id)
+                        Self::delete(backend, id)
                     } else {
                         // If a document was deleted, don't bother pushing it's rename / move
                         let delete_tracked = LocalChange {
@@ -287,42 +317,46 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                             content_edited: None,
                             deleted: true,
                         };
-                        tree.insert(
-                            id.as_bytes(),
-                            serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
-                        )
-                        .map_err(DbError::SledError)?;
+                        backend
+                            .write(
+                                LOCAL_CHANGES,
+                                id.to_string().as_str(),
+                                serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
+                            )
+                            .map_err(DbError::BackendError)?;
                         Ok(())
                     }
                 } else {
                     change.deleted = true;
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                     Ok(())
                 }
             }
         }
     }
 
-    fn untrack_new_file(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+    fn untrack_new_file(backend: &Backend, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(backend, id)? {
             None => Ok(()),
             Some(mut new) => {
                 new.new = false;
 
                 if !new.deleted {
-                    Self::delete(&db, new.id)?
+                    Self::delete(backend, new.id)?
                 } else {
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                 }
 
                 Ok(())
@@ -330,45 +364,44 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn untrack_rename(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+    fn untrack_rename(backend: &Backend, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(backend, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.renamed = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(&db, edit.id)?
+                    Self::delete(backend, edit.id)?
                 } else {
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                 }
-
                 Ok(())
             }
         }
     }
 
-    fn untrack_move(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+    fn untrack_move(backend: &Backend, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(backend, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.moved = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(&db, edit.id)?
+                    Self::delete(backend, edit.id)?
                 } else {
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                 }
 
                 Ok(())
@@ -376,22 +409,22 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn untrack_edit(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+    fn untrack_edit(backend: &Backend, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(backend, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.content_edited = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(&db, edit.id)?
+                    Self::delete(backend, edit.id)?
                 } else {
-                    tree.insert(
-                        id.as_bytes(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::SledError)?;
+                    backend
+                        .write(
+                            LOCAL_CHANGES,
+                            id.to_string().as_str(),
+                            serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                        )
+                        .map_err(DbError::BackendError)?;
                 }
 
                 Ok(())
@@ -399,13 +432,13 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn delete(db: &Db, id: Uuid) -> Result<(), DbError> {
-        let tree = db.open_tree(LOCAL_CHANGES).map_err(DbError::SledError)?;
-
-        match Self::get_local_changes(&db, id)? {
+    fn delete(backend: &Backend, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(backend, id)? {
             None => Ok(()),
             Some(_) => {
-                tree.remove(id.as_bytes()).map_err(DbError::SledError)?;
+                backend
+                    .delete(LOCAL_CHANGES, id.to_string().as_str())
+                    .map_err(DbError::BackendError)?;
                 Ok(())
             }
         }
@@ -418,12 +451,10 @@ mod unit_tests {
 
     use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::local_changes::{LocalChange, Moved, Renamed};
-    use crate::model::state::dummy_config;
-    use crate::repo::db_provider::{DbProvider, TempBackedDB};
+    use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
-
-    type DefaultDbProvider = TempBackedDB;
+    use crate::storage::db_provider::to_backend;
 
     pub struct TestClock;
 
@@ -448,15 +479,17 @@ mod unit_tests {
 
     #[test]
     fn set_and_unset_fields() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
-        assert_total_local_changes!(&db, 0);
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
+        assert_total_local_changes!(backend, 0);
 
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(&db, id).unwrap();
-        TestLocalChangesRepo::track_new_file(&db, id).unwrap();
-        TestLocalChangesRepo::track_new_file(&db, id).unwrap();
+        TestLocalChangesRepo::track_new_file(backend, id).unwrap();
+        TestLocalChangesRepo::track_new_file(backend, id).unwrap();
+        TestLocalChangesRepo::track_new_file(backend, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -467,11 +500,11 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(&db, 1);
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_rename(&db, id, "old_file", "unused_name").unwrap();
+        TestLocalChangesRepo::track_rename(backend, id, "old_file", "unused_name").unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -482,12 +515,12 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(&db, 1);
+        assert_total_local_changes!(backend, 1);
 
         let id2 = Uuid::new_v4();
-        TestLocalChangesRepo::track_move(&db, id, id2, Uuid::new_v4()).unwrap();
+        TestLocalChangesRepo::track_move(backend, id, id2, Uuid::new_v4()).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -499,11 +532,11 @@ mod unit_tests {
             })
         );
 
-        assert_total_local_changes!(&db, 1);
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::untrack_edit(&db, id).unwrap();
+        TestLocalChangesRepo::untrack_edit(backend, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -515,9 +548,9 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_rename(&db, id).unwrap();
+        TestLocalChangesRepo::untrack_rename(backend, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -529,9 +562,9 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_move(&db, id).unwrap();
+        TestLocalChangesRepo::untrack_move(backend, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -543,17 +576,17 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_new_file(&db, id).unwrap();
+        TestLocalChangesRepo::untrack_new_file(backend, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             None
         );
-        assert_total_local_changes!(&db, 0);
+        assert_total_local_changes!(backend, 0);
 
         // Deleting a file should unset it's other fields
-        TestLocalChangesRepo::track_rename(&db, id, "old", "new").unwrap();
+        TestLocalChangesRepo::track_rename(backend, id, "old", "new").unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -564,11 +597,11 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(&db, 1);
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_delete(&db, id, Document).unwrap();
+        TestLocalChangesRepo::track_delete(backend, id, Document).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -579,17 +612,19 @@ mod unit_tests {
                 deleted: true,
             })
         );
-        assert_total_local_changes!(&db, 1);
+        assert_total_local_changes!(backend, 1);
     }
 
     #[test]
     fn new_document_deleted() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(&db, id).unwrap();
+        TestLocalChangesRepo::track_new_file(backend, id).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -600,22 +635,24 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        TestLocalChangesRepo::track_delete(&db, id, Document).unwrap();
+        TestLocalChangesRepo::track_delete(backend, id, Document).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             None
         );
     }
 
     #[test]
     fn new_folder_deleted() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(&db, id).unwrap();
+        TestLocalChangesRepo::track_new_file(backend, id).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -626,10 +663,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        TestLocalChangesRepo::track_delete(&db, id, Folder).unwrap();
+        TestLocalChangesRepo::track_delete(backend, id, Folder).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -644,79 +681,87 @@ mod unit_tests {
 
     #[test]
     fn track_changes_on_multiple_files() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let id1 = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(&db, id1).unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::track_new_file(backend, id1).unwrap();
+        assert_total_local_changes!(backend, 1);
 
         let id2 = Uuid::new_v4();
-        TestLocalChangesRepo::track_rename(&db, id2, "old", "new").unwrap();
-        assert_total_local_changes!(&db, 2);
+        TestLocalChangesRepo::track_rename(backend, id2, "old", "new").unwrap();
+        assert_total_local_changes!(backend, 2);
 
         let id3 = Uuid::new_v4();
-        TestLocalChangesRepo::track_move(&db, id3, id3, Uuid::new_v4()).unwrap();
-        assert_total_local_changes!(&db, 3);
+        TestLocalChangesRepo::track_move(backend, id3, id3, Uuid::new_v4()).unwrap();
+        assert_total_local_changes!(backend, 3);
 
         let id4 = Uuid::new_v4();
-        TestLocalChangesRepo::track_delete(&db, id4, Document).unwrap();
-        assert_total_local_changes!(&db, 4);
+        TestLocalChangesRepo::track_delete(backend, id4, Document).unwrap();
+        assert_total_local_changes!(backend, 4);
 
-        TestLocalChangesRepo::untrack_new_file(&db, id1).unwrap();
-        assert_total_local_changes!(&db, 3);
+        TestLocalChangesRepo::untrack_new_file(backend, id1).unwrap();
+        assert_total_local_changes!(backend, 3);
 
-        TestLocalChangesRepo::untrack_rename(&db, id2).unwrap();
-        assert_total_local_changes!(&db, 2);
+        TestLocalChangesRepo::untrack_rename(backend, id2).unwrap();
+        assert_total_local_changes!(backend, 2);
 
-        TestLocalChangesRepo::untrack_move(&db, id3).unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::untrack_move(backend, id3).unwrap();
+        assert_total_local_changes!(backend, 1);
 
         // Untrack not supported because no one can undelete files
     }
 
     #[test]
     fn unknown_id() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, the_wrong_id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, the_wrong_id).unwrap(),
             None
         );
-        TestLocalChangesRepo::untrack_edit(&db, the_wrong_id).unwrap();
+        TestLocalChangesRepo::untrack_edit(backend, the_wrong_id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(&db, the_wrong_id).unwrap(),
+            TestLocalChangesRepo::get_local_changes(backend, the_wrong_id).unwrap(),
             None
         );
-        assert_total_local_changes!(&db, 0);
+        assert_total_local_changes!(backend, 0);
     }
 
     #[test]
     fn rename_back_to_original() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let id = Uuid::new_v4();
 
-        TestLocalChangesRepo::track_rename(&db, id, "old_file", "new_name").unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::track_rename(backend, id, "old_file", "new_name").unwrap();
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_rename(&db, id, "garbage", "garbage2").unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::track_rename(backend, id, "garbage", "garbage2").unwrap();
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_rename(&db, id, "garbage", "old_file").unwrap();
-        assert_total_local_changes!(&db, 0);
+        TestLocalChangesRepo::track_rename(backend, id, "garbage", "old_file").unwrap();
+        assert_total_local_changes!(backend, 0);
     }
 
     #[test]
     fn move_back_to_original() {
-        let db = DefaultDbProvider::connect_to_db(&dummy_config()).unwrap();
+        let cfg = &temp_config();
+        let backend = &to_backend(cfg);
+
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();
 
-        TestLocalChangesRepo::track_move(&db, id, og, Uuid::new_v4()).unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::track_move(backend, id, og, Uuid::new_v4()).unwrap();
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_move(&db, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
-        assert_total_local_changes!(&db, 1);
+        TestLocalChangesRepo::track_move(backend, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
+        assert_total_local_changes!(backend, 1);
 
-        TestLocalChangesRepo::track_move(&db, id, Uuid::new_v4(), og).unwrap();
-        assert_total_local_changes!(&db, 0);
+        TestLocalChangesRepo::track_move(backend, id, Uuid::new_v4(), og).unwrap();
+        assert_total_local_changes!(backend, 0);
     }
 }
