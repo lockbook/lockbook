@@ -5,6 +5,9 @@ all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cl
 .PHONY: clean
 clean:
 	-docker network prune -f
+	-docker image prune -af --filter "until=24h"
+	-docker container prune
+	-docker volume prune
 
 .PHONY: exorcise
 exorcise:
@@ -14,152 +17,150 @@ exorcise:
 
 .PHONY: core
 core: is_docker_running
-	docker build -f containers/Dockerfile.core . --tag core:$(hash)
+	docker build --target core-build -f containers/Dockerfile.core . --tag core:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: core_fmt
 core_fmt: core
 	@echo The following files need formatting:
-	docker run core:$(hash) cargo +stable fmt -- --check -l
+	docker build --target core-fmt -f containers/Dockerfile.core . --tag core_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: core_lint
 core_lint: core
-	docker run core:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target core-lint -f containers/Dockerfile.core . --tag core_lint:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: core_test
 core_test: core
-	docker run core:$(hash) cargo test --release --lib
+	docker build --target core-test -f containers/Dockerfile.core . --tag core_test:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server
 server: is_docker_running
-	docker build -f containers/Dockerfile.server . --tag server:$(hash)
+	docker build --target server-build -f containers/Dockerfile.server . --tag server:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_fmt
 server_fmt: server
 	@echo The following files need formatting:
-	docker run server:$(hash) cargo +stable fmt -- --check -l
+	docker build --target server-fmt -f containers/Dockerfile.server . --tag server_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_lint
 server_lint: server
-	docker run server:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target server-lint -f containers/Dockerfile.server . --tag server_lint:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_tests
 server_tests: is_docker_running
-	docker build -f containers/Dockerfile.server . --tag server_tests:$(hash)
+	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_tests_run
-server_tests_run: server server_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-server-tests.yml --project-name=server-tests-$(hash) up --exit-code-from=server_tests
+server_tests_run: server server_tests db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate server_tests
+	exit $$(docker wait server_tests-client-$(hash))
 
 .PHONY: cli
 cli: is_docker_running
-	docker build -f containers/Dockerfile.cli . --tag cli:$(hash)
+	docker build --target cli-build -f containers/Dockerfile.cli . --tag cli:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: cli_fmt
 cli_fmt: cli
 	@echo The following files need formatting:
-	docker run cli:$(hash) cargo +stable fmt -- --check -l
+	docker build --target cli-fmt -f containers/Dockerfile.cli . --tag cli_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: cli_lint
 cli_lint: cli
-	docker run cli:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target cli-lint -f containers/Dockerfile.cli . --tag cli_lint:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: cli_test
 cli_test: cli
-	docker run cli:$(hash) cargo test --release
+	docker build --target cli-test -f containers/Dockerfile.cli . --tag cli_test:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux
 linux: is_docker_running
-	docker build -f containers/Dockerfile.linux . --tag linux:$(hash)
+	docker build --target linux-build -f containers/Dockerfile.linux . --tag linux:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux_fmt
 linux_fmt: linux
 	@echo The following files need formatting:
-	docker run linux:$(hash) cargo +stable fmt -- --check -l
+	docker build --target linux-build -f containers/Dockerfile.linux . --tag linux_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux_lint
 linux_lint: linux
-	docker run linux:$(hash) cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+	docker build --target linux-lint -f containers/Dockerfile.linux . --tag linux_lint:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux_test
 linux_test: linux
-	docker run linux:$(hash) cargo test --release
+	docker build --target linux-test -f containers/Dockerfile.linux . --tag linux_test:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: integration_tests
 integration_tests: is_docker_running
-	docker build -f containers/Dockerfile.integration_tests . --tag integration_tests:$(hash)
+	docker build --target integration-tests -f containers/Dockerfile.core . --tag integration_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: integration_tests_run
-integration_tests_run: integration_tests server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) up --exit-code-from=integration_tests
+integration_tests_run: integration_tests server db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up integration_tests
+	exit $$(docker wait integration_tests-integration-$(hash))
 
 .PHONY: android
 android: is_docker_running
-	docker build -f containers/Dockerfile.android . --tag android:$(hash)
+	docker build --target android-build -f containers/Dockerfile.android . --tag android:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: android_lint
 android_lint: android
-	docker run android:$(hash) ./gradlew lint
+	docker build --target android-lint -f containers/Dockerfile.android . --tag android_lint:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: android_fmt
 android_fmt: android
-	docker run android:$(hash) ./gradlew lintKotlin 
+	docker build --target android-fmt -f containers/Dockerfile.android . --tag android_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: kotlin_interface_tests
 kotlin_interface_tests: is_docker_running
-	docker build -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash)
+	docker build --target kotlin-interface-tests -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: kotlin_interface_tests_run
-kotlin_interface_tests_run: server kotlin_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-kotlin-interface-tests.yml --project-name=kotlin-$(hash) up --exit-code-from=kotlin_interface_tests
+kotlin_interface_tests_run: server kotlin_interface_tests db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate kotlin_interface_tests
+	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
 .PHONY: swift_interface_tests
 swift_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.swift_interface_tests . --tag swift_interface_tests:$(hash)
 
 .PHONY: swift_interface_tests_run
-swift_interface_tests_run: server swift_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-swift-interface-tests.yml --project-name=swift-$(hash) up --exit-code-from=swift_interface_tests
+swift_interface_tests_run: server swift_interface_tests db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate swift_interface_tests
+	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
 .PHONY: csharp_interface_tests
 csharp_interface_tests: is_docker_running
-	docker build -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash)
+	docker build --target csharp-interface-tests -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: csharp_interface_tests_run
-csharp_interface_tests_run: server csharp_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-csharp-interface-tests.yml --project-name=csharp-$(hash) up --exit-code-from=csharp_interface_tests
+csharp_interface_tests_run: server csharp_interface_tests db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate csharp_interface_tests
+	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
 .PHONY: performance
 performance: is_docker_running
 	docker build -f containers/Dockerfile.performance . --tag performance:$(hash)
 
 .PHONY: performance_bench
-performance_bench: performance server
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) down
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/common-services.yml -f containers/docker-compose-performance.yml --project-name=performance-$(hash) up --exit-code-from=performance_bench
+performance_bench: performance server db_container
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate performance_bench
+	exit $$(docker wait performance-performance-$(hash))
 
 .PHONY: performance_bench_report
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
 
-.PHONY: dev_stack_run
-dev_stack_run: server
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) up
+.PHONY: db_container
+db_container: is_docker_running
+	HASH=$(hash) docker build -f containers/Dockerfile.db . --tag db_with_migration-$(hash)
 
-.PHONY: semi_dev_stack_run
-semi_dev_stack_run: is_docker_running
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=integration-tests-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) down
-	HASH=$(hash) docker-compose -f containers/docker-compose-semi-dev-stack.yml --project-name=dev-stack-$(hash) up
+.PHONY: dev_stack_run
+dev_stack_run: server db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate --detach lockbook_server
+	sleep 5
+
+.PHONY: kill_dev_stack
+kill_dev_stack:
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down
 
 # Helpers
 .PHONY: is_docker_running
