@@ -1,5 +1,8 @@
 ARG HASH
-FROM core:${HASH} AS csharp-interface-tests
+
+FROM core:$HASH as core-hash
+
+FROM ubuntu:20.04 AS csharp-interface-tests
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install essentials
@@ -26,7 +29,7 @@ WORKDIR /
 # Copy code
 COPY clients/windows clients/windows
 RUN mkdir -p /clients/windows/core/
-RUN cp /core/target/release/liblockbook_core.so  /clients/windows/core
+COPY --from=core-hash /core/target/release/liblockbook_core.so /clients/windows/core
 
 # Build tests
 ENV API_URL=http://lockbook_server:8000
