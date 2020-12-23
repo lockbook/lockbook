@@ -514,10 +514,7 @@ impl FileMoveResponse {
             .map_err(FileError::Postgres)?;
         Ok(Self {
             old_deleted: row.try_get("old_deleted").map_err(FileError::Postgres)?,
-            parent_deleted: match deleted {
-                Some(true) => true,
-                _ => false,
-            },
+            parent_deleted: matches!(deleted, Some(true)),
             parent_id: serde_json::from_str::<Uuid>(
                 row.try_get::<&str, &str>("parent_id")
                     .map_err(FileError::Postgres)?,
@@ -533,10 +530,7 @@ impl FileMoveResponse {
                 .try_get::<&str, i64>("new_metadata_version")
                 .map_err(FileError::Postgres)? as u64,
             is_folder: row.try_get("is_folder").map_err(FileError::Postgres)?,
-            parent_exists: match deleted {
-                None => false,
-                _ => true,
-            },
+            parent_exists: matches!(deleted, Some(_)),
         })
     }
 
@@ -615,9 +609,7 @@ impl FileDeleteResponses {
     fn validate(self, root_id: Uuid, expected_root_file_type: FileType) -> Result<Self, FileError> {
         if self.responses.is_empty() {
             Err(FileError::DoesNotExist)
-        } else if !self.responses.iter().all(|r| {
-            r.id != root_id || r.is_folder == (expected_root_file_type == FileType::Folder)
-        }) {
+        } else if self.root_file_type(root_id) != expected_root_file_type {
             Err(FileError::WrongFileType)
         } else if self.responses.iter().any(|r| r.parent_id == r.id) {
             Err(FileError::IllegalRootChange)
@@ -630,6 +622,20 @@ impl FileDeleteResponses {
         } else {
             Ok(self)
         }
+    }
+
+    fn root_file_type(&self, root_id: Uuid) -> FileType {
+        self.responses
+            .iter()
+            .find(|r| r.id == root_id)
+            .map(|r| {
+                if r.is_folder {
+                    FileType::Folder
+                } else {
+                    FileType::Document
+                }
+            })
+            .unwrap_or(FileType::Document)
     }
 }
 
