@@ -32,7 +32,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
-static MAX_SIGNATURE_DELAY_MS: u64 = 60000;
 
 pub struct ServerState {
     pub config: config::Config,
@@ -113,7 +112,7 @@ macro_rules! route_handler {
             <$TRequest>::ROUTE
         );
 
-        let result = match unpack($hyper_request).await {
+        let result = match unpack(&$s, $hyper_request).await {
             Ok((request, public_key)) => {
                 debug!("Request: {:?}", request);
                 wrap_err::<$TRequest>(
@@ -261,6 +260,7 @@ async fn reconnect(server_state: &mut ServerState) {
 }
 
 async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
+    server_state: &ServerState,
     hyper_request: hyper::Request<Body>,
 ) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
     let request_bytes = match from_request(hyper_request).await {
@@ -283,9 +283,9 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
         ErrorWrapper::<TRequest::Error>::ClientUpdateRequired
     })?;
 
-    match verify_auth(&request) {
+    match verify_auth(server_state, &request) {
         Ok(()) => {}
-        Err(RSAVerifyError::SignatureExpired(_)) => {
+        Err(RSAVerifyError::SignatureExpired(_)) | Err(RSAVerifyError::SignatureInTheFuture(_)) => {
             return Err(ErrorWrapper::<TRequest::Error>::ExpiredAuth);
         }
         Err(_) => {
@@ -339,12 +339,14 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
 }
 
 fn verify_auth<TRequest: Request + Serialize>(
+    server_state: &ServerState,
     request: &RequestWrapper<TRequest>,
 ) -> Result<(), RSAVerifyError> {
     RSAImpl::<ClockImpl>::verify(
         &request.signed_request.public_key,
         &request.signed_request,
-        MAX_SIGNATURE_DELAY_MS,
+        server_state.config.server.max_auth_delay as u64,
+        server_state.config.server.max_auth_delay as u64,
     )
 }
 
