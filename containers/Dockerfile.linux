@@ -1,4 +1,5 @@
-FROM ubuntu:20.10
+ARG HASH
+FROM debian AS linux-build
 
 RUN apt update -y
 RUN apt-get install -y build-essential curl libgtk-3-dev gtksourceview-3.0
@@ -10,13 +11,17 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
 RUN rustup component add clippy --toolchain stable
+
 WORKDIR linux
 
-# CLI depends on core via a relative import
-COPY core ../core
+# Linux depends on core via a relative import
+COPY core/Cargo.toml /core/Cargo.toml
+COPY core/Cargo.lock /core/Cargo.lock
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
+COPY containers/dummy.rs /core/src/lib.rs
+
 COPY containers/dummy.rs src/main.rs
 COPY clients/linux/Cargo.toml .
 COPY clients/linux/Cargo.lock .
@@ -24,7 +29,21 @@ RUN cargo build --release
 
 # Build our source
 COPY clients/linux .
+COPY core /core
 
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/main.rs
+RUN touch /core/src/lib.rs
 RUN cargo build --release
+
+# Check the formatting of core
+FROM linux:${HASH} AS linux-fmt
+RUN cargo +stable fmt -- --check -l
+
+# Check the lint of core
+FROM linux:${HASH} AS linux-lint
+RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+
+# Run core tests
+FROM linux:${HASH} AS linux-test
+RUN cargo test --release 
