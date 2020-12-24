@@ -77,33 +77,21 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                         )
                     });
 
-                let lockbook_child_path = match (import_dest.ends_with("/"), is_top_folder) {
-                    (true, true) => {
-                        let parent_name = path
-                            .file_name()
-                            .and_then(|parent_name| parent_name.to_str())
-                            .unwrap_or_else(|| {
-                                exit_with(
-                                    &format!("Failed to read parent name, OS path: {:?}", path),
-                                    COULD_NOT_READ_OS_CHILDREN,
-                                )
-                            });
-                        String::from(import_dest).add(&format!("{}/{}", parent_name, child_name))
-                    }
-                    (true, false) => String::from(import_dest).add(&format!("{}", child_name)),
-                    (false, true) => {
-                        let parent_name = path
-                            .file_name()
-                            .and_then(|parent_name| parent_name.to_str())
-                            .unwrap_or_else(|| {
-                                exit_with(
-                                    &format!("Failed to read parent name, OS path: {:?}", path),
-                                    COULD_NOT_READ_OS_CHILDREN,
-                                )
-                            });
-                        String::from(import_dest).add(&format!("/{}/{}", parent_name, child_name))
-                    }
-                    (false, false) => String::from(import_dest).add(&format!("/{}", child_name)),
+                let ends_with_slash = import_dest.ends_with("/");
+                let lockbook_child_path = if is_top_folder {
+                    let parent_name = path
+                        .file_name()
+                        .and_then(|parent_name| parent_name.to_str())
+                        .unwrap_or_else(|| {
+                            exit_with(
+                                &format!("Failed to read parent name, OS path: {:?}", path),
+                                COULD_NOT_READ_OS_CHILDREN,
+                            )
+                        });
+
+                    format!("{}{}", import_dest, if ends_with_slash { format!("{}/{}", parent_name, child_name) } else { format!("/{}/{}", parent_name, child_name) })
+                } else {
+                    format!("{}{}", import_dest, if ends_with_slash { format!("{}", child_name) } else { format!("/{}", child_name) })
                 };
 
                 recursive_copy_folder(&child_path, &lockbook_child_path, false);
