@@ -89,9 +89,25 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                             )
                         });
 
-                    format!("{}{}", import_dest, if ends_with_slash { format!("{}/{}", parent_name, child_name) } else { format!("/{}/{}", parent_name, child_name) })
+                    format!(
+                        "{}{}",
+                        import_dest,
+                        if ends_with_slash {
+                            format!("{}/{}", parent_name, child_name)
+                        } else {
+                            format!("/{}/{}", parent_name, child_name)
+                        }
+                    )
                 } else {
-                    format!("{}{}", import_dest, if ends_with_slash { format!("{}", child_name) } else { format!("/{}", child_name) })
+                    format!(
+                        "{}{}",
+                        import_dest,
+                        if ends_with_slash {
+                            format!("{}", child_name)
+                        } else {
+                            format!("/{}", child_name)
+                        }
+                    )
                 };
 
                 recursive_copy_folder(&child_path, &lockbook_child_path, false);
