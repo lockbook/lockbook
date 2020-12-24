@@ -7,7 +7,11 @@ use lockbook_core::{
 };
 
 use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
-use crate::{COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_FILE, COULD_NOT_READ_OS_METADATA, DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE, PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR, COULD_NOT_READ_OS_CHILDREN};
+use crate::{
+    COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_CHILDREN, COULD_NOT_READ_OS_FILE,
+    COULD_NOT_READ_OS_METADATA, DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT,
+    PATH_CONTAINS_EMPTY_FILE, PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
+};
 use std::fs::DirEntry;
 use std::ops::Add;
 
@@ -22,13 +26,14 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     });
 
     if metadata.is_file() {
-        copy_file(&path, import_dest, edit)
+        copy_file(&path, import_dest, edit, false)
     } else {
-        recursive_copy_folder(&path, import_dest)
+        recursive_copy_folder(&path, import_dest, true);
+        exit_with(&format!("imported folder to: {}", import_dest), SUCCESS)
     }
 }
 
-fn recursive_copy_folder(path: &PathBuf, import_dest: &str) {
+fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool) {
     let metadata = fs::metadata(&path).unwrap_or_else(|err| {
         exit_with(
             &format!("Failed to read file metadata: {}", err),
@@ -37,36 +42,91 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str) {
     });
 
     if metadata.is_file() {
-        copy_file(&path, import_dest, false)
+        copy_file(&path, import_dest, false, true);
     } else {
-        let children_paths: Vec<DirEntry> = fs::read_dir(path).unwrap_or_else(|err| {
-            exit_with(
-                &format!("Failed to read folder children: {}", err),
-                COULD_NOT_READ_OS_CHILDREN,
-            )
-        }).map(|child| child.unwrap_or_else(|err| {
-            exit_with(
-                &format!("Failed to retrieve child path: {}", err),
-                COULD_NOT_READ_OS_CHILDREN,
-            )
-        })).collect();
-
-        for child in children_paths {
-            let child_path = child.path();
-            let child_name = child_path.file_name().and_then(|child_name| child_name.to_str()).unwrap_or_else(|| {
+        let children_paths: Vec<DirEntry> = fs::read_dir(path)
+            .unwrap_or_else(|err| {
                 exit_with(
-                    &format!("Failed to read child name, parent path: {:?}", child_path),
+                    &format!("Failed to read folder children: {}", err),
                     COULD_NOT_READ_OS_CHILDREN,
                 )
-            });
+            })
+            .map(|child| {
+                child.unwrap_or_else(|err| {
+                    exit_with(
+                        &format!("Failed to retrieve child path: {}", err),
+                        COULD_NOT_READ_OS_CHILDREN,
+                    )
+                })
+            })
+            .collect();
 
-            recursive_copy_folder(&child_path, &String::from(import_dest).add(child_name))
+        if !children_paths.is_empty() {
+            for child in children_paths {
+                let child_path = child.path();
+                let child_name = child_path
+                    .file_name()
+                    .and_then(|child_name| child_name.to_str())
+                    .unwrap_or_else(|| {
+                        exit_with(
+                            &format!(
+                                "Failed to read child name, OS parent path: {:?}",
+                                child_path
+                            ),
+                            COULD_NOT_READ_OS_CHILDREN,
+                        )
+                    });
+
+                let lockbook_child_path = match (import_dest.ends_with("/"), is_top_folder) {
+                    (true, true) => {
+                        let parent_name = path
+                            .file_name()
+                            .and_then(|parent_name| parent_name.to_str())
+                            .unwrap_or_else(|| {
+                                exit_with(
+                                    &format!("Failed to read parent name, OS path: {:?}", path),
+                                    COULD_NOT_READ_OS_CHILDREN,
+                                )
+                            });
+                        String::from(import_dest).add(&format!("{}/{}", parent_name, child_name))
+                    }
+                    (true, false) => String::from(import_dest).add(&format!("{}", child_name)),
+                    (false, true) => {
+                        let parent_name = path
+                            .file_name()
+                            .and_then(|parent_name| parent_name.to_str())
+                            .unwrap_or_else(|| {
+                                exit_with(
+                                    &format!("Failed to read parent name, OS path: {:?}", path),
+                                    COULD_NOT_READ_OS_CHILDREN,
+                                )
+                            });
+                        String::from(import_dest).add(&format!("/{}/{}", parent_name, child_name))
+                    }
+                    (false, false) => String::from(import_dest).add(&format!("/{}", child_name)),
+                };
+
+                recursive_copy_folder(&child_path, &lockbook_child_path, false);
+            }
+        } else {
+            if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
+                match err {
+                    CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
+                        exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest), FILE_ALREADY_EXISTS)
+                    }
+                    CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
+                    CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
+                    CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest), DOCUMENT_TREATED_AS_FOLDER),
+                    CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => exit_with(&format!("Input destination {} contains an empty file!", import_dest), PATH_CONTAINS_EMPTY_FILE),
+                    CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
+                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                }
+            }
         }
-
     }
 }
 
-fn copy_file(path: &PathBuf, import_dest: &str, edit: bool) -> ! {
+fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_import: bool) {
     let content_to_import = fs::read_to_string(&path).unwrap_or_else(|err| {
         exit_with(
             &format!("Failed to read file: {}", err),
@@ -86,11 +146,18 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool) -> ! {
             Some(name) => match name.to_os_string().into_string() {
                 Ok(string) => format!("{}{}", &import_dest, string),
                 Err(err) => exit_with(
-                    format!("Unexpected error while trying to convert an OsString -> Rust String: {:?}", err).as_str(),
+                    format!(
+                        "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
+                        err
+                    )
+                    .as_str(),
                     UNEXPECTED_ERROR,
                 ),
             },
-            None => exit_with("Import target does not contain a file name!", UNEXPECTED_ERROR),
+            None => exit_with(
+                "Import target does not contain a file name!",
+                UNEXPECTED_ERROR,
+            ),
         }
     } else {
         import_dest.to_string()
@@ -126,11 +193,16 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool) -> ! {
         file_metadata.id,
         content_to_import.as_bytes(),
     ) {
-        Ok(_) => exit_with(
-            &format!("imported to {}", import_dest_with_filename),
-            SUCCESS,
-        ),
+        Ok(_) => {
+            if is_folder_import {
+                println!("{}", &format!("imported to {}", import_dest_with_filename))
+            } else {
+                exit_with(
+                    &format!("imported to {}", import_dest_with_filename),
+                    SUCCESS,
+                )
+            }
+        }
         Err(err) => exit_with(&format!("Unexpected error: {:#?}", err), UNEXPECTED_ERROR),
     }
 }
-
