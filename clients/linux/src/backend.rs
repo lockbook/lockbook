@@ -23,9 +23,9 @@ use lockbook_core::{
 use crate::error::{LbError, LbResult};
 use crate::util::KILOBYTE;
 
-macro_rules! map_core_err {
+macro_rules! core_to_lb_err {
     ($enum:ident, $( $( $variants:ident )* $(=> $matches:expr )* ),+) => {
-        |err | match err {
+        |err| match err {
             lockbook_core::Error::UiError(e) => match e {
                 $( $( lockbook_core::$enum::$variants )* $( => $matches )* ),+
             },
@@ -39,8 +39,6 @@ macro_rules! uerr {
         LbError::User(format!($base $(, $args )*))
     };
 }
-
-const UNAME_REQS: &str = "letters and numbers only";
 
 fn api_url() -> String {
     env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
@@ -89,8 +87,21 @@ impl LbCore {
         }
     }
 
+    pub fn account(&self) -> Result<Option<Account>, String> {
+        match get_account(&self.config) {
+            Ok(acct) => Ok(Some(acct)),
+            Err(err) => match err {
+                CoreError::UiError(GetAccountError::NoAccount) => Ok(None),
+                CoreError::Unexpected(err) => {
+                    println!("error getting account: {}", err);
+                    Err("Unable to load account.".to_string())
+                }
+            },
+        }
+    }
+
     pub fn create_account(&self, uname: &str) -> LbResult<Account> {
-        create_account(&self.config, &uname, &api_url()).map_err(map_core_err!(CreateAccountError,
+        create_account(&self.config, &uname, &api_url()).map_err(core_to_lb_err!(CreateAccountError,
             UsernameTaken => uerr!("The username '{}' is already taken.", uname),
             InvalidUsername => uerr!("Invalid username '{}' ({}).", uname, UNAME_REQS),
             AccountExistsAlready => uerr!("An account already exists."),
@@ -100,7 +111,7 @@ impl LbCore {
     }
 
     pub fn import_account(&self, privkey: &str) -> LbResult<Account> {
-        import_account(&self.config, privkey).map_err(map_core_err!(ImportError,
+        import_account(&self.config, privkey).map_err(core_to_lb_err!(ImportError,
             AccountStringCorrupted => uerr!("Your account's private key is corrupted."),
             AccountExistsAlready => uerr!("An account already exists."),
             AccountDoesNotExist => uerr!("The account you tried to import does not exist."),
@@ -111,9 +122,163 @@ impl LbCore {
     }
 
     pub fn export_account(&self) -> LbResult<String> {
-        export_account(&self.config).map_err(map_core_err!(AccountExportError,
-            NoAccount => uerr!("No account found"),
+        export_account(&self.config).map_err(core_to_lb_err!(AccountExportError,
+            NoAccount => uerr!("No account found."),
         ))
+    }
+
+    pub fn create_file_at_path(&self, path: &str) -> LbResult<FileMetadata> {
+        let prefixed = format!("{}/{}", self.root()?.name, path);
+
+        create_file_at_path(&self.config, &prefixed).map_err(core_to_lb_err!(CreateFileAtPathError,
+            FileAlreadyExists => uerr!("That file already exists!"),
+            NoAccount => uerr!("No account found."),
+            NoRoot => uerr!("No root folder found."),
+            PathDoesntStartWithRoot => uerr!("The path '{}' doesn't start with root.", path),
+            PathContainsEmptyFile => uerr!("The path '{}' contains an empty file.", path),
+            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
+        ))
+    }
+
+    pub fn save(&self, id: Uuid, content: String) -> LbResult<()> {
+        let bytes = content.as_bytes();
+
+        write_document(&self.config, id, bytes).map_err(core_to_lb_err!(WriteToDocumentError,
+            NoAccount => uerr!("No account found."),
+            FileDoesNotExist => uerr!("The file with id '{}' does not exist.", id),
+            FolderTreatedAsDocument => uerr!(""),
+        ))
+    }
+
+    pub fn root(&self) -> LbResult<FileMetadata> {
+        get_root(&self.config).map_err(core_to_lb_err!(GetRootError,
+            NoRoot => uerr!("No root folder found."),
+        ))
+    }
+
+    pub fn children(&self, parent: &FileMetadata) -> LbResult<Vec<FileMetadata>> {
+        get_children(&self.config, parent.id).map_err(core_to_lb_err!(GetChildrenError,
+            Stub => panic!("impossible"),
+        ))
+    }
+
+    pub fn get_children_recursively(&self, id: Uuid) -> LbResult<Vec<FileMetadata>> {
+        get_and_get_children_recursively(&self.config, id).map_err(core_to_lb_err!(
+            GetAndGetChildrenError,
+            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
+        ))
+    }
+
+    pub fn file_by_id(&self, id: Uuid) -> LbResult<FileMetadata> {
+        get_file_by_id(&self.config, id).map_err(core_to_lb_err!(GetFileByIdError,
+            NoFileWithThatId => uerr!("No file found with ID '{}'.", id),
+        ))
+    }
+
+    pub fn file_by_path(&self, path: &str) -> LbResult<FileMetadata> {
+        let acct = self.account().unwrap().unwrap();
+        let p = format!("{}/{}", acct.username, path);
+
+        get_file_by_path(&self.config, &p).map_err(core_to_lb_err!(GetFileByPathError,
+            NoFileAtThatPath => uerr!("No file at path '{}'.", p),
+        ))
+    }
+
+    pub fn delete(&self, id: &Uuid) -> LbResult<()> {
+        delete_file(&self.config, *id).map_err(core_to_lb_err!(FileDeleteError,
+            CannotDeleteRoot => uerr!("Deleting the root folder is not permitted."),
+            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+        ))
+    }
+
+    pub fn read(&self, id: Uuid) -> LbResult<DecryptedDocument> {
+        read_document(&self.config, id).map_err(core_to_lb_err!(ReadDocumentError,
+            TreatedFolderAsDocument => uerr!("There is a folder treated as a document."),
+            NoAccount => uerr!("No account found."),
+            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+        ))
+    }
+
+    pub fn list_paths(&self) -> LbResult<Vec<String>> {
+        list_paths(&self.config, None).map_err(core_to_lb_err!(ListPathsError,
+            Stub => panic!("impossible"),
+        ))
+    }
+
+    pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
+        rename_file(&self.config, *id, new_name).map_err(core_to_lb_err!(RenameFileError,
+            CannotRenameRoot => uerr!("The root folder cannot be renamed."),
+            FileDoesNotExist => uerr!("The file you are trying to rename does not exist."),
+            FileNameNotAvailable => uerr!("The new file name is not available."),
+            NewNameContainsSlash => uerr!("File names cannot contain slashes."),
+            NewNameEmpty => uerr!("File names cannot be blank."),
+        ))
+    }
+
+    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
+        let account = self.account().unwrap().unwrap();
+
+        let mut work: WorkCalculated;
+        while {
+            work = self.calculate_work()?;
+            !work.work_units.is_empty()
+        } {
+            let total = work.work_units.len();
+
+            for (i, wu) in work.work_units.iter().enumerate() {
+                let path = self.full_path_for(&wu.get_metadata());
+                chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
+                    .unwrap();
+
+                self.do_work(&account, wu)?;
+            }
+
+            if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
+                chan.send(LbSyncMsg::Error(err)).unwrap();
+            }
+        }
+
+        chan.send(LbSyncMsg::Done).unwrap();
+        Ok(())
+    }
+
+    pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
+        calculate_work(&self.config).map_err(core_to_lb_err!(CalculateWorkError,
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+            NoAccount => uerr!("No account found."),
+        ))
+    }
+
+    fn do_work(&self, a: &Account, wu: &WorkUnit) -> LbResult<()> {
+        execute_work(&self.config, &a, wu.clone()).map_err(core_to_lb_err!(ExecuteWorkError,
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+            BadAccount => uerr!("wut"),
+        ))
+    }
+
+    fn set_last_synced(&self, last_sync: u64) -> LbResult<()> {
+        set_last_synced(&self.config, last_sync).map_err(core_to_lb_err!(SetLastSyncedError,
+            Stub => panic!("impossible"),
+        ))
+    }
+
+    pub fn get_last_synced(&self) -> LbResult<i64> {
+        get_last_synced(&self.config).map_err(core_to_lb_err!(GetLastSyncedError,
+            Stub => panic!("impossible"),
+        ))
+    }
+
+    pub fn usage(&self) -> LbResult<(u64, f64)> {
+        let u = get_usage(&self.config).map_err(core_to_lb_err!(GetUsageError,
+            NoAccount => uerr!("No account found."),
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+        ))?;
+        let total = u.into_iter().map(|usage| usage.byte_secs).sum();
+        Ok((total, FAKE_LIMIT))
     }
 
     pub fn account_qrcode(&self, chan: &GlibSender<LbResult<String>>) {
@@ -130,56 +295,10 @@ impl LbCore {
         }
     }
 
-    pub fn account(&self) -> Result<Option<Account>, String> {
-        match get_account(&self.config) {
-            Ok(acct) => Ok(Some(acct)),
-            Err(err) => match err {
-                CoreError::UiError(GetAccountError::NoAccount) => Ok(None),
-                CoreError::Unexpected(err) => {
-                    println!("error getting account: {}", err);
-                    Err("Unable to load account.".to_string())
-                }
-            },
-        }
-    }
-
-    pub fn root(&self) -> Result<FileMetadata, String> {
-        get_root(&self.config).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn children(&self, parent: &FileMetadata) -> Result<Vec<FileMetadata>, String> {
-        get_children(&self.config, parent.id).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn create_file_at_path(&self, path: &str) -> Result<FileMetadata, String> {
-        let prefixed = format!("{}/{}", self.root().unwrap().name, path);
-
-        create_file_at_path(&self.config, &prefixed).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn file_by_id(&self, id: Uuid) -> Result<FileMetadata, String> {
-        get_file_by_id(&self.config, id).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn file_by_path(&self, path: &str) -> Result<FileMetadata, String> {
-        let acct = self.account().unwrap().unwrap();
-        let p = format!("{}/{}", acct.username, path);
-
-        get_file_by_path(&self.config, &p).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn list_paths(&self) -> Result<Vec<String>, String> {
-        list_paths(&self.config, None).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn list_paths_without_root(&self) -> Result<Vec<String>, String> {
-        match self.list_paths() {
-            Ok(paths) => {
-                let root = self.account().unwrap().unwrap().username;
-                Ok(paths.iter().map(|p| p.replacen(&root, "", 1)).collect())
-            }
-            Err(err) => Err(err),
-        }
+    pub fn list_paths_without_root(&self) -> LbResult<Vec<String>> {
+        let paths = self.list_paths()?;
+        let root = self.account().unwrap().unwrap().username;
+        Ok(paths.iter().map(|p| p.replacen(&root, "", 1)).collect())
     }
 
     pub fn full_path_for(&self, f: &FileMetadata) -> String {
@@ -206,105 +325,12 @@ impl LbCore {
         path
     }
 
-    pub fn save(&self, id: Uuid, content: String) -> Result<(), String> {
-        write_document(&self.config, id, content.as_bytes()).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn open(&self, id: &Uuid) -> Result<(FileMetadata, String), String> {
-        match self.file_by_id(*id) {
-            Ok(meta) => match self.read(meta.id) {
-                Ok(decrypted) => Ok((meta, String::from_utf8_lossy(&decrypted).to_string())),
-                Err(err) => Err(err),
-            },
-            Err(err) => Err(format!("{:?}", err)),
-        }
-    }
-
-    pub fn read(&self, id: Uuid) -> Result<DecryptedDocument, String> {
-        read_document(&self.config, id).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn get_children_recursively(&self, id: Uuid) -> Result<Vec<FileMetadata>, String> {
-        get_and_get_children_recursively(&self.config, id).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn delete(&self, id: &Uuid) -> Result<(), String> {
-        delete_file(&self.config, *id).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
-        rename_file(&self.config, *id, new_name).map_err(map_core_err!(RenameFileError,
-            CannotRenameRoot => uerr!("The root folder cannot be renamed."),
-            FileDoesNotExist => uerr!("The file you are trying to rename does not exist."),
-            FileNameNotAvailable => uerr!("The new file name is not available."),
-            NewNameContainsSlash => uerr!("File names cannot contain slashes."),
-            NewNameEmpty => uerr!("File names cannot be blank."),
-        ))
-    }
-
-    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
-        let account = self.account().unwrap().unwrap();
-
-        let mut work: WorkCalculated;
-        while {
-            work = match self.calculate_work() {
-                Ok(w) => w,
-                Err(err) => return Err(err),
-            };
-            !work.work_units.is_empty()
-        } {
-            let total = work.work_units.len();
-
-            for (i, wu) in work.work_units.iter().enumerate() {
-                let path = self.full_path_for(&wu.get_metadata());
-                chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
-                    .unwrap();
-
-                if let Err(err) = self.do_work(&account, wu) {
-                    return Err(err);
-                }
-            }
-
-            if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
-                chan.send(LbSyncMsg::Error(err)).unwrap();
-            }
-        }
-
-        chan.send(LbSyncMsg::Done).unwrap();
-        Ok(())
-    }
-
-    pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
-        calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
-            NoAccount => uerr!("No account found."),
-        ))
-    }
-
-    fn do_work(&self, a: &Account, wu: &WorkUnit) -> LbResult<()> {
-        execute_work(&self.config, &a, wu.clone()).map_err(map_core_err!(ExecuteWorkError,
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
-            BadAccount => uerr!("wut"),
-        ))
-    }
-
-    fn set_last_synced(&self, last_sync: u64) -> LbResult<()> {
-        set_last_synced(&self.config, last_sync).map_err(map_core_err!(SetLastSyncedError,
-            Stub => panic!("impossible"),
-        ))
-    }
-
-    pub fn get_last_synced(&self) -> Result<i64, String> {
-        get_last_synced(&self.config).map_err(|err| format!("{:?}", err))
-    }
-
-    pub fn usage(&self) -> Result<(u64, f64), String> {
-        let fake_limit = KILOBYTE as f64 * 20.0;
-        match get_usage(&self.config) {
-            Ok(u) => Ok((u.into_iter().map(|usage| usage.byte_secs).sum(), fake_limit)),
-            Err(err) => Err(format!("{:?}", err)),
-        }
+    pub fn open(&self, id: &Uuid) -> LbResult<(FileMetadata, String)> {
+        let meta = self.file_by_id(*id)?;
+        let decrypted = self.read(meta.id)?;
+        Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))
     }
 }
+
+const UNAME_REQS: &str = "letters and numbers only";
+const FAKE_LIMIT: f64 = KILOBYTE as f64 * 20.0;
