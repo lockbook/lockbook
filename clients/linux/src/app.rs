@@ -30,11 +30,7 @@ use lockbook_core::model::work_unit::WorkUnit;
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::{
-    LbError,
-    LbError::{Program as ProgErr, User as UserErr},
-    LbResult,
-};
+use crate::error::{LbError, LbError::User as UserErr, LbResult};
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
@@ -102,7 +98,10 @@ impl LbApp {
     }
 
     pub fn show(&self) {
-        self.gui.show(&self.core, &self.messenger);
+        match self.gui.show(&self.core, &self.messenger) {
+            Ok(_) => {},
+            Err(err) => self.err("displaying app", &err),
+        }
     }
 
     fn create_account(&self, name: String) {
@@ -796,15 +795,14 @@ impl Gui {
         }
     }
 
-    fn show(&self, core: &LbCore, m: &Messenger) {
+    fn show(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
         self.win.show_all();
-        match core.account() {
-            Ok(acct) => match acct {
-                Some(_) => self.show_account_screen(&core, &m),
-                None => self.show_intro_screen(),
-            },
-            Err(err) => m.send_err("unable to load account", ProgErr(err)),
+        if core.has_account()? {
+            self.show_account_screen(&core, &m);
+        } else {
+            self.show_intro_screen();
         }
+        Ok(())
     }
 
     fn show_intro_screen(&self) {

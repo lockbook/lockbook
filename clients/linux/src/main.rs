@@ -41,10 +41,10 @@ use crate::settings::Settings;
 fn main() {
     let data_dir = get_data_dir();
 
-    let core = Arc::new(LbCore::new(&data_dir));
-    if let Err(err) = core.init_db() {
-        launch_err("initializing db", &err);
-    }
+    let core = match LbCore::new(&data_dir) {
+        Ok(c) => Arc::new(c),
+        Err(err) => launch_err("initializing db", &err.msg()),
+    };
 
     let settings = match Settings::from_data_dir(&data_dir) {
         Ok(s) => Rc::new(RefCell::new(s)),
