@@ -114,7 +114,7 @@ impl LbApp {
 
         let ch = make_glib_chan(move |result| {
             match result {
-                Ok(_) => gui.show_account_screen(&c),
+                Ok(_) => gui.show_account_screen(&c, &m),
                 Err(err) => match err {
                     UserErr(err) => gui.intro.error_create(&err),
                     prog_err => m.send_err("creating account", prog_err),
@@ -132,7 +132,7 @@ impl LbApp {
 
         let (gui, c, m) = (self.gui.clone(), self.core.clone(), self.messenger.clone());
 
-        let import_chan = make_glib_chan(move |result: Result<(), String>| {
+        let import_chan = make_glib_chan(move |result: LbResult<_>| {
             match result {
                 Ok(_) => {
                     let (gui, cc, m) = (gui.clone(), c.clone(), m.clone());
@@ -142,7 +142,7 @@ impl LbApp {
                             LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
                             LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
-                                gui.show_account_screen(&cc);
+                                gui.show_account_screen(&cc, &m);
                                 gui.account.sync().set_status(&cc);
                             }
                         }
@@ -152,7 +152,7 @@ impl LbApp {
                     let c = c.clone();
                     thread::spawn(move || c.sync(&sync_chan));
                 }
-                Err(err) => gui.intro.error_import(&err),
+                Err(err) => gui.intro.error_import(err.msg()),
             }
             glib::Continue(false)
         });
@@ -251,7 +251,7 @@ impl LbApp {
                 self.gui.account.sync().set_status(&self.core);
                 self.open_file(Some(file.id));
             }
-            Err(err) => println!("error creating '{}': {}", path, err),
+            Err(err) => self.err("creating path", &err),
         }
     }
 
@@ -267,7 +267,7 @@ impl LbApp {
                         FileType::Folder => self.open_folder(&meta),
                     }
                 }
-                Err(err) => println!("error opening '{}': {}", id, err),
+                Err(err) => self.err("opening file", &err),
             }
         }
     }
@@ -279,7 +279,7 @@ impl LbApp {
                 meta,
                 content,
             }),
-            Err(err) => println!("error opening '{}': {}", id, err),
+            Err(err) => self.err("opening file", &err),
         }
     }
 
@@ -290,7 +290,7 @@ impl LbApp {
                 meta: f.clone(),
                 n_children: children.len(),
             }),
-            Err(err) => println!("error getting children for '{}': {}", f.id, err),
+            Err(err) => self.err("getting children", &err),
         }
     }
 
@@ -310,13 +310,13 @@ impl LbApp {
                 let core = self.core.clone();
                 let m = self.messenger.clone();
 
-                let ch = make_glib_chan(move |result: Result<(), String>| {
+                let ch = make_glib_chan(move |result: LbResult<()>| {
                     match result {
                         Ok(_) => {
                             acctscr.set_saving(false);
                             acctscr.sync().set_status(&core);
                         }
-                        Err(err) => m.send_err("saving file", ProgErr(err)),
+                        Err(err) => m.send_err("saving file", err),
                     }
                     glib::Continue(false)
                 });
@@ -402,7 +402,7 @@ impl LbApp {
                 let (_, id, _) = f;
                 match self.core.delete(&id) {
                     Ok(_) => self.gui.account.tree().remove(&id),
-                    Err(err) => println!("{}", err),
+                    Err(err) => self.err("deleting file", &err),
                 }
             }
         }
@@ -420,7 +420,13 @@ impl LbApp {
         // Get the FileMetadata from the iterator.
         let id = tree_iter_value!(tmodel, &iter, 1, String);
         let uuid = Uuid::parse_str(&id).unwrap();
-        let meta = self.core.file_by_id(uuid).unwrap();
+        let meta = match self.core.file_by_id(uuid) {
+            Ok(m) => m,
+            Err(err) => {
+                self.err("getting file by id", &err);
+                return;
+            }
+        };
 
         let lbl = util::gui::text_left("Enter the new name:");
         lbl.set_margin_top(12);
@@ -605,7 +611,7 @@ impl LbApp {
                 d.get_content_area().add(&usage);
                 d.show_all();
             }
-            Err(err) => self.err("Unable to get usage", &ProgErr(err)),
+            Err(err) => self.err("Unable to get usage", &err),
         }
     }
 
@@ -688,7 +694,7 @@ impl SearchComponents {
         sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
 
         Self {
-            possibs: core.list_paths_without_root().unwrap(),
+            possibs: core.list_paths_without_root().unwrap_or_default(),
             list_store,
             sort_model,
             matcher: SkimMatcherV2::default(),
@@ -794,7 +800,7 @@ impl Gui {
         self.win.show_all();
         match core.account() {
             Ok(acct) => match acct {
-                Some(_) => self.show_account_screen(&core),
+                Some(_) => self.show_account_screen(&core, &m),
                 None => self.show_intro_screen(),
             },
             Err(err) => m.send_err("unable to load account", ProgErr(err)),
@@ -807,10 +813,10 @@ impl Gui {
         self.screens.set_visible_child_name("intro");
     }
 
-    fn show_account_screen(&self, core: &LbCore) {
+    fn show_account_screen(&self, core: &LbCore, m: &Messenger) {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core);
+        self.account.fill(&core, &m);
         self.account.tree().focus();
         self.screens.set_visible_child_name("account");
     }
