@@ -5,10 +5,9 @@ use std::fs::File;
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::edit::save_file_to_core;
 use crate::utils::{
     edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
-    set_up_auto_save, stop_auto_save,
+    save_temp_file_contents, set_up_auto_save, stop_auto_save,
 };
 use crate::{
     DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
@@ -72,7 +71,7 @@ pub fn new(file_name: &str) {
     stop_auto_save(watcher, file_location.clone());
 
     if edit_was_successful {
-        save_file_to_core(file_metadata, &file_location, temp_file_path, false)
+        save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
