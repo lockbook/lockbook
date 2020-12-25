@@ -6,8 +6,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_core::{
-    get_file_by_path, read_document, write_document, Error as CoreError, GetFileByPathError,
-    ReadDocumentError, WriteToDocumentError,
+    get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
 };
 
 use crate::utils::{
@@ -15,8 +14,8 @@ use crate::utils::{
     set_up_auto_save, stop_auto_save,
 };
 use crate::{
-    COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
-    DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
+    COULD_NOT_DELETE_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE, DOCUMENT_TREATED_AS_FOLDER,
+    FILE_NOT_FOUND, UNEXPECTED_ERROR,
 };
 
 pub fn edit(file_name: &str) {
