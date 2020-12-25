@@ -112,17 +112,16 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                 recursive_copy_folder(&child_path, &lockbook_child_path, false);
             }
         } else if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
-                match err {
-                    CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                        println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
-                    }
-                    CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
-                    CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
-                    CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
-                    CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => println!("Input destination {} contains an empty file!", import_dest),
-                    CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
-                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            match err {
+                CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
+                    println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
                 }
+                CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
+                CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
+                CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
+                CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => println!("Input destination {} contains an empty file!", import_dest),
+                CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
+                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
             }
         }
     }
