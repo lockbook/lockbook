@@ -132,7 +132,7 @@ impl LbApp {
 
         let (gui, c, m) = (self.gui.clone(), self.core.clone(), self.messenger.clone());
 
-        let import_chan = make_glib_chan(move |result: Result<(), String>| {
+        let import_chan = make_glib_chan(move |result: LbResult<_>| {
             match result {
                 Ok(_) => {
                     let (gui, cc, m) = (gui.clone(), c.clone(), m.clone());
@@ -152,7 +152,7 @@ impl LbApp {
                     let c = c.clone();
                     thread::spawn(move || c.sync(&sync_chan));
                 }
-                Err(err) => gui.intro.error_import(&err),
+                Err(err) => gui.intro.error_import(err.msg()),
             }
             glib::Continue(false)
         });
