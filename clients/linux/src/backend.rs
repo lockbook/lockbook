@@ -99,11 +99,15 @@ impl LbCore {
         ))
     }
 
-    pub fn import_account(&self, privkey: &str) -> Result<(), String> {
-        match import_account(&self.config, privkey) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("error importing: {:?}", err)),
-        }
+    pub fn import_account(&self, privkey: &str) -> LbResult<Account> {
+        import_account(&self.config, privkey).map_err(map_core_err!(ImportError,
+            AccountStringCorrupted => uerr!("Your account's private key is corrupted."),
+            AccountExistsAlready => uerr!("An account already exists."),
+            AccountDoesNotExist => uerr!("The account you tried to import does not exist."),
+            UsernamePKMismatch => uerr!("The account private key does not match username."),
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+        ))
     }
 
     pub fn export_account(&self) -> LbResult<String> {
