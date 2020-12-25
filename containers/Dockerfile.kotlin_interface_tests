@@ -1,31 +1,28 @@
 ARG HASH
-FROM core:${HASH}  AS kotlin-interface-tests
+
+FROM core:$HASH as core-build
+
+FROM ubuntu:20.04 AS kotlin-interface-tests
 
 ENV ANDROID_HOME /opt/android-sdk-linux
-RUN apt-get update && apt-get -y install software-properties-common
-RUN apt-add-repository 'deb http://security.debian.org/debian-security stretch/updates main' && apt-get update
-RUN apt-get -y install openjdk-8-jdk
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 
 # Install android things
-RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
-RUN unzip -q android-ndk-r21c-linux-x86_64.zip
-ENV ANDROID_NDK_HOME=/android-ndk-r21c
 RUN cd /opt \
     && wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip -O android-sdk-tools.zip \
     && unzip -q android-sdk-tools.zip -d ${ANDROID_HOME}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools
 RUN yes | sdkmanager --licenses
 
-WORKDIR /
-
 # Copy android in
-COPY clients/android clients/android
+COPY clients/android /clients/android
 ENV API_URL=http://lockbook_server:8000
 
 # Move binaries for tests
 RUN mkdir -p /clients/android/core/src/main/jniLibs/desktop
-RUN mv /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
+WORKDIR /clients/android
+COPY --from=core-build /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
 
 # Build android
-WORKDIR /clients/android
 RUN ./gradlew assemble
