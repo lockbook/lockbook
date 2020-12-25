@@ -76,7 +76,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                         )
                     });
 
-                let ends_with_slash = import_dest.ends_with("/");
+                let ends_with_slash = import_dest.ends_with('/');
                 let lockbook_child_path = if is_top_folder {
                     let parent_name = path
                         .file_name()
@@ -102,7 +102,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                         "{}{}",
                         import_dest,
                         if ends_with_slash {
-                            format!("{}", child_name)
+                            child_name.to_string()
                         } else {
                             format!("/{}", child_name)
                         }
