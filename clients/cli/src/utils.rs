@@ -191,7 +191,7 @@ pub fn set_up_auto_save(
     watch_file_metadata: FileMetadata,
     watch_file_location: String,
 ) -> Result<Hotwatch, Error> {
-    let mut hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
+    let hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
 
     match hot_watch {
         Ok(mut ok) => {
@@ -232,7 +232,7 @@ pub fn set_up_auto_save(
     }
 }
 
-pub fn stop_auto_save(mut watcher: Result<Hotwatch, Error>, file_location: String) {
+pub fn stop_auto_save(watcher: Result<Hotwatch, Error>, file_location: String) {
     match watcher {
         Ok(mut ok) => {
             ok.unwatch(file_location).unwrap_or_else(|err| {

@@ -58,8 +58,6 @@ pub fn new(file_name: &str) {
         ),
     }
 
-    set_up_auto_save(file_metadata.clone(), file_location.clone());
-
     if file_metadata.file_type == Folder {
         exit_with("Folder created.", SUCCESS);
     }
