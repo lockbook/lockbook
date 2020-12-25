@@ -132,10 +132,12 @@ impl FileTree {
         self.tree.get_selection().get_selected_rows()
     }
 
-    pub fn fill(&self, b: &LbCore) {
-        let root = b.root().unwrap();
+    pub fn fill(&self, c: &LbCore, m: &Messenger) {
         self.model.clear();
-        self.append_item(b, None, &root);
+        match c.root() {
+            Ok(root) => self.append_item(c, None, &root),
+            Err(err) => m.send_err("getting root", err),
+        }
     }
 
     pub fn add(&self, b: &LbCore, f: &FileMetadata) {
@@ -145,7 +147,13 @@ impl FileTree {
             parent_iter = self.search(&self.iter(), &file.parent);
             parent_iter == None
         } {
-            file = b.file_by_id(file.parent).unwrap();
+            file = match b.file_by_id(file.parent) {
+                Ok(meta) => meta,
+                Err(err) => {
+                    println!("{}", err.msg());
+                    return;
+                }
+            }
         }
 
         match parent_iter {
@@ -165,9 +173,13 @@ impl FileTree {
             .insert_with_values(it, None, &[0, 1, 2], &[name, id, ftype]);
 
         if f.file_type == FileType::Folder {
-            let files = b.children(f).unwrap();
-            for item in files {
-                self.append_item(b, Some(&item_iter), &item);
+            match b.children(f) {
+                Ok(files) => {
+                    for item in files {
+                        self.append_item(b, Some(&item_iter), &item);
+                    }
+                }
+                Err(err) => println!("{}", err.msg()),
             }
         }
     }
