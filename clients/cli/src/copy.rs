@@ -111,8 +111,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
 
                 recursive_copy_folder(&child_path, &lockbook_child_path, false);
             }
-        } else {
-            if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
+        } else if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
                 match err {
                     CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
                         println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
