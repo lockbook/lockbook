@@ -13,7 +13,6 @@ use crate::{
     PATH_CONTAINS_EMPTY_FILE, PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
 use std::fs::DirEntry;
-use std::ops::Add;
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
@@ -116,12 +115,12 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
             if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
                 match err {
                     CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                        exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest), FILE_ALREADY_EXISTS)
+                        println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
                     }
                     CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
                     CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
-                    CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest), DOCUMENT_TREATED_AS_FOLDER),
-                    CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => exit_with(&format!("Input destination {} contains an empty file!", import_dest), PATH_CONTAINS_EMPTY_FILE),
+                    CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
+                    CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => println!("Input destination {} contains an empty file!", import_dest),
                     CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
                     CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
                 }
@@ -130,83 +129,130 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
     }
 }
 
-fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_import: bool) {
-    let content_to_import = fs::read_to_string(&path).unwrap_or_else(|err| {
-        exit_with(
-            &format!("Failed to read file: {}", err),
-            COULD_NOT_READ_OS_FILE,
-        )
-    });
+fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool) {
+    let content_to_import = fs::read_to_string(&path);
+    let absolute_path_maybe = fs::canonicalize(&path);
 
-    let absolute_path_maybe = fs::canonicalize(&path).unwrap_or_else(|error| {
-        exit_with(
-            &format!("Failed to get absolute path: {}", error),
-            COULD_NOT_GET_OS_ABSOLUTE_PATH,
-        )
-    });
-
-    let import_dest_with_filename = if import_dest.ends_with('/') {
-        match absolute_path_maybe.file_name() {
-            Some(name) => match name.to_os_string().into_string() {
-                Ok(string) => format!("{}{}", &import_dest, string),
-                Err(err) => exit_with(
-                    format!(
-                        "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
-                        err
-                    )
-                    .as_str(),
-                    UNEXPECTED_ERROR,
-                ),
-            },
-            None => exit_with(
-                "Import target does not contain a file name!",
-                UNEXPECTED_ERROR,
-            ),
-        }
-    } else {
-        import_dest.to_string()
-    };
-
-    let file_metadata = match create_file_at_path(&get_config(), &import_dest_with_filename) {
-        Ok(file_metadata) => file_metadata,
-        Err(err) => match err {
-            CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                if edit {
-                    get_file_by_path(&get_config(), &import_dest_with_filename).unwrap_or_else(|get_err| match get_err {
-                        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) |
-                        CoreError::Unexpected(_) => exit_with(
-                            &format!("Unexpected error: {:?}", get_err),
+    match (content_to_import, absolute_path_maybe) {
+        (Ok(content), Ok(absolute_path)) => {
+            let import_dest_with_filename = if import_dest.ends_with('/') {
+                match absolute_path.file_name() {
+                    Some(name) => match name.to_os_string().into_string() {
+                        Ok(string) => format!("{}{}", &import_dest, string),
+                        Err(err) => exit_with(
+                            format!(
+                                "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
+                                err
+                            )
+                                .as_str(),
                             UNEXPECTED_ERROR,
                         ),
-                    })
-                } else {
-                    exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename), FILE_ALREADY_EXISTS)
+                    },
+                    None => exit_with(
+                        "Import target does not contain a file name!",
+                        UNEXPECTED_ERROR,
+                    ),
                 }
-            }
-            CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
-            CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
-            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest_with_filename), DOCUMENT_TREATED_AS_FOLDER),
-            CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => exit_with(&format!("Input destination {} contains an empty file!", import_dest_with_filename), PATH_CONTAINS_EMPTY_FILE),
-            CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    };
+            } else {
+                import_dest.to_string()
+            };
 
-    match write_document(
-        &get_config(),
-        file_metadata.id,
-        content_to_import.as_bytes(),
-    ) {
-        Ok(_) => {
-            if is_folder_import {
-                println!("{}", &format!("imported to {}", import_dest_with_filename))
+            let file_metadata = match create_file_at_path(&get_config(), &import_dest_with_filename)
+            {
+                Ok(file_metadata) => file_metadata,
+                Err(err) => match err {
+                    CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
+                        if edit && !is_folder_copy {
+                            get_file_by_path(&get_config(), &import_dest_with_filename)
+                                .unwrap_or_else(|get_err| match get_err {
+                                    CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
+                                    | CoreError::Unexpected(_) => exit_with(
+                                        &format!("Unexpected error: {:?}", get_err),
+                                        UNEXPECTED_ERROR,
+                                    ),
+                                })
+                        } else if !is_folder_copy {
+                            exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename), FILE_ALREADY_EXISTS)
+                        } else {
+                            return println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename);
+                        }
+                    }
+                    CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
+                    CoreError::UiError(CreateFileAtPathError::NoRoot) => {
+                        exit_with("No root folder, have you synced yet?", NO_ROOT)
+                    }
+                    CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => {
+                        if is_folder_copy {
+                            return println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest);
+                        } else {
+                            exit_with(&format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest_with_filename), DOCUMENT_TREATED_AS_FOLDER)
+                        }
+                    }
+                    CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => {
+                        if is_folder_copy {
+                            return println!(
+                                "Input destination {} contains an empty file!",
+                                import_dest
+                            );
+                        } else {
+                            exit_with(
+                                &format!(
+                                    "Input destination {} contains an empty file!",
+                                    import_dest_with_filename
+                                ),
+                                PATH_CONTAINS_EMPTY_FILE,
+                            )
+                        }
+                    }
+                    CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
+                        exit_with(
+                            "Import destination doesn't start with your root folder.",
+                            PATH_NO_ROOT,
+                        )
+                    }
+                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                },
+            };
+
+            match write_document(&get_config(), file_metadata.id, content.as_bytes()) {
+                Ok(_) => {
+                    if is_folder_copy {
+                        println!("imported to {}", import_dest_with_filename)
+                    } else {
+                        exit_with(
+                            &format!("imported to {}", import_dest_with_filename),
+                            SUCCESS,
+                        )
+                    }
+                }
+                Err(err) => exit_with(&format!("Unexpected error: {:#?}", err), UNEXPECTED_ERROR),
+            }
+        }
+        (Err(content_err), _) => {
+            if is_folder_copy {
+                println!(
+                    "Failed to read file from {}, OS error: {}",
+                    import_dest, content_err
+                )
             } else {
                 exit_with(
-                    &format!("imported to {}", import_dest_with_filename),
-                    SUCCESS,
+                    &format!("Failed to read file: {}", content_err),
+                    COULD_NOT_READ_OS_FILE,
                 )
             }
         }
-        Err(err) => exit_with(&format!("Unexpected error: {:#?}", err), UNEXPECTED_ERROR),
+        (_, Err(path_err)) => {
+            if is_folder_copy {
+                println!(
+                    "Failed to get absolute path from {}, OS error: {}",
+                    path_err, path_err
+                )
+            } else {
+                exit_with(
+                    &format!("Failed to get absolute path: {}", path_err),
+                    COULD_NOT_GET_OS_ABSOLUTE_PATH,
+                )
+            }
+        }
     }
 }
