@@ -40,7 +40,7 @@ echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag "cli $current_version" \
+	--tag "cli-$current_version" \
 	--name "Lockbook CLI" \
 	--description "0 Dependency Binary. Simply un-tar and place upon path. Repeat to upgrade versions" \
 	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
@@ -48,7 +48,7 @@ github-release release \
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "cli $current_version" \
+	--tag "cli-$current_version" \
 	--name "lockbook-cli-macos.tar.gz" \
 	--file lockbook-cli-macos.tar.gz
 
@@ -57,7 +57,7 @@ echo $sha_description >> MACOS_CLI_SHA256
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "cli $current_version" \
+	--tag "cli-$current_version" \
 	--name "macos-cli-sha256-$sha" \
 	--file MACOS_CLI_SHA256
 
