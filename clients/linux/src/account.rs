@@ -52,8 +52,8 @@ impl AccountScreen {
         }
     }
 
-    pub fn fill(&self, core: &LbCore) {
-        self.sidebar.fill(&core);
+    pub fn fill(&self, core: &LbCore, m: &Messenger) {
+        self.sidebar.fill(&core, m);
         self.sidebar.sync.set_status(&core);
     }
 
@@ -237,8 +237,8 @@ impl Sidebar {
         Self { tree, sync, cntr }
     }
 
-    fn fill(&self, core: &LbCore) {
-        self.tree.fill(core);
+    fn fill(&self, core: &LbCore, m: &Messenger) {
+        self.tree.fill(core, m);
     }
 }
 
