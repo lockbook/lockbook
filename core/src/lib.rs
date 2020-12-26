@@ -61,6 +61,7 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
+use Error::UiError;
 
 pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     let print_colors = env::var("LOG_NO_COLOR").is_err();
@@ -112,7 +113,7 @@ pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
 
     DefaultDbStateService::perform_migration(backend).map_err(|e| match e {
         db_state_service::MigrationError::StateRequiresClearing => {
-            Error::UiError(MigrationError::StateRequiresCleaning)
+            UiError(MigrationError::StateRequiresCleaning)
         }
         db_state_service::MigrationError::RepoError(_) => Error::Unexpected(format!("{:#?}", e)),
     })
@@ -136,22 +137,18 @@ pub fn create_account(
 
     DefaultAccountService::create_account(backend, username, api_url).map_err(|e| match e {
         AccountCreationError::AccountExistsAlready => {
-            Error::UiError(CreateAccountError::AccountExistsAlready)
+            UiError(CreateAccountError::AccountExistsAlready)
         }
         AccountCreationError::ApiError(network) => match network {
             ApiError::Endpoint(api_err) => match api_err {
-                NewAccountError::UsernameTaken => Error::UiError(CreateAccountError::UsernameTaken),
-                NewAccountError::InvalidUsername => {
-                    Error::UiError(CreateAccountError::InvalidUsername)
-                }
+                NewAccountError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
+                NewAccountError::InvalidUsername => UiError(CreateAccountError::InvalidUsername),
                 NewAccountError::InvalidPublicKey
                 | NewAccountError::InvalidUserAccessKey
                 | NewAccountError::FileIdTaken => Error::Unexpected(format!("{:#?}", api_err)),
             },
-            ApiError::SendFailed(_) => Error::UiError(CreateAccountError::CouldNotReachServer),
-            ApiError::ClientUpdateRequired => {
-                Error::UiError(CreateAccountError::ClientUpdateRequired)
-            }
+            ApiError::SendFailed(_) => UiError(CreateAccountError::CouldNotReachServer),
+            ApiError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
             ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
             | ApiError::Deserialize(_)
@@ -188,20 +185,16 @@ pub fn import_account(
     DefaultAccountService::import_account(backend, account_string).map_err(|e| match e {
         AccountImportError::AccountStringCorrupted(_)
         | AccountImportError::AccountStringFailedToDeserialize(_)
-        | AccountImportError::InvalidPrivateKey(_) => {
-            Error::UiError(ImportError::AccountStringCorrupted)
-        }
-        AccountImportError::AccountExistsAlready => {
-            Error::UiError(ImportError::AccountExistsAlready)
-        }
-        AccountImportError::PublicKeyMismatch => Error::UiError(ImportError::UsernamePKMismatch),
+        | AccountImportError::InvalidPrivateKey(_) => UiError(ImportError::AccountStringCorrupted),
+        AccountImportError::AccountExistsAlready => UiError(ImportError::AccountExistsAlready),
+        AccountImportError::PublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
         AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
-            ApiError::SendFailed(_) => Error::UiError(ImportError::CouldNotReachServer),
+            ApiError::SendFailed(_) => UiError(ImportError::CouldNotReachServer),
             ApiError::Endpoint(api_err) => match api_err {
-                GetPublicKeyError::UserNotFound => Error::UiError(ImportError::AccountDoesNotExist),
+                GetPublicKeyError::UserNotFound => UiError(ImportError::AccountDoesNotExist),
                 GetPublicKeyError::InvalidUsername => Error::Unexpected(format!("{:#?}", api_err)),
             },
-            ApiError::ClientUpdateRequired => Error::UiError(ImportError::ClientUpdateRequired),
+            ApiError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
             ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
             | ApiError::Deserialize(_)
@@ -227,7 +220,7 @@ pub fn export_account(config: &Config) -> Result<String, Error<AccountExportErro
 
     DefaultAccountService::export_account(backend).map_err(|e| match e {
         ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
-            AccountRepoError::NoAccount => Error::UiError(AccountExportError::NoAccount),
+            AccountRepoError::NoAccount => UiError(AccountExportError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
                 Error::Unexpected(format!("{:#?}", db_err))
             }
@@ -247,7 +240,7 @@ pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
     let backend = &Backend::File(config);
 
     DefaultAccountRepo::get_account(backend).map_err(|e| match e {
-        AccountRepoError::NoAccount => Error::UiError(GetAccountError::NoAccount),
+        AccountRepoError::NoAccount => UiError(GetAccountError::NoAccount),
         AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
             Error::Unexpected(format!("{:#?}", e))
         }
@@ -272,27 +265,25 @@ pub fn create_file_at_path(
 
     DefaultFileService::create_at_path(backend, path_and_name).map_err(|e| match e {
         NewFileFromPathError::PathDoesntStartWithRoot => {
-            Error::UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
+            UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
         }
         NewFileFromPathError::PathContainsEmptyFile => {
-            Error::UiError(CreateFileAtPathError::PathContainsEmptyFile)
+            UiError(CreateFileAtPathError::PathContainsEmptyFile)
         }
         NewFileFromPathError::FileAlreadyExists => {
-            Error::UiError(CreateFileAtPathError::FileAlreadyExists)
+            UiError(CreateFileAtPathError::FileAlreadyExists)
         }
-        NewFileFromPathError::NoRoot => Error::UiError(CreateFileAtPathError::NoRoot),
+        NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
         NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
             NewFileError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount => Error::UiError(CreateFileAtPathError::NoAccount),
+                AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
                 AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Error::Unexpected(format!("{:#?}", account_error))
                 }
             },
-            NewFileError::FileNameNotAvailable => {
-                Error::UiError(CreateFileAtPathError::FileAlreadyExists)
-            }
+            NewFileError::FileNameNotAvailable => UiError(CreateFileAtPathError::FileAlreadyExists),
             NewFileError::DocumentTreatedAsFolder => {
-                Error::UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
+                UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
             }
             NewFileError::CouldNotFindParents(_)
             | NewFileError::FileCryptoError(_)
@@ -329,13 +320,11 @@ pub fn write_document(
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Error::Unexpected(format!("{:#?}", account_err))
             }
-            AccountRepoError::NoAccount => Error::UiError(WriteToDocumentError::NoAccount),
+            AccountRepoError::NoAccount => UiError(WriteToDocumentError::NoAccount),
         },
-        DocumentUpdateError::CouldNotFindFile => {
-            Error::UiError(WriteToDocumentError::FileDoesNotExist)
-        }
+        DocumentUpdateError::CouldNotFindFile => UiError(WriteToDocumentError::FileDoesNotExist),
         DocumentUpdateError::FolderTreatedAsDocument => {
-            Error::UiError(WriteToDocumentError::FolderTreatedAsDocument)
+            UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
         DocumentUpdateError::CouldNotFindParents(_)
         | DocumentUpdateError::FileCryptoError(_)
@@ -369,21 +358,15 @@ pub fn create_file(
     let backend = &Backend::File(config);
 
     DefaultFileService::create(backend, name, parent, file_type).map_err(|e| match e {
-        NewFileError::AccountRetrievalError(_) => Error::UiError(CreateFileError::NoAccount),
-        NewFileError::DocumentTreatedAsFolder => {
-            Error::UiError(CreateFileError::DocumentTreatedAsFolder)
-        }
+        NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
+        NewFileError::DocumentTreatedAsFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         NewFileError::CouldNotFindParents(parent_error) => match parent_error {
-            FindingParentsFailed::AncestorMissing => {
-                Error::UiError(CreateFileError::CouldNotFindAParent)
-            }
+            FindingParentsFailed::AncestorMissing => UiError(CreateFileError::CouldNotFindAParent),
             FindingParentsFailed::DbError(_) => Error::Unexpected(format!("{:#?}", parent_error)),
         },
-        NewFileError::FileNameNotAvailable => Error::UiError(CreateFileError::FileNameNotAvailable),
-        NewFileError::FileNameEmpty => Error::UiError(CreateFileError::FileNameEmpty),
-        NewFileError::FileNameContainsSlash => {
-            Error::UiError(CreateFileError::FileNameContainsSlash)
-        }
+        NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
+        NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+        NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
         NewFileError::FileCryptoError(_)
         | NewFileError::MetadataRepoError(_)
         | NewFileError::FailedToWriteFileContent(_)
@@ -401,7 +384,7 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
 
     match DefaultFileMetadataRepo::get_root(backend) {
         Ok(file_metadata) => match file_metadata {
-            None => Err(Error::UiError(GetRootError::NoRoot)),
+            None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => Ok(file_metadata),
         },
         Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
@@ -437,10 +420,10 @@ pub fn get_and_get_children_recursively(
 
     DefaultFileMetadataRepo::get_and_get_children_recursively(backend, id).map_err(|e| match e {
         FindingChildrenFailed::FileDoesNotExist => {
-            Error::UiError(GetAndGetChildrenError::FileDoesNotExist)
+            UiError(GetAndGetChildrenError::FileDoesNotExist)
         }
         FindingChildrenFailed::DocumentTreatedAsFolder => {
-            Error::UiError(GetAndGetChildrenError::DocumentTreatedAsFolder)
+            UiError(GetAndGetChildrenError::DocumentTreatedAsFolder)
         }
         FindingChildrenFailed::DbError(_) => Error::Unexpected(format!("{:#?}", e)),
     })
@@ -455,7 +438,7 @@ pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<G
     let backend = &Backend::File(config);
 
     DefaultFileMetadataRepo::get(backend, id).map_err(|e| match e {
-        FileMetadataRepoError::FileRowMissing => Error::UiError(GetFileByIdError::NoFileWithThatId),
+        FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
         FileMetadataRepoError::DbError(_) => Error::Unexpected(format!("{:#?}", e)),
     })
 }
@@ -473,7 +456,7 @@ pub fn get_file_by_path(
 
     match DefaultFileMetadataRepo::get_by_path(backend, path) {
         Ok(maybe_file_metadata) => match maybe_file_metadata {
-            None => Err(Error::UiError(GetFileByPathError::NoFileAtThatPath)),
+            None => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             Some(file_metadata) => Ok(file_metadata),
         },
         Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
@@ -522,7 +505,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
             FileType::Folder => {
                 DefaultFileService::delete_folder(backend, id).map_err(|err| match err {
                     file_service::DeleteFolderError::CannotDeleteRoot => {
-                        Error::UiError(FileDeleteError::CannotDeleteRoot)
+                        UiError(FileDeleteError::CannotDeleteRoot)
                     }
                     file_service::DeleteFolderError::MetadataError(_)
                     | file_service::DeleteFolderError::CouldNotFindFile
@@ -538,7 +521,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                 })
             }
         },
-        Err(_) => Err(Error::UiError(FileDeleteError::FileDoesNotExist)),
+        Err(_) => Err(UiError(FileDeleteError::FileDoesNotExist)),
     }
 }
 
@@ -557,18 +540,16 @@ pub fn read_document(
 
     DefaultFileService::read_document(backend, id).map_err(|e| match e {
         FSReadDocumentError::TreatedFolderAsDocument => {
-            Error::UiError(ReadDocumentError::TreatedFolderAsDocument)
+            UiError(ReadDocumentError::TreatedFolderAsDocument)
         }
 
         FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-            AccountRepoError::NoAccount => Error::UiError(ReadDocumentError::NoAccount),
+            AccountRepoError::NoAccount => UiError(ReadDocumentError::NoAccount),
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Error::Unexpected(format!("{:#?}", account_error))
             }
         },
-        FSReadDocumentError::CouldNotFindFile => {
-            Error::UiError(ReadDocumentError::FileDoesNotExist)
-        }
+        FSReadDocumentError::CouldNotFindFile => UiError(ReadDocumentError::FileDoesNotExist),
         FSReadDocumentError::DbError(_)
         | FSReadDocumentError::DocumentReadError(_)
         | FSReadDocumentError::CouldNotFindParents(_)
@@ -620,15 +601,13 @@ pub fn rename_file(
     let backend = &Backend::File(config);
 
     DefaultFileService::rename_file(backend, id, new_name).map_err(|e| match e {
-        DocumentRenameError::FileDoesNotExist => Error::UiError(RenameFileError::FileDoesNotExist),
-        DocumentRenameError::FileNameEmpty => Error::UiError(RenameFileError::NewNameEmpty),
+        DocumentRenameError::FileDoesNotExist => UiError(RenameFileError::FileDoesNotExist),
+        DocumentRenameError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
         DocumentRenameError::FileNameContainsSlash => {
-            Error::UiError(RenameFileError::NewNameContainsSlash)
+            UiError(RenameFileError::NewNameContainsSlash)
         }
-        DocumentRenameError::FileNameNotAvailable => {
-            Error::UiError(RenameFileError::FileNameNotAvailable)
-        }
-        DocumentRenameError::CannotRenameRoot => Error::UiError(RenameFileError::CannotRenameRoot),
+        DocumentRenameError::FileNameNotAvailable => UiError(RenameFileError::FileNameNotAvailable),
+        DocumentRenameError::CannotRenameRoot => UiError(RenameFileError::CannotRenameRoot),
         DocumentRenameError::DbError(_) | DocumentRenameError::FailedToRecordChange(_) => {
             Error::Unexpected(format!("{:#?}", e))
         }
@@ -650,26 +629,20 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
     let backend = &Backend::File(config);
 
     DefaultFileService::move_file(backend, id, new_parent).map_err(|e| match e {
-        FileMoveError::DocumentTreatedAsFolder => {
-            Error::UiError(MoveFileError::DocumentTreatedAsFolder)
-        }
-        FileMoveError::FolderMovedIntoItself => {
-            Error::UiError(MoveFileError::FolderMovedIntoItself)
-        }
+        FileMoveError::DocumentTreatedAsFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
+        FileMoveError::FolderMovedIntoItself => UiError(MoveFileError::FolderMovedIntoItself),
         FileMoveError::AccountRetrievalError(account_err) => match account_err {
-            AccountRepoError::NoAccount => Error::UiError(MoveFileError::NoAccount),
+            AccountRepoError::NoAccount => UiError(MoveFileError::NoAccount),
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Error::Unexpected(format!("{:#?}", account_err))
             }
         },
         FileMoveError::TargetParentHasChildNamedThat => {
-            Error::UiError(MoveFileError::TargetParentHasChildNamedThat)
+            UiError(MoveFileError::TargetParentHasChildNamedThat)
         }
-        FileMoveError::FileDoesNotExist => Error::UiError(MoveFileError::FileDoesNotExist),
-        FileMoveError::TargetParentDoesNotExist => {
-            Error::UiError(MoveFileError::TargetParentDoesNotExist)
-        }
-        FileMoveError::CannotMoveRoot => Error::UiError(MoveFileError::CannotMoveRoot),
+        FileMoveError::FileDoesNotExist => UiError(MoveFileError::FileDoesNotExist),
+        FileMoveError::TargetParentDoesNotExist => UiError(MoveFileError::TargetParentDoesNotExist),
+        FileMoveError::CannotMoveRoot => UiError(MoveFileError::CannotMoveRoot),
         FileMoveError::DbError(_)
         | FileMoveError::FindingChildrenFailed(_)
         | FileMoveError::FailedToRecordChange(_)
@@ -695,23 +668,21 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Error::Unexpected(format!("{:#?}", err))
             }
-            AccountRepoError::NoAccount => Error::UiError(SyncAllError::NoAccount),
+            AccountRepoError::NoAccount => UiError(SyncAllError::NoAccount),
         },
         SyncError::CalculateWorkError(err) => match err {
             SSCalculateWorkError::LocalChangesRepoError(_)
             | SSCalculateWorkError::MetadataRepoError(_)
             | SSCalculateWorkError::GetMetadataError(_) => Error::Unexpected(format!("{:#?}", err)),
             SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::NoAccount => Error::UiError(SyncAllError::NoAccount),
+                AccountRepoError::NoAccount => UiError(SyncAllError::NoAccount),
                 AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     Error::Unexpected(format!("{:#?}", account_err))
                 }
             },
             SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
-                ApiError::SendFailed(_) => Error::UiError(SyncAllError::CouldNotReachServer),
-                ApiError::ClientUpdateRequired => {
-                    Error::UiError(SyncAllError::ClientUpdateRequired)
-                }
+                ApiError::SendFailed(_) => UiError(SyncAllError::CouldNotReachServer),
+                ApiError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
                 ApiError::Serialize(_)
                 | ApiError::ReceiveFailed(_)
                 | ApiError::Deserialize(_)
@@ -723,7 +694,7 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                 | ApiError::Endpoint(_) => Error::Unexpected(format!("{:#?}", api_err)),
             },
         },
-        SyncError::WorkExecutionError(_) => Error::UiError(SyncAllError::ExecuteWorkError),
+        SyncError::WorkExecutionError(_) => UiError(SyncAllError::ExecuteWorkError),
         SyncError::MetadataUpdateError(err) => Error::Unexpected(format!("{:#?}", err)),
     })
 }
@@ -743,16 +714,14 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
         | SSCalculateWorkError::MetadataRepoError(_)
         | SSCalculateWorkError::GetMetadataError(_) => Error::Unexpected(format!("{:#?}", e)),
         SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-            AccountRepoError::NoAccount => Error::UiError(CalculateWorkError::NoAccount),
+            AccountRepoError::NoAccount => UiError(CalculateWorkError::NoAccount),
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 Error::Unexpected(format!("{:#?}", account_err))
             }
         },
         SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
-            ApiError::SendFailed(_) => Error::UiError(CalculateWorkError::CouldNotReachServer),
-            ApiError::ClientUpdateRequired => {
-                Error::UiError(CalculateWorkError::ClientUpdateRequired)
-            }
+            ApiError::SendFailed(_) => UiError(CalculateWorkError::CouldNotReachServer),
+            ApiError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
             ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
             | ApiError::Deserialize(_)
@@ -781,10 +750,8 @@ pub fn execute_work(
     let backend = &Backend::File(config);
 
     DefaultSyncService::execute_work(backend, &account, wu).map_err(|e| match e {
-        WorkExecutionError::SendFailed(_) => Error::UiError(ExecuteWorkError::CouldNotReachServer),
-        WorkExecutionError::ClientUpdateRequired => {
-            Error::UiError(ExecuteWorkError::ClientUpdateRequired)
-        }
+        WorkExecutionError::SendFailed(_) => UiError(ExecuteWorkError::CouldNotReachServer),
+        WorkExecutionError::ClientUpdateRequired => UiError(ExecuteWorkError::ClientUpdateRequired),
         WorkExecutionError::MetadataRepoError(_)
         | WorkExecutionError::MetadataRepoErrorOpt(_)
         | WorkExecutionError::SaveDocumentError(_)
@@ -862,14 +829,14 @@ pub enum GetUsageError {
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
     let backend = &Backend::File(config);
 
-    let acc = DefaultAccountRepo::get_account(backend)
-        .map_err(|_| Error::UiError(GetUsageError::NoAccount))?;
+    let acc =
+        DefaultAccountRepo::get_account(backend).map_err(|_| UiError(GetUsageError::NoAccount))?;
 
     DefaultClient::request(&acc, GetUsageRequest {})
         .map(|resp| resp.usages)
         .map_err(|err| match err {
-            ApiError::SendFailed(_) => Error::UiError(GetUsageError::CouldNotReachServer),
-            ApiError::ClientUpdateRequired => Error::UiError(GetUsageError::ClientUpdateRequired),
+            ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
+            ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
             ApiError::Endpoint(_)
             | ApiError::InvalidAuth
             | ApiError::ExpiredAuth
