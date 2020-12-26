@@ -167,6 +167,14 @@
     <string name="create_file_dialog_default_extension">.md</string>
     <string name="bread_crumb_folder">Folder</string>
 
+    <string name="create_file_title_folder">New Folder</string>
+    <string name="create_file_title_document">New Document</string>
+    <string name="create_file_title_drawing">New Drawing</string>
+
+    <string name="create_file_hint_folder">Folder name</string>
+    <string name="create_file_hint_document">Document name</string>
+    <string name="create_file_hint_drawing">Drawing name</string>
+
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
         <item>@string/handwriting_editor_pen_2</item>

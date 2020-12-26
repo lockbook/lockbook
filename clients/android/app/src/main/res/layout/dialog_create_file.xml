@@ -9,6 +9,7 @@
     android:orientation="vertical">
 
     <TextView
+        android:id="@+id/create_file_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         style="@style/Text.Medium"
@@ -31,7 +32,7 @@
             android:id="@+id/create_file_text_part"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/dialog_file_name"
+            android:hint="@string/create_file_hint_document"
             style="@style/Text.Small"
             android:inputType="text"
             android:layout_weight="1"
