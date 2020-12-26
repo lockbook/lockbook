@@ -1,4 +1,3 @@
-use glib::Receiver as GlibReceiver;
 use uuid::Uuid;
 
 use crate::error::LbError;
@@ -42,9 +41,8 @@ pub struct Messenger {
 }
 
 impl Messenger {
-    pub fn new_main_channel() -> (Self, GlibReceiver<Msg>) {
-        let (s, r) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
-        (Self { s }, r)
+    pub fn new(s: glib::Sender<Msg>) -> Self {
+        Self { s }
     }
 
     pub fn send(&self, m: Msg) {
