@@ -100,7 +100,7 @@ impl LbApp {
     }
 
     pub fn show(&self) -> LbResult<()> {
-        self.gui.show(&self.core, &self.messenger)
+        self.gui.show(&self.core)
     }
 
     fn create_account(&self, name: String) {
@@ -112,7 +112,11 @@ impl LbApp {
 
         let ch = make_glib_chan(move |result| {
             match result {
-                Ok(_) => gui.show_account_screen(&c, &m),
+                Ok(_) => {
+                    if let Err(err) = gui.show_account_screen(&c) {
+                        m.send_err("showing account screen", err);
+                    }
+                }
                 Err(err) => match err {
                     UserErr(err) => gui.intro.error_create(&err),
                     prog_err => m.send_err("creating account", prog_err),
@@ -140,7 +144,9 @@ impl LbApp {
                             LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
                             LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
-                                gui.show_account_screen(&cc, &m);
+                                if let Err(err) = gui.show_account_screen(&cc) {
+                                    m.send_err("showing account screen", err);
+                                }
                                 gui.account.sync().set_status(&cc);
                             }
                         }
@@ -245,9 +251,13 @@ impl LbApp {
     fn new_file(&self, path: String) {
         match self.core.create_file_at_path(&path) {
             Ok(file) => {
-                self.gui.account.add_file(&self.core, &file);
-                self.gui.account.sync().set_status(&self.core);
-                self.open_file(Some(file.id));
+                match self.gui.account.add_file(&self.core, &file) {
+                    Ok(_) => {
+                        self.gui.account.sync().set_status(&self.core);
+                        self.open_file(Some(file.id));
+                    }
+                    Err(err) => self.err("adding file to tree", &err),
+                }
             }
             Err(err) => self.err("creating path", &err),
         }
@@ -794,28 +804,29 @@ impl Gui {
         }
     }
 
-    fn show(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
+    fn show(&self, core: &LbCore) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(&core, &m);
+            self.show_account_screen(&core)
         } else {
-            self.show_intro_screen();
+            self.show_intro_screen()
         }
-        Ok(())
     }
 
-    fn show_intro_screen(&self) {
+    fn show_intro_screen(&self) -> LbResult<()> {
         self.menubar.for_intro_screen();
         self.intro.cntr.show_all();
         self.screens.set_visible_child_name("intro");
+        Ok(())
     }
 
-    fn show_account_screen(&self, core: &LbCore, m: &Messenger) {
+    fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core, &m);
+        self.account.fill(&core)?;
         self.account.tree().focus();
         self.screens.set_visible_child_name("account");
+        Ok(())
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {
