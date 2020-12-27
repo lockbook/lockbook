@@ -17,7 +17,7 @@ use crate::{
     NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, SUCCESS, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
     UPDATE_REQUIRED,
 };
-use hotwatch::{Error, Event, Hotwatch};
+use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
