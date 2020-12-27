@@ -228,7 +228,7 @@ pub fn set_up_auto_save(
         Err(err) => {
             println!("file watcher failed to initialize: {:#?}", err);
             None
-        },
+        }
     }
 }
 
