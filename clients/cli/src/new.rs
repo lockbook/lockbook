@@ -66,7 +66,9 @@ pub fn new(file_name: &str) {
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
-    stop_auto_save(watcher, file_location.clone());
+    if let Ok(ok) = watcher {
+        stop_auto_save(ok, file_location.clone());
+    }
 
     if edit_was_successful {
         save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
