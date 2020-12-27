@@ -66,7 +66,7 @@ pub fn new(file_name: &str) {
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
-    if let Ok(ok) = watcher {
+    if let Some(ok) = watcher {
         stop_auto_save(ok, file_location.clone());
     }
 
