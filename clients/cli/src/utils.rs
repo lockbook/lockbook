@@ -190,10 +190,10 @@ pub fn print_last_successful_sync() {
 pub fn set_up_auto_save(
     watch_file_metadata: FileMetadata,
     watch_file_location: String,
-) -> Result<Hotwatch, Error> {
-    let hot_watch = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
+) -> Option<Hotwatch> {
+    let watcher = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
 
-    match hot_watch {
+    match watcher {
         Ok(mut ok) => {
             ok.watch(watch_file_location.clone(), move |event: Event| {
                 if let Event::NoticeWrite(_) = event {
@@ -220,32 +220,25 @@ pub fn set_up_auto_save(
                 }
             })
             .unwrap_or_else(|err| {
-                exit_with(
-                    &format!("hotwatch failed to watch: {:#?}", err),
-                    UNEXPECTED_ERROR,
-                )
+                println!("file watcher failed to watch: {:#?}", err);
             });
 
-            Ok(ok)
+            Some(ok)
         }
-        Err(err) => Err(err),
+        Err(err) => {
+            println!("file watcher failed to initialize: {:#?}", err);
+            None
+        },
     }
 }
 
-pub fn stop_auto_save(watcher: Result<Hotwatch, Error>, file_location: String) {
-    match watcher {
-        Ok(mut ok) => {
-            ok.unwatch(file_location).unwrap_or_else(|err| {
-                exit_with(
-                    &format!("hotwatch failed to unwatch: {:#?}", err),
-                    UNEXPECTED_ERROR,
-                )
-            });
-        }
-        Err(err) => {
-            println!("hotwatch had failed to initialize: {:#?}", err);
-        }
-    }
+pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
+    watcher.unwatch(file_location).unwrap_or_else(|err| {
+        exit_with(
+            &format!("file watcher failed to unwatch: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
 }
 
 pub fn save_temp_file_contents(
