@@ -6,14 +6,16 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_core::{
-    get_file_by_path, read_document, write_document, Error as CoreError, GetFileByPathError,
-    ReadDocumentError, WriteToDocumentError,
+    get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
 };
 
-use crate::utils::{edit_file_with_editor, exit_with, get_account_or_exit, get_config};
+use crate::utils::{
+    edit_file_with_editor, exit_with, get_account_or_exit, get_config, save_temp_file_contents,
+    set_up_auto_save, stop_auto_save,
+};
 use crate::{
-    COULD_NOT_DELETE_OS_FILE, COULD_NOT_READ_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE,
-    DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, SUCCESS, UNEXPECTED_ERROR,
+    COULD_NOT_DELETE_OS_FILE, COULD_NOT_WRITE_TO_OS_FILE, DOCUMENT_TREATED_AS_FOLDER,
+    FILE_NOT_FOUND, UNEXPECTED_ERROR,
 };
 
 pub fn edit(file_name: &str) {
@@ -82,34 +84,16 @@ pub fn edit(file_name: &str) {
         )
     });
 
+    let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+
     let edit_was_successful = edit_file_with_editor(&file_location);
 
-    if edit_was_successful {
-        let secret = fs::read_to_string(temp_file_path).unwrap_or_else(|_| {
-            exit_with(
-                &format!(
-                    "Failed to read from temporary file, check {}",
-                    file_location
-                ),
-                COULD_NOT_READ_OS_FILE,
-            )
-        });
+    if let Some(ok) = watcher {
+        stop_auto_save(ok, file_location.clone());
+    }
 
-        match write_document(&get_config(), file_metadata.id, secret.as_bytes()) {
-            Ok(_) => exit_with(
-                "Document encrypted and saved. Cleaning up temporary file.",
-                SUCCESS,
-            ),
-            Err(err) => match err {
-                CoreError::UiError(WriteToDocumentError::NoAccount)
-                | CoreError::UiError(WriteToDocumentError::FileDoesNotExist)
-                | CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument)
-                | CoreError::Unexpected(_) => exit_with(
-                    &format!("Unexpected error saving file: {:#?}", err),
-                    UNEXPECTED_ERROR,
-                ),
-            },
-        }
+    if edit_was_successful {
+        save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
