@@ -232,7 +232,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val pressure = compressPressure(event.pressure)
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            eraseAtPoint(modelPoint, pressure)
+            eraseAtPoint(modelPoint)
         } else {
             if (erasePoints.first.x != -1f || erasePoints.second.x != -1f) {
                 erasePoints.first.set(PointF(-1f, -1f))
@@ -257,22 +257,21 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
-    private fun eraseAtPoint(point: PointF, pressure: Float) {
-        val roundedPressure = if (pressure > 5) pressure.toInt() else 8
-        val roundedPoint = PointF(point.x.roundToInt().toFloat(), point.y.roundToInt().toFloat())
+    private fun eraseAtPoint(point: PointF) {
+        val roundedPressure = 20
 
         when {
             erasePoints.first.x == -1f -> {
-                erasePoints.first.set(roundedPoint)
+                erasePoints.first.set(point)
                 return
             }
             erasePoints.second.x == -1f -> {
-                erasePoints.second.set(roundedPoint)
+                erasePoints.second.set(point)
                 return
             }
             else -> {
                 erasePoints.first.set(erasePoints.second)
-                erasePoints.second.set(roundedPoint)
+                erasePoints.second.set(point)
             }
         }
 
@@ -306,18 +305,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
                 pointLoop@ while (pointIndex < stroke.points.size) {
                     for (pixel in 1..roundedPressure) {
-                        val initialPoint =
+                        val roundedPoint1 =
                             PointF(stroke.points[pointIndex - 2].roundToInt().toFloat(), stroke.points[pointIndex - 1].roundToInt().toFloat())
-                        val endPoint =
+                        val roundedPoint2 =
                             PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
 
-                        if ((
-                            distanceBetweenPoints(initialPoint, roundedPoint) +
-                                distanceBetweenPoints(roundedPoint, endPoint) - roundedPressure..distanceBetweenPoints(initialPoint, roundedPoint) +
-                                distanceBetweenPoints(roundedPoint, endPoint) + roundedPressure
-                            ).contains(distanceBetweenPoints(initialPoint, endPoint))
-                        ) {
+                        val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
+                            distanceBetweenPoints(roundedPoint1, erasePoints.second)
+                        val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
+                            distanceBetweenPoints(roundedPoint2, erasePoints.second)
+                        val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
+                            distanceBetweenPoints(erasePoints.first, roundedPoint2)
+                        val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
+                            distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
+                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
+                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
+
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
+                            ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
+                        ) {
                             deleteStroke = true
                             break@pointLoop
                         }
