@@ -1,24 +1,27 @@
-use std::env;
+use std::{env, fs};
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::clock_service::Clock;
-use lockbook_core::Error as CoreError;
 use lockbook_core::{
     get_account, get_db_state, init_logger, migrate_db, GetAccountError, GetStateError,
     MigrationError,
 };
 use lockbook_core::{get_last_synced, DefaultClock};
+use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{
-    NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
+    NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, SUCCESS, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
     UPDATE_REQUIRED,
 };
+use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
+use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
+use std::path::Path;
 use std::process::exit;
 
 pub fn init_logger_or_print() {
@@ -181,5 +184,111 @@ pub fn print_last_successful_sync() {
         };
 
         println!("Last successful sync: {}", duration);
+    }
+}
+
+pub fn set_up_auto_save(
+    watch_file_metadata: FileMetadata,
+    watch_file_location: String,
+) -> Option<Hotwatch> {
+    let watcher = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
+
+    match watcher {
+        Ok(mut ok) => {
+            ok.watch(watch_file_location.clone(), move |event: Event| {
+                if let Event::NoticeWrite(_) = event {
+                    save_temp_file_contents(
+                        watch_file_metadata.clone(),
+                        &watch_file_location,
+                        Path::new(watch_file_location.as_str()),
+                        true,
+                    )
+                } else if let Event::Write(_) = event {
+                    save_temp_file_contents(
+                        watch_file_metadata.clone(),
+                        &watch_file_location,
+                        Path::new(watch_file_location.as_str()),
+                        true,
+                    )
+                } else if let Event::Create(_) = event {
+                    save_temp_file_contents(
+                        watch_file_metadata.clone(),
+                        &watch_file_location,
+                        Path::new(watch_file_location.as_str()),
+                        true,
+                    )
+                }
+            })
+            .unwrap_or_else(|err| {
+                println!("file watcher failed to watch: {:#?}", err);
+            });
+
+            Some(ok)
+        }
+        Err(err) => {
+            println!("file watcher failed to initialize: {:#?}", err);
+            None
+        }
+    }
+}
+
+pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
+    watcher.unwatch(file_location).unwrap_or_else(|err| {
+        exit_with(
+            &format!("file watcher failed to unwatch: {:#?}", err),
+            UNEXPECTED_ERROR,
+        )
+    });
+}
+
+pub fn save_temp_file_contents(
+    file_metadata: FileMetadata,
+    file_location: &String,
+    temp_file_path: &Path,
+    silent: bool,
+) {
+    let secret = match fs::read_to_string(temp_file_path) {
+        Ok(content) => content.into_bytes(),
+        Err(err) => {
+            if !silent {
+                exit_with(
+                    &format!(
+                        "Could not read from temporary file, not deleting {}, err: {:#?}",
+                        file_location, err
+                    ),
+                    UNEXPECTED_ERROR,
+                )
+            } else {
+                return;
+            }
+        }
+    };
+
+    match write_document(&get_config(), file_metadata.id, &secret) {
+        Ok(_) => {
+            if !silent {
+                exit_with(
+                    "Document encrypted and saved. Cleaning up temporary file.",
+                    SUCCESS,
+                )
+            }
+        }
+        Err(err) => {
+            if !silent {
+                match err {
+                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
+                        "Unexpected: No account! Run init or import to get started!",
+                        UNEXPECTED_ERROR,
+                    ),
+                    CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
+                        exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
+                    }
+                    CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
+                        exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
+                    }
+                }
+            }
+        }
     }
 }
