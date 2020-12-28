@@ -1,5 +1,6 @@
 use std::env;
 use std::path::Path;
+use std::sync::RwLock;
 
 use glib::Sender as GlibSender;
 use qrcode_generator::QrCodeEcc;
@@ -16,8 +17,7 @@ use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    read_document, rename_file, set_last_synced, write_document, Error as CoreError,
-    GetAccountError,
+    read_document, rename_file, set_last_synced, write_document,
 };
 
 use crate::error::{LbError, LbResult};
@@ -34,9 +34,32 @@ macro_rules! core_to_lb_err {
     };
 }
 
+macro_rules! match_on_core_err {
+    ($err:expr, $enum:ident, $( $( $variants:ident )* $(=> $matches:expr )* ),+) => {
+        match $err {
+            $( $( lockbook_core::Error::UiError(lockbook_core::$enum::$variants) )* $( => $matches )* ),+
+            lockbook_core::Error::Unexpected(msg) => return Err(LbError::Program(msg)),
+        }
+    };
+}
+
 macro_rules! uerr {
     ($base:literal $(, $args:tt )*) => {
         LbError::User(format!($base $(, $args )*))
+    };
+}
+
+macro_rules! lock {
+    ($lock:expr, $r_or_w:ident) => {
+        $lock
+            .$r_or_w()
+            .map_err(|e| LbError::Program(format!("{:?}", e)))
+    };
+}
+
+macro_rules! account_must {
+    ($guard:expr) => {
+        $guard.as_ref().ok_or(uerr!("No account found."))
     };
 }
 
@@ -52,73 +75,64 @@ pub enum LbSyncMsg {
 
 pub struct LbCore {
     config: Config,
+    account: RwLock<Option<Account>>,
 }
 
 impl LbCore {
-    pub fn new(cfg_path: &str) -> Self {
-        Self {
-            config: Config {
-                writeable_path: cfg_path.to_string(),
-            },
+    pub fn new(cfg_path: &str) -> LbResult<Self> {
+        let config = Config {
+            writeable_path: cfg_path.to_string(),
+        };
+
+        match get_db_state(&config).map_err(core_to_lb_err!(GetStateError,
+            Stub => panic!("impossible"),
+        ))? {
+            DbState::ReadyToUse | DbState::Empty => {}
+            DbState::StateRequiresClearing => return Err(uerr!("{}", STATE_REQ_CLEAN_MSG)),
+            DbState::MigrationRequired => {
+                println!("Local state requires migration! Performing migration now...");
+                migrate_db(&config).map_err(core_to_lb_err!(MigrationError,
+                    StateRequiresCleaning => uerr!("{}", STATE_REQ_CLEAN_MSG),
+                ))?;
+            }
         }
+
+        let account = RwLock::new(match get_account(&config) {
+            Ok(acct) => Some(acct),
+            Err(err) => match_on_core_err!(err, GetAccountError,
+                NoAccount => None,
+            ),
+        });
+
+        Ok(Self { config, account })
     }
 
-    pub fn init_db(&self) -> Result<(), String> {
-        match get_db_state(&self.config) {
-            Ok(state) => match state {
-                DbState::ReadyToUse => Ok(()),
-                DbState::Empty => Ok(()),
-                DbState::MigrationRequired => {
-                    println!("Local state requires migration! Performing migration now...");
-                    match migrate_db(&self.config) {
-                        Ok(_) => {
-                            println!("Migration Successful!");
-                            Ok(())
-                        }
-                        Err(err) => Err(format!("{:?}", err)),
-                    }
-                }
-                DbState::StateRequiresClearing => Err(
-                    "Your local state cannot be migrated, please re-sync with a fresh client."
-                        .to_string(),
-                ),
-            },
-            Err(err) => Err(format!("{:?}", err)),
-        }
-    }
-
-    pub fn account(&self) -> Result<Option<Account>, String> {
-        match get_account(&self.config) {
-            Ok(acct) => Ok(Some(acct)),
-            Err(err) => match err {
-                CoreError::UiError(GetAccountError::NoAccount) => Ok(None),
-                CoreError::Unexpected(err) => {
-                    println!("error getting account: {}", err);
-                    Err("Unable to load account.".to_string())
-                }
-            },
-        }
-    }
-
-    pub fn create_account(&self, uname: &str) -> LbResult<Account> {
-        create_account(&self.config, &uname, &api_url()).map_err(core_to_lb_err!(CreateAccountError,
+    pub fn create_account(&self, uname: &str) -> LbResult<()> {
+        let api_url = api_url();
+        let new_acct = create_account(&self.config, &uname, &api_url).map_err(core_to_lb_err!(
+            CreateAccountError,
             UsernameTaken => uerr!("The username '{}' is already taken.", uname),
             InvalidUsername => uerr!("Invalid username '{}' ({}).", uname, UNAME_REQS),
             AccountExistsAlready => uerr!("An account already exists."),
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
-        ))
+        ))?;
+
+        self.set_account(new_acct)
     }
 
-    pub fn import_account(&self, privkey: &str) -> LbResult<Account> {
-        import_account(&self.config, privkey).map_err(core_to_lb_err!(ImportError,
+    pub fn import_account(&self, privkey: &str) -> LbResult<()> {
+        let new_acct = import_account(&self.config, privkey).map_err(core_to_lb_err!(
+            ImportError,
             AccountStringCorrupted => uerr!("Your account's private key is corrupted."),
             AccountExistsAlready => uerr!("An account already exists."),
             AccountDoesNotExist => uerr!("The account you tried to import does not exist."),
             UsernamePKMismatch => uerr!("The account private key does not match username."),
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
-        ))
+        ))?;
+
+        self.set_account(new_acct)
     }
 
     pub fn export_account(&self) -> LbResult<String> {
@@ -177,7 +191,8 @@ impl LbCore {
     }
 
     pub fn file_by_path(&self, path: &str) -> LbResult<FileMetadata> {
-        let acct = self.account().unwrap().unwrap();
+        let acct_lock = lock!(self.account, read)?;
+        let acct = account_must!(acct_lock)?;
         let p = format!("{}/{}", acct.username, path);
 
         get_file_by_path(&self.config, &p).map_err(core_to_lb_err!(GetFileByPathError,
@@ -217,7 +232,8 @@ impl LbCore {
     }
 
     pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
-        let account = self.account().unwrap().unwrap();
+        let acct_lock = lock!(self.account, read)?;
+        let acct = account_must!(acct_lock)?;
 
         let mut work: WorkCalculated;
         while {
@@ -231,7 +247,7 @@ impl LbCore {
                 chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
                     .unwrap();
 
-                self.do_work(&account, wu)?;
+                self.do_work(&acct, wu)?;
             }
 
             if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
@@ -281,6 +297,17 @@ impl LbCore {
         Ok((total, FAKE_LIMIT))
     }
 
+    pub fn has_account(&self) -> LbResult<bool> {
+        let acct = lock!(self.account, read)?;
+        Ok(acct.is_some())
+    }
+
+    fn set_account(&self, a: Account) -> LbResult<()> {
+        let mut acct = lock!(self.account, write)?;
+        *acct = Some(a);
+        Ok(())
+    }
+
     pub fn account_qrcode(&self, chan: &GlibSender<LbResult<String>>) {
         match self.export_account() {
             Ok(privkey) => {
@@ -297,8 +324,10 @@ impl LbCore {
 
     pub fn list_paths_without_root(&self) -> LbResult<Vec<String>> {
         let paths = self.list_paths()?;
-        let root = self.account().unwrap().unwrap().username;
-        Ok(paths.iter().map(|p| p.replacen(&root, "", 1)).collect())
+        let acct_lock = lock!(self.account, read)?;
+        let acct = account_must!(acct_lock)?;
+        let root = &acct.username;
+        Ok(paths.iter().map(|p| p.replacen(root, "", 1)).collect())
     }
 
     pub fn full_path_for(&self, f: &FileMetadata) -> String {
@@ -334,3 +363,5 @@ impl LbCore {
 
 const UNAME_REQS: &str = "letters and numbers only";
 const FAKE_LIMIT: f64 = KILOBYTE as f64 * 20.0;
+const STATE_REQ_CLEAN_MSG: &str =
+    "Your local state cannot be migrated, please re-sync with a fresh client.";
