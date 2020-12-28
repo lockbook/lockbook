@@ -28,7 +28,6 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         copy_file(&path, import_dest, edit, false)
     } else {
         recursive_copy_folder(&path, import_dest, true);
-        exit_with(&format!("imported folder to: {}", import_dest), SUCCESS)
     }
 }
 
@@ -46,7 +45,10 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
         let children_paths: Vec<DirEntry> = fs::read_dir(path)
             .unwrap_or_else(|err| {
                 exit_with(
-                    &format!("Failed to read folder children: {}", err),
+                    &format!(
+                        "Unable to list children of folder: {:?}, OS error: {}",
+                        path, err
+                    ),
                     COULD_NOT_READ_OS_CHILDREN,
                 )
             })
