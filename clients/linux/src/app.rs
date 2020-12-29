@@ -7,7 +7,6 @@ use std::thread;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
-use glib::Receiver as GlibReceiver;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -49,21 +48,22 @@ pub struct LbApp {
 }
 
 impl LbApp {
-    pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp, m: Messenger) -> Self {
+    pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp) -> Self {
+        let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
+        let m = Messenger::new(sender);
+
         let gui = Gui::new(&a, &m, &s.borrow());
 
-        Self {
+        let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
             state: Rc::new(RefCell::new(LbState::default())),
             gui: Rc::new(gui),
             messenger: m,
-        }
-    }
+        };
 
-    pub fn attach_events(&self, r: GlibReceiver<Msg>) {
-        let lb = self.clone();
-        r.attach(None, move |msg| {
+        let lb = lb_app.clone();
+        receiver.attach(None, move |msg| {
             match msg {
                 Msg::CreateAccount(username) => lb.create_account(username),
                 Msg::ImportAccount(privkey) => lb.import_account(privkey),
@@ -95,13 +95,12 @@ impl LbApp {
             }
             glib::Continue(true)
         });
+
+        lb_app
     }
 
-    pub fn show(&self) {
-        match self.gui.show(&self.core, &self.messenger) {
-            Ok(_) => {}
-            Err(err) => self.err("displaying app", &err),
-        }
+    pub fn show(&self) -> LbResult<()> {
+        self.gui.show(&self.core, &self.messenger)
     }
 
     fn create_account(&self, name: String) {
