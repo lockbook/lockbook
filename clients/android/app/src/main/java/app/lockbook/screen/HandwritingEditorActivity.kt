@@ -58,7 +58,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             finish()
             return
         }
-        handwriting_editor_drawing_name.text = name
 
         handwritingEditorViewModel =
             ViewModelProvider(
@@ -121,32 +120,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpHandwritingToolbar() {
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.handwriting_editor_pallete_colors,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            handwriting_editor_pallete_spinner.adapter = adapter
-        }
 
-        handwriting_editor_pallete_spinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-                    handwriting_editor.setColor(parent?.getItemAtPosition(position).toString())
-                }
-
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
-
-        handwriting_editor_erase.setOnCheckedChangeListener { _, isChecked ->
-            handwriting_editor.isErasing = isChecked
-        }
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!

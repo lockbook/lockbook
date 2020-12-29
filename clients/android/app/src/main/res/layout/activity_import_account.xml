@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:paddingBottom="20dp"
         android:text="@string/lockbook_import"
-        style="@style/Text.Headline" />
+        style="@style/Main.Text.Headline" />
 
     <ImageButton
         android:id="@+id/qr_import_button"
@@ -40,7 +40,7 @@
         android:id="@+id/import_lockbook"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/Button.Colored"
+        style="@style/Main.Button.Colored"
         android:text="@string/import_account_import_button" />
 
     <ProgressBar

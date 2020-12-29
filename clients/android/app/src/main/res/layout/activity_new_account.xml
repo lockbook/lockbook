@@ -8,42 +8,42 @@
     android:paddingHorizontal="25dp">
 
     <TextView
-        style="@style/Text.Headline"
+        style="@style/Main.Text.Headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="40dp"
         android:text="@string/lockbook_new_account" />
 
     <TextView
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp"
         android:text="@string/new_account_description_one" />
 
     <TextView
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp"
         android:text="@string/new_account_description_two" />
 
     <TextView
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp"
         android:text="@string/new_account_description_three" />
 
     <TextView
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="15dp"
         android:text="@string/new_account_description_four" />
 
     <TextView
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="50dp"
@@ -63,7 +63,7 @@
 
     <Button
         android:id="@+id/new_account_create_lockbook"
-        style="@style/Button.Colored"
+        style="@style/Main.Button.Colored"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/new_account_submit" />

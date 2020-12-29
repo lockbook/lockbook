@@ -1,62 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:id="@+id/handwriting_editor_layout">
+    android:layout_height="match_parent">
 
-    <androidx.appcompat.widget.Toolbar
-        style="@style/Text.Medium"
+    <LinearLayout
+        android:id="@+id/handwriting_editor_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="?attr/actionBarSize"
-        android:theme="@style/DarkBlue.Actionbar"
-        android:elevation="4dp">
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
-        <LinearLayout
+<!--                <androidx.appcompat.widget.Toolbar-->
+<!--                    style="@style/Text.Medium"-->
+<!--                    android:layout_width="match_parent"-->
+<!--                    android:layout_height="wrap_content"-->
+<!--                    android:elevation="4dp"-->
+<!--                    android:minHeight="?attr/actionBarSize"-->
+<!--                    android:theme="@style/DarkBlue.Actionbar">-->
+
+<!--                    <LinearLayout-->
+<!--                        android:layout_width="match_parent"-->
+<!--                        android:layout_height="match_parent"-->
+<!--                        android:gravity="start"-->
+<!--                        android:orientation="horizontal">-->
+
+<!--                        <TextView-->
+<!--                            android:id="@+id/handwriting_editor_drawing_name"-->
+<!--                            style="@style/Toolbar.Title"-->
+<!--                            android:layout_width="150sp"-->
+<!--                            android:layout_height="wrap_content"-->
+<!--                            android:singleLine="true" />-->
+
+<!--                        <Spinner-->
+<!--                            android:id="@+id/handwriting_editor_pallete_spinner"-->
+<!--                            android:layout_width="wrap_content"-->
+<!--                            android:layout_height="wrap_content"-->
+<!--                            android:paddingHorizontal="5dp"-->
+<!--                            android:spinnerMode="dropdown" />-->
+
+<!--                        <androidx.appcompat.widget.SwitchCompat-->
+<!--                            android:id="@+id/handwriting_editor_erase"-->
+<!--                            android:layout_width="wrap_content"-->
+<!--                            android:layout_height="wrap_content"-->
+<!--                            android:layout_marginStart="20dp"-->
+<!--                            android:text="@string/handwriting_editor_erase" />-->
+<!--                    </LinearLayout>-->
+
+<!--                </androidx.appcompat.widget.Toolbar>-->
+
+        <ProgressBar
+            android:id="@+id/handwriting_editor_progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-4dp"
+            android:layout_marginBottom="-8dp"
+            android:indeterminate="true"
+            android:minHeight="20dp"
+            android:visibility="gone" />
+
+        <app.lockbook.ui.HandwritingEditorView
+            android:id="@+id/handwriting_editor"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/handwriting_editor_frame_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:animateLayoutChanges="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <androidx.appcompat.widget.Toolbar
+            style="@style/Main.Text.Medium"
+            android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:gravity="start"
-            android:orientation="horizontal">
+            android:elevation="4dp"
+            android:minWidth="30dp"
+            android:theme="@style/Main.Actionbar">
 
-            <TextView
-                android:id="@+id/handwriting_editor_drawing_name"
-                style="@style/Toolbar.Title"
-                android:layout_width="150sp"
-                android:layout_height="wrap_content"
-                android:singleLine="true" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="start"
+                android:orientation="horizontal">
 
-            <Spinner
-                android:id="@+id/handwriting_editor_pallete_spinner"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="5dp"
-                android:spinnerMode="dropdown" />
+                <ImageButton
+                    android:id="@+id/drawing_color_blue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Main.ImageButton"
+                    android:contentDescription="Blue"
+                    android:src="" />
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/handwriting_editor_erase"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="20dp"
-                android:text="@string/handwriting_editor_erase" />
-        </LinearLayout>
+                <ImageButton
+                    android:id="@+id/drawing_color_red"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Main.ImageButton"
+                    android:contentDescription="Red"
+                    android:src="" />
 
-    </androidx.appcompat.widget.Toolbar>
+                <ImageButton
+                    android:id="@+id/drawing_color_green"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Main.ImageButton"
+                    android:contentDescription="Green"
+                    android:src="" />
 
-    <ProgressBar
-        android:id="@+id/handwriting_editor_progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="gone"
-        android:layout_marginBottom="-8dp"
-        android:layout_marginTop="-4dp"
-        android:minHeight="20dp" />
+                <ImageButton
+                    android:id="@+id/drawing_color_orange"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Main.ImageButton"
+                    android:contentDescription="Orange"
+                    android:src="" />
 
-    <app.lockbook.ui.HandwritingEditorView
-        android:id="@+id/handwriting_editor"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+            </LinearLayout>
 
-</LinearLayout>
+        </androidx.appcompat.widget.Toolbar>
+
+    </FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

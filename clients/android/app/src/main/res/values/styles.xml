@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="DarkBlue" parent="Theme.AppCompat.DayNight">
+    <style name="Main" parent="Theme.AppCompat.DayNight">
         <item name="android:windowBackground">@color/colorPrimaryDark</item>
         <item name="android:navigationBarColor">@color/navigationBarColor</item>
         <item name="colorPrimary">@color/colorPrimary</item>
@@ -8,105 +8,112 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:actionBarStyle">@style/DarkBlue.Actionbar</item>
-        <item name="titleTextStyle">@style/DarkBlue.Title</item>
-        <item name="android:actionOverflowButtonStyle">@style/DarkBlue.Overflow</item>
+        <item name="android:actionBarStyle">@style/Main.Actionbar</item>
+        <item name="titleTextStyle">@style/Main.Title</item>
+        <item name="android:actionOverflowButtonStyle">@style/Main.Overflow</item>
     </style>
 
-    <style name="DarkBlue.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
+    <style name="Main.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
         <item name="android:background">@color/windowBackground</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
     </style>
 
-    <style name="DarkBlue.NoActionBar" parent="DarkBlue">
+    <style name="Main.NoActionBar" parent="Main">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="background">@color/windowBackground</item>
     </style>
 
-    <style name="DarkBlue.Actionbar" parent="Widget.AppCompat.ActionBar">
+    <style name="Main.Actionbar" parent="Widget.AppCompat.ActionBar">
         <item name="backgroundColor">@color/windowBackground</item>
         <item name="android:textColorPrimary">@color/textColor</item>
         <item name="android:textColorSecondary">@color/textColor</item>
         <item name="actionMenuTextColor">@color/textColor</item>
     </style>
 
-    <style name="DarkBlue.Toolbar">
+    <style name="Main.ImageButton" parent="Widget.AppCompat.ImageButton">
+        <item name="android:background">?android:selectableItemBackgroundBorderless</item>
+        <item name="android:backgroundTint">?attr/colorPrimaryDark</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Main.Toolbar">
         <item name="backgroundColor">@color/windowBackground</item>
     </style>
 
-    <style name="DarkBlue.Overflow">
+    <style name="Main.Overflow">
         <item name="android:src">@drawable/ic_baseline_more_vert_24</item>
     </style>
 
-    <style name="DarkBlue.Title" parent="TextAppearance.AppCompat.Widget.ActionBar.Title">
+    <style name="Main.Title" parent="TextAppearance.AppCompat.Widget.ActionBar.Title">
         <item name="titleTextColor">@color/colorPrimary</item>
     </style>
 
-    <style name="Text.Caption" parent="TextAppearance.AppCompat.Caption" />
+    <style name="Main.Text.Caption" parent="TextAppearance.AppCompat.Caption" />
 
-    <style name="Text.Small" parent="TextAppearance.AppCompat.Small">
+    <style name="Main.Text.Small" parent="TextAppearance.AppCompat.Small">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>
     </style>
 
-    <style name="Text.Body" parent="TextAppearance.AppCompat.Body1">
+    <style name="Main.Text.Body" parent="TextAppearance.AppCompat.Body1">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:textAlignment">center</item>
     </style>
 
-    <style name="Text.Medium" parent="TextAppearance.AppCompat.Medium">
+    <style name="Main.Text.Medium" parent="TextAppearance.AppCompat.Medium">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">sans-serif</item>
     </style>
 
-    <style name="Toolbar.Title" parent="TextAppearance.AppCompat.Large">
+    <style name="Main.Toolbar.Title" parent="TextAppearance.AppCompat.Large">
         <item name="android:textColor">@color/textColor</item>
     </style>
 
-    <style name="File.Title" parent="TextAppearance.AppCompat">
+    <style name="Main.File.Title" parent="TextAppearance.AppCompat">
         <item name="android:textColor">@color/documentNameTextColor</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">monospace</item>
     </style>
 
-    <style name="File.TitleGrid" parent="TextAppearance.AppCompat">
+    <style name="Main.File.TitleGrid" parent="TextAppearance.AppCompat">
         <item name="android:textColor">@color/documentNameTextColor</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">monospace</item>
     </style>
 
-    <style name="File.SubTitle" parent="TextAppearance.AppCompat.Small">
+    <style name="Main.File.SubTitle" parent="TextAppearance.AppCompat.Small">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:gravity">start</item>
     </style>
 
-    <style name="File.SubSubTitle" parent="TextAppearance.AppCompat.Small">
+    <style name="Main.File.SubSubTitle" parent="TextAppearance.AppCompat.Small">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:textSize">12sp</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:gravity">start</item>
     </style>
 
-    <style name="Text.Headline" parent="TextAppearance.AppCompat.Display1">
+    <style name="Main.Text.Headline" parent="TextAppearance.AppCompat.Display1">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:textAlignment">center</item>
     </style>
 
-    <style name="Button" parent="Widget.AppCompat.Button" />
+    <style name="Main.Button" parent="Widget.AppCompat.Button" />
 
-    <style name="Button.Small" parent="Widget.AppCompat.Button.Small" />
+    <style name="Main.Button.Small" parent="Widget.AppCompat.Button.Small" />
 
-    <style name="Button.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
+    <style name="Main.Button.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
 
-    <style name="Button.Borderless" parent="Widget.AppCompat.Button.Borderless" />
+    <style name="Main.Button.Borderless" parent="Widget.AppCompat.Button.Borderless" />
 
-    <style name="Button.Borderless.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
+    <style name="Main.Button.Borderless.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
 </resources>
