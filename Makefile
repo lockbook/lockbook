@@ -78,7 +78,7 @@ linux: is_docker_running
 .PHONY: linux_fmt
 linux_fmt: linux
 	@echo The following files need formatting:
-	docker build --target linux-build -f containers/Dockerfile.linux . --tag linux_fmt:$(hash) --build-arg HASH=$(hash)
+	docker build --target linux-fmt -f containers/Dockerfile.linux . --tag linux_fmt:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: linux_lint
 linux_lint: linux
