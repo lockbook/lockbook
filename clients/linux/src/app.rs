@@ -99,7 +99,7 @@ impl LbApp {
 
     pub fn show(&self) {
         match self.gui.show(&self.core, &self.messenger) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(err) => self.err("displaying app", &err),
         }
     }
@@ -187,13 +187,13 @@ impl LbApp {
                 d.get_content_area().pack_start(&image_cntr, true, true, 8);
                 d.get_content_area().add(&btn_cntr);
                 d.set_resizable(false);
-                d.show_all()
+                d.show_all();
             }
             Err(err) => self.err("unable to export account", &err),
         }
 
         let m = self.messenger.clone();
-        let ch = make_glib_chan(move |res: LbResult<String>| {
+        let ch = make_glib_chan(move |res| {
             match res {
                 Ok(path) => {
                     let qr_image = GtkImage::from_file(&path);
@@ -206,7 +206,7 @@ impl LbApp {
         });
 
         let core = self.core.clone();
-        thread::spawn(move || core.account_qrcode(&ch));
+        thread::spawn(move || ch.send(core.account_qrcode()).unwrap());
     }
 
     fn perform_sync(&self) {

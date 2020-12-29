@@ -308,18 +308,14 @@ impl LbCore {
         Ok(())
     }
 
-    pub fn account_qrcode(&self, chan: &GlibSender<LbResult<String>>) {
-        match self.export_account() {
-            Ok(privkey) => {
-                let path = format!("{}/account-qr.png", self.config.writeable_path);
-                if !Path::new(&path).exists() {
-                    let bytes = privkey.as_bytes();
-                    qrcode_generator::to_png_to_file(bytes, QrCodeEcc::Low, 400, &path).unwrap();
-                }
-                chan.send(Ok(path)).unwrap();
-            }
-            err => chan.send(err).unwrap(),
+    pub fn account_qrcode(&self) -> LbResult<String> {
+        let privkey = self.export_account()?;
+        let path = format!("{}/account-qr.png", self.config.writeable_path);
+        if !Path::new(&path).exists() {
+            let bytes = privkey.as_bytes();
+            qrcode_generator::to_png_to_file(bytes, QrCodeEcc::Low, 400, &path).unwrap();
         }
+        Ok(path)
     }
 
     pub fn list_paths_without_root(&self) -> LbResult<Vec<String>> {
