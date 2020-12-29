@@ -35,7 +35,6 @@ use gtk::StyleContext as GtkStyleContext;
 
 use crate::app::LbApp;
 use crate::backend::LbCore;
-use crate::messages::Messenger;
 use crate::settings::Settings;
 
 fn main() {
@@ -71,11 +70,10 @@ fn on_activate(core: &Arc<LbCore>, settings: &Rc<RefCell<Settings>>) -> impl Fn(
             launch_err("adding css provider", &err);
         }
 
-        let (msngr, receiver) = Messenger::new_main_channel();
-
-        let lb = LbApp::new(&core, &settings, &app, msngr);
-        lb.attach_events(receiver);
-        lb.show();
+        let lb = LbApp::new(&core, &settings, &app);
+        if let Err(err) = lb.show() {
+            launch_err("displaying app", &err.msg());
+        }
     }
 }
 
