@@ -250,15 +250,13 @@ impl LbApp {
 
     fn new_file(&self, path: String) {
         match self.core.create_file_at_path(&path) {
-            Ok(file) => {
-                match self.gui.account.add_file(&self.core, &file) {
-                    Ok(_) => {
-                        self.gui.account.sync().set_status(&self.core);
-                        self.open_file(Some(file.id));
-                    }
-                    Err(err) => self.err("adding file to tree", &err),
+            Ok(file) => match self.gui.account.add_file(&self.core, &file) {
+                Ok(_) => {
+                    self.gui.account.sync().set_status(&self.core);
+                    self.open_file(Some(file.id));
                 }
-            }
+                Err(err) => self.err("adding file to tree", &err),
+            },
             Err(err) => self.err("creating path", &err),
         }
     }
