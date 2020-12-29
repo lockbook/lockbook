@@ -171,10 +171,10 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
                                         UNEXPECTED_ERROR,
                                     ),
                                 })
-                        } else if !is_folder_copy {
-                            exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename), FILE_ALREADY_EXISTS)
+                        } else if is_folder_copy {
+                            return println!("Input destination {} not available within lockbook.", import_dest_with_filename);
                         } else {
-                            return println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename);
+                            exit_with(&format!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest_with_filename), FILE_ALREADY_EXISTS);
                         }
                     }
                     CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
