@@ -86,6 +86,7 @@
             style="@style/Main.Text.Medium"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
+            android:layout_gravity="start"
             android:elevation="4dp"
             android:minWidth="30dp"
             android:theme="@style/Main.Actionbar">
@@ -131,6 +132,57 @@
             </LinearLayout>
 
         </androidx.appcompat.widget.Toolbar>
+
+        <androidx.appcompat.widget.Toolbar
+            style="@style/Main.Text.Medium"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:elevation="4dp"
+            android:minWidth="30dp"
+            android:theme="@style/Main.Actionbar">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="start"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/drawing_stylus_width_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Main.ImageButton"
+                android:contentDescription="Blue"
+                android:src="" />
+
+            <ImageButton
+                android:id="@+id/drawing_stylus_width_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Main.ImageButton"
+                android:contentDescription="Red"
+                android:src="" />
+
+            <ImageButton
+                android:id="@+id/drawing_stylus_width_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Main.ImageButton"
+                android:contentDescription="Green"
+                android:src="" />
+
+            <ImageButton
+                android:id="@+id/drawing_stylus_width_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Main.ImageButton"
+                android:contentDescription="Orange"
+                android:src="" />
+
+        </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
 
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
