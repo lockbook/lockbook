@@ -27,11 +27,11 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     if metadata.is_file() {
         copy_file(&path, import_dest, edit, false)
     } else {
-        recursive_copy_folder(&path, import_dest, true);
+        recursive_copy_folder(&path, import_dest, edit, true);
     }
 }
 
-fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool) {
+fn recursive_copy_folder(path: &PathBuf, import_dest: &str, edit: bool, is_top_folder: bool) {
     let metadata = fs::metadata(&path).unwrap_or_else(|err| {
         exit_with(
             &format!("Failed to read file metadata: {}", err),
@@ -40,7 +40,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
     });
 
     if metadata.is_file() {
-        copy_file(&path, import_dest, false, true);
+        copy_file(&path, import_dest, edit, true);
     } else {
         let children_paths: Vec<DirEntry> = fs::read_dir(path)
             .unwrap_or_else(|err| {
@@ -111,7 +111,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, is_top_folder: bool)
                     )
                 };
 
-                recursive_copy_folder(&child_path, &lockbook_child_path, false);
+                recursive_copy_folder(&child_path, &lockbook_child_path, edit, false);
             }
         } else if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
             match err {
@@ -162,7 +162,7 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
                 Ok(file_metadata) => file_metadata,
                 Err(err) => match err {
                     CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                        if edit && !is_folder_copy {
+                        if edit {
                             get_file_by_path(&get_config(), &import_dest_with_filename)
                                 .unwrap_or_else(|get_err| match get_err {
                                     CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
@@ -173,7 +173,7 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
                                 })
                         } else if is_folder_copy {
                             return println!(
-                                "Input destination {} not available within lockbook.",
+                                "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!",
                                 import_dest_with_filename
                             );
                         } else {
