@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Main" parent="Theme.AppCompat.DayNight">
+    <style name="Main" parent="Theme.MaterialComponents.DayNight">
         <item name="android:windowBackground">@color/colorPrimaryDark</item>
         <item name="android:navigationBarColor">@color/navigationBarColor</item>
         <item name="colorPrimary">@color/colorPrimary</item>
@@ -44,6 +44,7 @@
         <item name="android:layout_width">40dp</item>
         <item name="android:layout_height">40dp</item>
         <item name="android:layout_margin">10dp</item>
+        <item name="cornerRadius">100dp</item>
     </style>
 
     <style name="Main.Toolbar">

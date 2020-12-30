@@ -112,7 +112,7 @@ class ImportAccountActivity : AppCompatActivity() {
                             Snackbar.LENGTH_SHORT
                         ).show()
                         is ImportError.Unexpected -> {
-                            AlertDialog.Builder(this@ImportAccountActivity, R.style.DarkBlue_Dialog)
+                            AlertDialog.Builder(this@ImportAccountActivity, R.style.Main_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)
                                 .setMessage(error.error)
                                 .show()

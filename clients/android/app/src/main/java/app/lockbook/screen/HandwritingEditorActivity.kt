@@ -4,16 +4,17 @@ import android.os.Bundle
 import android.os.Handler
 import android.view.SurfaceHolder
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.HandwritingEditorViewModel
 import app.lockbook.modelfactory.HandwritingEditorViewModelFactory
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
 import java.util.*
@@ -120,7 +121,50 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpHandwritingToolbar() {
+        drawing_color_white.setOnClickListener {
+            newStylusColorSelected(drawing_color_white, android.R.color.white)
+        }
 
+        drawing_color_blue.setOnClickListener {
+            newStylusColorSelected(drawing_color_blue, android.R.color.holo_blue_light)
+        }
+
+        drawing_color_green.setOnClickListener {
+            newStylusColorSelected(drawing_color_green, android.R.color.holo_green_light)
+        }
+
+        drawing_color_orange.setOnClickListener {
+            newStylusColorSelected(drawing_color_orange, android.R.color.holo_orange_light)
+        }
+
+        drawing_color_purple.setOnClickListener {
+            newStylusColorSelected(drawing_color_purple, android.R.color.holo_purple)
+        }
+
+        drawing_color_red.setOnClickListener {
+            newStylusColorSelected(drawing_color_red, android.R.color.holo_red_light)
+        }
+
+        drawing_erase.setOnCheckedChangeListener { _, isChecked ->
+            handwriting_editor.isErasing = isChecked
+        }
+    }
+
+    private fun newStylusColorSelected(button: MaterialButton, colorId: Int) {
+        val color = ResourcesCompat.getColor(
+            App.instance.resources,
+            colorId,
+            App.instance.theme
+        )
+        handwriting_editor.setColor(color)
+        drawing_color_white.strokeWidth = 0
+        drawing_color_blue.strokeWidth = 0
+        drawing_color_green.strokeWidth = 0
+        drawing_color_orange.strokeWidth = 0
+        drawing_color_purple.strokeWidth = 0
+        drawing_color_red.strokeWidth = 0
+        button.strokeWidth = 2
+        button.setStrokeColorResource(R.color.blue)
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
@@ -175,7 +219,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(this, R.style.Main_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .setOnCancelListener {

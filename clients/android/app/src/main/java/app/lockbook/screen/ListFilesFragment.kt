@@ -471,7 +471,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(requireContext(), R.style.Main_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .show()
