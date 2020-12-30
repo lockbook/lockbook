@@ -144,14 +144,13 @@ impl LbApp {
                 let m = msngr.clone();
 
                 let sync_chan = make_glib_chan(move |msg| {
-                    match msg {
-                        Some(msg) => gui.intro.sync_progress(&msg),
-                        None => {
-                            if let Err(err) = gui.show_account_screen(&c) {
-                                m.send_err("showing account screen", err);
-                            }
-                            gui.account.sync().set_status(&c);
+                    if let Some(msg) = msg {
+                        gui.intro.sync_progress(&msg),
+                    } else {
+                        if let Err(err) = gui.show_account_screen(&c) {
+                            m.send_err("showing account screen", err);
                         }
+                        gui.account.sync().set_status(&c);
                     }
                     glib::Continue(true)
                 });
@@ -164,7 +163,6 @@ impl LbApp {
                     }
                 });
             }
-
             glib::Continue(false)
         });
 
