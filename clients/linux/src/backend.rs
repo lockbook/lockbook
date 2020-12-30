@@ -72,7 +72,6 @@ fn api_url() -> String {
 
 pub enum LbSyncMsg {
     Doing(WorkUnit, String, usize, usize),
-    Error(LbError),
     Done,
 }
 
@@ -252,9 +251,7 @@ impl LbCore {
                 self.do_work(&acct, wu)?;
             }
 
-            if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
-                chan.send(LbSyncMsg::Error(err)).unwrap();
-            }
+            self.set_last_synced(work.most_recent_update_from_server)?;
         }
 
         chan.send(LbSyncMsg::Done).unwrap();

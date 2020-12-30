@@ -142,7 +142,6 @@ impl LbApp {
                     let sync_chan = make_glib_chan(move |msg| {
                         match msg {
                             LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
-                            LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
                                 if let Err(err) = gui.show_account_screen(&cc) {
                                     m.send_err("showing account screen", err);
@@ -219,8 +218,6 @@ impl LbApp {
         let acctscr = self.gui.account.clone();
         acctscr.sync().set_syncing(true);
 
-        let m = self.messenger.clone();
-
         let ch = make_glib_chan(move |msg| {
             let sync_ui = acctscr.sync();
             match msg {
@@ -231,7 +228,6 @@ impl LbApp {
                     };
                     sync_ui.doing(&format!("{}: {} ({}/{})", prefix, path, i, total));
                 }
-                LbSyncMsg::Error(err) => m.send_err("syncing", err),
                 LbSyncMsg::Done => {
                     sync_ui.set_syncing(false);
                     sync_ui.set_status(&core);
@@ -241,7 +237,12 @@ impl LbApp {
         });
 
         let c = self.core.clone();
-        thread::spawn(move || c.sync(&ch));
+        let m = self.messenger.clone();
+        thread::spawn(move || {
+            if let Err(err) = c.sync(&ch) {
+                m.send_err("syncing", err);
+            }
+        });
     }
 
     fn quit(&self) {
