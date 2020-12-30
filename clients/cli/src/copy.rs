@@ -11,23 +11,16 @@ use lockbook_core::{
 use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
 use crate::{
     COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_CHILDREN, COULD_NOT_READ_OS_FILE,
-    COULD_NOT_READ_OS_METADATA, DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT,
+    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT,
     PATH_CONTAINS_EMPTY_FILE, PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
 
-    let metadata = fs::metadata(&path).unwrap_or_else(|err| {
-        exit_with(
-            &format!("Failed to read file metadata: {}", err),
-            COULD_NOT_READ_OS_METADATA,
-        )
-    });
-
     let config = get_config();
 
-    if metadata.is_file() {
+    if path.is_file() {
         copy_file(&path, import_dest, &config, edit, false)
     } else {
         recursive_copy_folder(&path, import_dest, &config, edit, true);
@@ -41,14 +34,7 @@ fn recursive_copy_folder(
     edit: bool,
     is_top_folder: bool,
 ) {
-    let metadata = fs::metadata(&path).unwrap_or_else(|err| {
-        exit_with(
-            &format!("Failed to read file metadata: {}", err),
-            COULD_NOT_READ_OS_METADATA,
-        )
-    });
-
-    if metadata.is_file() {
+    if path.is_file() {
         copy_file(&path, import_dest, config, edit, true);
     } else {
         let children_paths: Vec<DirEntry> = read_dir_entries_or_exit(&path);
