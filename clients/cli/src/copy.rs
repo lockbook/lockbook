@@ -51,25 +51,7 @@ fn recursive_copy_folder(
     if metadata.is_file() {
         copy_file(&path, import_dest, config, edit, true);
     } else {
-        let children_paths: Vec<DirEntry> = fs::read_dir(path)
-            .unwrap_or_else(|err| {
-                exit_with(
-                    &format!(
-                        "Unable to list children of folder: {:?}, OS error: {}",
-                        path, err
-                    ),
-                    COULD_NOT_READ_OS_CHILDREN,
-                )
-            })
-            .map(|child| {
-                child.unwrap_or_else(|err| {
-                    exit_with(
-                        &format!("Failed to retrieve child path: {}", err),
-                        COULD_NOT_READ_OS_CHILDREN,
-                    )
-                })
-            })
-            .collect();
+        let children_paths: Vec<DirEntry> = read_dir_entries_or_exit(&path);
 
         if !children_paths.is_empty() {
             for child in children_paths {
@@ -259,4 +241,26 @@ fn copy_file(path: &PathBuf, import_dest: &str, config: &Config, edit: bool, is_
             }
         }
     }
+}
+
+fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
+    fs::read_dir(p)
+        .unwrap_or_else(|err| {
+            exit_with(
+                &format!(
+                    "Unable to list children of folder: {:?}, OS error: {}",
+                    p, err
+                ),
+                COULD_NOT_READ_OS_CHILDREN,
+            )
+        })
+        .map(|child| {
+            child.unwrap_or_else(|err| {
+                exit_with(
+                    &format!("Failed to retrieve child path: {}", err),
+                    COULD_NOT_READ_OS_CHILDREN,
+                )
+            })
+        })
+        .collect()
 }
