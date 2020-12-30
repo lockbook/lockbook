@@ -135,37 +135,36 @@ impl LbApp {
         let core = self.core.clone();
         let msngr = self.messenger.clone();
 
-        let import_chan = make_glib_chan(move |result: LbResult<_>| {
-            match result {
-                Ok(_) => {
-                    let gui = gui.clone();
-                    let c = core.clone();
-                    let m = msngr.clone();
+        let import_chan = make_glib_chan(move |result: LbResult<()>| {
+            if let Err(err) = result {
+                gui.intro.error_import(err.msg());
+            } else {
+                let gui = gui.clone();
+                let c = core.clone();
+                let m = msngr.clone();
 
-                    let sync_chan = make_glib_chan(move |msg| {
-                        match msg {
-                            Some(msg) => gui.intro.sync_progress(&msg),
-                            None => {
-                                if let Err(err) = gui.show_account_screen(&c) {
-                                    m.send_err("showing account screen", err);
-                                }
-                                gui.account.sync().set_status(&c);
+                let sync_chan = make_glib_chan(move |msg| {
+                    match msg {
+                        Some(msg) => gui.intro.sync_progress(&msg),
+                        None => {
+                            if let Err(err) = gui.show_account_screen(&c) {
+                                m.send_err("showing account screen", err);
                             }
+                            gui.account.sync().set_status(&c);
                         }
-                        glib::Continue(true)
-                    });
+                    }
+                    glib::Continue(true)
+                });
 
-                    let c = core.clone();
-                    let m = msngr.clone();
-
-                    thread::spawn(move || {
-                        if let Err(err) = c.sync(&sync_chan) {
-                            m.send_err("syncing", err);
-                        }
-                    });
-                }
-                Err(err) => gui.intro.error_import(err.msg()),
+                let c = core.clone();
+                let m = msngr.clone();
+                thread::spawn(move || {
+                    if let Err(err) = c.sync(&sync_chan) {
+                        m.send_err("syncing", err);
+                    }
+                });
             }
+
             glib::Continue(false)
         });
 
