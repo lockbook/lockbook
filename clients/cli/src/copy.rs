@@ -37,10 +37,10 @@ fn recursive_copy_folder(
     if path.is_file() {
         copy_file(&path, import_dest, config, edit, true);
     } else {
-        let children_paths: Vec<DirEntry> = read_dir_entries_or_exit(&path);
+        let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
 
-        if !children_paths.is_empty() {
-            for child in children_paths {
+        if !children.is_empty() {
+            for child in children {
                 let child_path = child.path();
                 let child_name = child_path
                     .file_name()
