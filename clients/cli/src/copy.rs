@@ -12,6 +12,7 @@ use crate::{
     COULD_NOT_READ_OS_METADATA, DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT,
     PATH_CONTAINS_EMPTY_FILE, PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
+use lockbook_core::model::state::Config;
 use std::fs::DirEntry;
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
@@ -24,14 +25,22 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         )
     });
 
+    let config = get_config();
+
     if metadata.is_file() {
-        copy_file(&path, import_dest, edit, false)
+        copy_file(&path, import_dest, &config, edit, false)
     } else {
-        recursive_copy_folder(&path, import_dest, edit, true);
+        recursive_copy_folder(&path, import_dest, &config, edit, true);
     }
 }
 
-fn recursive_copy_folder(path: &PathBuf, import_dest: &str, edit: bool, is_top_folder: bool) {
+fn recursive_copy_folder(
+    path: &PathBuf,
+    import_dest: &str,
+    config: &Config,
+    edit: bool,
+    is_top_folder: bool,
+) {
     let metadata = fs::metadata(&path).unwrap_or_else(|err| {
         exit_with(
             &format!("Failed to read file metadata: {}", err),
@@ -40,7 +49,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, edit: bool, is_top_f
     });
 
     if metadata.is_file() {
-        copy_file(&path, import_dest, edit, true);
+        copy_file(&path, import_dest, config, edit, true);
     } else {
         let children_paths: Vec<DirEntry> = fs::read_dir(path)
             .unwrap_or_else(|err| {
@@ -91,32 +100,29 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, edit: bool, is_top_f
                         });
 
                     format!(
-                        "{}{}",
+                        "{}{}{}/{}",
                         import_dest,
-                        if ends_with_slash {
-                            format!("{}/{}", parent_name, child_name)
-                        } else {
-                            format!("/{}/{}", parent_name, child_name)
-                        }
+                        if ends_with_slash { "" } else { "/" },
+                        parent_name,
+                        child_name
                     )
                 } else {
                     format!(
-                        "{}{}",
+                        "{}{}{}",
                         import_dest,
-                        if ends_with_slash {
-                            child_name.to_string()
-                        } else {
-                            format!("/{}", child_name)
-                        }
+                        if ends_with_slash { "" } else { "/" },
+                        child_name
                     )
                 };
 
-                recursive_copy_folder(&child_path, &lockbook_child_path, edit, false);
+                recursive_copy_folder(&child_path, &lockbook_child_path, config, edit, false);
             }
-        } else if let Err(err) = create_file_at_path(&get_config(), &import_dest) {
+        } else if let Err(err) = create_file_at_path(config, &import_dest) {
             match err {
                 CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                    println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
+                    if !edit {
+                        println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
+                    }
                 }
                 CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
                 CoreError::UiError(CreateFileAtPathError::NoRoot) => exit_with("No root folder, have you synced yet?", NO_ROOT),
@@ -129,7 +135,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, edit: bool, is_top_f
     }
 }
 
-fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool) {
+fn copy_file(path: &PathBuf, import_dest: &str, config: &Config, edit: bool, is_folder_copy: bool) {
     let content_to_import = fs::read_to_string(&path);
     let absolute_path_maybe = fs::canonicalize(&path);
 
@@ -157,20 +163,20 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
                 import_dest.to_string()
             };
 
-            let file_metadata = match create_file_at_path(&get_config(), &import_dest_with_filename)
-            {
+            let file_metadata = match create_file_at_path(config, &import_dest_with_filename) {
                 Ok(file_metadata) => file_metadata,
                 Err(err) => match err {
                     CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
                         if edit {
-                            get_file_by_path(&get_config(), &import_dest_with_filename)
-                                .unwrap_or_else(|get_err| match get_err {
+                            get_file_by_path(config, &import_dest_with_filename).unwrap_or_else(
+                                |get_err| match get_err {
                                     CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
                                     | CoreError::Unexpected(_) => exit_with(
                                         &format!("Unexpected error: {:?}", get_err),
                                         UNEXPECTED_ERROR,
                                     ),
-                                })
+                                },
+                            )
                         } else if is_folder_copy {
                             return println!(
                                 "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!",
@@ -217,7 +223,7 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
                 },
             };
 
-            match write_document(&get_config(), file_metadata.id, content.as_bytes()) {
+            match write_document(config, file_metadata.id, content.as_bytes()) {
                 Ok(_) => {
                     if is_folder_copy {
                         println!("imported to {}", import_dest_with_filename)
@@ -234,8 +240,8 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
         (Err(content_err), _) => {
             if is_folder_copy {
                 println!(
-                    "Failed to read file from {}, OS error: {}",
-                    import_dest, content_err
+                    "Failed to read file from {:?}, OS error: {}",
+                    path, content_err
                 )
             } else {
                 exit_with(
@@ -247,8 +253,8 @@ fn copy_file(path: &PathBuf, import_dest: &str, edit: bool, is_folder_copy: bool
         (_, Err(path_err)) => {
             if is_folder_copy {
                 println!(
-                    "Failed to get absolute path from {}, OS error: {}",
-                    path_err, path_err
+                    "Failed to get absolute path from {:?}, OS error: {}",
+                    path, path_err
                 )
             } else {
                 exit_with(
