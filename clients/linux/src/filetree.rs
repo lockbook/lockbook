@@ -21,6 +21,7 @@ use uuid::Uuid;
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
 use crate::backend::LbCore;
+use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 
 #[macro_export]
@@ -132,39 +133,32 @@ impl FileTree {
         self.tree.get_selection().get_selected_rows()
     }
 
-    pub fn fill(&self, c: &LbCore, m: &Messenger) {
+    pub fn fill(&self, c: &LbCore) -> LbResult<()> {
         self.model.clear();
-        match c.root() {
-            Ok(root) => self.append_item(c, None, &root),
-            Err(err) => m.send_err("getting root", err),
-        }
+        let root = c.root()?;
+        self.append(c, None, &root)
     }
 
-    pub fn add(&self, b: &LbCore, f: &FileMetadata) {
+    pub fn add(&self, b: &LbCore, f: &FileMetadata) -> LbResult<()> {
         let mut file = f.clone();
         let mut parent_iter: Option<GtkTreeIter>;
         while {
             parent_iter = self.search(&self.iter(), &file.parent);
             parent_iter == None
         } {
-            file = match b.file_by_id(file.parent) {
-                Ok(meta) => meta,
-                Err(err) => {
-                    println!("{}", err.msg());
-                    return;
-                }
-            }
+            file = b.file_by_id(file.parent)?;
         }
 
         match parent_iter {
-            Some(iter) => self.append_item(b, Some(&iter), &file),
+            Some(iter) => self.append(b, Some(&iter), &file)?,
             None => panic!("no parent found, should have at least found root!"),
         }
 
         self.select(&f.id);
+        Ok(())
     }
 
-    pub fn append_item(&self, b: &LbCore, it: Option<&GtkTreeIter>, f: &FileMetadata) {
+    pub fn append(&self, b: &LbCore, it: Option<&GtkTreeIter>, f: &FileMetadata) -> LbResult<()> {
         let name = &f.name;
         let id = &f.id.to_string();
         let ftype = &format!("{:?}", f.file_type);
@@ -173,15 +167,13 @@ impl FileTree {
             .insert_with_values(it, None, &[0, 1, 2], &[name, id, ftype]);
 
         if f.file_type == FileType::Folder {
-            match b.children(f) {
-                Ok(files) => {
-                    for item in files {
-                        self.append_item(b, Some(&item_iter), &item);
-                    }
-                }
-                Err(err) => println!("{}", err.msg()),
+            let files = b.children(f)?;
+            for item in files {
+                self.append(b, Some(&item_iter), &item)?;
             }
         }
+
+        Ok(())
     }
 
     pub fn search(&self, iter: &GtkTreeIter, id: &Uuid) -> Option<GtkTreeIter> {

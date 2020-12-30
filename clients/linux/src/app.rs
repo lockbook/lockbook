@@ -7,7 +7,6 @@ use std::thread;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
-use glib::Receiver as GlibReceiver;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -49,21 +48,22 @@ pub struct LbApp {
 }
 
 impl LbApp {
-    pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp, m: Messenger) -> Self {
+    pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp) -> Self {
+        let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
+        let m = Messenger::new(sender);
+
         let gui = Gui::new(&a, &m, &s.borrow());
 
-        Self {
+        let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
             state: Rc::new(RefCell::new(LbState::default())),
             gui: Rc::new(gui),
             messenger: m,
-        }
-    }
+        };
 
-    pub fn attach_events(&self, r: GlibReceiver<Msg>) {
-        let lb = self.clone();
-        r.attach(None, move |msg| {
+        let lb = lb_app.clone();
+        receiver.attach(None, move |msg| {
             match msg {
                 Msg::CreateAccount(username) => lb.create_account(username),
                 Msg::ImportAccount(privkey) => lb.import_account(privkey),
@@ -95,13 +95,12 @@ impl LbApp {
             }
             glib::Continue(true)
         });
+
+        lb_app
     }
 
-    pub fn show(&self) {
-        match self.gui.show(&self.core, &self.messenger) {
-            Ok(_) => {},
-            Err(err) => self.err("displaying app", &err),
-        }
+    pub fn show(&self) -> LbResult<()> {
+        self.gui.show(&self.core)
     }
 
     fn create_account(&self, name: String) {
@@ -113,7 +112,11 @@ impl LbApp {
 
         let ch = make_glib_chan(move |result| {
             match result {
-                Ok(_) => gui.show_account_screen(&c, &m),
+                Ok(_) => {
+                    if let Err(err) = gui.show_account_screen(&c) {
+                        m.send_err("showing account screen", err);
+                    }
+                }
                 Err(err) => match err {
                     UserErr(err) => gui.intro.error_create(&err),
                     prog_err => m.send_err("creating account", prog_err),
@@ -141,7 +144,9 @@ impl LbApp {
                             LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
                             LbSyncMsg::Error(err) => m.send_err("syncing", err),
                             LbSyncMsg::Done => {
-                                gui.show_account_screen(&cc, &m);
+                                if let Err(err) = gui.show_account_screen(&cc) {
+                                    m.send_err("showing account screen", err);
+                                }
                                 gui.account.sync().set_status(&cc);
                             }
                         }
@@ -187,13 +192,13 @@ impl LbApp {
                 d.get_content_area().pack_start(&image_cntr, true, true, 8);
                 d.get_content_area().add(&btn_cntr);
                 d.set_resizable(false);
-                d.show_all()
+                d.show_all();
             }
             Err(err) => self.err("unable to export account", &err),
         }
 
         let m = self.messenger.clone();
-        let ch = make_glib_chan(move |res: LbResult<String>| {
+        let ch = make_glib_chan(move |res| {
             match res {
                 Ok(path) => {
                     let qr_image = GtkImage::from_file(&path);
@@ -206,7 +211,7 @@ impl LbApp {
         });
 
         let core = self.core.clone();
-        thread::spawn(move || core.account_qrcode(&ch));
+        thread::spawn(move || ch.send(core.account_qrcode()).unwrap());
     }
 
     fn perform_sync(&self) {
@@ -245,11 +250,13 @@ impl LbApp {
 
     fn new_file(&self, path: String) {
         match self.core.create_file_at_path(&path) {
-            Ok(file) => {
-                self.gui.account.add_file(&self.core, &file);
-                self.gui.account.sync().set_status(&self.core);
-                self.open_file(Some(file.id));
-            }
+            Ok(file) => match self.gui.account.add_file(&self.core, &file) {
+                Ok(_) => {
+                    self.gui.account.sync().set_status(&self.core);
+                    self.open_file(Some(file.id));
+                }
+                Err(err) => self.err("adding file to tree", &err),
+            },
             Err(err) => self.err("creating path", &err),
         }
     }
@@ -795,28 +802,29 @@ impl Gui {
         }
     }
 
-    fn show(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
+    fn show(&self, core: &LbCore) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(&core, &m);
+            self.show_account_screen(&core)
         } else {
-            self.show_intro_screen();
+            self.show_intro_screen()
         }
-        Ok(())
     }
 
-    fn show_intro_screen(&self) {
+    fn show_intro_screen(&self) -> LbResult<()> {
         self.menubar.for_intro_screen();
         self.intro.cntr.show_all();
         self.screens.set_visible_child_name("intro");
+        Ok(())
     }
 
-    fn show_account_screen(&self, core: &LbCore, m: &Messenger) {
+    fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core, &m);
+        self.account.fill(&core)?;
         self.account.tree().focus();
         self.screens.set_visible_child_name("account");
+        Ok(())
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {

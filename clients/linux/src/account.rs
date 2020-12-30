@@ -16,6 +16,7 @@ use lockbook_core::model::file_metadata::FileMetadata;
 
 use crate::backend::LbCore;
 use crate::editmode::EditMode;
+use crate::error::LbResult;
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
@@ -52,13 +53,14 @@ impl AccountScreen {
         }
     }
 
-    pub fn fill(&self, core: &LbCore, m: &Messenger) {
-        self.sidebar.fill(&core, m);
+    pub fn fill(&self, core: &LbCore) -> LbResult<()> {
+        self.sidebar.fill(&core)?;
         self.sidebar.sync.set_status(&core);
+        Ok(())
     }
 
-    pub fn add_file(&self, b: &LbCore, f: &FileMetadata) {
-        self.sidebar.tree.add(b, f);
+    pub fn add_file(&self, b: &LbCore, f: &FileMetadata) -> LbResult<()> {
+        self.sidebar.tree.add(b, f)
     }
 
     pub fn show(&self, mode: &EditMode) {
@@ -237,8 +239,8 @@ impl Sidebar {
         Self { tree, sync, cntr }
     }
 
-    fn fill(&self, core: &LbCore, m: &Messenger) {
-        self.tree.fill(core, m);
+    fn fill(&self, core: &LbCore) -> LbResult<()> {
+        self.tree.fill(core)
     }
 }
 
