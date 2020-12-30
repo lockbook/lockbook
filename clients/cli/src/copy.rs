@@ -87,35 +87,28 @@ fn recursive_copy_folder(
                         )
                     });
 
-                let ends_with_slash = import_dest.ends_with('/');
-                let lockbook_child_path = if is_top_folder {
-                    let parent_name = path
+                let import_dir = match import_dest.ends_with('/') {
+                    true => import_dest.to_string(),
+                    false => format!("{}/", import_dest),
+                };
+                let possible_parent_dir = if is_top_folder {
+                    let parent = path
                         .file_name()
-                        .and_then(|parent_name| parent_name.to_str())
+                        .and_then(|name| name.to_str())
                         .unwrap_or_else(|| {
                             exit_with(
                                 &format!("Failed to read parent name, OS path: {:?}", path),
                                 COULD_NOT_READ_OS_CHILDREN,
                             )
                         });
-
-                    format!(
-                        "{}{}{}/{}",
-                        import_dest,
-                        if ends_with_slash { "" } else { "/" },
-                        parent_name,
-                        child_name
-                    )
+                    format!("{}/", parent)
                 } else {
-                    format!(
-                        "{}{}{}",
-                        import_dest,
-                        if ends_with_slash { "" } else { "/" },
-                        child_name
-                    )
+                    "".to_string()
                 };
 
-                recursive_copy_folder(&child_path, &lockbook_child_path, config, edit, false);
+                let lb_child_path = format!("{}{}{}", import_dir, possible_parent_dir, child_name);
+
+                recursive_copy_folder(&child_path, &lb_child_path, config, edit, false);
             }
         } else if let Err(err) = create_file_at_path(config, &import_dest) {
             match err {
