@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
@@ -106,7 +108,7 @@ impl AccountScreen {
         }
     }
 
-    pub fn sync(&self) -> &SyncPanel {
+    pub fn sync(&self) -> &Rc<SyncPanel> {
         &self.sidebar.sync
     }
 
@@ -223,14 +225,14 @@ impl Header {
 
 pub struct Sidebar {
     tree: FileTree,
-    sync: SyncPanel,
+    sync: Rc<SyncPanel>,
     cntr: GtkBox,
 }
 
 impl Sidebar {
     fn new(m: &Messenger, s: &Settings) -> Self {
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
-        let sync = SyncPanel::new(&m);
+        let sync = Rc::new(SyncPanel::new(&m));
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.pack_start(tree.widget(), true, true, 0);

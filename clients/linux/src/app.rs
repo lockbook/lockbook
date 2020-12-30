@@ -224,19 +224,16 @@ impl LbApp {
 
     fn perform_sync(&self) {
         let core = self.core.clone();
-        let acctscr = self.gui.account.clone();
-        acctscr.sync().set_syncing(true);
+        let sync_ui = self.gui.account.sync().clone();
+        sync_ui.set_syncing(true);
 
         let ch = make_glib_chan(move |msg| {
-            let sync_ui = acctscr.sync();
-
             if let Some(msg) = msg {
                 sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
                 sync_ui.set_status(&core);
             }
-
             glib::Continue(true)
         });
 
