@@ -20,6 +20,12 @@ pub fn human_readable_bytes(v: u64) -> String {
     format!("{:.3} {}B", v as f64 / unit as f64, abbr)
 }
 
+pub fn make_glib_chan<T, F: FnMut(T) -> glib::Continue + 'static>(func: F) -> glib::Sender<T> {
+    let (s, r) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
+    r.attach(None, func);
+    s
+}
+
 pub mod gui {
     use gtk::prelude::ButtonExt;
     use gtk::prelude::ContainerExt;

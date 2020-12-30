@@ -109,7 +109,7 @@ impl LbApp {
         let c = self.core.clone();
         let m = self.messenger.clone();
 
-        let ch = make_glib_chan(move |result| {
+        let ch = util::make_glib_chan(move |result| {
             match result {
                 Ok(_) => {
                     if let Err(err) = gui.show_account_screen(&c) {
@@ -135,7 +135,7 @@ impl LbApp {
         let core = self.core.clone();
         let msngr = self.messenger.clone();
 
-        let import_chan = make_glib_chan(move |result: LbResult<()>| {
+        let import_chan = util::make_glib_chan(move |result: LbResult<()>| {
             if let Err(err) = result {
                 gui.intro.error_import(err.msg());
             } else {
@@ -143,7 +143,7 @@ impl LbApp {
                 let c = core.clone();
                 let m = msngr.clone();
 
-                let sync_chan = make_glib_chan(move |msg| {
+                let sync_chan = util::make_glib_chan(move |msg| {
                     if let Some(msg) = msg {
                         gui.intro.sync_progress(&msg)
                     } else {
@@ -208,7 +208,7 @@ impl LbApp {
         }
 
         let m = self.messenger.clone();
-        let ch = make_glib_chan(move |res| {
+        let ch = util::make_glib_chan(move |res| {
             match res {
                 Ok(path) => {
                     let qr_image = GtkImage::from_file(&path);
@@ -229,7 +229,7 @@ impl LbApp {
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
-        let ch = make_glib_chan(move |msg| {
+        let ch = util::make_glib_chan(move |msg| {
             if let Some(msg) = msg {
                 sync_ui.sync_progress(&msg);
             } else {
@@ -321,7 +321,7 @@ impl LbApp {
                 let core = self.core.clone();
                 let m = self.messenger.clone();
 
-                let ch = make_glib_chan(move |result: LbResult<()>| {
+                let ch = util::make_glib_chan(move |result: LbResult<()>| {
                     match result {
                         Ok(_) => {
                             acctscr.set_saving(false);
@@ -905,12 +905,6 @@ fn usage(usage: u64, limit: f64) -> GtkBox {
     cntr.add(&lbl);
     cntr.add(&pbar);
     cntr
-}
-
-fn make_glib_chan<T, F: FnMut(T) -> glib::Continue + 'static>(func: F) -> glib::Sender<T> {
-    let (s, r) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
-    r.attach(None, func);
-    s
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
