@@ -145,7 +145,7 @@ impl LbApp {
 
                 let sync_chan = make_glib_chan(move |msg| {
                     if let Some(msg) = msg {
-                        gui.intro.sync_progress(&msg),
+                        gui.intro.sync_progress(&msg)
                     } else {
                         if let Err(err) = gui.show_account_screen(&c) {
                             m.send_err("showing account screen", err);
@@ -167,7 +167,12 @@ impl LbApp {
         });
 
         let c = self.core.clone();
-        thread::spawn(move || import_chan.send(c.import_account(&privkey)).unwrap());
+        let m = self.messenger.clone();
+        thread::spawn(move || {
+            if let Err(err) = import_chan.send(c.import_account(&privkey)) {
+                m.send_err("sending import result", LbError::fmt_program_err(err));
+            }
+        });
     }
 
     fn export_account(&self) {
