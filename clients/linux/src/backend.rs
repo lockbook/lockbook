@@ -70,9 +70,11 @@ fn api_url() -> String {
     env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
 }
 
-pub enum LbSyncMsg {
-    Doing(WorkUnit, String, usize, usize),
-    Done,
+pub struct LbSyncMsg {
+    pub work: WorkUnit,
+    pub path: String,
+    pub index: usize,
+    pub total: usize,
 }
 
 pub struct LbCore {
@@ -232,7 +234,7 @@ impl LbCore {
         ))
     }
 
-    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
+    pub fn sync(&self, ch: &GlibSender<Option<LbSyncMsg>>) -> LbResult<()> {
         let acct_lock = lock!(self.account, read)?;
         let acct = account!(acct_lock)?;
 
@@ -245,8 +247,14 @@ impl LbCore {
 
             for (i, wu) in work.work_units.iter().enumerate() {
                 let path = self.full_path_for(&wu.get_metadata());
-                chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
-                    .unwrap();
+                let data = LbSyncMsg {
+                    work: wu.clone(),
+                    path,
+                    index: i + 1,
+                    total,
+                };
+                ch.send(Some(data))
+                    .map_err(|err| LbError::Program(format!("{:?}", err)))?;
 
                 self.do_work(&acct, wu)?;
             }
@@ -254,8 +262,8 @@ impl LbCore {
             self.set_last_synced(work.most_recent_update_from_server)?;
         }
 
-        chan.send(LbSyncMsg::Done).unwrap();
-        Ok(())
+        ch.send(None)
+            .map_err(|err| LbError::Program(format!("{:?}", err)))
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {

@@ -132,28 +132,38 @@ impl LbApp {
     fn import_account(&self, privkey: String) {
         self.gui.intro.doing("Importing account...");
 
-        let (gui, c, m) = (self.gui.clone(), self.core.clone(), self.messenger.clone());
+        let gui = self.gui.clone();
+        let core = self.core.clone();
+        let msngr = self.messenger.clone();
 
         let import_chan = make_glib_chan(move |result: LbResult<_>| {
             match result {
                 Ok(_) => {
-                    let (gui, cc, m) = (gui.clone(), c.clone(), m.clone());
+                    let c = core.clone();
+                    let m = msngr.clone();
+                    let gui = gui.clone();
 
-                    let sync_chan = make_glib_chan(move |msg| {
+                    let sync_chan = make_glib_chan(move |msg: Option<LbSyncMsg>| {
                         match msg {
-                            LbSyncMsg::Doing(_, path, i, n) => gui.intro.doing_status(&path, i, n),
-                            LbSyncMsg::Done => {
-                                if let Err(err) = gui.show_account_screen(&cc) {
+                            Some(msg) => gui.intro.doing_status(&msg.path, msg.index, msg.total),
+                            None => {
+                                if let Err(err) = gui.show_account_screen(&c) {
                                     m.send_err("showing account screen", err);
                                 }
-                                gui.account.sync().set_status(&cc);
+                                gui.account.sync().set_status(&c);
                             }
                         }
                         glib::Continue(true)
                     });
 
-                    let c = c.clone();
-                    thread::spawn(move || c.sync(&sync_chan));
+                    let c = core.clone();
+                    let m = msngr.clone();
+
+                    thread::spawn(move || {
+                        if let Err(err) = c.sync(&sync_chan) {
+                            m.send_err("syncing", err);
+                        }
+                    });
                 }
                 Err(err) => gui.intro.error_import(err.msg()),
             }
@@ -218,26 +228,29 @@ impl LbApp {
         let acctscr = self.gui.account.clone();
         acctscr.sync().set_syncing(true);
 
-        let ch = make_glib_chan(move |msg| {
+        let ch = make_glib_chan(move |msg: Option<LbSyncMsg>| {
             let sync_ui = acctscr.sync();
-            match msg {
-                LbSyncMsg::Doing(work, path, i, total) => {
-                    let prefix = match work {
-                        WorkUnit::LocalChange { metadata: _ } => "Pushing",
-                        WorkUnit::ServerChange { metadata: _ } => "Pulling",
-                    };
-                    sync_ui.doing(&format!("{}: {} ({}/{})", prefix, path, i, total));
-                }
-                LbSyncMsg::Done => {
-                    sync_ui.set_syncing(false);
-                    sync_ui.set_status(&core);
-                }
+
+            if let Some(msg) = msg {
+                let prefix = match msg.work {
+                    WorkUnit::LocalChange { metadata: _ } => "Pushing",
+                    WorkUnit::ServerChange { metadata: _ } => "Pulling",
+                };
+                sync_ui.doing(&format!(
+                    "{}: {} ({}/{})",
+                    prefix, msg.path, msg.index, msg.total
+                ));
+            } else {
+                sync_ui.set_syncing(false);
+                sync_ui.set_status(&core);
             }
+
             glib::Continue(true)
         });
 
         let c = self.core.clone();
         let m = self.messenger.clone();
+
         thread::spawn(move || {
             if let Err(err) = c.sync(&ch) {
                 m.send_err("syncing", err);
