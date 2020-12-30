@@ -246,24 +246,21 @@ impl LbCore {
             let total = work.work_units.len();
 
             for (i, wu) in work.work_units.iter().enumerate() {
-                let path = self.full_path_for(&wu.get_metadata());
                 let data = LbSyncMsg {
                     work: wu.clone(),
-                    path,
+                    path: self.full_path_for(&wu.get_metadata()),
                     index: i + 1,
                     total,
                 };
-                ch.send(Some(data))
-                    .map_err(|err| LbError::Program(format!("{:?}", err)))?;
 
+                ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
                 self.do_work(&acct, wu)?;
             }
 
             self.set_last_synced(work.most_recent_update_from_server)?;
         }
 
-        ch.send(None)
-            .map_err(|err| LbError::Program(format!("{:?}", err)))
+        ch.send(None).map_err(LbError::fmt_program_err)
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
