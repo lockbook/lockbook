@@ -40,6 +40,12 @@
         <item name="android:focusable">true</item>
     </style>
 
+    <style name="Main.DrawingButton" parent="Widget.MaterialComponents.ExtendedFloatingActionButton">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:layout_margin">10dp</item>
+    </style>
+
     <style name="Main.Toolbar">
         <item name="backgroundColor">@color/windowBackground</item>
     </style>
