@@ -13,8 +13,9 @@ use sourceview::Buffer as GtkSourceViewBuffer;
 use sourceview::View as GtkSourceView;
 
 use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::model::work_unit::WorkUnit;
 
-use crate::backend::LbCore;
+use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::LbResult;
 use crate::filetree::FileTree;
@@ -313,8 +314,13 @@ impl SyncPanel {
         }
     }
 
-    pub fn doing(&self, work: &str) {
-        self.status.set_text(work);
+    pub fn sync_progress(&self, s: &LbSyncMsg) {
+        let prefix = match s.work {
+            WorkUnit::LocalChange { metadata: _ } => "Pushing",
+            WorkUnit::ServerChange { metadata: _ } => "Pulling",
+        };
+        let txt = &format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total);
+        self.status.set_text(txt);
     }
 }
 

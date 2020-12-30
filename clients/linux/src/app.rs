@@ -24,10 +24,9 @@ use gtk::{
 use uuid::Uuid;
 
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
-use lockbook_core::model::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
-use crate::backend::{LbCore, LbSyncMsg};
+use crate::backend::LbCore;
 use crate::editmode::EditMode;
 use crate::error::{LbError, LbError::User as UserErr, LbResult};
 use crate::filetree::FileTreeCol;
@@ -139,13 +138,13 @@ impl LbApp {
         let import_chan = make_glib_chan(move |result: LbResult<_>| {
             match result {
                 Ok(_) => {
+                    let gui = gui.clone();
                     let c = core.clone();
                     let m = msngr.clone();
-                    let gui = gui.clone();
 
-                    let sync_chan = make_glib_chan(move |msg: Option<LbSyncMsg>| {
+                    let sync_chan = make_glib_chan(move |msg| {
                         match msg {
-                            Some(msg) => gui.intro.doing_status(&msg.path, msg.index, msg.total),
+                            Some(msg) => gui.intro.sync_progress(&msg),
                             None => {
                                 if let Err(err) = gui.show_account_screen(&c) {
                                     m.send_err("showing account screen", err);
@@ -228,18 +227,11 @@ impl LbApp {
         let acctscr = self.gui.account.clone();
         acctscr.sync().set_syncing(true);
 
-        let ch = make_glib_chan(move |msg: Option<LbSyncMsg>| {
+        let ch = make_glib_chan(move |msg| {
             let sync_ui = acctscr.sync();
 
             if let Some(msg) = msg {
-                let prefix = match msg.work {
-                    WorkUnit::LocalChange { metadata: _ } => "Pushing",
-                    WorkUnit::ServerChange { metadata: _ } => "Pulling",
-                };
-                sync_ui.doing(&format!(
-                    "{}: {} ({}/{})",
-                    prefix, msg.path, msg.index, msg.total
-                ));
+                sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
                 sync_ui.set_status(&core);
