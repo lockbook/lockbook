@@ -60,7 +60,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
     if path.is_file() {
         match copy_file(&path, import_dest, config, edit) {
             Ok(msg) => println!("{}", msg),
-            Err(err) => println!("{}", err.msg),
+            Err(err) => eprintln!("{}", err.msg),
         }
     } else {
         let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
@@ -90,13 +90,13 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                 CoreError::UiError(err) => match err {
                     CreateFileAtPathError::FileAlreadyExists => {
                         if !edit {
-                            println!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
+                            eprintln!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
                         }
                     }
                     CreateFileAtPathError::NoAccount => exit_with_no_account(),
                     CreateFileAtPathError::NoRoot => exit_with_no_root(),
-                    CreateFileAtPathError::DocumentTreatedAsFolder => println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
-                    CreateFileAtPathError::PathContainsEmptyFile => println!("Input destination {} contains an empty file!", import_dest),
+                    CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
+                    CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
                     CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
                 }
                 CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
